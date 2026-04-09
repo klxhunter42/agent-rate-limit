@@ -76,7 +76,7 @@ public class GeographicRateLimitController {
         @ApiResponse(responseCode = "200", description = "Rule removed successfully"),
         @ApiResponse(responseCode = "404", description = "Rule not found")
     })
-    public ResponseEntity<String> removeRule(@Parameter(description = "Rule ID to remove") @PathVariable String ruleId) {
+    public ResponseEntity<String> removeRule(@Parameter(description = "Rule ID to remove") @PathVariable("ruleId") String ruleId) {
         boolean removed = geographicConfigResolver.removeGeographicRule(ruleId);
         if (removed) {
             return ResponseEntity.ok("Geographic rule removed successfully: " + ruleId);
