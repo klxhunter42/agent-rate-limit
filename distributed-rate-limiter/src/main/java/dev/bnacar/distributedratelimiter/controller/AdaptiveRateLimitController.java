@@ -59,7 +59,7 @@ public class AdaptiveRateLimitController {
     )
     public ResponseEntity<AdaptiveStatus> getAdaptiveStatus(
             @Parameter(description = "Rate limit key", required = true)
-            @PathVariable String key) {
+            @PathVariable("key") String key) {
         
         logger.debug("Getting adaptive status for key: {}", key);
         
@@ -98,7 +98,7 @@ public class AdaptiveRateLimitController {
     )
     public ResponseEntity<Void> overrideAdaptation(
             @Parameter(description = "Rate limit key", required = true)
-            @PathVariable String key,
+            @PathVariable("key") String key,
             @Valid @RequestBody AdaptationOverrideRequest override) {
         
         logger.info("Setting manual override for key {}: capacity={}, refillRate={}", 
@@ -126,7 +126,7 @@ public class AdaptiveRateLimitController {
     )
     public ResponseEntity<Void> removeOverride(
             @Parameter(description = "Rate limit key", required = true)
-            @PathVariable String key) {
+            @PathVariable("key") String key) {
         
         logger.info("Removing manual override for key: {}", key);
         
