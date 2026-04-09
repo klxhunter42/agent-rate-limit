@@ -116,7 +116,7 @@ services:
 
   # --- Dragonfly (Redis-compatible) ---
   arl-dragonfly:
-    image: dragonflydb/dragonfly:v1.37.2
+    image: ghcr.io/dragonflydb/dragonfly:v1.37.2
     container_name: arl-dragonfly
     restart: always
     expose:
