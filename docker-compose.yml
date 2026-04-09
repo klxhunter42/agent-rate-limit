@@ -1,0 +1,328 @@
+# =============================================================================
+# Multi-Agent AI Rate-Limited System - Production Docker Compose
+# Architecture: Client -> API Gateway (Go) -> Rate Limiter -> Dragonfly -> Python Workers -> AI Provider
+#
+# External ports:  arl-gateway (8080), arl-grafana (3000), arl-rl-dashboard (8081)
+# Internal only:   arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
+# =============================================================================
+
+version: "3.9"
+
+x-common-env: &common-env
+  REDIS_ADDR: arl-dragonfly:6379
+  RATE_LIMITER_ADDR: http://arl-rate-limiter:8080
+  QUEUE_NAME: ai_jobs
+  OTLP_ENDPOINT: arl-otel:4317
+
+services:
+  # --- API Gateway (Go) ---
+  arl-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: arl-gateway
+    restart: always
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      <<: *common-env
+      SERVER_PORT: ":8080"
+      GLOBAL_RATE_LIMIT: ${GLOBAL_RATE_LIMIT:-100}
+      AGENT_RATE_LIMIT: ${AGENT_RATE_LIMIT:-5}
+      WORKER_POOL_SIZE: ${WORKER_POOL_SIZE:-100}
+      REDIS_POOL_SIZE: "50"
+      REDIS_MIN_IDLE_CONNS: "10"
+      UPSTREAM_URL: ${UPSTREAM_URL:-https://api.z.ai/api/anthropic}
+      STREAM_TIMEOUT: ${STREAM_TIMEOUT:-300s}
+      UPSTREAM_MODEL_LIMITS: ${UPSTREAM_MODEL_LIMITS:-glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3}
+      UPSTREAM_DEFAULT_LIMIT: ${UPSTREAM_DEFAULT_LIMIT:-1}
+      UPSTREAM_GLOBAL_LIMIT: ${UPSTREAM_GLOBAL_LIMIT:-9}
+      UPSTREAM_MAX_RETRIES: ${UPSTREAM_MAX_RETRIES:-3}
+      UPSTREAM_RETRY_BACKOFF: ${UPSTREAM_RETRY_BACKOFF:-500ms}
+      ENABLE_PROMPT_INJECTION: ${ENABLE_PROMPT_INJECTION:-true}
+      ENABLE_RESPONSE_TRIM: ${ENABLE_RESPONSE_TRIM:-true}
+      ENABLE_SMART_MAX_TOKENS: ${ENABLE_SMART_MAX_TOKENS:-true}
+      PROMPT_INJECTION_TEXT: ${PROMPT_INJECTION_TEXT:-}
+      UPSTREAM_API_KEYS: ${UPSTREAM_API_KEYS:-}
+      UPSTREAM_RPM_LIMIT: ${UPSTREAM_RPM_LIMIT:-40}
+    depends_on:
+      arl-dragonfly:
+        condition: service_healthy
+      arl-rate-limiter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - arl-network
+
+  # --- Rate Limiter (Java / Spring Boot) ---
+  arl-rate-limiter:
+    build:
+      context: ./distributed-rate-limiter
+      dockerfile: Dockerfile
+    container_name: arl-rate-limiter
+    restart: always
+    expose:
+      - "8080"
+    environment:
+      SPRING_DATA_REDIS_HOST: arl-dragonfly
+      SPRING_DATA_REDIS_PORT: 6379
+      RATELIMITER_CAPACITY: ${RATE_LIMITER_CAPACITY:-1000}
+      RATELIMITER_REFILL_RATE: ${RATE_LIMITER_REFILL_RATE:-100}
+      RATELIMITER_REFILL_PERIOD_SECONDS: 1
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8080
+      JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication"
+    depends_on:
+      arl-dragonfly:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - arl-network
+
+  # --- Dragonfly (Redis-compatible) ---
+  arl-dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.37.2
+    container_name: arl-dragonfly
+    restart: always
+    expose:
+      - "6379"
+    command:
+      - "--maxmemory=${DRAGONFLY_MAX_MEMORY:-2gb}"
+      - "--proactor_threads=4"
+      - "--cache_mode=true"
+      - "--tcp_keepalive=60"
+      - "--pipeline_squash=10"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - arl-dragonfly-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
+
+  # --- AI Worker (Python) ---
+  arl-worker:
+    build:
+      context: ./ai-worker
+      dockerfile: Dockerfile
+    container_name: arl-worker
+    restart: always
+    expose:
+      - "9090"
+      - "9091"
+    environment:
+      <<: *common-env
+      REDIS_URL: redis://arl-dragonfly:6379
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-50}
+      MAX_RETRIES: ${MAX_RETRIES:-3}
+      BASE_BACKOFF: ${BASE_BACKOFF:-1.0}
+      RESULT_TTL: ${RESULT_TTL:-600}
+      METRICS_PORT: "9090"
+      GLM_API_KEYS: ${GLM_API_KEYS:-}
+      GLM_ENDPOINT: ${GLM_ENDPOINT:-https://api.z.ai/api/anthropic}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS:-}
+      ANTHROPIC_API_KEYS: ${ANTHROPIC_API_KEYS:-}
+      GEMINI_API_KEYS: ${GEMINI_API_KEYS:-}
+      OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS:-}
+      UPSTREAM_MODEL_LIMITS: ${UPSTREAM_MODEL_LIMITS:-glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3}
+      UPSTREAM_DEFAULT_LIMIT: ${UPSTREAM_DEFAULT_LIMIT:-1}
+      UPSTREAM_GLOBAL_LIMIT: ${UPSTREAM_GLOBAL_LIMIT:-9}
+      PROVIDER_RPM_LIMITS: ${PROVIDER_RPM_LIMITS:-glm:5}
+    depends_on:
+      arl-dragonfly:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/metrics-internal"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - arl-network
+
+  # --- Prometheus ---
+  arl-prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: arl-prometheus
+    restart: always
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - arl-prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.size=2GB"
+      - "--storage.tsdb.wal-compression"
+      - "--web.enable-lifecycle"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
+
+  # --- Grafana ---
+  arl-grafana:
+    image: grafana/grafana:11.3.0
+    container_name: arl-grafana
+    restart: always
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-klxhunter}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_LOG_LEVEL: "warn"
+    volumes:
+      - arl-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - arl-prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
+
+  # --- OpenTelemetry Collector ---
+  arl-otel:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    container_name: arl-otel
+    restart: always
+    expose:
+      - "4317"
+      - "4318"
+      - "8889"
+    volumes:
+      - ./otel/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
+
+  # --- Rate Limiter Dashboard (React) ---
+  arl-rl-dashboard:
+    build:
+      context: ./distributed-rate-limiter/examples/web-dashboard
+      dockerfile: Dockerfile
+    container_name: arl-rl-dashboard
+    restart: always
+    ports:
+      - "8081:8080"
+    depends_on:
+      arl-rate-limiter:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+        reservations:
+          memory: 32M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
+
+networks:
+  arl-network:
+    driver: bridge
+
+volumes:
+  arl-dragonfly-data:
+  arl-prometheus-data:
+  arl-grafana-data:

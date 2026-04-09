@@ -1,0 +1,177 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "System Architecture",
+      "type": "text",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Multi-Agent AI Rate-Limited System\n\n**Traffic Flow:** Client -> API Gateway (Go) -> Rate Limiter (Java) -> Dragonfly (Redis) -> AI Worker (Python) -> AI Provider\n\n**Sync Mode:** `POST /v1/messages` - Transparent Anthropic proxy (Claude Code)\n**Async Mode:** `POST /v1/chat/completions` - Queue-based (Batch agents)"
+      }
+    },
+    {
+      "title": "API Gateway - Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "rate(api_gateway_request_latency_seconds_count[5m])",
+          "legendFormat": "{{method}} {{path}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "title": "API Gateway - Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Active Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "api_gateway_active_connections", "legendFormat": "Connections", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 80 }] } } }
+    },
+    {
+      "title": "Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 12 },
+      "targets": [
+        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway Queue", "refId": "A" },
+        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker Queue", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] } } }
+    },
+    {
+      "title": "Active AI Workers",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "ai_worker_active", "legendFormat": "Workers", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } }
+    },
+    {
+      "title": "Rate Limit Hits",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 12 },
+      "targets": [
+        { "expr": "sum(api_gateway_rate_limit_hits_total)", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "sum(ai_worker_rate_limit_hits_total)", "legendFormat": "Worker", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } } }
+    },
+    {
+      "title": "AI Worker - Job Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "rate(ai_worker_jobs_processed_total[5m])", "legendFormat": "Processed/s", "refId": "A" },
+        { "expr": "rate(ai_worker_jobs_failed_total[5m])", "legendFormat": "Failed/s", "refId": "B" },
+        { "expr": "rate(ai_worker_jobs_retried_total[5m])", "legendFormat": "Retried/s", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "AI Worker - Provider Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, rate(ai_worker_provider_latency_seconds_bucket[5m]))", "legendFormat": "{{provider}} p95", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Rate Limit Hits Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "rate(api_gateway_rate_limit_hits_total[5m])", "legendFormat": "Gateway {{key}}", "refId": "A" },
+        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "Worker {{provider}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_429_total[5m])", "legendFormat": "429s/s", "refId": "A" },
+        { "expr": "rate(api_gateway_upstream_retries_total[5m])", "legendFormat": "Retries/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Token Usage by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        { "expr": "rate(api_gateway_token_input_total[5m])", "legendFormat": "{{model}} input", "refId": "A" },
+        { "expr": "rate(api_gateway_token_output_total[5m])", "legendFormat": "{{model}} output", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Gateway Errors by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        { "expr": "rate(api_gateway_error_total[5m])", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Rate Limiter - HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{uri!~\"/actuator.*\"}[5m])",
+          "legendFormat": "{{method}} {{uri}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Rate Limiter - JVM Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "Heap Used", "refId": "A" },
+        { "expr": "jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "Heap Max", "refId": "B" },
+        { "expr": "jvm_memory_used_bytes{area=\"nonheap\"}", "legendFormat": "Non-Heap Used", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["agent-rate-limit", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Agent Rate Limit - System Overview",
+  "uid": "arl-overview",
+  "version": 2
+}

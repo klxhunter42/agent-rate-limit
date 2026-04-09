@@ -1,0 +1,192 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Cost Calculator - AI API Usage",
+      "type": "text",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## AI API Cost Estimator\nEstimate costs based on request volume, provider, and model pricing.\n\n| Provider | Model | Input (per 1M tokens) | Output (per 1M tokens) |\n|----------|-------|----------------------|------------------------|\n| GLM/Z.ai | glm-5 | $0.50 | $1.50 |\n| OpenAI | gpt-4o | $2.50 | $10.00 |\n| Anthropic | claude-sonnet-4-6 | $3.00 | $15.00 |\n| Gemini | gemini-2.0-flash | $0.10 | $0.40 |\n| OpenRouter | varies | varies | varies |"
+      }
+    },
+    {
+      "title": "Total Requests (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 3 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[24h]))", "legendFormat": "Sync", "refId": "A" },
+        { "expr": "sum(increase(ai_worker_jobs_processed_total[24h]))", "legendFormat": "Async", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Requests/hour (avg)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 3 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[1h])) * 3600", "legendFormat": "Sync req/h", "refId": "A" },
+        { "expr": "sum(rate(ai_worker_jobs_processed_total[1h])) * 3600", "legendFormat": "Async req/h", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "req/h" } }
+    },
+    {
+      "title": "Actual Input Tokens (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_token_input_total[24h])) > 0 or on() sum(increase(ai_worker_jobs_processed_total[24h])) * 500",
+          "legendFormat": "Input tokens",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } } }
+    },
+    {
+      "title": "Actual Output Tokens (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 3 },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_token_output_total[24h])) > 0 or on() sum(increase(ai_worker_jobs_processed_total[24h])) * 200",
+          "legendFormat": "Output tokens",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } } }
+    },
+    {
+      "title": "Request Volume Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        { "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_count{path=~\"/v1/.*\"}[5m])) * 3600", "legendFormat": "{{path}} req/h", "refId": "A" },
+        { "expr": "rate(ai_worker_jobs_processed_total[5m]) * 3600", "legendFormat": "{{provider}} jobs/h", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "req/h", "custom": { "fillOpacity": 15 } } }
+    },
+    {
+      "title": "Est. Daily Cost by Provider",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        {
+          "expr": "sum(increase(ai_worker_jobs_processed_total{provider=\"glm\"}[24h])) * 500 / 1000000 * 0.5",
+          "legendFormat": "GLM Input",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(ai_worker_jobs_processed_total{provider=\"glm\"}[24h])) * 200 / 1000000 * 1.5",
+          "legendFormat": "GLM Output",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 } },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "groupWidth": 0.7 }
+    },
+    {
+      "title": "Rate Limit Protection",
+      "type": "text",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 15 },
+      "options": {
+        "mode": "markdown",
+        "content": "### Rate Limit Protection\nRequests blocked by rate limiter = **cost savings** from preventing runaway API usage.\nWithout rate limiting, a single agent could consume the entire budget in minutes."
+      }
+    },
+    {
+      "title": "Rate Limited Requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "expr": "rate(api_gateway_rate_limit_hits_total[5m]) * 3600",
+          "legendFormat": "Gateway {{key}} req/h",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(ai_worker_rate_limit_hits_total[5m]) * 3600",
+          "legendFormat": "Worker {{provider}} req/h",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "req/h", "color": { "fixedColor": "orange", "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        {
+          "expr": "rate(api_gateway_upstream_429_total[5m]) * 3600",
+          "legendFormat": "429s/h",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(api_gateway_upstream_retries_total[5m]) * 3600",
+          "legendFormat": "Retries/h",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "req/h", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Retry Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "targets": [
+        {
+          "expr": "rate(ai_worker_jobs_retried_total[5m])",
+          "legendFormat": "Retries/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(ai_worker_jobs_failed_total[5m])",
+          "legendFormat": "Failures/s",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Provider Error Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(ai_worker_provider_errors_total[5m]))",
+          "legendFormat": "{{provider}} errors/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "errors/s" } }
+    },
+    {
+      "title": "Queue Depth (Backlog Cost Indicator)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
+      "targets": [
+        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway Queue", "refId": "A" },
+        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker Queue", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 15 },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["agent-rate-limit", "cost"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "Cost Calculator & Savings",
+  "uid": "arl-cost",
+  "version": 2
+}
