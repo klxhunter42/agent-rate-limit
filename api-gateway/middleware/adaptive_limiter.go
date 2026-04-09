@@ -48,13 +48,23 @@ type adaptiveModel struct {
 
 // ModelStatus is a snapshot for the /v1/limiter-status endpoint.
 type ModelStatus struct {
-	Name       string `json:"name"`
-	InFlight   int64  `json:"in_flight"`
-	Limit      int64  `json:"limit"`
-	MaxLimit   int64  `json:"max_limit"`
-	TotalReqs  int64  `json:"total_requests"`
-	Total429s  int64  `json:"total_429s"`
-	MinRTTMs   int64  `json:"min_rtt_ms"`
+	Name      string `json:"name"`
+	InFlight  int64  `json:"in_flight"`
+	Limit     int64  `json:"limit"`
+	MaxLimit  int64  `json:"max_limit"`
+	TotalReqs int64  `json:"total_requests"`
+	Total429s int64  `json:"total_429s"`
+	MinRTTMs  int64  `json:"min_rtt_ms"`
+}
+
+// modelPriority defines fallback order (higher = preferred).
+// Newer models should be tried first before falling back to older ones.
+var modelPriority = map[string]int{
+	"glm-5.1":     100,
+	"glm-5-turbo": 90,
+	"glm-5":       80,
+	"glm-4.7":     70,
+	"glm-4.6":     60,
 }
 
 // NewAdaptiveLimiter creates an adaptive concurrency limiter.
@@ -81,7 +91,18 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *A
 			"max_limit", max,
 		)
 	}
-	sort.Strings(names)
+	// Sort by priority (newer models first) instead of alphabetically.
+	sort.Slice(names, func(i, j int) bool {
+		pi, ok := modelPriority[names[i]]
+		if !ok {
+			pi = 0
+		}
+		pj, ok := modelPriority[names[j]]
+		if !ok {
+			pj = 0
+		}
+		return pi > pj
+	})
 
 	dm := &adaptiveModel{name: "_default", minLimit: 1, maxLimit: int64(defaultLimit)}
 	dm.limit.Store(int64(defaultLimit))
@@ -120,7 +141,7 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 		return requestedModel
 	}
 
-	// Requested model full — try fallbacks (non-blocking).
+	// Requested model full — try fallbacks by priority (non-blocking).
 	for _, fb := range al.fallbackOrder {
 		if fb == requestedModel {
 			continue
