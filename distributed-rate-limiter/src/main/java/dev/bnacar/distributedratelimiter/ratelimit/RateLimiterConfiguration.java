@@ -1,0 +1,137 @@
+package dev.bnacar.distributedratelimiter.ratelimit;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.Map;
+import java.util.HashMap;
+
+@Configuration
+@ConfigurationProperties(prefix = "ratelimiter")
+public class RateLimiterConfiguration {
+    
+    // Default configuration
+    private int capacity = 10;
+    private int refillRate = 2;
+    private long cleanupIntervalMs = 60000; // 60 seconds
+    private RateLimitAlgorithm algorithm = RateLimitAlgorithm.TOKEN_BUCKET;
+    
+    // Per-key overrides: key -> config properties
+    private Map<String, KeyConfig> keys = new HashMap<>();
+    
+    // Pattern-based configurations: pattern -> config properties
+    private Map<String, KeyConfig> patterns = new HashMap<>();
+    
+    public static class KeyConfig {
+        private int capacity;
+        private int refillRate;
+        private Long cleanupIntervalMs;
+        private RateLimitAlgorithm algorithm;
+        
+        public int getCapacity() {
+            return capacity;
+        }
+        
+        public void setCapacity(int capacity) {
+            this.capacity = capacity;
+        }
+        
+        public int getRefillRate() {
+            return refillRate;
+        }
+        
+        public void setRefillRate(int refillRate) {
+            this.refillRate = refillRate;
+        }
+        
+        public Long getCleanupIntervalMs() {
+            return cleanupIntervalMs;
+        }
+        
+        public void setCleanupIntervalMs(Long cleanupIntervalMs) {
+            this.cleanupIntervalMs = cleanupIntervalMs;
+        }
+        
+        public RateLimitAlgorithm getAlgorithm() {
+            return algorithm;
+        }
+        
+        public void setAlgorithm(RateLimitAlgorithm algorithm) {
+            this.algorithm = algorithm;
+        }
+    }
+    
+    // Default getters and setters
+    public int getCapacity() {
+        return capacity;
+    }
+    
+    public void setCapacity(int capacity) {
+        this.capacity = capacity;
+    }
+    
+    public int getRefillRate() {
+        return refillRate;
+    }
+    
+    public void setRefillRate(int refillRate) {
+        this.refillRate = refillRate;
+    }
+    
+    public long getCleanupIntervalMs() {
+        return cleanupIntervalMs;
+    }
+    
+    public void setCleanupIntervalMs(long cleanupIntervalMs) {
+        this.cleanupIntervalMs = cleanupIntervalMs;
+    }
+    
+    public RateLimitAlgorithm getAlgorithm() {
+        return algorithm;
+    }
+    
+    public void setAlgorithm(RateLimitAlgorithm algorithm) {
+        this.algorithm = algorithm;
+    }
+    
+    // Per-key and pattern configuration getters and setters
+    public Map<String, KeyConfig> getKeys() {
+        return new HashMap<>(keys);
+    }
+    
+    public void setKeys(Map<String, KeyConfig> keys) {
+        this.keys = keys != null ? new HashMap<>(keys) : new HashMap<>();
+    }
+    
+    public Map<String, KeyConfig> getPatterns() {
+        return new HashMap<>(patterns);
+    }
+    
+    public void setPatterns(Map<String, KeyConfig> patterns) {
+        this.patterns = patterns != null ? new HashMap<>(patterns) : new HashMap<>();
+    }
+    
+    // Methods for safe modification of keys and patterns
+    public void putKey(String key, KeyConfig config) {
+        this.keys.put(key, config);
+    }
+    
+    public KeyConfig removeKey(String key) {
+        return this.keys.remove(key);
+    }
+    
+    public void putPattern(String pattern, KeyConfig config) {
+        this.patterns.put(pattern, config);
+    }
+    
+    public KeyConfig removePattern(String pattern) {
+        return this.patterns.remove(pattern);
+    }
+    
+    /**
+     * Get the default rate limit configuration.
+     */
+    public RateLimitConfig getDefaultConfig() {
+        return new RateLimitConfig(capacity, refillRate, cleanupIntervalMs, algorithm);
+    }
+}

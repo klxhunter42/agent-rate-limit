@@ -1,3 +1,0 @@
-[submodule "distributed-rate-limiter"]
-	path = distributed-rate-limiter
-	url = https://github.com/uppnrise/distributed-rate-limiter.git
