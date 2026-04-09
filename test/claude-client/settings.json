@@ -1,0 +1,19 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Grep",
+      "Glob"
+    ]
+  },
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_API_KEY_HERE",
+    "ANTHROPIC_BASE_URL": "http://192.168.5.62:8080",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_DISABLE_ANALYTICS": "1"
+  }
+}

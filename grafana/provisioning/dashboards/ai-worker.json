@@ -1,0 +1,144 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Jobs Processed / Failed / Retried",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "rate(ai_worker_jobs_processed_total[5m])", "legendFormat": "Processed/s ({{provider}})", "refId": "A" },
+        { "expr": "rate(ai_worker_jobs_failed_total[5m])", "legendFormat": "Failed/s", "refId": "B" },
+        { "expr": "rate(ai_worker_jobs_retried_total[5m])", "legendFormat": "Retried/s", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Total Jobs",
+      "type": "stat",
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        { "expr": "sum(ai_worker_jobs_processed_total)", "legendFormat": "Processed", "refId": "A" },
+        { "expr": "ai_worker_jobs_failed_total", "legendFormat": "Failed", "refId": "B" },
+        { "expr": "ai_worker_jobs_retried_total", "legendFormat": "Retried", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } }, "overrides": [{ "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }] }
+    },
+    {
+      "title": "Queue Depth Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 9 },
+      "targets": [
+        { "expr": "ai_worker_queue_depth", "legendFormat": "Queue Depth", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 20 },
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      }
+    },
+    {
+      "title": "Active Workers",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 9 },
+      "targets": [
+        { "expr": "ai_worker_active", "legendFormat": "Active", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 50,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "title": "Error Rate %",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "clamp_max(rate(ai_worker_jobs_failed_total[5m]) / (rate(ai_worker_jobs_processed_total[5m]) > 0) * 100, 100)",
+          "legendFormat": "Error %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 }] }
+        }
+      }
+    },
+    {
+      "title": "Rate Limit Hits",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 9 },
+      "targets": [
+        { "expr": "sum(ai_worker_rate_limit_hits_total)", "legendFormat": "Total", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } } }
+    },
+    {
+      "title": "Total Provider Errors",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 9 },
+      "targets": [
+        { "expr": "sum(ai_worker_provider_errors_total)", "legendFormat": "Errors", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } } }
+    },
+    {
+      "title": "Provider Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Provider Errors by Provider",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        { "expr": "rate(ai_worker_provider_errors_total[5m])", "legendFormat": "{{provider}} errors/s", "refId": "A" },
+        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "{{provider}} rate-limited/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Worker Process Memory (RSS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job=\"ai-worker\"}", "legendFormat": "RSS", "refId": "A" },
+        { "expr": "process_virtual_memory_bytes{job=\"ai-worker\"}", "legendFormat": "Virtual", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "Worker CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [
+        { "expr": "rate(process_cpu_seconds_total{job=\"ai-worker\"}[5m])", "legendFormat": "CPU seconds/s", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "core" } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["agent-rate-limit", "worker"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "AI Worker - Detailed",
+  "uid": "arl-worker",
+  "version": 2
+}
