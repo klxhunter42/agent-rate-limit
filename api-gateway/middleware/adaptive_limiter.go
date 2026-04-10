@@ -29,6 +29,7 @@ type AdaptiveLimiter struct {
 	models        map[string]*adaptiveModel
 	defaultModel  *adaptiveModel
 	fallbackOrder []string
+	rrEpoch       atomic.Uint64 // round-robin counter for fallback rotation
 
 	mu sync.Mutex // serialises limit adjustments (cold path)
 }
@@ -142,8 +143,19 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 	}
 
 	// Requested model full — try fallbacks by priority (non-blocking).
-	for _, fb := range al.fallbackOrder {
+	// Skip models with significantly lower priority (tier gap >= 2 levels).
+	// Use round-robin rotation to distribute traffic evenly among same-tier models.
+	reqPrio := modelPriority[requestedModel]
+	offset := int(al.rrEpoch.Add(1))
+	for i := 0; i < len(al.fallbackOrder); i++ {
+		idx := (i + offset) % len(al.fallbackOrder)
+		fb := al.fallbackOrder[idx]
 		if fb == requestedModel {
+			continue
+		}
+		// Only fallback within the same tier or one tier below.
+		fbPrio, ok := modelPriority[fb]
+		if ok && reqPrio > 0 && fbPrio < reqPrio-20 {
 			continue
 		}
 		fm := al.models[fb]
