@@ -133,6 +133,24 @@
       ],
       "fieldConfig": { "defaults": { "unit": "core" } }
     }
+    {
+      "title": "Token Usage - Input by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "targets": [
+        { "expr": "sum by (model) (rate(ai_worker_token_input_total[5m]))", "legendFormat": "{{model}} input", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Token Usage - Output by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "targets": [
+        { "expr": "sum by (model) (rate(ai_worker_token_output_total[5m]))", "legendFormat": "{{model}} output", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+    }
   ],
   "schemaVersion": 39,
   "tags": ["agent-rate-limit", "worker"],

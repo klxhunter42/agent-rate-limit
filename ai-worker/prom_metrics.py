@@ -40,6 +40,18 @@ RATE_LIMIT_HITS = Counter(
     ["provider"],
 )
 
+# ── Token usage ─────────────────────────────────────────────────────────
+TOKEN_INPUT = Counter(
+    "ai_worker_token_input_total",
+    "Total input tokens processed",
+    ["provider", "model"],
+)
+TOKEN_OUTPUT = Counter(
+    "ai_worker_token_output_total",
+    "Total output tokens generated",
+    ["provider", "model"],
+)
+
 # ── Operational gauges ─────────────────────────────────────────────────
 QUEUE_DEPTH = Gauge("ai_worker_queue_depth", "Current queue depth")
 ACTIVE_WORKERS = Gauge("ai_worker_active", "Number of active workers")
