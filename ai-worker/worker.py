@@ -382,6 +382,14 @@ class Worker:
                 pm.JOBS_PROCESSED.labels(provider=current_provider).inc()
                 pm.PROVIDER_LATENCY.labels(provider=current_provider).observe(latency)
 
+                # Record token usage
+                prompt_tokens = response.usage.get("prompt_tokens", 0)
+                completion_tokens = response.usage.get("completion_tokens", 0)
+                if prompt_tokens > 0:
+                    pm.TOKEN_INPUT.labels(provider=response.provider, model=response.model).inc(prompt_tokens)
+                if completion_tokens > 0:
+                    pm.TOKEN_OUTPUT.labels(provider=response.provider, model=response.model).inc(completion_tokens)
+
                 # Store result
                 result = {
                     "request_id": request_id,

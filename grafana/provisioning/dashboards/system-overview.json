@@ -128,8 +128,10 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "targets": [
-        { "expr": "rate(api_gateway_token_input_total[5m])", "legendFormat": "{{model}} input", "refId": "A" },
-        { "expr": "rate(api_gateway_token_output_total[5m])", "legendFormat": "{{model}} output", "refId": "B" }
+        { "expr": "rate(api_gateway_token_input_total[5m])", "legendFormat": "gw {{model}} in", "refId": "A" },
+        { "expr": "rate(api_gateway_token_output_total[5m])", "legendFormat": "gw {{model}} out", "refId": "B" },
+        { "expr": "sum by (model) (rate(ai_worker_token_input_total[5m]))", "legendFormat": "wk {{model}} in", "refId": "C" },
+        { "expr": "sum by (model) (rate(ai_worker_token_output_total[5m]))", "legendFormat": "wk {{model}} out", "refId": "D" }
       ],
       "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
     },
