@@ -69,7 +69,7 @@ var modelPriority = map[string]int{
 }
 
 // NewAdaptiveLimiter creates an adaptive concurrency limiter.
-//   - limits:       model → max concurrent (also the initial limit)
+//   - limits:       model -> max concurrent (also the initial limit)
 //   - defaultLimit: for unconfigured models
 //   - globalLimit:  hard cap across all models (per-key upstream limit)
 func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *AdaptiveLimiter {
@@ -127,13 +127,17 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *A
 // The caller MUST call Release(selectedModel) when done.
 func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 	// Wait for a global slot (caps total concurrent across all models).
+	// Use CAS loop instead of add-then-check to avoid TOCTOU race that
+	// allows globalInFlight to exceed globalLimit under high concurrency.
 	for {
-		g := al.globalInFlight.Add(1)
-		if g <= al.globalLimit {
+		cur := al.globalInFlight.Load()
+		if cur >= al.globalLimit {
+			time.Sleep(5 * time.Millisecond)
+			continue
+		}
+		if al.globalInFlight.CompareAndSwap(cur, cur+1) {
 			break
 		}
-		al.globalInFlight.Add(-1)
-		time.Sleep(5 * time.Millisecond)
 	}
 
 	// Try the requested model (non-blocking).
@@ -142,8 +146,7 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 		return requestedModel
 	}
 
-	// Requested model full — try fallbacks by priority (non-blocking).
-	// Skip models with significantly lower priority (tier gap >= 2 levels).
+	// Requested model full - try fallbacks by priority (non-blocking).
 	// Use round-robin rotation to distribute traffic evenly among same-tier models.
 	reqPrio := modelPriority[requestedModel]
 	offset := int(al.rrEpoch.Add(1))
@@ -153,9 +156,10 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 		if fb == requestedModel {
 			continue
 		}
-		// Only fallback within the same tier or one tier below.
+		// Skip only models more than 2 major tiers below (gap >= 50).
+		// This allows 5.x (100-80) to fall back to 4.x (70-60) freely.
 		fbPrio, ok := modelPriority[fb]
-		if ok && reqPrio > 0 && fbPrio < reqPrio-20 {
+		if ok && reqPrio > 0 && fbPrio < reqPrio-50 {
 			continue
 		}
 		fm := al.models[fb]
@@ -168,7 +172,7 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 		}
 	}
 
-	// All models full — block-wait on the originally requested model.
+	// All models full - block-wait on the originally requested model.
 	slog.Debug("all models full, waiting", "requested", requestedModel)
 	model.acquireBlocking()
 	return requestedModel
@@ -197,7 +201,7 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		defer al.mu.Unlock()
 
 		old := am.limit.Load()
-		newLim := old * 5 / 10 // multiplicative decrease ×0.5
+		newLim := old * 5 / 10 // multiplicative decrease x0.5
 		if newLim < am.minLimit {
 			newLim = am.minLimit
 		}
@@ -346,6 +350,6 @@ func parseRetryAfter(headers http.Header) time.Duration {
 	if sec, err := strconv.Atoi(v); err == nil {
 		return time.Duration(sec) * time.Second
 	}
-	// RFC 7231 also allows HTTP-date format — skip for simplicity.
+	// RFC 7231 also allows HTTP-date format - skip for simplicity.
 	return 0
 }
