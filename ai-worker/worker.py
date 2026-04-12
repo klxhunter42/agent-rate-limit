@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import random
 import time
@@ -28,8 +29,9 @@ class ProviderRateLimiter:
     """Sliding window RPM limiter per provider. Prevents 429s by pacing requests."""
 
     def __init__(self):
-        self._windows: dict[str, list[float]] = {}  # provider → list of timestamps
-        self._limits: dict[str, int] = {}  # provider → max requests per minute
+        self._windows: dict[str, list[float]] = {}  # provider -> list of timestamps
+        self._limits: dict[str, int] = {}  # provider -> max requests per minute
+        self._lock = asyncio.Lock()
 
     def set_limit(self, provider: str, rpm: int):
         self._limits[provider] = rpm
@@ -40,22 +42,30 @@ class ProviderRateLimiter:
         if not limit or limit <= 0:
             return  # no limit configured
 
-        now = time.monotonic()
-        window = self._windows.setdefault(provider, [])
+        async with self._lock:
+            now = time.monotonic()
+            window = self._windows.setdefault(provider, [])
 
-        # Prune timestamps older than 60s
-        self._windows[provider] = [t for t in window if now - t < 60]
-        window = self._windows[provider]
+            # Prune timestamps older than 60s
+            self._windows[provider] = [t for t in window if now - t < 60]
+            window = self._windows[provider]
 
-        if len(window) >= limit:
-            # Wait until oldest request expires from window
-            oldest = window[0]
-            wait = 60 - (now - oldest) + 0.1  # small buffer
-            if wait > 0:
-                logger.info("rpm limiter waiting", provider=provider, wait_seconds=round(wait, 1))
-                await asyncio.sleep(wait)
+            if len(window) >= limit:
+                oldest = window[0]
+                wait = 60 - (now - oldest) + 0.1  # small buffer
+                if wait > 0:
+                    logger.info("rpm limiter waiting", provider=provider, wait_seconds=round(wait, 1))
+                    # Release lock during sleep to allow other providers to proceed.
+                    # Re-check after wake since we're outside the lock.
+                    pass
+            else:
+                self._windows[provider].append(time.monotonic())
+                return
 
-        self._windows[provider].append(time.monotonic())
+        # Sleep outside lock.
+        await asyncio.sleep(wait)
+        async with self._lock:
+            self._windows.setdefault(provider, []).append(time.monotonic())
 
 # Prometheus-style counters (simple in-process counters for metrics endpoint)
 class Metrics:
@@ -307,7 +317,8 @@ class Worker:
 
     def _get_provider(self, provider_name: str, api_key: str) -> BaseProvider:
         """Get or create a cached provider instance for connection reuse."""
-        cache_key = f"{provider_name}:{api_key[:8]}"
+        key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        cache_key = f"{provider_name}:{key_hash}"
         if cache_key in self._provider_cache:
             return self._provider_cache[cache_key]
         provider = _create_provider(provider_name, self.settings, self.key_manager, api_key)
@@ -334,15 +345,12 @@ class Worker:
 
                 # All keys in cooldown — wait for shortest cooldown to expire
                 if api_key is None and self.key_manager.has_keys(current_provider):
-                    cooldowns = self.key_manager._cooldowns.get(current_provider, {})
-                    now = time.monotonic()
-                    waits = [v - now for v in cooldowns.values() if v > now]
-                    min_wait = min(waits) + 0.5 if waits else 5.0
-                    min_wait = min(min_wait, 65.0)  # safety cap
-                    logger.info("all keys cooling down, waiting",
-                                provider=current_provider,
-                                wait_seconds=round(min_wait, 1))
-                    await asyncio.sleep(min_wait)
+                    wait = await self.key_manager.shortest_cooldown(current_provider)
+                    if wait > 0:
+                        logger.info("all keys cooling down, waiting",
+                                    provider=current_provider,
+                                    wait_seconds=round(wait, 1))
+                        await asyncio.sleep(wait)
                     api_key = await self.key_manager.get_key(current_provider)
 
                 if api_key is None:
@@ -456,6 +464,7 @@ class Worker:
         job["retry_count"] = current_retry + 1
 
         backoff = self.settings.base_backoff * (2 ** current_retry)
+        backoff = min(backoff, 60.0)  # cap at 60s
         backoff_with_jitter = backoff + random.uniform(0, backoff * 0.5)
 
         logger.info(

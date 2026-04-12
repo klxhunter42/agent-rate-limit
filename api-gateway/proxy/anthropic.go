@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,10 +12,23 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 )
+
+// allowedResponseHeaders lists headers safe to pass from upstream to client.
+var allowedResponseHeaders = map[string]bool{
+	"Content-Type":                           true,
+	"X-RateLimit-Limit":                      true,
+	"X-RateLimit-Remaining":                  true,
+	"X-RateLimit-Reset":                      true,
+	"Retry-After":                            true,
+	"Request-Id":                             true,
+	"Anthropic-Ratelimit-Requests-Remaining": true,
+	"Anthropic-Ratelimit-Tokens-Remaining":   true,
+}
 
 // FeedbackFunc is called by the proxy after each upstream attempt.
 // Defined here to avoid import cycles.
@@ -65,6 +79,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
 		if attempt > 0 {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
+			// Cap backoff at 5 minutes to prevent excessive waits
+			if backoff > 5*time.Minute {
+				backoff = 5 * time.Minute
+			}
 			slog.Warn("upstream 429, retrying",
 				"attempt", attempt,
 				"backoff", backoff,
@@ -110,8 +128,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	}
 	defer lastResp.Body.Close()
 
-	// Copy response headers.
+	// Copy only allowed response headers (prevent header injection).
 	for k, vs := range lastResp.Header {
+		if _, ok := allowedResponseHeaders[k]; !ok {
+			continue
+		}
 		for _, v := range vs {
 			w.Header().Add(k, v)
 		}
@@ -126,25 +147,66 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 }
 
 // handleNonStreamResponse buffers the full response, tracks tokens, optionally trims, and sends.
+const maxResponseSize = 100 * 1024 * 1024 // 100MB limit
+
 func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
-	body, err := io.ReadAll(resp.Body)
+	// Limit response size to prevent OOM
+	limitedReader := io.LimitReader(resp.Body, maxResponseSize+1)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
 	}
+	if len(body) > maxResponseSize {
+		return fmt.Errorf("response exceeds maximum size of %d bytes", maxResponseSize)
+	}
 
 	// Track token usage.
+	tokenTracked := false
 	var usage struct {
 		Usage struct {
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
 	}
-	if json.Unmarshal(body, &usage) == nil {
+	if json.Unmarshal(body, &usage) == nil && (usage.Usage.InputTokens > 0 || usage.Usage.OutputTokens > 0) {
 		p.metrics.RecordTokens(model, usage.Usage.InputTokens, usage.Usage.OutputTokens)
 		slog.Debug("token usage",
 			"model", model,
 			"input", usage.Usage.InputTokens,
 			"output", usage.Usage.OutputTokens,
+		)
+		tokenTracked = true
+	}
+
+	if !tokenTracked {
+		// Fallback: try parsing without nested "usage" wrapper (OpenAI-style)
+		var altUsage struct {
+			InputTokens      int `json:"input_tokens"`
+			OutputTokens     int `json:"output_tokens"`
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+		}
+		if json.Unmarshal(body, &altUsage) == nil {
+			in := altUsage.InputTokens
+			out := altUsage.OutputTokens
+			if in == 0 && altUsage.PromptTokens > 0 {
+				in = altUsage.PromptTokens
+			}
+			if out == 0 && altUsage.CompletionTokens > 0 {
+				out = altUsage.CompletionTokens
+			}
+			if in > 0 || out > 0 {
+				p.metrics.RecordTokens(model, in, out)
+				slog.Info("token usage (fallback format)",
+					"model", model,
+					"input", in,
+					"output", out,
+				)
+			}
+		}
+		slog.Debug("token usage not found in response",
+			"model", model,
+			"response_preview", string(body[:min(500, len(body))]),
 		)
 	}
 
@@ -159,10 +221,19 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	return err
 }
 
-// relayStreamWithTracking relays SSE chunks line-by-line while extracting token usage.
+const streamTimeout = 10 * time.Minute
+
 func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string) error {
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	// Add timeout to prevent hanging streams
+	ctx, cancel := context.WithTimeout(resp.Request.Context(), streamTimeout)
+	defer cancel()
+
+	// Wrap body with context-aware reader
+	body := &readCloser{Reader: io.NopCloser(resp.Body), ctx: ctx}
+
+	scanner := bufio.NewScanner(body)
+	const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
+	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
 	var inputTokens, outputTokens int
 
@@ -245,6 +316,11 @@ func trimResponse(body []byte) []byte {
 		}
 		trimmed := trimVerbose(text)
 		if trimmed != text {
+			// Validate trimmed text is still valid printable UTF-8
+			if !isValidUTF8String(trimmed) {
+				slog.Warn("trimmed text contains invalid UTF-8, skipping trim")
+				continue
+			}
 			cb["text"] = trimmed
 			content[i] = cb
 			modified = true
@@ -283,6 +359,32 @@ var verbosePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)^i'd be happy to (help|explain|show|assist)[^\n]*\n`),
 	regexp.MustCompile(`(?i)\n\nhope (this|that) (helps|is helpful)!?\.?\s*$`),
 	regexp.MustCompile(`(?i)\n\nlet me know if you need (anything else|more help|further assistance)\.?\s*$`),
+}
+
+// readCloser wraps an io.Reader with context cancellation support.
+type readCloser struct {
+	io.Reader
+	ctx context.Context
+}
+
+func (rc *readCloser) Read(p []byte) (n int, err error) {
+	if err := rc.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return rc.Reader.Read(p)
+}
+
+// isValidUTF8String checks if a string contains only valid printable UTF-8.
+func isValidUTF8String(s string) bool {
+	if !utf8.ValidString(s) {
+		return false
+	}
+	for _, r := range s {
+		if r < 0x20 && r != '\t' && r != '\n' && r != '\r' {
+			return false
+		}
+	}
+	return true
 }
 
 // RateLimitError returns an Anthropic-format rate limit error.

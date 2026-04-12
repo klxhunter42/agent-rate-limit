@@ -36,9 +36,9 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
-        { "expr": "histogram_quantile(0.50, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p50", "refId": "A" },
-        { "expr": "histogram_quantile(0.95, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "B" },
-        { "expr": "histogram_quantile(0.99, rate(api_gateway_request_latency_seconds_bucket[5m]))", "legendFormat": "p99", "refId": "C" }
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[5m])))", "legendFormat": "p99", "refId": "C" }
       ],
       "fieldConfig": {
         "defaults": { "unit": "s", "color": { "mode": "palette-classic" } },
@@ -99,7 +99,7 @@
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
-        { "expr": "histogram_quantile(0.95, rate(ai_worker_provider_latency_seconds_bucket[5m]))", "legendFormat": "{{provider}} p95", "refId": "A" }
+        { "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p95", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } }
     },
@@ -171,6 +171,7 @@
   "tags": ["agent-rate-limit", "overview"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
   "title": "Agent Rate Limit - System Overview",
   "uid": "arl-overview",
   "version": 2

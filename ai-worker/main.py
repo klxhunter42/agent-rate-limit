@@ -90,7 +90,7 @@ async def run_metrics_server(worker: Worker):
             pass  # silence access logs
 
     # Run HTTP server in executor to not block event loop
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     server = HTTPServer(("0.0.0.0", 9091), MetricsHandler)
     loop.run_in_executor(None, server.serve_forever)
 
@@ -125,7 +125,7 @@ async def main():
         logger.info("shutdown signal received")
         shutdown_event.set()
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, handle_signal)
 

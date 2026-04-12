@@ -156,6 +156,8 @@ func (h *Handler) GetResult(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const maxRequestBody = 10 * 1024 * 1024 // 10MB limit
+
 // Messages handles POST /v1/messages — transparent proxy to upstream.
 // Applies system prompt injection, smart max_tokens, per-model concurrency
 // limiting with auto-fallback, and retries on 429.
@@ -189,13 +191,24 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, proxy.ErrorResponse{
 			Type: "error",
 			Error: proxy.ErrorDetail{
 				Type:    "invalid_request_error",
 				Message: "failed to read request body",
+			},
+		})
+		h.metrics.IncError("bad_request")
+		return
+	}
+	if len(body) > maxRequestBody {
+		writeJSON(w, http.StatusRequestEntityTooLarge, proxy.ErrorResponse{
+			Type: "error",
+			Error: proxy.ErrorDetail{
+				Type:    "invalid_request_error",
+				Message: "request body exceeds 10MB limit",
 			},
 		})
 		h.metrics.IncError("bad_request")
@@ -269,8 +282,33 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, HealthResponse{Status: "healthy"})
 }
 
+// allowedResponseHeaders lists headers safe to pass from upstream to client.
+var allowedResponseHeaders = map[string]bool{
+	"Content-Type":                           true,
+	"X-RateLimit-Limit":                      true,
+	"X-RateLimit-Remaining":                  true,
+	"X-RateLimit-Reset":                      true,
+	"Retry-After":                            true,
+	"Request-Id":                             true,
+	"Anthropic-Ratelimit-Requests-Remaining": true,
+	"Anthropic-Ratelimit-Tokens-Remaining":   true,
+}
+
 // LimiterStatus returns current adaptive limiter state for monitoring.
+// Requires x-api-key or Authorization header for basic auth.
 func (h *Handler) LimiterStatus(w http.ResponseWriter, r *http.Request) {
+	// Basic auth: require an API key to prevent unauthenticated access.
+	key := r.Header.Get("x-api-key")
+	if key == "" {
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			key = strings.TrimPrefix(auth, "Bearer ")
+		}
+	}
+	if key == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"global":  h.modelLimiter.GlobalStatus(),
 		"models":  h.modelLimiter.Status(),
@@ -338,6 +376,7 @@ var modelMaxTokens = map[string]int{
 	"glm-5.1":     8192,
 	"glm-5-turbo": 4096,
 	"glm-5":       8192,
+	"glm-4.5":     4096,
 }
 
 const fallbackMaxTokens = 4096

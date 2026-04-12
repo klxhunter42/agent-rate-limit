@@ -118,6 +118,7 @@
   "tags": ["agent-rate-limit", "gateway"],
   "templating": { "list": [] },
   "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
   "title": "API Gateway - Detailed",
   "uid": "arl-gateway",
   "version": 2

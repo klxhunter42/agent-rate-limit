@@ -52,8 +52,9 @@
 │                    │  Per-Model Semaphores:       │                  │
 │                    │  glm-5.1(1) glm-5-turbo(1)   │                  │
 │                    │  glm-5(2) glm-4.7(2) glm-4.6(3)│                │
+│                    │  glm-4.5(10)                  │                  │
 │                    │  RPM Limiter: glm:5 req/min  │                  │
-│                    │  Global Limit: 9 concurrent  │                  │
+│                    │  Global Limit: 15 concurrent │                  │
 │                    └─────┼────────────────────────┘                  │
 │                          │       │       │                           │
 │              ┌───────────▼───────▼───────▼──────────┐               │
@@ -262,9 +263,9 @@ cp .env.example .env
 | `WORKER_POOL_SIZE` | `100` | จำนวน goroutine pool สำหรับ async mode |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider endpoint |
 | `STREAM_TIMEOUT` | `300s` | Timeout สำหรับ streaming requests |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3` | Per-model concurrent limits (model:limit comma-separated, รวม 9 slots) |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | จำนวน concurrent request สูงสุดรวมทุก model (0 = unlimited) |
+| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (model:limit comma-separated, รวม 19 slots, global cap 15) |
+| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า |
+| `UPSTREAM_GLOBAL_LIMIT` | `15` | จำนวน concurrent request สูงสุดรวมทุก model |
 
 ### Dragonfly
 
@@ -287,9 +288,9 @@ cp .env.example .env
 | `MAX_RETRIES` | `3` | จำนวน retry เมื่อ provider ล้มเหลว | ไม่ควรเกิน 5 (เพิ่ม latency) |
 | `BASE_BACKOFF` | `1.0` | Backoff base (วินาที) สำหรับ exponential retry | 0.5-5.0 |
 | `RESULT_TTL` | `600` | เวลาเก็บ result (วินาที) | 60-3600 |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3` | Per-model concurrent limits (เหมือน gateway) | รวมควรเท่ากับ UPSTREAM_GLOBAL_LIMIT |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า | - |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Concurrent request สูงสุดรวมทุก model (0 = unlimited) | - |
+| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (เหมือน gateway) | รวมควรเท่ากับ UPSTREAM_GLOBAL_LIMIT |
+| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า | - |
+| `UPSTREAM_GLOBAL_LIMIT` | `15` | Concurrent request สูงสุดรวมทุก model (0 = unlimited) | - |
 | `PROVIDER_RPM_LIMITS` | `glm:5` | Per-provider RPM limit ป้องกัน 429 (provider:rpm) | ขึ้นกับจำนวน key |
 
 #### WORKER_CONCURRENCY แนะนำ
@@ -436,11 +437,11 @@ Request เข้ามา
   │   ├─ ดึง model จาก request body
   │   ├─ ลอง acquire slot สำหรับ model ที่ขอ (non-blocking)
   │   ├─ เต็ม? → ลอง fallback models อัตโนมัติ
-  │   │   Priority: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6
+  │   │   Priority: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6 → glm-4.5 (5.x always first)
   │   ├─ ทุก model เต็ม? → รอจนกว่าจะมี slot ว่าง
   │   ├─ RPM Limiter: ควบคุมความเร็ว req/min ต่อ provider
   │   └─ ถ้า fallback → เปลี่ยน model ใน body ก่อนส่งต่อ
-  │   9 concurrent slots: glm-5.1(1) + glm-5-turbo(1) + glm-5(2) + glm-4.7(2) + glm-4.6(3)
+  │   19 model slots (global cap 15): glm-5.1(1) + glm-5-turbo(1) + glm-5(2) + glm-4.7(2) + glm-4.6(3) + glm-4.5(10)
   │
   └─ Response กลับ: ส่งตรงไปยัง client แบบไม่แก้ไขอะไรเลย
 ```
@@ -1024,4 +1025,4 @@ docker-compose up -d --build
 
 ---
 
-*Multi-Agent AI Rate-Limited System v1.0*
+*Multi-Agent AI Rate-Limited System v1.1*

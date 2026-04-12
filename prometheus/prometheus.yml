@@ -23,12 +23,15 @@ scrape_configs:
       - targets: ['arl-rate-limiter:8080']
     scrape_interval: 10s
 
-  - job_name: 'dragonfly'
-    static_configs:
-      - targets: ['arl-dragonfly:6379']
-    scrape_interval: 10s
-    scheme: http
-    metrics_path: /metrics
+  # Dragonfly does not expose Prometheus metrics on port 6379 (Redis protocol).
+  # Enable Dragonfly's --metrics flag or use redis_exporter as a sidecar.
+  # Disabled until metrics endpoint is available.
+  # - job_name: 'dragonfly'
+  #   static_configs:
+  #     - targets: ['arl-dragonfly:6379']
+  #   scrape_interval: 10s
+  #   scheme: http
+  #   metrics_path: /metrics
 
   - job_name: 'otel-collector'
     static_configs:

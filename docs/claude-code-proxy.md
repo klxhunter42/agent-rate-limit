@@ -159,11 +159,13 @@ Request → Logging → Metrics → Rate Limit → Proxy
                         │ glm-5: limit 2       │
                         │ glm-4.7: limit 2     │
                         │ glm-4.6: limit 3     │
-                        │ Total: 9 concurrent  │
+                        │ glm-4.5: limit 10    │
+                        │ Total: 19 slots      │
+                        │ Global cap: 15       │
                         │                      │
                         │ เต็ม? → fallback    │
-                        │ อัตโนมัติไป model  │
-                        │ ที่ว่าง              │
+                        │ ตาม priority order  │
+                        │ (5.x ก่อนเสมอ)     │
                         └──────────────────────┘
 ```
 
@@ -384,4 +386,4 @@ curl -X POST http://localhost:8080/v1/messages \
 
 ---
 
-*Transparent Proxy v2.0 — ไม่แตะ request/response เลย ส่งตรงไปตรงมา*
+*Transparent Proxy v2.1 — 6 models, strict priority fallback, global cap 15*
