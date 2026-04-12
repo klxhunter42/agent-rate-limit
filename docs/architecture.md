@@ -45,7 +45,7 @@
 │    └─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)          │
 │                                    │                             │
 │                              arl-worker (BRPOP x 50)             │
-│                                ├─ Per-Model Semaphores (9 slots) │
+│                                ├─ Per-Model Semaphores (19 slots, global cap 15) │
 │                                ├─ RPM Limiter (glm:5)            │
 │                                ├─ Provider Cache (httpx reuse)    │
 │                                ├─ Provider Fallback Chain        │
@@ -119,9 +119,9 @@
 | `WORKER_POOL_SIZE` | `100` | Goroutine pool for async mode |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider |
 | `STREAM_TIMEOUT` | `300s` | Timeout for streaming proxy |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3` | Per-model concurrent limits (9 slots) |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent across all models (0=unlimited) |
+| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (19 slots) |
+| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit for unconfigured models |
+| `UPSTREAM_GLOBAL_LIMIT` | `15` | Total concurrent across all models (0=unlimited) |
 | `READ_TIMEOUT` | `5s` | HTTP read timeout |
 | `OTLP_ENDPOINT` | `otel-collector:4317` | OTel collector |
 | `REDIS_POOL_SIZE` | `50` | Connection pool size |
@@ -216,46 +216,44 @@ Request: { "model": "glm-5", ... }
   ├─ 1. Try glm-5 semaphore (non-blocking)
   │     └─ Available? → acquire slot → use glm-5
   │
-  ├─ 2. glm-5 full → try fallback models in priority order:
+  ├─ 2. glm-5 full → try fallback models in STRICT PRIORITY order:
   │     ├─ Try glm-5.1 (limit 1) → Available? → use glm-5.1
   │     ├─ Try glm-5-turbo (limit 1) → Available? → use glm-5-turbo
   │     ├─ Try glm-4.7 (limit 2) → Available? → use glm-4.7
-  │     └─ Try glm-4.6 (limit 3) → Available? → use glm-4.6
+  │     ├─ Try glm-4.6 (limit 3) → Available? → use glm-4.6
+  │     └─ Try glm-4.5 (limit 10) → Available? → use glm-4.5
   │
-  └─ 3. All models full → block-wait on originally requested model
+  └─ 3. All models full or global cap reached → block-wait
 ```
 
 ### Configuration
 
 ```env
 # Per-model limits (model:concurrent comma-separated)
-UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3
+UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10
 
 # Default limit for models not in the list
-UPSTREAM_DEFAULT_LIMIT=1
+UPSTREAM_DEFAULT_LIMIT=2
 
 # Total concurrent across all models (0 = unlimited)
-UPSTREAM_GLOBAL_LIMIT=9
+UPSTREAM_GLOBAL_LIMIT=15
 ```
 
 ### Example
 
 ```
-Models configured: glm-5.1:1, glm-5-turbo:1, glm-5:2, glm-4.7:2, glm-4.6:3
-Total concurrent capacity: 1+1+2+2+3 = 9
+Models configured: glm-5.1:1, glm-5-turbo:1, glm-5:2, glm-4.7:2, glm-4.6:3, glm-4.5:10
+Total model capacity: 1+1+2+2+3+10 = 19
+Global cap: 15 concurrent
 
-10 requests for glm-5 arrive simultaneously:
-  req 1 → glm-5 slot (limit 2)           ✅ 1515ms
-  req 2 → glm-5-turbo (fallback)         ✅ 1160ms
-  req 3 → glm-4.7 (fallback)             ✅ 1114ms
-  req 4 → glm-5 slot                     ✅ 5550ms
-  req 5 → glm-5.1 (fallback)             ✅ 8685ms
-  --- RPM limit reached (glm:5), batch 2 waits 60s ---
-  req 6 → glm-4.6 (fallback)             ✅ 714ms
-  req 7 → glm-4.7 (fallback)             ✅ 704ms
-  req 8 → glm-4.6 (fallback)             ✅ 709ms
-  req 9 → glm-4.6 (fallback)             ✅ 1586ms
-  req 10 → glm-5 slot                    ✅ 4786ms
+Selection: Strict priority order (5.x always preferred before 4.x)
+
+Low load example (5 requests for glm-5):
+  req 1 → glm-5 slot (limit 2)         ✅ direct
+  req 2 → glm-5 slot                    ✅ direct
+  req 3 → glm-5.1 (fallback)            ✅ 5.x preferred
+  req 4 → glm-5-turbo (fallback)        ✅ 5.x preferred
+  req 5 → glm-4.7 (fallback)            ✅ all 5.x full, start 4.x
 ```
 
 ### Body Rewrite
@@ -277,7 +275,8 @@ This is the only modification to the request body — all other fields (tools, m
 {"msg":"model limiter configured","model":"glm-5","limit":2}
 {"msg":"model limiter configured","model":"glm-4.7","limit":2}
 {"msg":"model limiter configured","model":"glm-4.6","limit":3}
-{"msg":"model limiter initialized","models":["glm-5.1","glm-5-turbo","glm-5","glm-4.7","glm-4.6"],"default_limit":1}
+{"msg":"model limiter configured","model":"glm-4.5","limit":10}
+{"msg":"model limiter initialized","models":["glm-5.1","glm-5-turbo","glm-5","glm-4.7","glm-4.6","glm-4.5"],"global_limit":15}
 {"msg":"model fallback","requested":"glm-5","selected":"glm-5-turbo"}
 {"msg":"all models full, waiting","requested":"glm-5"}
 {"msg":"rpm limiter waiting","provider":"glm","wait_seconds":60.1}
@@ -345,7 +344,7 @@ BRPOP ai_jobs (poll timeout = 5s)
   │   ├─ 1. Acquire model slot (per-model semaphore)
   │   │   ├─ Try requested model (non-blocking)
   │   │   ├─ Full? → Try fallback models in priority order:
-  │   │   │   glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6
+  │   │   │   glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6 → glm-4.5
   │   │   └─ All full? → Block-wait on requested model
   │   │
   │   ├─ 2. Acquire global slot (if UPSTREAM_GLOBAL_LIMIT > 0)
@@ -404,7 +403,7 @@ Result: 10/10 OK, 0 429 errors
 
 ### Provider Cache
 
-Worker cache provider instances ตาม `(provider_name, api_key[:8])`:
+Worker cache provider instances ตาม `(provider_name, sha256(api_key)[:16])` (hash-based to prevent key collision):
 - ใช้ `anthropic.AsyncAnthropic` client ซ้ำ → httpx connection pooling + cookie persistence
 - ลด overhead จากการสร้าง client ใหม่ทุก request
 - ทำให้ Z.ai ไม่ reject ด้วย "No cookie auth credentials"
@@ -487,7 +486,7 @@ glm → openai → anthropic → gemini → openrouter
 | `glm-5-turbo` | `glm-5-turbo` (pass-through) |
 | `glm-4.7` | `glm-4.7` (pass-through) |
 | `glm-4.6` | `glm-4.6` (pass-through) |
-| `glm-4.5` | `glm-4.5` |
+| `glm-4.5` | `glm-4.5` (pass-through) |
 | `glm-4.6v` | `glm-4.6v` |
 | อื่นๆ | ส่งตรงไปเลย (pass-through) |
 
@@ -495,7 +494,7 @@ glm → openai → anthropic → gemini → openrouter
 
 เมื่อ requested model เต็ม จะลอง fallback ตามลำดับ:
 ```
-glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6
+glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6 → glm-4.5
 ```
 
 ---
@@ -505,7 +504,7 @@ glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6
 ### KeyManager (`key_manager.py`)
 
 - **Key selection**: Random (ไม่ใช่ round-robin)
-- **Key rotation**: ลบ key ที่ fail ออกจาก pool **ถาวร** (ตลอด process lifetime)
+- **Key rotation**: key เข้าสู่ cooldown 60 วินาที (ไม่ถอดถาวรแล้ว)
 - **Thread-safe**: ใช้ `asyncio.Lock` ต่อ provider
 - **Availability**: `get_available_providers()` return providers ที่ยังมี key เหลือ
 
@@ -515,19 +514,12 @@ glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6
 Initial: glm keys = [key1, key2, key3]
 
 Request → key1 → 429 Rate Limit
-  → rotate_key(key1) → keys = [key2, key3]
+  → cooldown_key(key1, 60s) → keys available: [key2, key3], key1 cooling down
   → retry with key2
 
-Request → key2 → 429 Rate Limit
-  → rotate_key(key2) → keys = [key3]
-  → retry with key3
-
-Request → key3 → 429 Rate Limit
-  → rotate_key(key3) → keys = []
-  → provider "glm" unavailable until worker restart
+... after 60s ...
+  → key1 auto-recovers → available: [key1, key2, key3]
 ```
-
-> **สำคัญ**: Key rotation เป็น destructive — key ที่ถูก rotate จะไม่กลับมาจนกว่า worker จะ restart
 
 ---
 
@@ -665,15 +657,15 @@ Client (10 concurrent POST /v1/chat/completions)
 ┌─────────────────────────────────────────────────────────────┐
 │ arl-worker (Python asyncio)                                 │
 │                                                             │
-│  Layer 1: Per-Model Semaphores (9 slots)                    │
-│  ┌────────┬──────────┬───────┬────────┬────────┐           │
-│  │glm-5.1 │glm-5-turbo│glm-5 │glm-4.7 │glm-4.6 │           │
-│  │ 1 slot │ 1 slot   │2 slots│2 slots │3 slots │           │
-│  └────────┴──────────┴───────┴────────┴────────┘           │
-│  Fallback: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7        │
-│            → glm-4.6                                        │
-│                                                             │
-│  Layer 2: Global Semaphore (9 concurrent max)              │
+│  Layer 1: Per-Model Semaphores (19 slots, global cap 15)          │
+│  ┌────────┬──────────┬───────┬────────┬────────┬────────┐       │
+│  │glm-5.1 │glm-5-turbo│glm-5 │glm-4.7 │glm-4.6 │glm-4.5 │       │
+│  │ 1 slot │ 1 slot   │2 slots│2 slots │3 slots │10 slots│       │
+│  └────────┴──────────┴───────┴────────┴────────┴────────┘       │
+│  Fallback: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6  │
+│            → glm-4.5                                              │
+│                                                                  │
+│  Layer 2: Global Semaphore (15 concurrent max)                   │
 │                                                             │
 │  Layer 3: Per-Provider RPM Limiter                         │
 │  ┌──────────────────────────────┐                          │
@@ -910,7 +902,7 @@ Agent Orchestrator
                                               ▼
                                      arl-worker (50 coroutines)
                                        ├─ RPM limiter paces requests
-                                       ├─ Per-model semaphore (9 slots)
+                                       ├─ Per-model semaphore (19 slots, global cap 15)
                                        └─ Provider fallback chain
                                               │
                                               ▼
@@ -952,7 +944,7 @@ GLM_API_KEYS=key1,key2,key3
 PROVIDER_RPM_LIMITS=glm:15
 
 Worker จะ rotate key อัตโนมัติ (random selection)
-ถ้า key ไหนโดน 429 → rotate ออกจาก pool (จนกว่าจะ restart worker)
+ถ้า key ไหนโดน 429 → cooldown 60s แล้ว auto-recover
 ```
 
 ---
@@ -964,48 +956,46 @@ Worker จะ rotate key อัตโนมัติ (random selection)
 เมื่อ requested model เต็ม (semaphore ไม่ว่าง) ระบบจะลอง fallback ตามลำดับ:
 
 ```
-Priority: High-tier → Low-tier
+Priority: High-tier → Low-tier (strict order, 5.x always before 4.x)
 
-glm-5.1 (1 slot) → glm-5-turbo (1 slot) → glm-5 (2 slots) → glm-4.7 (2 slots) → glm-4.6 (3 slots)
-```
+glm-5.1 (1) → glm-5-turbo (1) → glm-5 (2) → glm-4.7 (2) → glm-4.6 (3) → glm-4.5 (10)
+Series 5: 4 slots                          Series 4: 15 slots
+Global cap: 15 concurrent
 
-### Selection Algorithm
+### Selection Algorithm (Strict Priority)
 
-```
 Request: { "model": "glm-5", ... }
 
-Step 1: ลอง requested model (non-blocking acquire)
-        glm-5 (limit 2) → ว่าง? → ใช้ glm-5
-                          → เต็ม? → ไป Step 2
+Step 1: Try requested model (non-blocking CAS acquire)
+        glm-5 (limit 2) → available? → use glm-5
+                          → full? → Step 2
 
-Step 2: ลอง fallback models ตามลำดับ priority:
-        1. glm-5.1  (limit 1) → ว่าง? → fallback → glm-5.1
-        2. glm-5-turbo (limit 1) → ว่าง? → fallback → glm-5-turbo
-        3. glm-4.7  (limit 2) → ว่าง? → fallback → glm-4.7
-        4. glm-4.6  (limit 3) → ว่าง? → fallback → glm-4.6
+Step 2: Try fallback models in strict priority order:
+        1. glm-5.1 (limit 1)  → available? → fallback to glm-5.1
+        2. glm-5-turbo (limit 1) → available? → fallback to glm-5-turbo
+        3. glm-4.7 (limit 2)  → available? → fallback to glm-4.7
+        4. glm-4.6 (limit 3)  → available? → fallback to glm-4.6
+        5. glm-4.5 (limit 10) → available? → fallback to glm-4.5
 
-Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
+Step 3: All models full or global cap (15) reached → block-wait on requested model
+
+Key: When load is low, all requests go to 5.x series (4 slots).
+     When 5.x is full, requests cascade to 4.x (15 slots).
+     glm-4.5 (10 slots) acts as overflow buffer.
+
+### Example: 15 Concurrent Requests for glm-5
+
+| Req | Model Selected | Fallback? | Reason |
+|-----|---------------|-----------|--------|
+| 1 | glm-5 | No | Slot available (1/2) |
+| 2 | glm-5 | No | Slot available (2/2, full) |
+| 3 | glm-5.1 | Yes | glm-5 full, next in priority |
+| 4 | glm-5-turbo | Yes | glm-5.1 full, next in priority |
+| 5-6 | glm-4.7 | Yes | All 5.x full, start 4.x |
+| 7-9 | glm-4.6 | Yes | glm-4.7 full |
+| 10-14 | glm-4.5 | Yes | glm-4.6 full, overflow buffer |
+| 15 | (waits) | N/A | Global cap 15 reached |
 ```
-
-### Body Rewrite
-
-เมื่อเกิด fallback → gateway/worker เปลี่ยน field `"model"` ใน request body:
-```json
-// Before: {"model":"glm-5","messages":[...]}
-// After:  {"model":"glm-5.1","messages":[...]}
-```
-
-### ตัวอย่าง: 5 Concurrent Requests ขอ glm-5
-
-| Req | Model ที่ได้ | Fallback? | เหตุผล |
-|-----|-------------|-----------|--------|
-| 1 | glm-5 | No | Slot ว่าง (2/2 → ใช้ 1) |
-| 2 | glm-5 | No | Slot ว่าง (2/2 → เต็ม) |
-| 3 | glm-5.1 | Yes | glm-5 เต็ม → fallback priority 1 |
-| 4 | glm-5-turbo | Yes | glm-5.1 เต็ม → fallback priority 2 |
-| 5 | glm-4.7 | Yes | glm-5-turbo เต็ม → fallback priority 3 |
-
-**ผล**: 5/5 OK, 0 429 errors, latency 6-33s
 
 ---
 
@@ -1013,7 +1003,7 @@ Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
 
 ### สภาพแวดล้อมการทดสอบ
 
-- **Config**: 1 GLM API key, RPM=5, 9 model slots, 50 worker coroutines
+- **Config**: 1 GLM API key, RPM=5, 19 model slots (global cap 15), 50 worker coroutines
 - **Endpoint**: `POST /v1/chat/completions` (async mode)
 - **Method**: ยิง concurrent burst แล้ว poll จนกว่าจะเสร็จทุก request
 - **Script**: `scripts/multi-agent-test.sh`
@@ -1052,7 +1042,7 @@ Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
 | Fastest / P50 / Avg / Slowest | 19.0s / 27.3s / 25.3s / 31.5s |
 | Throughput | 18.9 req/min |
 | Model distribution | glm-5.1 x3, glm-4.7 x2, others x5 |
-| Key survived | No (rotated after test) |
+| Key survived | Cooldown (auto-recovers) |
 
 ### Test 4: 5 Agents x 2 Turns (10 requests)
 
@@ -1063,7 +1053,7 @@ Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
 | 429 errors | 0 |
 | Fastest / P50 / Avg / Slowest | 8.6s / 10.7s / 10.9s / 14.8s |
 | Throughput | 40.0 req/min |
-| Key survived | No (rotated after test) |
+| Key survived | Cooldown (auto-recovers) |
 
 ### Summary: Capacity vs Concurrent Agents
 
@@ -1071,16 +1061,16 @@ Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
 |--------|-----------|---------|-----------|-------------|-------|
 | 3 | 3 | 100% | ~19s | Yes | Safe |
 | 5 | 5 | 100% | ~33s | Yes | Safe |
-| 5 x2 turns | 10 | 100% | ~15s | No | Burst only |
-| 10 | 10 | 100% | ~32s | No | Burst only |
+| 5 x2 turns | 10 | 100% | ~15s | Cooldown | Burst ok |
+| 10 | 10 | 100% | ~32s | Cooldown | Burst ok |
 
 ### Conclusions
 
 1. **Safe concurrent (key survives)**: 3-5 agents
-2. **Burst capacity**: 10 agents (key gets rotated after, needs worker restart)
+2. **Burst capacity**: 10 agents (key cools down for 60s after burst, auto-recovers)
 3. **RPM bottleneck**: With 1 key at 5 RPM, requests beyond the first batch wait ~30s for RPM window reset
-4. **Model fallback works**: Automatically distributes across glm-5.1, glm-5-turbo, glm-4.7, glm-4.6
-5. **Key rotation is permanent**: Once rotated out, worker can't process more jobs until restart
+4. **Model fallback works**: Automatically distributes across glm-5.1, glm-5-turbo, glm-4.7, glm-4.6, glm-4.5
+5. **Key cooldown**: Keys auto-recover after 60s cooldown, no worker restart needed
 
 ### Limitations (Current Config)
 
@@ -1088,8 +1078,8 @@ Step 3: ทุก model เต็ม → block-wait on requested model (glm-5)
 Bottleneck hierarchy (slowest first):
 
 1. Provider RPM limit:    5 req/min (1 GLM key) — MAIN BOTTLENECK
-2. Key rotation:          Permanent on 429 — worker becomes useless
-3. Model slots:           9 concurrent — sufficient for current load
+2. Global cap:            15 concurrent — limits burst
+3. Model slots:           19 concurrent (across 6 models) — sufficient for current load
 4. Worker capacity:       50 coroutines — far exceeds demand
 ```
 
@@ -1106,18 +1096,13 @@ Bottleneck hierarchy (slowest first):
 
 ## 16. Known Issues
 
-### Permanent Key Rotation
+### Key Cooldown
 
-**Problem**: KeyManager removes keys permanently from the pool when a 429 rate limit error occurs. With only 1 key, the worker becomes unable to process any more jobs after the key is rotated out.
+**Status**: Key rotation now uses cooldown-based recovery instead of permanent removal. Keys enter a 60-second cooldown on 429 errors and auto-recover afterward.
 
-**Workaround**: Restart the worker to reset the key pool: `docker-compose restart arl-worker`
+**Previous behavior**: KeyManager removed keys permanently from the pool when a 429 rate limit error occurred. With only 1 key, the worker became unable to process any more jobs after the key was rotated out.
 
-**Impact**: With 1 GLM key at 5 RPM, the system can handle ~5-10 concurrent requests before the key gets rotated. After that, all subsequent requests fail until worker restart.
-
-**Long-term fix options**:
-- Temporary key cooldown instead of permanent removal (e.g., don't use the key for 60s, then retry)
-- Key health tracking with automatic re-inclusion after cooldown period
-- Multiple keys to absorb rotation impact
+**Current behavior**: Keys cool down for 60 seconds, then automatically rejoin the pool. No worker restart needed.
 
 ### Rate Limiter Blocking Internal Endpoints
 
@@ -1125,4 +1110,4 @@ Bottleneck hierarchy (slowest first):
 
 ---
 
-*Architecture docs v1.2 — updated with load test results, model priority, and known issues*
+*Architecture docs v1.3 — updated with 6-model priority fallback, global cap 15, key cooldown*

@@ -44,6 +44,9 @@ class OpenRouterProvider(BaseProvider):
             temperature=temperature,
         )
 
+        if not response.choices:
+            raise RuntimeError(f"OpenRouter returned empty choices for model={model}")
+
         content = response.choices[0].message.content or ""
         usage = {
             "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,

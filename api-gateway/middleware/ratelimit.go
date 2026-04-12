@@ -30,8 +30,8 @@ type rateLimitResponse struct {
 // RateLimiter holds the configuration and HTTP client for calling the external
 // distributed-rate-limiter service.
 type RateLimiter struct {
-	cfg     *config.Config
-	client  *http.Client
+	cfg      *config.Config
+	client   *http.Client
 	checkURL string
 }
 
@@ -52,20 +52,20 @@ func NewRateLimiter(cfg *config.Config) *RateLimiter {
 func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 	body, err := json.Marshal(rateLimitRequest{Key: key, Tokens: tokens})
 	if err != nil {
-		slog.Error("failed to marshal rate-limit request", "error", err, "key", key)
+		slog.Error("failed to marshal rate-limit request", "error", err, "key_suffix", keySuffix(key))
 		return true // fail-open
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rl.checkURL, bytes.NewReader(body))
 	if err != nil {
-		slog.Error("failed to create rate-limit request", "error", err, "key", key)
+		slog.Error("failed to create rate-limit request", "error", err, "key_suffix", keySuffix(key))
 		return true
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := rl.client.Do(req)
 	if err != nil {
-		slog.Error("rate-limiter service unreachable, failing open", "error", err, "key", key)
+		slog.Error("rate-limiter service unreachable, failing open", "error", err, "key_suffix", keySuffix(key))
 		return true
 	}
 	defer resp.Body.Close()
@@ -88,7 +88,7 @@ func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip rate limiting for internal endpoints.
-		if r.URL.Path == "/metrics" || r.URL.Path == "/health" || r.URL.Path == "/v1/limiter-status" {
+		if r.URL.Path == "/metrics" || r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -115,14 +115,20 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 		}
 
 		// 2. Per-agent rate-limit check.
-		// For /v1/messages, use x-api-key as the identity.
+		// For /v1/messages, use hashed x-api-key as identity.
 		// For other routes, use query param or URL param.
 		agentID := ""
 		if isAnthropic {
 			if key := r.Header.Get("x-api-key"); key != "" {
-				agentID = key
+				agentID = keySuffix(key)
 			} else if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
-				agentID = strings.TrimPrefix(authHeader, "Bearer ")
+				agentID = keySuffix(strings.TrimPrefix(authHeader, "Bearer "))
+			}
+			if agentID == "" {
+				w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					json.NewEncoder(w).Encode(map[string]string{"error": "x-api-key header is required"})
+				return
 			}
 		} else {
 			agentID = r.URL.Query().Get("agent_id")
@@ -151,6 +157,14 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// keySuffix returns last 4 chars with mask for safe logging.
+func keySuffix(key string) string {
+	if len(key) <= 4 {
+		return "****"
+	}
+	return "****" + key[len(key)-4:]
 }
 
 // writeAnthropicRateLimitError writes an Anthropic-format rate limit error.

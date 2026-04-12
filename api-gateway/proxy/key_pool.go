@@ -14,16 +14,16 @@ import (
 //  2. Skip keys in cooldown (recently received 429)
 //  3. If all keys are in cooldown, pick the one whose cooldown expires soonest
 type KeyPool struct {
-	keys    []*keyEntry
+	keys     []*keyEntry
 	rpmLimit int64
-	mu      sync.Mutex
-	idx     int // round-robin cursor
+	mu       sync.Mutex
+	idx      int // round-robin cursor
 }
 
 type keyEntry struct {
-	apiKey     string
-	timestamps []int64 // unix-millis of recent requests (sliding window)
-	cooldownUntil int64 // unix-millis; 0 = not in cooldown
+	apiKey        string
+	timestamps    []int64 // unix-millis of recent requests (sliding window)
+	cooldownUntil int64   // unix-millis; 0 = not in cooldown
 }
 
 // NewKeyPool creates a key pool. keys may be empty (passthrough mode — client
@@ -82,7 +82,7 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 		}
 	}
 
-	// All in cooldown — pick the one expiring soonest.
+	// All in cooldown - release mutex, wait, then retry once.
 	if best == nil {
 		soonest := int64(0)
 		for _, k := range kp.keys {
@@ -94,12 +94,13 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 		if best == nil {
 			return "", false
 		}
-		// Wait until cooldown expires.
 		wait := time.Until(time.UnixMilli(best.cooldownUntil))
+		kp.mu.Unlock()
 		if wait > 0 {
 			slog.Warn("all keys in cooldown, waiting", "wait_ms", wait.Milliseconds())
 			time.Sleep(wait)
 		}
+		kp.mu.Lock()
 		best.cooldownUntil = 0
 	}
 
@@ -147,15 +148,15 @@ func (kp *KeyPool) ReportSuccess(apiKey string) {
 
 // Status returns a snapshot for monitoring.
 type KeyPoolStatus struct {
-	TotalKeys int            `json:"total_keys"`
+	TotalKeys int              `json:"total_keys"`
 	Keys      []KeyStatusEntry `json:"keys"`
 }
 
 type KeyStatusEntry struct {
-	Suffix      string `json:"suffix"`
-	RPMUsed     int    `json:"rpm_used"`
-	RPMLimit    int    `json:"rpm_limit"`
-	InCooldown  bool   `json:"in_cooldown"`
+	Suffix     string `json:"suffix"`
+	RPMUsed    int    `json:"rpm_used"`
+	RPMLimit   int    `json:"rpm_limit"`
+	InCooldown bool   `json:"in_cooldown"`
 }
 
 func (kp *KeyPool) Status() KeyPoolStatus {

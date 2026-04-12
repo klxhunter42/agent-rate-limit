@@ -21,7 +21,7 @@ A self-hosted AI gateway that sits between your agents (Claude Code, CI/CD pipel
 - **Transparent proxy** for Claude Code -- zero modification to requests/responses, SSE streaming passthrough
 - **Async queue** for batch agents -- burst 100+ jobs, worker paces them automatically
 - **Distributed rate limiting** -- token bucket algorithm with per-key and global limits
-- **Per-model concurrency** -- 9 slots across 5 models with automatic fallback
+- **Per-model concurrency** -- 19 slots across 6 models with priority-based fallback (5.x first, 4.x when busy)
 - **Multi-provider fallback** -- GLM -> OpenAI -> Anthropic -> Gemini -> OpenRouter
 - **Key cooldown** -- keys temporarily disabled on 429, auto-recover after 60s (no restart needed)
 
@@ -37,7 +37,7 @@ arl-gateway (:8080) -- Go, chi router
   |-- Rate Limit --> arl-rate-limiter (Java/Spring) --> arl-dragonfly (Redis)
   |-- Sync:  Transparent Proxy --> Upstream Provider
   |-- Async: LPUSH to Queue --> arl-worker (Python, 50 coroutines)
-  |     |-- Per-Model Semaphores (9 slots)
+  |     |-- Per-Model Semaphores (19 slots, global cap 15)
   |     |-- RPM Limiter (glm:5)
   |     |-- Key Cooldown (60s, auto-recover)
   |     |-- Provider Fallback Chain
@@ -127,19 +127,43 @@ PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50
 
 ## Per-Model Concurrency
 
-9 concurrent slots distributed across models. When a model is full, requests automatically fall back to models with available slots:
+19 concurrent slots distributed across 6 models. When a model is full, requests automatically fall back in strict priority order (5.x always preferred, 4.x only when busy):
 
 ```
-Model Slots:  glm-5.1(1)  glm-5-turbo(1)  glm-5(2)  glm-4.7(2)  glm-4.6(3)
-Fallback:     glm-5.1 --> glm-5-turbo --> glm-5 --> glm-4.7 --> glm-4.6
+Priority:  High ──────────────────────────────────────▶ Low
+
+glm-5.1(1) → glm-5-turbo(1) → glm-5(2) → glm-4.7(2) → glm-4.6(3) → glm-4.5(10)
+Series 5: 4 slots (preferred)                              Series 4: 15 slots (fallback)
+
+Global cap: 15 concurrent across all models
 ```
+
+### Selection Examples
+
+**Low load (3 concurrent):**
+| Req | Requested | Selected | Why |
+|-----|-----------|----------|-----|
+| 1 | glm-5 | glm-5 | Slot available |
+| 2 | glm-5 | glm-5 | 2nd slot available |
+| 3 | glm-5 | glm-5.1 | glm-5 full, fallback to next 5.x |
+
+**High load (15 concurrent):**
+| Req | Requested | Selected | Why |
+|-----|-----------|----------|-----|
+| 1-2 | glm-5 | glm-5 | 2 slots filled |
+| 3 | glm-5 | glm-5.1 | Fallback (5.x preferred) |
+| 4 | glm-5 | glm-5-turbo | Fallback (5.x preferred) |
+| 5-6 | glm-5 | glm-4.7 | All 5.x full, start 4.x |
+| 7-9 | glm-5 | glm-4.6 | 4.7 full |
+| 10-14 | glm-5 | glm-4.5 | 4.6 full, last resort |
+| 15 | glm-5 | (waits) | Global cap reached |
 
 Configure in `.env`:
 
 ```bash
-UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3
-UPSTREAM_DEFAULT_LIMIT=1
-UPSTREAM_GLOBAL_LIMIT=9
+UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10
+UPSTREAM_DEFAULT_LIMIT=2
+UPSTREAM_GLOBAL_LIMIT=15
 ```
 
 ## Scaling Throughput

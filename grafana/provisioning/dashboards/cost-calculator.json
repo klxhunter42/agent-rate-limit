@@ -12,7 +12,7 @@
       "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "## AI API Cost Estimator\nEstimate costs based on request volume, provider, and model pricing.\n\n| Provider | Model | Input (per 1M tokens) | Output (per 1M tokens) |\n|----------|-------|----------------------|------------------------|\n| GLM/Z.ai | glm-5 | $0.50 | $1.50 |\n| OpenAI | gpt-4o | $2.50 | $10.00 |\n| Anthropic | claude-sonnet-4-6 | $3.00 | $15.00 |\n| Gemini | gemini-2.0-flash | $0.10 | $0.40 |\n| OpenRouter | varies | varies | varies |"
+        "content": "## AI API Cost Estimator\nEstimate costs based on actual token usage from the gateway.\n\n| Provider | Model | Input (per 1M tokens) | Output (per 1M tokens) |\n|----------|-------|----------------------|------------------------|\n| GLM/Z.ai | glm-5 | $0.50 | $1.50 |\n| OpenAI | gpt-4o | $2.50 | $10.00 |\n| Anthropic | claude-sonnet-4-6 | $3.00 | $15.00 |\n| Gemini | gemini-2.0-flash | $0.10 | $0.40 |"
       }
     },
     {
@@ -23,43 +23,72 @@
         { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[24h]))", "legendFormat": "Sync", "refId": "A" },
         { "expr": "sum(increase(ai_worker_jobs_processed_total[24h]))", "legendFormat": "Async", "refId": "B" }
       ],
-      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } }
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 100 }] }
+        }
+      }
     },
     {
-      "title": "Requests/hour (avg)",
+      "title": "Est. Input Tokens (24h)",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 3 },
       "targets": [
-        { "expr": "sum(rate(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[1h])) * 3600", "legendFormat": "Sync req/h", "refId": "A" },
-        { "expr": "sum(rate(ai_worker_jobs_processed_total[1h])) * 3600", "legendFormat": "Async req/h", "refId": "B" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "req/h" } }
-    },
-    {
-      "title": "Actual Input Tokens (24h)",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 3 },
-      "targets": [
         {
-          "expr": "sum(increase(api_gateway_token_input_total[24h])) > 0 or on() sum(increase(ai_worker_jobs_processed_total[24h])) * 500",
+          "expr": "sum(increase(api_gateway_token_input_total[24h])) > 0 or on() vector(0)",
           "legendFormat": "Input tokens",
           "refId": "A"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "blue", "mode": "fixed" } } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }, { "color": "green", "value": 100000 }] }
+        }
+      }
     },
     {
-      "title": "Actual Output Tokens (24h)",
+      "title": "Est. Output Tokens (24h)",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 3 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 3 },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_token_output_total[24h])) > 0 or on() sum(increase(ai_worker_jobs_processed_total[24h])) * 200",
+          "expr": "sum(increase(api_gateway_token_output_total[24h])) > 0 or on() vector(0)",
           "legendFormat": "Output tokens",
           "refId": "A"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "fixedColor": "green", "mode": "fixed" } } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "fixedColor": "green", "mode": "fixed" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 500000 }] }
+        }
+      }
+    },
+    {
+      "title": "Est. Total Cost (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 3 },
+      "targets": [
+        {
+          "expr": "(sum(increase(api_gateway_token_input_total{model=~\"glm.*\"}[24h])) / 1000000 * 0.5 + sum(increase(api_gateway_token_output_total{model=~\"glm.*\"}[24h])) / 1000000 * 1.5) > 0 or on() vector(0)",
+          "legendFormat": "GLM Cost",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 }] }
+        }
+      }
     },
     {
       "title": "Request Volume Over Time",
@@ -67,33 +96,109 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
       "targets": [
         { "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_count{path=~\"/v1/.*\"}[5m])) * 3600", "legendFormat": "{{path}} req/h", "refId": "A" },
-        { "expr": "rate(ai_worker_jobs_processed_total[5m]) * 3600", "legendFormat": "{{provider}} jobs/h", "refId": "B" }
+        { "expr": "rate(ai_worker_jobs_processed_total[5m]) * 3600", "legendFormat": "{{provider}} async/h", "refId": "B" }
       ],
-      "fieldConfig": { "defaults": { "unit": "req/h", "custom": { "fillOpacity": 15 } } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "req/h",
+          "custom": {
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto"
+          }
+        }
+      }
     },
     {
-      "title": "Est. Daily Cost by Provider",
+      "title": "Token Usage by Model (24h)",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
       "targets": [
         {
-          "expr": "sum(increase(ai_worker_jobs_processed_total{provider=\"glm\"}[24h])) * 500 / 1000000 * 0.5",
-          "legendFormat": "GLM Input",
+          "expr": "sum by (model) (increase(api_gateway_token_input_total[24h]))",
+          "legendFormat": "{{model}} input",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(ai_worker_jobs_processed_total{provider=\"glm\"}[24h])) * 200 / 1000000 * 1.5",
-          "legendFormat": "GLM Output",
+          "expr": "sum by (model) (increase(api_gateway_token_output_total[24h]))",
+          "legendFormat": "{{model}} output",
           "refId": "B"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 2 } },
-      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "groupWidth": 0.7 }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.5,
+        "stackBy": "model"
+      }
+    },
+    {
+      "title": "Est. Daily Cost by Model",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_input_total[24h])) / 1000000 * 0.5",
+          "legendFormat": "{{model}} input cost",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_output_total[24h])) / 1000000 * 1.5",
+          "legendFormat": "{{model}} output cost",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "groupWidth": 0.7,
+        "barWidth": 0.5,
+        "stackBy": "model"
+      }
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "targets": [
+        {
+          "expr": "increase(api_gateway_upstream_429_total[1h])",
+          "legendFormat": "429s (1h)",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(api_gateway_upstream_retries_total[1h])",
+          "legendFormat": "Retries (1h)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
     },
     {
       "title": "Rate Limit Protection",
       "type": "text",
-      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 15 },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 23 },
       "options": {
         "mode": "markdown",
         "content": "### Rate Limit Protection\nRequests blocked by rate limiter = **cost savings** from preventing runaway API usage.\nWithout rate limiting, a single agent could consume the entire budget in minutes."
@@ -102,7 +207,7 @@
     {
       "title": "Rate Limited Requests",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
       "targets": [
         {
           "expr": "rate(api_gateway_rate_limit_hits_total[5m]) * 3600",
@@ -115,43 +220,13 @@
           "refId": "B"
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "req/h", "color": { "fixedColor": "orange", "mode": "palette-classic" } } }
-    },
-    {
-      "title": "Upstream 429s & Retries",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
-      "targets": [
-        {
-          "expr": "rate(api_gateway_upstream_429_total[5m]) * 3600",
-          "legendFormat": "429s/h",
-          "refId": "A"
-        },
-        {
-          "expr": "rate(api_gateway_upstream_retries_total[5m]) * 3600",
-          "legendFormat": "Retries/h",
-          "refId": "B"
+      "fieldConfig": {
+        "defaults": {
+          "unit": "req/h",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "color": { "fixedColor": "orange", "mode": "palette-classic" }
         }
-      ],
-      "fieldConfig": { "defaults": { "unit": "req/h", "color": { "mode": "palette-classic" } } }
-    },
-    {
-      "title": "Retry Rate",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
-      "targets": [
-        {
-          "expr": "rate(ai_worker_jobs_retried_total[5m])",
-          "legendFormat": "Retries/s",
-          "refId": "A"
-        },
-        {
-          "expr": "rate(ai_worker_jobs_failed_total[5m])",
-          "legendFormat": "Failures/s",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops" } }
+      }
     },
     {
       "title": "Provider Error Rate",
@@ -159,25 +234,64 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
       "targets": [
         {
-          "expr": "sum by (provider) (rate(ai_worker_provider_errors_total[5m]))",
-          "legendFormat": "{{provider}} errors/s",
+          "expr": "rate(api_gateway_error_total[5m]) * 3600",
+          "legendFormat": "{{type}} errors/h",
           "refId": "A"
+        },
+        {
+          "expr": "sum by (provider) (rate(ai_worker_provider_errors_total[5m])) * 3600",
+          "legendFormat": "{{provider}} errors/h",
+          "refId": "B"
         }
-      ],
-      "fieldConfig": { "defaults": { "unit": "errors/s" } }
-    },
-    {
-      "title": "Queue Depth (Backlog Cost Indicator)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
-      "targets": [
-        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway Queue", "refId": "A" },
-        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker Queue", "refId": "B" }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": { "fillOpacity": 15 },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] }
+          "unit": "short",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Limiter Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 34 },
+      "targets": [
+        { "expr": "api_gateway_active_connections", "legendFormat": "Active", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 9 }] }
+        }
+      }
+    },
+    {
+      "title": "Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 34 },
+      "targets": [
+        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      }
+    },
+    {
+      "title": "Rate Limit Hits Total",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 34 },
+      "targets": [
+        { "expr": "sum(api_gateway_rate_limit_hits_total)", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "sum(ai_worker_rate_limit_hits_total)", "legendFormat": "Worker", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" }
         }
       }
     }
@@ -186,7 +300,8 @@
   "tags": ["agent-rate-limit", "cost"],
   "templating": { "list": [] },
   "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
   "title": "Cost Calculator & Savings",
   "uid": "arl-cost",
-  "version": 2
+  "version": 3
 }

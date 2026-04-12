@@ -91,3 +91,13 @@ class KeyManager:
                 "cooling_down": len(keys) - len(available),
             }
         return result
+
+    async def shortest_cooldown(self, provider: str) -> float:
+        """Return seconds until the shortest cooldown expires, or 5.0 if unknown."""
+        async with self._lock:
+            cooldowns = self._cooldowns.get(provider, {})
+            now = time.monotonic()
+            waits = [v - now for v in cooldowns.values() if v > now]
+            if waits:
+                return min(waits) + 0.5
+            return 5.0

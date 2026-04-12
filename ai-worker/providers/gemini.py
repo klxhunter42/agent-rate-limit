@@ -16,9 +16,11 @@ class GeminiProvider(BaseProvider):
     """Google Gemini API provider."""
 
     def __init__(self, api_key: str, timeout: int = 120):
-        genai.configure(api_key=api_key)
+        # Use per-instance client instead of global genai.configure() to
+        # support multi-key scenarios without key collision.
         self._api_key = api_key
         self._timeout = timeout
+        self._client = genai.GenerativeModel  # lazy; configure per-request
         logger.info("gemini provider initialized")
 
     def get_name(self) -> str:
@@ -32,6 +34,9 @@ class GeminiProvider(BaseProvider):
         temperature: float = 0.7,
         **kwargs,
     ) -> ProviderResponse:
+        # Configure per-request to isolate keys across cached instances.
+        genai.configure(api_key=self._api_key)
+
         # Convert messages to Gemini format
         system_instruction = None
         contents = []

@@ -66,6 +66,7 @@ var modelPriority = map[string]int{
 	"glm-5":       80,
 	"glm-4.7":     70,
 	"glm-4.6":     60,
+	"glm-4.5":     50,
 }
 
 // NewAdaptiveLimiter creates an adaptive concurrency limiter.
@@ -73,6 +74,10 @@ var modelPriority = map[string]int{
 //   - defaultLimit: for unconfigured models
 //   - globalLimit:  hard cap across all models (per-key upstream limit)
 func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *AdaptiveLimiter {
+	if globalLimit <= 0 {
+		panic("globalLimit must be positive")
+	}
+
 	models := make(map[string]*adaptiveModel, len(limits))
 	names := make([]string, 0, len(limits))
 
@@ -146,20 +151,20 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 		return requestedModel
 	}
 
-	// Requested model full - try fallbacks by priority (non-blocking).
-	// Use round-robin rotation to distribute traffic evenly among same-tier models.
+	// Requested model full - try fallbacks in strict priority order.
+	// Higher-tier models are always tried first; lower tiers only used
+	// when all higher-tier slots are occupied.
 	reqPrio := modelPriority[requestedModel]
-	offset := int(al.rrEpoch.Add(1))
-	for i := 0; i < len(al.fallbackOrder); i++ {
-		idx := (i + offset) % len(al.fallbackOrder)
-		fb := al.fallbackOrder[idx]
+	for _, fb := range al.fallbackOrder {
 		if fb == requestedModel {
 			continue
 		}
-		// Skip only models more than 2 major tiers below (gap >= 50).
-		// This allows 5.x (100-80) to fall back to 4.x (70-60) freely.
 		fbPrio, ok := modelPriority[fb]
-		if ok && reqPrio > 0 && fbPrio < reqPrio-50 {
+		if !ok {
+			continue
+		}
+		// Only skip models more than 2 major tiers below (gap >= 50).
+		if reqPrio > 0 && fbPrio < reqPrio-50 {
 			continue
 		}
 		fm := al.models[fb]
@@ -260,6 +265,7 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		// Envoy gradient controller formula.
 		bufferNano := minRTTNano / 10
 		gradient := float64(minRTTNano+bufferNano) / float64(rttNano)
+		gradient = math.Min(2.0, math.Max(0.8, gradient)) // prevent oscillation
 		additive := math.Max(1, math.Sqrt(float64(oldLimit)))
 		newLimit = int64(gradient*float64(oldLimit) + additive)
 	} else {
@@ -322,23 +328,34 @@ func (al *AdaptiveLimiter) getModel(name string) *adaptiveModel {
 }
 
 func (am *adaptiveModel) tryAcquire() bool {
-	cur := am.inFlight.Add(1)
-	if cur <= am.limit.Load() {
-		return true
+	for {
+		cur := am.inFlight.Load()
+		if cur >= am.limit.Load() {
+			return false
+		}
+		if am.inFlight.CompareAndSwap(cur, cur+1) {
+			return true
+		}
 	}
-	am.inFlight.Add(-1)
-	return false
 }
 
 func (am *adaptiveModel) acquireBlocking() {
-	for {
-		cur := am.inFlight.Add(1)
-		if cur <= am.limit.Load() {
-			return
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		for {
+			cur := am.inFlight.Load()
+			limit := am.limit.Load()
+			if limit == 0 || cur >= limit {
+				break
+			}
+			if am.inFlight.CompareAndSwap(cur, cur+1) {
+				return
+			}
 		}
-		am.inFlight.Add(-1)
 		time.Sleep(5 * time.Millisecond)
 	}
+	// Timeout: force acquire to prevent deadlock.
+	am.inFlight.Add(1)
 }
 
 // parseRetryAfter extracts the Retry-After header value as a duration.
