@@ -94,9 +94,27 @@
       "fieldConfig": { "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } } }
     },
     {
-      "title": "Provider Latency (p50/p95/p99)",
+      "title": "Token Usage - Input by Model",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        { "expr": "sum by (model) (rate(ai_worker_token_input_total[5m]))", "legendFormat": "{{model}} input", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Token Usage - Output by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        { "expr": "sum by (model) (rate(ai_worker_token_output_total[5m]))", "legendFormat": "{{model}} output", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Provider Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
       "targets": [
         { "expr": "histogram_quantile(0.50, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p50", "refId": "A" },
         { "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(ai_worker_provider_latency_seconds_bucket[5m])))", "legendFormat": "{{provider}} p95", "refId": "B" },
@@ -105,19 +123,9 @@
       "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
-      "title": "Provider Errors by Provider",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
-      "targets": [
-        { "expr": "rate(ai_worker_provider_errors_total[5m])", "legendFormat": "{{provider}} errors/s", "refId": "A" },
-        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "{{provider}} rate-limited/s", "refId": "B" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
       "title": "Worker Process Memory (RSS)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
       "targets": [
         { "expr": "process_resident_memory_bytes{job=\"ai-worker\"}", "legendFormat": "RSS", "refId": "A" },
         { "expr": "process_virtual_memory_bytes{job=\"ai-worker\"}", "legendFormat": "Virtual", "refId": "B" }
@@ -127,29 +135,21 @@
     {
       "title": "Worker CPU Usage",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
       "targets": [
         { "expr": "rate(process_cpu_seconds_total{job=\"ai-worker\"}[5m])", "legendFormat": "CPU seconds/s", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "core" } }
-    }
-    {
-      "title": "Token Usage - Input by Model",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
-      "targets": [
-        { "expr": "sum by (model) (rate(ai_worker_token_input_total[5m]))", "legendFormat": "{{model}} input", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
     },
     {
-      "title": "Token Usage - Output by Model",
+      "title": "Provider Errors by Provider",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 41 },
       "targets": [
-        { "expr": "sum by (model) (rate(ai_worker_token_output_total[5m]))", "legendFormat": "{{model}} output", "refId": "A" }
+        { "expr": "rate(ai_worker_provider_errors_total[5m])", "legendFormat": "{{provider}} errors/s", "refId": "A" },
+        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "{{provider}} rate-limited/s", "refId": "B" }
       ],
-      "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
     }
   ],
   "schemaVersion": 39,

@@ -142,9 +142,52 @@
       }
     },
     {
+      "title": "Limiter Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 15 },
+      "targets": [
+        { "expr": "api_gateway_active_connections", "legendFormat": "Active", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 15 }] }
+        }
+      }
+    },
+    {
+      "title": "Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 15 },
+      "targets": [
+        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      }
+    },
+    {
+      "title": "Rate Limit Hits Total",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 15 },
+      "targets": [
+        { "expr": "sum(api_gateway_rate_limit_hits_total)", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "sum(ai_worker_rate_limit_hits_total)", "legendFormat": "Worker", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "orange", "mode": "fixed" }
+        }
+      }
+    },
+    {
       "title": "Est. Daily Cost by Model",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
       "targets": [
         {
           "expr": "sum by (model) (increase(api_gateway_token_input_total[24h])) / 1000000 * 0.5",
@@ -174,7 +217,7 @@
     {
       "title": "Upstream 429s & Retries",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
       "targets": [
         {
           "expr": "increase(api_gateway_upstream_429_total[1h])",
@@ -198,7 +241,7 @@
     {
       "title": "Rate Limit Protection",
       "type": "text",
-      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 23 },
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 27 },
       "options": {
         "mode": "markdown",
         "content": "### Rate Limit Protection\nRequests blocked by rate limiter = **cost savings** from preventing runaway API usage.\nWithout rate limiting, a single agent could consume the entire budget in minutes."
@@ -207,7 +250,7 @@
     {
       "title": "Rate Limited Requests",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
       "targets": [
         {
           "expr": "rate(api_gateway_rate_limit_hits_total[5m]) * 3600",
@@ -231,7 +274,7 @@
     {
       "title": "Provider Error Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
       "targets": [
         {
           "expr": "rate(api_gateway_error_total[5m]) * 3600",
@@ -249,49 +292,6 @@
           "unit": "short",
           "custom": { "fillOpacity": 10, "lineWidth": 2 },
           "color": { "mode": "palette-classic" }
-        }
-      }
-    },
-    {
-      "title": "Limiter Status",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 34 },
-      "targets": [
-        { "expr": "api_gateway_active_connections", "legendFormat": "Active", "refId": "A" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 9 }] }
-        }
-      }
-    },
-    {
-      "title": "Queue Depth",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 34 },
-      "targets": [
-        { "expr": "api_gateway_queue_depth", "legendFormat": "Gateway", "refId": "A" },
-        { "expr": "ai_worker_queue_depth", "legendFormat": "Worker", "refId": "B" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
-        }
-      }
-    },
-    {
-      "title": "Rate Limit Hits Total",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 34 },
-      "targets": [
-        { "expr": "sum(api_gateway_rate_limit_hits_total)", "legendFormat": "Gateway", "refId": "A" },
-        { "expr": "sum(ai_worker_rate_limit_hits_total)", "legendFormat": "Worker", "refId": "B" }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "orange", "mode": "fixed" }
         }
       }
     }

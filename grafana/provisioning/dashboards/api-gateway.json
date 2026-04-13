@@ -34,7 +34,7 @@
     {
       "title": "Active Connections",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         { "expr": "api_gateway_active_connections", "legendFormat": "Active", "refId": "A" }
       ],
@@ -43,7 +43,7 @@
     {
       "title": "Queue Depth",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         { "expr": "api_gateway_queue_depth", "legendFormat": "Queue Depth", "refId": "A" }
       ],
@@ -55,37 +55,9 @@
       }
     },
     {
-      "title": "Errors by Type",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
-      "targets": [
-        { "expr": "rate(api_gateway_error_total[5m])", "legendFormat": "{{type}}", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
-      "title": "Rate Limit Hits by Key",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "targets": [
-        { "expr": "rate(api_gateway_rate_limit_hits_total[5m])", "legendFormat": "{{key}}", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "fixedColor": "orange", "mode": "palette-classic" } } }
-    },
-    {
-      "title": "Upstream 429s & Retries",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "targets": [
-        { "expr": "rate(api_gateway_upstream_429_total[5m])", "legendFormat": "429s/s", "refId": "A" },
-        { "expr": "rate(api_gateway_upstream_retries_total[5m])", "legendFormat": "Retries/s", "refId": "B" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
       "title": "Token Usage - Input by Model",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         { "expr": "rate(api_gateway_token_input_total[5m])", "legendFormat": "{{model}} input", "refId": "A" }
       ],
@@ -94,7 +66,7 @@
     {
       "title": "Token Usage - Output by Model",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         { "expr": "rate(api_gateway_token_output_total[5m])", "legendFormat": "{{model}} output", "refId": "A" }
       ],
@@ -103,7 +75,7 @@
     {
       "title": "Request Latency Heatmap (avg by path)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "targets": [
         {
           "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_sum[5m])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[5m]))",
@@ -112,6 +84,34 @@
         }
       ],
       "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_429_total[5m])", "legendFormat": "429s/s", "refId": "A" },
+        { "expr": "rate(api_gateway_upstream_retries_total[5m])", "legendFormat": "Retries/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Errors by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        { "expr": "rate(api_gateway_error_total[5m])", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Rate Limit Hits by Key",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
+      "targets": [
+        { "expr": "rate(api_gateway_rate_limit_hits_total[5m])", "legendFormat": "{{key}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "fixedColor": "orange", "mode": "palette-classic" } } }
     }
   ],
   "schemaVersion": 39,

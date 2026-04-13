@@ -104,29 +104,9 @@
       "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } } }
     },
     {
-      "title": "Rate Limit Hits Over Time",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
-      "targets": [
-        { "expr": "rate(api_gateway_rate_limit_hits_total[5m])", "legendFormat": "Gateway {{key}}", "refId": "A" },
-        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "Worker {{provider}}", "refId": "B" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
-      "title": "Upstream 429s & Retries",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-      "targets": [
-        { "expr": "rate(api_gateway_upstream_429_total[5m])", "legendFormat": "429s/s", "refId": "A" },
-        { "expr": "rate(api_gateway_upstream_retries_total[5m])", "legendFormat": "Retries/s", "refId": "B" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
       "title": "Token Usage by Model",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "targets": [
         { "expr": "rate(api_gateway_token_input_total[5m])", "legendFormat": "gw {{model}} in", "refId": "A" },
         { "expr": "rate(api_gateway_token_output_total[5m])", "legendFormat": "gw {{model}} out", "refId": "B" },
@@ -136,18 +116,9 @@
       "fieldConfig": { "defaults": { "unit": "tokps", "color": { "mode": "palette-classic" } } }
     },
     {
-      "title": "Gateway Errors by Type",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
-      "targets": [
-        { "expr": "rate(api_gateway_error_total[5m])", "legendFormat": "{{type}}", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
-    },
-    {
       "title": "Rate Limiter - HTTP Request Rate",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "targets": [
         {
           "expr": "rate(http_server_requests_seconds_count{uri!~\"/actuator.*\"}[5m])",
@@ -160,13 +131,42 @@
     {
       "title": "Rate Limiter - JVM Memory",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "targets": [
         { "expr": "jvm_memory_used_bytes{area=\"heap\"}", "legendFormat": "Heap Used", "refId": "A" },
         { "expr": "jvm_memory_max_bytes{area=\"heap\"}", "legendFormat": "Heap Max", "refId": "B" },
         { "expr": "jvm_memory_used_bytes{area=\"nonheap\"}", "legendFormat": "Non-Heap Used", "refId": "C" }
       ],
       "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_429_total[5m])", "legendFormat": "429s/s", "refId": "A" },
+        { "expr": "rate(api_gateway_upstream_retries_total[5m])", "legendFormat": "Retries/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Gateway Errors by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        { "expr": "rate(api_gateway_error_total[5m])", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
+    },
+    {
+      "title": "Rate Limit Hits Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "targets": [
+        { "expr": "rate(api_gateway_rate_limit_hits_total[5m])", "legendFormat": "Gateway {{key}}", "refId": "A" },
+        { "expr": "rate(ai_worker_rate_limit_hits_total[5m])", "legendFormat": "Worker {{provider}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" } } }
     }
   ],
   "schemaVersion": 39,
