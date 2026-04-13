@@ -89,7 +89,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				"model", model,
 			)
 			p.metrics.IncRetry()
-			time.Sleep(backoff)
+			select {
+			case <-time.After(backoff):
+			case <-r.Context().Done():
+				return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
+			}
 		}
 
 		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
@@ -108,8 +112,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return fmt.Errorf("upstream call failed: %w", err)
 		}
 
-		// Report feedback for adaptive limiter (every attempt, including 429s).
-		if feedback != nil {
+		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
+		// Report feedback for adaptive limiter only on final attempt
+		// to prevent hammering the limit down on retries.
+		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
 			feedback(resp.StatusCode, rtt, resp.Header)
 		}
 

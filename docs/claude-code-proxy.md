@@ -153,7 +153,17 @@ Request → Logging → Metrics → Rate Limit → Proxy
                         └───────────┬──────────┘
                                     │
                         ┌───────────▼──────────┐
-                        │ Per-Model Limiter    │
+                        │ Handler:             │
+                        │ 1. Read+validate body│
+                        │ 2. Parse JSON        │
+                        │ 3. Resolve key pool  │
+                        │ 4. Acquire model slot│
+                        │    (may fallback)    │
+                        │ 5. Proxy upstream    │
+                        └───────────┬──────────┘
+                                    │
+                        ┌───────────▼──────────┐
+                        │ Adaptive Limiter     │
                         │ glm-5.1: limit 1     │
                         │ glm-5-turbo: limit 1 │
                         │ glm-5: limit 2       │
@@ -161,11 +171,13 @@ Request → Logging → Metrics → Rate Limit → Proxy
                         │ glm-4.6: limit 3     │
                         │ glm-4.5: limit 10    │
                         │ Total: 19 slots      │
-                        │ Global cap: 15       │
+                        │ Global cap: 9        │
+                        │ Probe: 5x initial    │
                         │                      │
-                        │ เต็ม? → fallback    │
-                        │ ตาม priority order  │
-                        │ (5.x ก่อนเสมอ)     │
+                        │ เต็ม? → รอ 2s        │
+                        │ → fallback ตาม       │
+                        │ priority order       │
+                        │ (5.x ก่อนเสมอ)       │
                         └──────────────────────┘
 ```
 
@@ -182,13 +194,17 @@ Request → Logging → Metrics → Rate Limit → Proxy
 ```go
 // handler.go — Messages endpoint
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-    // 1. ดึง API key (สำหรับ rate limit)
-    apiKey := extractAPIKey(r)
+    // 1. อ่าน body ทั้งก้อน + validate (size limit 10MB, JSON parse)
+    body, _ := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
+    // ... validate size + parse JSON ...
 
-    // 2. อ่าน body ทั้งก้อน (เพื่อ peek stream field)
-    body, _ := io.ReadAll(r.Body)
+    // 2. Resolve API key (หลัง validation — ไม่เสีย RPM บน bad request)
+    apiKey := h.keyPool.Acquire() // หรือ extract จาก header (passthrough mode)
 
-    // 3. ส่งตรงไป upstream โดยไม่ decode/re-encode
+    // 3. Acquire model slot (อาจ fallback ไป model อื่น)
+    selectedModel, _ := h.modelLimiter.Acquire(requestedModel)
+
+    // 4. ส่งตรงไป upstream (body rewrite เฉพาะ model field)
     h.proxy.ProxyTransparent(w, r, apiKey, isStream)
 }
 
@@ -196,6 +212,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 func (p *AnthropicProxy) ProxyTransparent(...) error {
     // ส่ง raw body ไป upstream เลย ไม่แตะ
     // รับ response มา ส่งตรงไป client เลย ไม่แตะ
+    // Retry backoff ใช้ select + ctx.Done() (ไม่ block เมื่อ client disconnect)
 }
 ```
 
@@ -386,4 +403,4 @@ curl -X POST http://localhost:8080/v1/messages \
 
 ---
 
-*Transparent Proxy v2.1 — 6 models, strict priority fallback, global cap 15*
+*Transparent Proxy v2.3 — key pool RPM fix, context-aware backoff, handler order validation-first*

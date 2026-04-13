@@ -74,6 +74,13 @@ PROVIDER_LATENCY = Histogram(...)  # ← ไม่เคย .observe()
 
 Metrics จริงอยู่ใน in-process `Metrics` class (port 9091 `/metrics-internal`) ไม่ใช่ Prometheus
 
+**Token metrics** (`ai_worker_token_input_total`, `ai_worker_token_output_total`) ถูก increment แล้ว:
+```python
+# worker.py — token tracking ทำงานแล้ว
+pm.TOKEN_INPUT.labels(provider=response.provider, model=response.model).inc(prompt_tokens)
+pm.TOKEN_OUTPUT.labels(provider=response.provider, model=response.model).inc(completion_tokens)
+```
+
 ### ผลกระทบ
 
 - Grafana dashboard ที่ query `ai_worker_jobs_processed_total` จะได้ค่าว่างเสมอ
@@ -256,11 +263,7 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
         m.RequestLatency.WithLabelValues(r.Method, routePattern, status).Observe(duration)
     })
 }
-```
-
----
-
-## 8. Single Redis Connection ใน Worker
+```## 8. Single Redis Connection ใน Worker
 
 ### ปัญหา
 
@@ -317,6 +320,50 @@ arl-dragonfly:
 
 ---
 
+## 10. Resolved Issues (Recent Session)
+
+### Global Slot Starvation Under Heavy Load (FIXED)
+
+**Problem**: When all model slots were full, `AdaptiveLimiter.Acquire()` would hold the global slot while blocking on a model semaphore. Under heavy load, many requests could hold global slots while waiting for the same popular model, starving requests that could use other models.
+
+**Fix**: `Acquire()` now releases the global slot before entering the blocking wait on the requested model, then re-acquires it after obtaining a model slot. This prevents global slot hoarding.
+
+**Files**: `api-gateway/middleware/adaptive_limiter.go`
+
+### Key Pool RPM Wasted on Bad Requests (FIXED)
+
+**Problem**: `keyPool.Acquire()` was called early in the Messages handler, before request body validation. Malformed or oversized requests would consume RPM budget from a key even though the request would never reach upstream.
+
+**Fix**: `keyPool.Acquire()` is now called after body read, size check, and JSON parse. Only valid requests consume RPM budget.
+
+**Files**: `api-gateway/handler/handler.go`
+
+### Retry Backoff Ignores Context Cancellation (FIXED)
+
+**Problem**: Upstream retry backoff used `time.Sleep(backoff)`, which ignored client disconnect. A cancelled request would still occupy a goroutine for the full backoff duration.
+
+**Fix**: Retry backoff now uses `select` with `r.Context().Done()`:
+```go
+select {
+case <-time.After(backoff):
+    // proceed with retry
+case <-r.Context().Done():
+    return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
+}
+```
+
+**Files**: `api-gateway/proxy/anthropic.go`
+
+### Docker-Compose Default Mismatch (FIXED)
+
+**Problem**: Gateway and worker had different default values for `UPSTREAM_DEFAULT_LIMIT` and `UPSTREAM_GLOBAL_LIMIT` in docker-compose.yml, causing inconsistent behavior.
+
+**Fix**: Both gateway and worker now default to `UPSTREAM_DEFAULT_LIMIT=1`, `UPSTREAM_GLOBAL_LIMIT=9`.
+
+**Files**: `docker-compose.yml`
+
+---
+
 ## Summary
 
 | # | Issue | Severity | Status |
@@ -330,7 +377,11 @@ arl-dragonfly:
 | 7 | Metrics status hardcode "200" | Medium | Known |
 | 8 | Single Redis connection | Low | Known |
 | 9 | No auth on admin APIs | Low | Known (internal only) |
+| 10a | Global slot starvation | High | **Fixed** |
+| 10b | Key pool RPM wasted on bad requests | Medium | **Fixed** |
+| 10c | Retry backoff ignores context cancellation | Medium | **Fixed** |
+| 10d | Docker-compose default mismatch | Low | **Fixed** |
 
 ---
 
-*Known Issues v1.0 — generated from full codebase audit*
+*Known Issues v1.1 — updated with resolved items from session fixes*

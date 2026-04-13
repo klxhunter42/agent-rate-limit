@@ -35,27 +35,30 @@ type AdaptiveLimiter struct {
 }
 
 type adaptiveModel struct {
-	name        string
-	inFlight    atomic.Int64
-	limit       atomic.Int64
-	minLimit    int64
-	maxLimit    int64
-	minRTT      atomic.Int64 // nanoseconds
-	totalReqs   atomic.Int64
-	total429s   atomic.Int64
-	last429Nano atomic.Int64
-	successRun  atomic.Int64 // consecutive successes since last 429
+	name          string
+	inFlight      atomic.Int64
+	limit         atomic.Int64
+	minLimit      int64
+	maxLimit      int64
+	minRTT        atomic.Int64 // nanoseconds
+	totalReqs     atomic.Int64
+	total429s     atomic.Int64
+	last429Nano   atomic.Int64
+	successRun    atomic.Int64 // consecutive successes since last 429
+	peakBefore429 atomic.Int64 // highest limit before last 429 (learned ceiling)
+	peakSetNano   atomic.Int64 // when peakBefore429 was set (for decay)
 }
 
 // ModelStatus is a snapshot for the /v1/limiter-status endpoint.
 type ModelStatus struct {
-	Name      string `json:"name"`
-	InFlight  int64  `json:"in_flight"`
-	Limit     int64  `json:"limit"`
-	MaxLimit  int64  `json:"max_limit"`
-	TotalReqs int64  `json:"total_requests"`
-	Total429s int64  `json:"total_429s"`
-	MinRTTMs  int64  `json:"min_rtt_ms"`
+	Name           string `json:"name"`
+	InFlight       int64  `json:"in_flight"`
+	Limit          int64  `json:"limit"`
+	MaxLimit       int64  `json:"max_limit"`
+	LearnedCeiling int64  `json:"learned_ceiling"`
+	TotalReqs      int64  `json:"total_requests"`
+	Total429s      int64  `json:"total_429s"`
+	MinRTTMs       int64  `json:"min_rtt_ms"`
 }
 
 // modelPriority defines fallback order (higher = preferred).
@@ -73,7 +76,7 @@ var modelPriority = map[string]int{
 //   - limits:       model -> max concurrent (also the initial limit)
 //   - defaultLimit: for unconfigured models
 //   - globalLimit:  hard cap across all models (per-key upstream limit)
-func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *AdaptiveLimiter {
+func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeMultiplier int) *AdaptiveLimiter {
 	if globalLimit <= 0 {
 		panic("globalLimit must be positive")
 	}
@@ -82,19 +85,26 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *A
 	names := make([]string, 0, len(limits))
 
 	for model, max := range limits {
+		// Probe ceiling: allow adaptive limiter to discover the real
+		// upstream limit by probing up to probeMultiplier x the initial limit.
+		// On 429 it backs off, so it naturally converges to the true ceiling.
+		if probeMultiplier <= 0 {
+			probeMultiplier = 10
+		}
+		probeMax := int64(max) * int64(probeMultiplier)
 		am := &adaptiveModel{
 			name:     model,
 			minLimit: 1,
-			maxLimit: int64(max),
+			maxLimit: probeMax,
 		}
-		am.limit.Store(int64(max)) // start at configured limit
+		am.limit.Store(int64(max)) // start at documented limit
 		models[model] = am
 		names = append(names, model)
 
 		slog.Info("adaptive model configured",
 			"model", model,
 			"initial_limit", max,
-			"max_limit", max,
+			"max_limit", probeMax,
 		)
 	}
 	// Sort by priority (newer models first) instead of alphabetically.
@@ -128,9 +138,10 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit int) *A
 }
 
 // Acquire obtains a concurrency slot. Returns the model name that was selected
-// (may differ from the requested model if fallback occurred).
-// The caller MUST call Release(selectedModel) when done.
-func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
+// (may differ from the requested model if fallback occurred) and whether
+// acquisition succeeded. On failure the caller MUST NOT call Release.
+// The caller MUST call Release(selectedModel) on success when done.
+func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 	// Wait for a global slot (caps total concurrent across all models).
 	// Use CAS loop instead of add-then-check to avoid TOCTOU race that
 	// allows globalInFlight to exceed globalLimit under high concurrency.
@@ -148,12 +159,17 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 	// Try the requested model (non-blocking).
 	model := al.getModel(requestedModel)
 	if model.tryAcquire() {
-		return requestedModel
+		return requestedModel, true
 	}
 
-	// Requested model full - try fallbacks in strict priority order.
-	// Higher-tier models are always tried first; lower tiers only used
-	// when all higher-tier slots are occupied.
+	// Requested model full - wait briefly for it before falling back.
+	// This keeps series 5 priority: only downgrade to series 4 when
+	// the preferred model is genuinely saturated.
+	if model.tryAcquireWithTimeout(2 * time.Second) {
+		return requestedModel, true
+	}
+
+	// Timeout on preferred model - try fallbacks in strict priority order.
 	reqPrio := modelPriority[requestedModel]
 	for _, fb := range al.fallbackOrder {
 		if fb == requestedModel {
@@ -173,14 +189,29 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) string {
 				"requested", requestedModel,
 				"selected", fb,
 			)
-			return fb
+			return fb, true
 		}
 	}
 
-	// All models full - block-wait on the originally requested model.
+	// All models full - release global slot before blocking wait to avoid
+	// starving other requests under heavy load.
+	al.globalInFlight.Add(-1)
 	slog.Debug("all models full, waiting", "requested", requestedModel)
-	model.acquireBlocking()
-	return requestedModel
+	if model.acquireBlocking(30 * time.Second) {
+		// Re-acquire global slot after model slot obtained.
+		for {
+			cur := al.globalInFlight.Load()
+			if cur >= al.globalLimit {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
+			if al.globalInFlight.CompareAndSwap(cur, cur+1) {
+				break
+			}
+		}
+		return requestedModel, true
+	}
+	return "", false
 }
 
 // Release frees the concurrency slot acquired by Acquire.
@@ -206,7 +237,9 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		defer al.mu.Unlock()
 
 		old := am.limit.Load()
-		newLim := old * 5 / 10 // multiplicative decrease x0.5
+		am.peakBefore429.Store(old) // remember ceiling before 429
+		am.peakSetNano.Store(time.Now().UnixNano())
+		newLim := old * 5 / 10      // multiplicative decrease x0.5
 		if newLim < am.minLimit {
 			newLim = am.minLimit
 		}
@@ -275,6 +308,16 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 	if newLimit > am.maxLimit {
 		newLimit = am.maxLimit
 	}
+	// Decay learned ceiling: if 5 min since last 429, allow re-probing.
+	if peak := am.peakBefore429.Load(); peak > 0 {
+		peakAge := time.Duration(time.Now().UnixNano() - am.peakSetNano.Load())
+		if peakAge > 5*time.Minute {
+			am.peakBefore429.Store(0)
+			slog.Info("learned ceiling decayed, allowing re-probe", "model", model, "old_peak", peak)
+		} else if newLimit >= peak {
+			newLimit = peak - 1
+		}
+	}
 	if newLimit > oldLimit {
 		am.limit.Store(newLimit)
 		slog.Info("adaptive limit increased",
@@ -293,13 +336,14 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 		m := al.models[name]
 		minRTTMs := m.minRTT.Load() / int64(time.Millisecond)
 		out = append(out, ModelStatus{
-			Name:      name,
-			InFlight:  m.inFlight.Load(),
-			Limit:     m.limit.Load(),
-			MaxLimit:  m.maxLimit,
-			TotalReqs: m.totalReqs.Load(),
-			Total429s: m.total429s.Load(),
-			MinRTTMs:  minRTTMs,
+			Name:           name,
+			InFlight:       m.inFlight.Load(),
+			Limit:          m.limit.Load(),
+			MaxLimit:       m.maxLimit,
+			LearnedCeiling: m.peakBefore429.Load(),
+			TotalReqs:      m.totalReqs.Load(),
+			Total429s:      m.total429s.Load(),
+			MinRTTMs:       minRTTMs,
 		})
 	}
 	return out
@@ -339,8 +383,10 @@ func (am *adaptiveModel) tryAcquire() bool {
 	}
 }
 
-func (am *adaptiveModel) acquireBlocking() {
-	deadline := time.Now().Add(30 * time.Second)
+// tryAcquireWithTimeout waits up to timeout for a slot on this model.
+// Returns false if timeout elapsed without acquiring.
+func (am *adaptiveModel) tryAcquireWithTimeout(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		for {
 			cur := am.inFlight.Load()
@@ -349,13 +395,30 @@ func (am *adaptiveModel) acquireBlocking() {
 				break
 			}
 			if am.inFlight.CompareAndSwap(cur, cur+1) {
-				return
+				return true
 			}
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	// Timeout: force acquire to prevent deadlock.
-	am.inFlight.Add(1)
+	return false
+}
+
+func (am *adaptiveModel) acquireBlocking(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		for {
+			cur := am.inFlight.Load()
+			limit := am.limit.Load()
+			if limit == 0 || cur >= limit {
+				break
+			}
+			if am.inFlight.CompareAndSwap(cur, cur+1) {
+				return true
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return false
 }
 
 // parseRetryAfter extracts the Retry-After header value as a duration.

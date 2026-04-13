@@ -45,7 +45,7 @@
 │    └─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)          │
 │                                    │                             │
 │                              arl-worker (BRPOP x 50)             │
-│                                ├─ Per-Model Semaphores (19 slots, global cap 15) │
+│                                ├─ Per-Model Semaphores (19 slots, global cap 9)  │
 │                                ├─ RPM Limiter (glm:5)            │
 │                                ├─ Provider Cache (httpx reuse)    │
 │                                ├─ Provider Fallback Chain        │
@@ -120,8 +120,11 @@
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider |
 | `STREAM_TIMEOUT` | `300s` | Timeout for streaming proxy |
 | `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (19 slots) |
-| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit for unconfigured models |
-| `UPSTREAM_GLOBAL_LIMIT` | `15` | Total concurrent across all models (0=unlimited) |
+| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models |
+| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent across all models (0=unlimited) |
+| `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive probe ceiling multiplier (initial * this = maxLimit) |
+| `UPSTREAM_MAX_RETRIES` | `3` | Max retry attempts on upstream 429/503 |
+| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff between retries (quadratic: base * attempt^2, capped at 5min) |
 | `READ_TIMEOUT` | `5s` | HTTP read timeout |
 | `OTLP_ENDPOINT` | `otel-collector:4317` | OTel collector |
 | `REDIS_POOL_SIZE` | `50` | Connection pool size |
@@ -203,27 +206,87 @@ if err != nil {
 
 ---
 
-## 4. Per-Model Upstream Limiter
+## 4. Per-Model Upstream Limiter (Adaptive)
 
-### Architecture (`middleware/model_limiter.go`)
+### Architecture (`middleware/adaptive_limiter.go`)
 
-Per-model semaphore limits concurrent requests to upstream for each model independently.
-When a model's slots are full, requests automatically fallback to other models with available slots.
+Adaptive concurrency limiter with automatic limit discovery. Starts at configured initial limits,
+probes upward based on upstream feedback (success rate, latency), and backs off on 429/503 errors.
+
+Inspired by Envoy gradient controller + Netflix concurrency limits.
+
+### Adaptive Algorithm
+
+```
+On 429/503:
+  peakBefore429 = current limit     (remember the ceiling that caused 429)
+  limit_new = max(minLimit, limit * 0.5)  (multiplicative decrease x0.5)
+
+On 200:
+  gradient = (minRTT + buffer) / sampleRTT
+  limit_new = min(maxLimit, gradient * limit + sqrt(limit))
+  if newLimit >= peakBefore429 → cap at peakBefore429 - 1  (don't re-probe learned ceiling)
+
+Cooldown: 5s after any 429 before increasing again
+Probe: every 5 consecutive successes
+```
+
+### Fallback with Wait-then-Fallback
 
 ```
 Request: { "model": "glm-5", ... }
   │
-  ├─ 1. Try glm-5 semaphore (non-blocking)
-  │     └─ Available? → acquire slot → use glm-5
+  ├─ 1. Try glm-5 (non-blocking CAS acquire)
+  │     └─ Available? → use glm-5
   │
-  ├─ 2. glm-5 full → try fallback models in STRICT PRIORITY order:
-  │     ├─ Try glm-5.1 (limit 1) → Available? → use glm-5.1
-  │     ├─ Try glm-5-turbo (limit 1) → Available? → use glm-5-turbo
-  │     ├─ Try glm-4.7 (limit 2) → Available? → use glm-4.7
-  │     ├─ Try glm-4.6 (limit 3) → Available? → use glm-4.6
-  │     └─ Try glm-4.5 (limit 10) → Available? → use glm-4.5
+  ├─ 2. glm-5 full → wait up to 2s for slot
+  │     └─ Slot freed? → use glm-5 (preferred model preserved)
   │
-  └─ 3. All models full or global cap reached → block-wait
+  ├─ 3. Timeout → try fallback models in STRICT PRIORITY order:
+  │     ├─ glm-5.1 (priority 100) → skip if >2 tiers below requested
+  │     ├─ glm-5-turbo (priority 90)
+  │     ├─ glm-5 (priority 80)
+  │     ├─ glm-4.7 (priority 70)
+  │     ├─ glm-4.6 (priority 60)
+  │     └─ glm-4.5 (priority 50) → only if within tier gap
+  │
+  └─ 4. All models full → release global slot → block-wait on requested model (30s timeout)
+                                            → re-acquire global slot after model slot obtained
+```
+
+**Wait-then-fallback trade-off**: Adds 0-2s latency when series 5 is temporarily full,
+but results in using higher-quality models more often. If series 5 is genuinely saturated,
+falls back to series 4 after the 2s wait.
+
+**Global slot starvation prevention**: When all models are full and `Acquire()` needs to block-wait on the requested model, it first **releases the global slot** before blocking, then **re-acquires** it after obtaining a model slot. This prevents a scenario where many requests hold global slots while waiting for a single popular model, starving other requests that could use different models.
+
+### Probe Multiplier (Configurable)
+
+```env
+# How far above initial limit to probe (default: 5x)
+# e.g. initial=1, multiplier=5 → maxLimit=5
+# Set higher if real upstream limit may be higher than documented
+UPSTREAM_PROBE_MULTIPLIER=5
+```
+
+The system discovers the real upstream limit automatically:
+- Starts at initial limit (e.g., 1 for glm-5.1)
+- Probes upward every 5 consecutive successes
+- When 429 hits at limit N, remembers N as `peakBefore429`
+- Future probes cap at `peakBefore429 - 1` (learned ceiling)
+- Visible in `/v1/limiter-status` as `learned_ceiling` field
+
+```
+Example: real upstream limit = 4, initial = 1, probeMultiplier = 5
+
+Step 1: limit=1 → success x5 → limit=2
+Step 2: limit=2 → success x5 → limit=3
+Step 3: limit=3 → success x5 → limit=4
+Step 4: limit=4 → success x5 → limit=5
+Step 5: limit=5 → 429! → peakBefore429=5, limit=2 (halved)
+Step 6: limit=2 → success x5 → limit=3
+Step 7: limit=3 → success x5 → limit=4 → cap at peak-1=4
+→ Converged at 4 (the real limit)
 ```
 
 ### Configuration
@@ -233,10 +296,13 @@ Request: { "model": "glm-5", ... }
 UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10
 
 # Default limit for models not in the list
-UPSTREAM_DEFAULT_LIMIT=2
+UPSTREAM_DEFAULT_LIMIT=1
 
 # Total concurrent across all models (0 = unlimited)
-UPSTREAM_GLOBAL_LIMIT=15
+UPSTREAM_GLOBAL_LIMIT=9
+
+# Probe multiplier for adaptive limit discovery
+UPSTREAM_PROBE_MULTIPLIER=5
 ```
 
 ### Example
@@ -244,7 +310,7 @@ UPSTREAM_GLOBAL_LIMIT=15
 ```
 Models configured: glm-5.1:1, glm-5-turbo:1, glm-5:2, glm-4.7:2, glm-4.6:3, glm-4.5:10
 Total model capacity: 1+1+2+2+3+10 = 19
-Global cap: 15 concurrent
+Global cap: 9 concurrent
 
 Selection: Strict priority order (5.x always preferred before 4.x)
 
@@ -293,9 +359,38 @@ This is the only modification to the request body — all other fields (tools, m
 - ไม่ decode/re-encode request body
 - ไม่ decode/re-encode response body
 - SSE streaming: relay chunk by chunk พร้อม flush ทุก chunk
+- Token tracking: parse `usage` from response for Prometheus metrics (input/output by model)
 - Headers ส่งตรง: `Content-Type`, `x-api-key`, `anthropic-version`
 - Response headers ส่งตรงทั้งหมด
 - Status code ส่งตรง (429 ไม่แปลงเป็น 502)
+
+### Key Pool (Gateway-managed upstream keys)
+
+The gateway can manage a pool of upstream API keys (`UPSTREAM_API_KEYS`) with per-key RPM tracking and automatic cooldown on 429/overloaded errors.
+
+**Key pool RPM leak prevention**: `keyPool.Acquire()` is called **after** body validation and JSON parsing in the Messages handler. This ensures RPM budget is not wasted on malformed or oversized requests.
+
+```
+Messages handler order (correct):
+  1. Read body (with 10MB limit check)
+  2. Parse JSON (validate structure)
+  3. Resolve API key from pool ← only after validation
+  4. Acquire model slot (may fallback)
+  5. Proxy request upstream
+```
+
+### Context-Aware Retry Backoff
+
+Upstream retry backoff uses `select` with `r.Context().Done()` instead of `time.Sleep`, so cancelled requests (e.g., client disconnect) abort immediately instead of waiting through the full backoff duration:
+
+```go
+select {
+case <-time.After(backoff):
+    // proceed with retry
+case <-r.Context().Done():
+    // client disconnected, abort
+}
+```
 
 ### HTTP Client Tuning (`proxy/anthropic.go`)
 
@@ -435,8 +530,8 @@ Worker cache provider instances ตาม `(provider_name, sha256(api_key)[:16])
 | `OPENROUTER_API_KEYS` | | Comma-separated keys |
 | `GLM_ENDPOINT` | `https://api.z.ai/api/anthropic` | GLM API endpoint |
 | `UPSTREAM_MODEL_LIMITS` | `` | Per-model concurrent limits (same format as gateway) |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models |
-| `UPSTREAM_GLOBAL_LIMIT` | `0` | Total concurrent across all models (0=unlimited) |
+| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models (docker-compose default: 1) |
+| `UPSTREAM_GLOBAL_LIMIT` | `0` | Total concurrent across all models (0=unlimited, docker-compose default: 9) |
 | `PROVIDER_RPM_LIMITS` | `` | Per-provider RPM limit (e.g. `glm:5`) |
 
 ---
@@ -534,6 +629,8 @@ Request → key1 → 429 Rate Limit
 | `api_gateway_error_total` | Counter | type | Error count |
 | `api_gateway_rate_limit_hits_total` | Counter | key | Rate limit hits |
 | `api_gateway_active_connections` | Gauge | | Active connections |
+| `api_gateway_token_input_total` | Counter | model | Input tokens consumed by model |
+| `api_gateway_token_output_total` | Counter | model | Output tokens generated by model |
 
 > **หมายเหตุ**: Status label ใน latency histogram ปัจจุบัน hardcode เป็น "200" เสมอ (metrics middleware ไม่ได้ดึง status จริงจาก response writer wrapper ใน chi middleware chain)
 
@@ -657,7 +754,7 @@ Client (10 concurrent POST /v1/chat/completions)
 ┌─────────────────────────────────────────────────────────────┐
 │ arl-worker (Python asyncio)                                 │
 │                                                             │
-│  Layer 1: Per-Model Semaphores (19 slots, global cap 15)          │
+│  Layer 1: Per-Model Semaphores (19 slots, global cap 9)           │
 │  ┌────────┬──────────┬───────┬────────┬────────┬────────┐       │
 │  │glm-5.1 │glm-5-turbo│glm-5 │glm-4.7 │glm-4.6 │glm-4.5 │       │
 │  │ 1 slot │ 1 slot   │2 slots│2 slots │3 slots │10 slots│       │
@@ -665,7 +762,7 @@ Client (10 concurrent POST /v1/chat/completions)
 │  Fallback: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6  │
 │            → glm-4.5                                              │
 │                                                                  │
-│  Layer 2: Global Semaphore (15 concurrent max)                   │
+│  Layer 2: Global Semaphore (9 concurrent max)                    │
 │                                                             │
 │  Layer 3: Per-Provider RPM Limiter                         │
 │  ┌──────────────────────────────┐                          │
@@ -902,7 +999,7 @@ Agent Orchestrator
                                               ▼
                                      arl-worker (50 coroutines)
                                        ├─ RPM limiter paces requests
-                                       ├─ Per-model semaphore (19 slots, global cap 15)
+                                       ├─ Per-model semaphore (19 slots, global cap 9)
                                        └─ Provider fallback chain
                                               │
                                               ▼
@@ -949,20 +1046,20 @@ Worker จะ rotate key อัตโนมัติ (random selection)
 
 ---
 
-## 14. Model Selection Priority (Per-Model Semaphore Fallback)
+## 14. Model Selection Priority (Adaptive Limiter with Wait-then-Fallback)
 
 ### Fallback Order
 
-เมื่อ requested model เต็ม (semaphore ไม่ว่าง) ระบบจะลอง fallback ตามลำดับ:
+เมื่อ requested model เต็ม ระบบจะรอ 2s ก่อน fallback ตามลำดับ:
 
 ```
 Priority: High-tier → Low-tier (strict order, 5.x always before 4.x)
 
 glm-5.1 (1) → glm-5-turbo (1) → glm-5 (2) → glm-4.7 (2) → glm-4.6 (3) → glm-4.5 (10)
 Series 5: 4 slots                          Series 4: 15 slots
-Global cap: 15 concurrent
+Global cap: 9 concurrent
 
-### Selection Algorithm (Strict Priority)
+### Selection Algorithm (Wait-then-Fallback)
 
 Request: { "model": "glm-5", ... }
 
@@ -970,18 +1067,30 @@ Step 1: Try requested model (non-blocking CAS acquire)
         glm-5 (limit 2) → available? → use glm-5
                           → full? → Step 2
 
-Step 2: Try fallback models in strict priority order:
+Step 2: Wait up to 2s for slot on requested model
+        glm-5 → slot freed? → use glm-5 (preferred)
+                              → timeout? → Step 3
+
+Step 3: Try fallback models in strict priority order (skip >2 tier gap):
         1. glm-5.1 (limit 1)  → available? → fallback to glm-5.1
         2. glm-5-turbo (limit 1) → available? → fallback to glm-5-turbo
         3. glm-4.7 (limit 2)  → available? → fallback to glm-4.7
         4. glm-4.6 (limit 3)  → available? → fallback to glm-4.6
         5. glm-4.5 (limit 10) → available? → fallback to glm-4.5
 
-Step 3: All models full or global cap (15) reached → block-wait on requested model
+Step 4: All models full or global cap (15) reached → block-wait on requested model
 
-Key: When load is low, all requests go to 5.x series (4 slots).
-     When 5.x is full, requests cascade to 4.x (15 slots).
-     glm-4.5 (10 slots) acts as overflow buffer.
+Key: Wait-then-fallback gives series 5 a 2s window before downgrading.
+     This means more requests use higher-quality models at the cost of up to 2s extra latency
+     when series 5 is genuinely saturated.
+
+### Adaptive Limit Discovery
+
+Initial limits auto-adjust based on upstream feedback:
+- Probes upward every 5 consecutive successes
+- Halves limit on 429/503
+- Remembers learned ceiling (peakBefore429) to prevent oscillation
+- Visible via GET /v1/limiter-status as `learned_ceiling` field
 
 ### Example: 15 Concurrent Requests for glm-5
 
@@ -994,7 +1103,7 @@ Key: When load is low, all requests go to 5.x series (4 slots).
 | 5-6 | glm-4.7 | Yes | All 5.x full, start 4.x |
 | 7-9 | glm-4.6 | Yes | glm-4.7 full |
 | 10-14 | glm-4.5 | Yes | glm-4.6 full, overflow buffer |
-| 15 | (waits) | N/A | Global cap 15 reached |
+| 15 | (waits) | N/A | Global cap 9 reached |
 ```
 
 ---
@@ -1003,7 +1112,7 @@ Key: When load is low, all requests go to 5.x series (4 slots).
 
 ### สภาพแวดล้อมการทดสอบ
 
-- **Config**: 1 GLM API key, RPM=5, 19 model slots (global cap 15), 50 worker coroutines
+- **Config**: 1 GLM API key, RPM=5, 19 model slots (global cap 9), 50 worker coroutines
 - **Endpoint**: `POST /v1/chat/completions` (async mode)
 - **Method**: ยิง concurrent burst แล้ว poll จนกว่าจะเสร็จทุก request
 - **Script**: `scripts/multi-agent-test.sh`
@@ -1078,7 +1187,7 @@ Key: When load is low, all requests go to 5.x series (4 slots).
 Bottleneck hierarchy (slowest first):
 
 1. Provider RPM limit:    5 req/min (1 GLM key) — MAIN BOTTLENECK
-2. Global cap:            15 concurrent — limits burst
+2. Global cap:            9 concurrent — limits burst
 3. Model slots:           19 concurrent (across 6 models) — sufficient for current load
 4. Worker capacity:       50 coroutines — far exceeds demand
 ```
@@ -1108,6 +1217,22 @@ Bottleneck hierarchy (slowest first):
 
 **Fixed**: Rate limiter middleware now skips `/metrics`, `/health`, and `/v1/limiter-status` paths. Previously, Prometheus scrapes to `/metrics` were being rate limited (429), making metrics unavailable.
 
+### Docker-Compose Default Unification
+
+**Fixed**: Gateway and worker now both default to `UPSTREAM_DEFAULT_LIMIT=1`, `UPSTREAM_GLOBAL_LIMIT=9` in docker-compose.yml. Previously, the gateway used different defaults than the worker, causing inconsistent behavior.
+
+### Gateway Key Pool RPM Leak
+
+**Fixed**: `keyPool.Acquire()` in the Messages handler is called after body read, size check, and JSON parse. Previously, acquiring a key before validation wasted RPM budget on malformed requests that would never reach upstream.
+
+### Context-Aware Retry Backoff
+
+**Fixed**: Retry backoff in `proxy/anthropic.go` uses `select` with `r.Context().Done()` instead of `time.Sleep`. Previously, a client disconnect during retry backoff would leave the goroutine sleeping for the full backoff duration.
+
+### Global Slot Starvation Prevention
+
+**Fixed**: `AdaptiveLimiter.Acquire()` releases the global slot before blocking-waiting on a model, then re-acquires it after. Previously, many requests could hold global slots while blocked on a popular model, starving requests that could use other models.
+
 ---
 
-*Architecture docs v1.3 — updated with 6-model priority fallback, global cap 15, key cooldown*
+*Architecture docs v1.5 — updated with global slot starvation fix, key pool RPM fix, context-aware backoff, unified docker-compose defaults*
