@@ -185,6 +185,25 @@ func (kp *KeyPool) Status() KeyPoolStatus {
 
 const cooldownDuration = 10 * time.Second
 
+// IsValidKey checks if the given key matches any key in the pool.
+// In passthrough mode (no keys configured), accepts any non-empty key.
+func (kp *KeyPool) IsValidKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	if kp.Passthrough() {
+		return true
+	}
+	kp.mu.Lock()
+	defer kp.mu.Unlock()
+	for _, k := range kp.keys {
+		if k.apiKey == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (k *keyEntry) trimBefore(windowStart int64) {
 	i := 0
 	for i < len(k.timestamps) && k.timestamps[i] < windowStart {

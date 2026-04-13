@@ -53,7 +53,7 @@ func main() {
 
 	// --- Handlers ---
 	anthropicProxy := proxy.NewAnthropicProxy(cfg, m)
-	modelLimiter := middleware.NewAdaptiveLimiter(cfg.ModelLimits, cfg.DefaultLimit, cfg.GlobalLimit)
+	modelLimiter := middleware.NewAdaptiveLimiter(cfg.ModelLimits, cfg.DefaultLimit, cfg.GlobalLimit, cfg.ProbeMultiplier)
 	keyPool := proxy.NewKeyPool(cfg.UpstreamAPIKeys, cfg.UpstreamRPMLimit)
 	h := handler.New(dfClient, m, anthropicProxy, modelLimiter, keyPool, cfg)
 

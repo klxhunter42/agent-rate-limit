@@ -162,35 +162,7 @@ const maxRequestBody = 10 * 1024 * 1024 // 10MB limit
 // Applies system prompt injection, smart max_tokens, per-model concurrency
 // limiting with auto-fallback, and retries on 429.
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	// Resolve API key: pool key > client key.
-	var apiKey string
-	if !h.keyPool.Passthrough() {
-		poolKey, ok := h.keyPool.Acquire()
-		if !ok {
-			writeJSON(w, http.StatusTooManyRequests, proxy.RateLimitError(10))
-			return
-		}
-		apiKey = poolKey
-	} else {
-		apiKey = r.Header.Get("x-api-key")
-		if apiKey == "" {
-			authHeader := r.Header.Get("Authorization")
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				apiKey = strings.TrimPrefix(authHeader, "Bearer ")
-			}
-		}
-		if apiKey == "" {
-			writeJSON(w, http.StatusUnauthorized, proxy.ErrorResponse{
-				Type: "error",
-				Error: proxy.ErrorDetail{
-					Type:    "authentication_error",
-					Message: "x-api-key header is required",
-				},
-			})
-			return
-		}
-	}
-
+	// Read and validate body before acquiring any resources.
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, proxy.ErrorResponse{
@@ -229,9 +201,43 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve API key after validation to avoid wasting RPM budget on bad requests.
+	var apiKey string
+	if !h.keyPool.Passthrough() {
+		poolKey, ok := h.keyPool.Acquire()
+		if !ok {
+			writeJSON(w, http.StatusTooManyRequests, proxy.RateLimitError(10))
+			return
+		}
+		apiKey = poolKey
+	} else {
+		apiKey = r.Header.Get("x-api-key")
+		if apiKey == "" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				apiKey = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+		if apiKey == "" {
+			writeJSON(w, http.StatusUnauthorized, proxy.ErrorResponse{
+				Type: "error",
+				Error: proxy.ErrorDetail{
+					Type:    "authentication_error",
+					Message: "x-api-key header is required",
+				},
+			})
+			return
+		}
+	}
+
 	// Extract and acquire model slot (may fallback).
 	requestedModel, _ := payload["model"].(string)
-	selectedModel := h.modelLimiter.Acquire(requestedModel)
+	selectedModel, ok := h.modelLimiter.Acquire(requestedModel)
+	if !ok {
+		writeJSON(w, http.StatusServiceUnavailable, proxy.OverloadedError("all model slots busy, please retry"))
+		h.metrics.IncError("overloaded")
+		return
+	}
 	defer h.modelLimiter.Release(selectedModel)
 
 	if selectedModel != requestedModel {
@@ -297,14 +303,14 @@ var allowedResponseHeaders = map[string]bool{
 // LimiterStatus returns current adaptive limiter state for monitoring.
 // Requires x-api-key or Authorization header for basic auth.
 func (h *Handler) LimiterStatus(w http.ResponseWriter, r *http.Request) {
-	// Basic auth: require an API key to prevent unauthenticated access.
+	// Auth: require a valid API key.
 	key := r.Header.Get("x-api-key")
 	if key == "" {
 		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 			key = strings.TrimPrefix(auth, "Bearer ")
 		}
 	}
-	if key == "" {
+	if key == "" || !h.keyPool.IsValidKey(key) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
 	}
