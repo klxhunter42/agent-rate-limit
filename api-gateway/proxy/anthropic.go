@@ -170,15 +170,26 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	}
 	if json.Unmarshal(body, &usage) == nil && (usage.Usage.InputTokens > 0 || usage.Usage.OutputTokens > 0) {
 		p.metrics.RecordTokens(model, usage.Usage.InputTokens, usage.Usage.OutputTokens)
-		slog.Debug("token usage",
+		slog.Info("token usage",
 			"model", model,
 			"input", usage.Usage.InputTokens,
 			"output", usage.Usage.OutputTokens,
+			"format", "anthropic",
 		)
 		tokenTracked = true
 	}
 
 	if !tokenTracked {
+		// Log raw response for debugging when token tracking fails.
+		preview := string(body)
+		if len(preview) > 500 {
+			preview = preview[:500]
+		}
+		slog.Warn("token tracking failed for non-stream response",
+			"model", model,
+			"status", resp.StatusCode,
+			"body_preview", preview,
+		)
 		// Fallback: try parsing without nested "usage" wrapper (OpenAI-style)
 		var altUsage struct {
 			InputTokens      int `json:"input_tokens"`
