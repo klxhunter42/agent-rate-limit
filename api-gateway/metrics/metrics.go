@@ -25,18 +25,34 @@ type Metrics struct {
 	TokenOutput       *prometheus.CounterVec
 	UpstreamRetries   prometheus.Counter
 	Upstream429       prometheus.Counter
+	AdaptiveLimit     *prometheus.GaugeVec
+	AdaptiveInFlight  *prometheus.GaugeVec
+	CostTotal         *prometheus.CounterVec
 	registry          *prometheus.Registry
 	queueDepthFn      func() float64
+	pricing           map[string]modelPrice
+}
+
+type modelPrice struct {
+	inputPerMillion  float64
+	outputPerMillion float64
 }
 
 // New creates and registers all Prometheus metrics. The queueDepthFn callback
 // is invoked on every scrape to report the current queue length.
-func New(queueDepthFn func() float64) *Metrics {
+func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 	registry := prometheus.NewRegistry()
+
+	// Convert pricing map.
+	pm := make(map[string]modelPrice, len(pricing))
+	for model, prices := range pricing {
+		pm[model] = modelPrice{inputPerMillion: prices[0], outputPerMillion: prices[1]}
+	}
 
 	m := &Metrics{
 		registry:     registry,
 		queueDepthFn: queueDepthFn,
+		pricing:      pm,
 
 		RequestLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
@@ -86,6 +102,24 @@ func New(queueDepthFn func() float64) *Metrics {
 			Name:      "upstream_429_total",
 			Help:      "Total number of 429 responses received from upstream.",
 		}),
+
+		AdaptiveLimit: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "adaptive_limit",
+			Help:      "Current adaptive concurrency limit per model.",
+		}, []string{"model"}),
+
+		AdaptiveInFlight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "adaptive_in_flight",
+			Help:      "Current in-flight requests per model.",
+		}, []string{"model"}),
+
+		CostTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cost_total",
+			Help:      "Estimated cost in USD by model, calculated from token usage * configured pricing.",
+		}, []string{"model"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -104,6 +138,9 @@ func New(queueDepthFn func() float64) *Metrics {
 		m.TokenOutput,
 		m.UpstreamRetries,
 		m.Upstream429,
+		m.AdaptiveLimit,
+		m.AdaptiveInFlight,
+		m.CostTotal,
 	)
 
 	return m
@@ -163,13 +200,20 @@ func (m *Metrics) IncRateLimit(key string) {
 	m.RateLimitHits.WithLabelValues(key).Inc()
 }
 
-// RecordTokens records input and output token usage for a model.
+// RecordTokens records input and output token usage for a model and accumulates cost.
 func (m *Metrics) RecordTokens(model string, input, output int) {
 	if input > 0 {
 		m.TokenInput.WithLabelValues(model).Add(float64(input))
 	}
 	if output > 0 {
 		m.TokenOutput.WithLabelValues(model).Add(float64(output))
+	}
+	// Calculate cost from configured pricing.
+	if p, ok := m.pricing[model]; ok {
+		cost := float64(input)/1_000_000*p.inputPerMillion + float64(output)/1_000_000*p.outputPerMillion
+		if cost > 0 {
+			m.CostTotal.WithLabelValues(model).Add(cost)
+		}
 	}
 }
 
@@ -181,4 +225,19 @@ func (m *Metrics) IncRetry() {
 // Inc429 increments the upstream 429 counter.
 func (m *Metrics) Inc429() {
 	m.Upstream429.Inc()
+}
+
+// ModelStatusSnapshot holds per-model limiter state for metrics export.
+type ModelStatusSnapshot struct {
+	Name     string
+	Limit    float64
+	InFlight float64
+}
+
+// UpdateAdaptiveMetrics sets the adaptive limit and in-flight gauges from a limiter snapshot.
+func (m *Metrics) UpdateAdaptiveMetrics(statuses []ModelStatusSnapshot) {
+	for _, s := range statuses {
+		m.AdaptiveLimit.WithLabelValues(s.Name).Set(s.Limit)
+		m.AdaptiveInFlight.WithLabelValues(s.Name).Set(s.InFlight)
+	}
 }
