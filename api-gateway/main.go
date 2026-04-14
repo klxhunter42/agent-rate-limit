@@ -41,6 +41,10 @@ func main() {
 	defer dfClient.Close()
 
 	// --- Metrics ---
+	pricingMap := make(map[string][2]float64, len(cfg.ModelPricing))
+	for model, p := range cfg.ModelPricing {
+		pricingMap[model] = [2]float64{p.InputPerMillion, p.OutputPerMillion}
+	}
 	m := metrics.New(func() float64 {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -49,13 +53,30 @@ func main() {
 			return 0
 		}
 		return float64(n)
-	})
+	}, pricingMap)
 
 	// --- Handlers ---
 	anthropicProxy := proxy.NewAnthropicProxy(cfg, m)
 	modelLimiter := middleware.NewAdaptiveLimiter(cfg.ModelLimits, cfg.DefaultLimit, cfg.GlobalLimit, cfg.ProbeMultiplier)
 	keyPool := proxy.NewKeyPool(cfg.UpstreamAPIKeys, cfg.UpstreamRPMLimit)
 	h := handler.New(dfClient, m, anthropicProxy, modelLimiter, keyPool, cfg)
+
+	// Periodically export adaptive limiter state to Prometheus.
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			var snapshots []metrics.ModelStatusSnapshot
+			for _, ms := range modelLimiter.Status() {
+				snapshots = append(snapshots, metrics.ModelStatusSnapshot{
+					Name:     ms.Name,
+					Limit:    float64(ms.Limit),
+					InFlight: float64(ms.InFlight),
+				})
+			}
+			m.UpdateAdaptiveMetrics(snapshots)
+		}
+	}()
 
 	// --- Router ---
 	r := chi.NewRouter()

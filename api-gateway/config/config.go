@@ -50,6 +50,15 @@ type Config struct {
 	// Adaptive probe: how many times the initial limit to probe upward.
 	// e.g. initial=1, multiplier=5 → maxLimit=5 (discovers real ceiling).
 	ProbeMultiplier int
+
+	// Per-model pricing: model -> {input, output} price per 1M tokens (USD).
+	ModelPricing map[string]ModelPrice
+}
+
+// ModelPrice holds per-token pricing for cost calculation.
+type ModelPrice struct {
+	InputPerMillion  float64 // USD per 1M input tokens
+	OutputPerMillion float64 // USD per 1M output tokens
 }
 
 // Load reads configuration from environment variables, falling back to defaults
@@ -82,6 +91,7 @@ func Load() *Config {
 		UpstreamAPIKeys:          parseAPIKeys(envOr("UPSTREAM_API_KEYS", "")),
 		UpstreamRPMLimit:         envIntOr("UPSTREAM_RPM_LIMIT", 40),
 		ProbeMultiplier:          envIntOr("UPSTREAM_PROBE_MULTIPLIER", 5),
+		ModelPricing:             parseModelPricing(envOr("MODEL_PRICING", defaultModelPricing)),
 	}
 }
 
@@ -133,6 +143,25 @@ const defaultPromptInjection = `[GATEWAY RULES — strict]
 Be extremely concise. Use short, direct answers. Skip filler, preamble, and summaries.
 Prefer code over prose. Omit disclaimers and caveats. If the answer fits in one line, use one line.
 Never repeat or paraphrase the question back.`
+
+const defaultModelPricing = "glm-5.1:0.5:1.5,glm-5-turbo:0.5:1.5,glm-5:0.5:1.5,glm-4.7:0.3:1.0,glm-4.6:0.3:1.0,glm-4.5:0.15:0.75"
+
+// parseModelPricing parses "model1:input:output,model2:input:output" into a pricing map.
+// Prices are USD per 1M tokens.
+func parseModelPricing(s string) map[string]ModelPrice {
+	m := make(map[string]ModelPrice)
+	for _, pair := range splitComma(s) {
+		parts := splitColon(pair)
+		if len(parts) == 3 {
+			inp, err1 := strconv.ParseFloat(parts[1], 64)
+			out, err2 := strconv.ParseFloat(parts[2], 64)
+			if err1 == nil && err2 == nil {
+				m[parts[0]] = ModelPrice{InputPerMillion: inp, OutputPerMillion: out}
+			}
+		}
+	}
+	return m
+}
 
 // parseModelLimits parses "model1:limit1,model2:limit2" into a map.
 func parseModelLimits(s string) map[string]int {
