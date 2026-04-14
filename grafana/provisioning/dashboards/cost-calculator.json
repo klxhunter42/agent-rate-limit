@@ -152,7 +152,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_total[24h]))",
+          "expr": "sum(increase(api_gateway_cost_total[24h])) or vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -173,11 +173,11 @@
               },
               {
                 "color": "yellow",
-                "value": 1
+                "value": 10
               },
               {
                 "color": "red",
-                "value": 10
+                "value": 50
               }
             ]
           }
@@ -381,7 +381,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[24h]))",
+          "expr": "sum by (model) (increase(api_gateway_cost_total[24h])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -562,24 +562,133 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[1h]))",
+          "expr": "sum by (model) (increase(api_gateway_cost_total[1h])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
       ]
     },
     {
-      "title": "Pricing Configuration",
+      "title": "Historical Cost Estimate (from token metrics)",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      }
+    },
+    {
+      "title": "Est. Total Cost from Tokens (24h)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(api_gateway_token_input_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[24h])) * 0.5 + sum(increase(api_gateway_token_output_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[24h])) * 1.5 + sum(increase(api_gateway_token_input_total{model=~\"glm-4.7|glm-4.6\"}[24h])) * 0.3 + sum(increase(api_gateway_token_output_total{model=~\"glm-4.7|glm-4.6\"}[24h])) * 1.0 + sum(increase(api_gateway_token_input_total{model=\"glm-4.5\"}[24h])) * 0.15 + sum(increase(api_gateway_token_output_total{model=\"glm-4.5\"}[24h])) * 0.75) / 1000000 or vector(0)",
+          "legendFormat": "Est. Total",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Est. Cost by Model from Tokens (24h)",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 40
+      },
+      "targets": [
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-5.1\"}[24h]) * 0.5 + increase(api_gateway_token_output_total{model=\"glm-5.1\"}[24h]) * 1.5) / 1000000",
+          "legendFormat": "glm-5.1",
+          "refId": "A"
+        },
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-5-turbo\"}[24h]) * 0.5 + increase(api_gateway_token_output_total{model=\"glm-5-turbo\"}[24h]) * 1.5) / 1000000",
+          "legendFormat": "glm-5-turbo",
+          "refId": "B"
+        },
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-5\"}[24h]) * 0.5 + increase(api_gateway_token_output_total{model=\"glm-5\"}[24h]) * 1.5) / 1000000",
+          "legendFormat": "glm-5",
+          "refId": "C"
+        },
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-4.7\"}[24h]) * 0.3 + increase(api_gateway_token_output_total{model=\"glm-4.7\"}[24h]) * 1.0) / 1000000",
+          "legendFormat": "glm-4.7",
+          "refId": "D"
+        },
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-4.6\"}[24h]) * 0.3 + increase(api_gateway_token_output_total{model=\"glm-4.6\"}[24h]) * 1.0) / 1000000",
+          "legendFormat": "glm-4.6",
+          "refId": "E"
+        },
+        {
+          "expr": "(increase(api_gateway_token_input_total{model=\"glm-4.5\"}[24h]) * 0.15 + increase(api_gateway_token_output_total{model=\"glm-4.5\"}[24h]) * 0.75) / 1000000",
+          "legendFormat": "glm-4.5",
+          "refId": "F"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "groupWidth": 0.7,
+        "barWidth": 0.5
+      }
+    },
+    {
+      "title": "Cost Data Note",
       "type": "text",
       "gridPos": {
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 48
       },
       "options": {
         "mode": "markdown",
-        "content": "Pricing is configured via `MODEL_PRICING` env var (format: `model:input_price:output_price` per 1M tokens).\nCost is calculated from actual token usage returned by upstream.\nUpdate `.env` to change rates."
+        "content": "### Cost Data Sources\n- **Actual Cost** (orange): Calculated in real-time from `api_gateway_cost_total` counter. Available only after this version was deployed.\n- **Historical Estimate** (purple): Calculated from `api_gateway_token_input/output_total` metrics using hardcoded pricing. Works with historical data but prices must be updated manually if `MODEL_PRICING` env changes.\n\nPricing is configured via `MODEL_PRICING` env var (format: `model:input_price:output_price` per 1M tokens)."
       }
     }
   ],
