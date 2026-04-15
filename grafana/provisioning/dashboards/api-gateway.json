@@ -342,7 +342,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_adaptive_limit",
+          "expr": "sort_desc(api_gateway_adaptive_limit)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -408,12 +408,12 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_adaptive_in_flight",
+          "expr": "sort_desc(api_gateway_adaptive_in_flight)",
           "legendFormat": "in-flight: {{model}}",
           "refId": "A"
         },
         {
-          "expr": "api_gateway_adaptive_limit",
+          "expr": "sort_desc(api_gateway_adaptive_limit)",
           "legendFormat": "limit: {{model}}",
           "refId": "B"
         }
