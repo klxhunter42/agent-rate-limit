@@ -142,9 +142,7 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 // acquisition succeeded. On failure the caller MUST NOT call Release.
 // The caller MUST call Release(selectedModel) on success when done.
 func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
-	// Wait for a global slot (caps total concurrent across all models).
-	// Use CAS loop instead of add-then-check to avoid TOCTOU race that
-	// allows globalInFlight to exceed globalLimit under high concurrency.
+	// Wait for a global slot.
 	for {
 		cur := al.globalInFlight.Load()
 		if cur >= al.globalLimit {
@@ -181,7 +179,6 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		fm := al.models[fb]
 		headroom := fm.limit.Load() - fm.inFlight.Load()
 		if headroom <= 0 {
-			// Still count utilization even if full.
 			if fbPrio >= reqPrio-30 {
 				sameTotal += fm.limit.Load()
 				sameUsed += fm.inFlight.Load()
@@ -198,7 +195,7 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		}
 	}
 
-	// If same-series is >= 40% utilized, merge nearby series into pool.
+	// Merge pools if same-series is >= 40% utilized.
 	sameUtilPct := float64(0)
 	if sameTotal > 0 {
 		sameUtilPct = float64(sameUsed) / float64(sameTotal)
@@ -207,6 +204,21 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 	pool = append(pool, sameSeries...)
 	if sameUtilPct >= 0.4 && len(nearbySeries) > 0 {
 		pool = append(pool, nearbySeries...)
+	}
+
+	// Weight higher-priority models more: prio>=100 gets 3x, >=90 gets 2x, rest 1x.
+	var weightedPool []candidate
+	for _, c := range pool {
+		prio := modelPriority[c.name]
+		weight := 1
+		if prio >= 100 {
+			weight = 3
+		} else if prio >= 90 {
+			weight = 2
+		}
+		for i := 0; i < weight; i++ {
+			weightedPool = append(weightedPool, c)
+		}
 	}
 
 	tryRR := func(candidates []candidate) (string, *adaptiveModel) {
@@ -223,7 +235,7 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return "", nil
 	}
 
-	if picked, am := tryRR(pool); am != nil {
+	if picked, am := tryRR(weightedPool); am != nil {
 		if picked != requestedModel {
 			slog.Info("model fallback (distributed)",
 				"requested", requestedModel,
@@ -234,12 +246,10 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return picked, true
 	}
 
-	// All models full - release global slot before blocking wait to avoid
-	// starving other requests under heavy load.
+	// All models full - release global slot before blocking wait.
 	al.globalInFlight.Add(-1)
 	slog.Debug("all models full, waiting", "requested", requestedModel)
 	if model.acquireBlocking(30 * time.Second) {
-		// Re-acquire global slot after model slot obtained.
 		for {
 			cur := al.globalInFlight.Load()
 			if cur >= al.globalLimit {
@@ -254,8 +264,6 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 	}
 	return "", false
 }
-
-// Release frees the concurrency slot acquired by Acquire.
 func (al *AdaptiveLimiter) Release(model string) {
 	am := al.getModel(model)
 	am.inFlight.Add(-1)
