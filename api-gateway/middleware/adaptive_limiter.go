@@ -162,35 +162,76 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return requestedModel, true
 	}
 
-	// Requested model full - wait briefly for it before falling back.
-	// This keeps series 5 priority: only downgrade to series 4 when
-	// the preferred model is genuinely saturated.
-	if model.tryAcquireWithTimeout(2 * time.Second) {
-		return requestedModel, true
+	// Requested model full - distribute within same series,
+	// expand to nearby series when same-series is >= 40% utilized.
+	reqPrio := modelPriority[requestedModel]
+
+	type candidate struct {
+		name string
+		am   *adaptiveModel
 	}
 
-	// Timeout on preferred model - try fallbacks in strict priority order.
-	reqPrio := modelPriority[requestedModel]
+	var sameSeries, nearbySeries []candidate
+	var sameTotal, sameUsed int64
 	for _, fb := range al.fallbackOrder {
-		if fb == requestedModel {
-			continue
-		}
 		fbPrio, ok := modelPriority[fb]
-		if !ok {
-			continue
-		}
-		// Only skip models more than 2 major tiers below (gap >= 50).
-		if reqPrio > 0 && fbPrio < reqPrio-50 {
+		if !ok || fbPrio < reqPrio-50 {
 			continue
 		}
 		fm := al.models[fb]
-		if fm.tryAcquire() {
-			slog.Info("model fallback",
-				"requested", requestedModel,
-				"selected", fb,
-			)
-			return fb, true
+		headroom := fm.limit.Load() - fm.inFlight.Load()
+		if headroom <= 0 {
+			// Still count utilization even if full.
+			if fbPrio >= reqPrio-30 {
+				sameTotal += fm.limit.Load()
+				sameUsed += fm.inFlight.Load()
+			}
+			continue
 		}
+		c := candidate{name: fb, am: fm}
+		if fbPrio >= reqPrio-30 {
+			sameSeries = append(sameSeries, c)
+			sameTotal += fm.limit.Load()
+			sameUsed += fm.inFlight.Load()
+		} else {
+			nearbySeries = append(nearbySeries, c)
+		}
+	}
+
+	// If same-series is >= 40% utilized, merge nearby series into pool.
+	sameUtilPct := float64(0)
+	if sameTotal > 0 {
+		sameUtilPct = float64(sameUsed) / float64(sameTotal)
+	}
+	var pool []candidate
+	pool = append(pool, sameSeries...)
+	if sameUtilPct >= 0.4 && len(nearbySeries) > 0 {
+		pool = append(pool, nearbySeries...)
+	}
+
+	tryRR := func(candidates []candidate) (string, *adaptiveModel) {
+		if len(candidates) == 0 {
+			return "", nil
+		}
+		offset := al.rrEpoch.Add(1)
+		for i := range candidates {
+			c := candidates[(int(offset)+i)%len(candidates)]
+			if c.am.tryAcquire() {
+				return c.name, c.am
+			}
+		}
+		return "", nil
+	}
+
+	if picked, am := tryRR(pool); am != nil {
+		if picked != requestedModel {
+			slog.Info("model fallback (distributed)",
+				"requested", requestedModel,
+				"selected", picked,
+				"same_series_util", sameUtilPct,
+			)
+		}
+		return picked, true
 	}
 
 	// All models full - release global slot before blocking wait to avoid
@@ -239,7 +280,7 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		old := am.limit.Load()
 		am.peakBefore429.Store(old) // remember ceiling before 429
 		am.peakSetNano.Store(time.Now().UnixNano())
-		newLim := old * 5 / 10      // multiplicative decrease x0.5
+		newLim := old * 5 / 10 // multiplicative decrease x0.5
 		if newLim < am.minLimit {
 			newLim = am.minLimit
 		}
