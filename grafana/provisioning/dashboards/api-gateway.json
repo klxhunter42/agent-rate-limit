@@ -334,7 +334,11 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "sort": {
+            "by": "name",
+            "desc": true
+          }
         },
         "tooltip": {
           "mode": "multi"
@@ -342,7 +346,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(api_gateway_adaptive_limit)",
+          "expr": "api_gateway_adaptive_limit",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -400,7 +404,11 @@
       "options": {
         "legend": {
           "displayMode": "table",
-          "placement": "bottom"
+          "placement": "bottom",
+          "sort": {
+            "by": "name",
+            "desc": true
+          }
         },
         "tooltip": {
           "mode": "multi"
@@ -408,12 +416,12 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(api_gateway_adaptive_in_flight)",
+          "expr": "api_gateway_adaptive_in_flight",
           "legendFormat": "in-flight: {{model}}",
           "refId": "A"
         },
         {
-          "expr": "sort_desc(api_gateway_adaptive_limit)",
+          "expr": "api_gateway_adaptive_limit",
           "legendFormat": "limit: {{model}}",
           "refId": "B"
         }
