@@ -47,6 +47,7 @@ type adaptiveModel struct {
 	successRun    atomic.Int64 // consecutive successes since last 429
 	peakBefore429 atomic.Int64 // highest limit before last 429 (learned ceiling)
 	peakSetNano   atomic.Int64 // when peakBefore429 was set (for decay)
+	rttEWMA       atomic.Int64 // exponentially weighted moving average RTT (nanoseconds)
 }
 
 // ModelStatus is a snapshot for the /v1/limiter-status endpoint.
@@ -59,6 +60,8 @@ type ModelStatus struct {
 	TotalReqs      int64  `json:"total_requests"`
 	Total429s      int64  `json:"total_429s"`
 	MinRTTMs       int64  `json:"min_rtt_ms"`
+	EwmaRTTMs      int64  `json:"ewma_rtt_ms"`
+	Series         int    `json:"series"`
 }
 
 // modelPriority defines fallback order (higher = preferred).
@@ -160,64 +163,28 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return requestedModel, true
 	}
 
-	// Requested model full - distribute within same series,
-	// expand to nearby series when same-series is >= 40% utilized.
-	reqPrio := modelPriority[requestedModel]
+	// Requested model full - distribute within same series via round-robin.
+	// Only spill to lower series when current series has latency pressure.
+	reqSeries := modelSeries(requestedModel)
 
 	type candidate struct {
 		name string
 		am   *adaptiveModel
 	}
 
-	var sameSeries, nearbySeries []candidate
-	var sameTotal, sameUsed int64
+	var sameSeries, lowerSeries []candidate
 	for _, fb := range al.fallbackOrder {
-		fbPrio, ok := modelPriority[fb]
-		if !ok || fbPrio < reqPrio-50 {
-			continue
-		}
+		fbSeries := modelSeries(fb)
 		fm := al.models[fb]
 		headroom := fm.limit.Load() - fm.inFlight.Load()
 		if headroom <= 0 {
-			if fbPrio >= reqPrio-30 {
-				sameTotal += fm.limit.Load()
-				sameUsed += fm.inFlight.Load()
-			}
 			continue
 		}
 		c := candidate{name: fb, am: fm}
-		if fbPrio >= reqPrio-30 {
+		if fbSeries == reqSeries {
 			sameSeries = append(sameSeries, c)
-			sameTotal += fm.limit.Load()
-			sameUsed += fm.inFlight.Load()
-		} else {
-			nearbySeries = append(nearbySeries, c)
-		}
-	}
-
-	// Merge pools if same-series is >= 40% utilized.
-	sameUtilPct := float64(0)
-	if sameTotal > 0 {
-		sameUtilPct = float64(sameUsed) / float64(sameTotal)
-	}
-	var pool []candidate
-	pool = append(pool, sameSeries...)
-	if sameUtilPct >= 0.4 && len(nearbySeries) > 0 {
-		pool = append(pool, nearbySeries...)
-	}
-
-	// Weight higher-priority models more: prio>=100 gets 3x, >=90 gets 2x, rest 1x.
-	var weightedPool []candidate
-	for _, c := range pool {
-		prio := modelPriority[c.name]
-		weight := 1
-		if prio >= 100 {
-			weight = 3
-		} else if prio >= 90 {
-			weight = 2
-		}
-		for i := 0; i < weight; i++ {
-			weightedPool = append(weightedPool, c)
+		} else if fbSeries == reqSeries-1 {
+			lowerSeries = append(lowerSeries, c)
 		}
 	}
 
@@ -235,15 +202,29 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return "", nil
 	}
 
-	if picked, am := tryRR(weightedPool); am != nil {
+	// Phase 1: round-robin within same series.
+	if picked, _ := tryRR(sameSeries); picked != "" {
 		if picked != requestedModel {
-			slog.Info("model fallback (distributed)",
+			slog.Info("model fallback (same-series round-robin)",
 				"requested", requestedModel,
 				"selected", picked,
-				"same_series_util", sameUtilPct,
+				"series", reqSeries,
 			)
 		}
 		return picked, true
+	}
+
+	// Phase 2: spill to lower series only under latency pressure.
+	if al.seriesLatencyPressure(reqSeries) && len(lowerSeries) > 0 {
+		if picked, _ := tryRR(lowerSeries); picked != "" {
+			slog.Info("series spillover (latency pressure)",
+				"requested", requestedModel,
+				"selected", picked,
+				"from_series", reqSeries,
+				"to_series", modelSeries(picked),
+			)
+			return picked, true
+		}
 	}
 
 	// All models full - release global slot before blocking wait.
@@ -322,6 +303,20 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		break
 	}
 
+	// Update RTT EWMA (lock-free CAS loop, alpha=0.3).
+	for {
+		old := am.rttEWMA.Load()
+		var newVal int64
+		if old == 0 {
+			newVal = rttNano
+		} else {
+			newVal = old*7/10 + rttNano*3/10
+		}
+		if am.rttEWMA.CompareAndSwap(old, newVal) {
+			break
+		}
+	}
+
 	// Cooldown: don't increase within 5 s of last 429.
 	last429 := am.last429Nano.Load()
 	if last429 > 0 && time.Now().UnixNano()-last429 < int64(5*time.Second) {
@@ -384,6 +379,7 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 	for _, name := range al.fallbackOrder {
 		m := al.models[name]
 		minRTTMs := m.minRTT.Load() / int64(time.Millisecond)
+		ewmaRTTMs := m.rttEWMA.Load() / int64(time.Millisecond)
 		out = append(out, ModelStatus{
 			Name:           name,
 			InFlight:       m.inFlight.Load(),
@@ -393,6 +389,8 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 			TotalReqs:      m.totalReqs.Load(),
 			Total429s:      m.total429s.Load(),
 			MinRTTMs:       minRTTMs,
+			EwmaRTTMs:      ewmaRTTMs,
+			Series:         modelSeries(name),
 		})
 	}
 	return out
@@ -412,6 +410,46 @@ func (al *AdaptiveLimiter) GlobalStatus() GlobalStatus {
 }
 
 // --- internal helpers ---
+
+// modelSeries extracts the major version from a model name.
+// "glm-5.1" -> 5, "glm-4.7" -> 4, "glm-5-turbo" -> 5.
+func modelSeries(name string) int {
+	if len(name) < 5 || name[:4] != "glm-" {
+		return 0
+	}
+	n := 0
+	for i := 4; i < len(name); i++ {
+		if name[i] >= '0' && name[i] <= '9' {
+			n = n*10 + int(name[i]-'0')
+		} else {
+			break
+		}
+	}
+	return n
+}
+
+// seriesLatencyPressure returns true when a majority of models in the given
+// series show elevated latency (EWMA RTT > 1.5x minRTT), indicating the
+// series is overloaded and requests should spill to the lower series.
+func (al *AdaptiveLimiter) seriesLatencyPressure(series int) bool {
+	var checked, pressured int
+	for _, name := range al.fallbackOrder {
+		if modelSeries(name) != series {
+			continue
+		}
+		m := al.models[name]
+		ewma := m.rttEWMA.Load()
+		minRTT := m.minRTT.Load()
+		if minRTT == 0 || ewma == 0 {
+			continue
+		}
+		checked++
+		if ewma > minRTT*3/2 {
+			pressured++
+		}
+	}
+	return checked > 0 && pressured >= (checked+1)/2
+}
 
 func (al *AdaptiveLimiter) getModel(name string) *adaptiveModel {
 	if m, ok := al.models[name]; ok {
