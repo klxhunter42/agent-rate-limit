@@ -29,13 +29,26 @@ type AdaptiveLimiter struct {
 	models        map[string]*adaptiveModel
 	defaultModel  *adaptiveModel
 	fallbackOrder []string
-	rrEpoch       atomic.Uint64 // round-robin counter for fallback rotation
+	seriesBuckets map[int][]seriesEntry // pre-computed: series -> model entries
+	rrEpoch       atomic.Uint64         // round-robin counter for fallback rotation
+
+	// Signal-based waiting replaces spin-wait for slot availability.
+	globalCond *sync.Cond
+	modelConds map[string]*sync.Cond // per-model signal on Release
+
+	candPool sync.Pool // pool candidate slices to reduce GC pressure
 
 	mu sync.Mutex // serialises limit adjustments (cold path)
 }
 
+type seriesEntry struct {
+	name string
+	am   *adaptiveModel
+}
+
 type adaptiveModel struct {
 	name          string
+	series        int // cached at init to avoid repeated string parsing
 	inFlight      atomic.Int64
 	limit         atomic.Int64
 	minLimit      int64
@@ -75,6 +88,9 @@ var modelPriority = map[string]int{
 	"glm-4.5":     50,
 }
 
+// maxModelsPerSeries is the pool slice capacity.
+const maxModelsPerSeries = 8
+
 // NewAdaptiveLimiter creates an adaptive concurrency limiter.
 //   - limits:       model -> max concurrent (also the initial limit)
 //   - defaultLimit: for unconfigured models
@@ -88,19 +104,17 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 	names := make([]string, 0, len(limits))
 
 	for model, max := range limits {
-		// Probe ceiling: allow adaptive limiter to discover the real
-		// upstream limit by probing up to probeMultiplier x the initial limit.
-		// On 429 it backs off, so it naturally converges to the true ceiling.
 		if probeMultiplier <= 0 {
 			probeMultiplier = 10
 		}
 		probeMax := int64(max) * int64(probeMultiplier)
 		am := &adaptiveModel{
 			name:     model,
+			series:   modelSeries(model),
 			minLimit: 1,
 			maxLimit: probeMax,
 		}
-		am.limit.Store(int64(max)) // start at documented limit
+		am.limit.Store(int64(max))
 		models[model] = am
 		names = append(names, model)
 
@@ -110,7 +124,6 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 			"max_limit", probeMax,
 		)
 	}
-	// Sort by priority (newer models first) instead of alphabetically.
 	sort.Slice(names, func(i, j int) bool {
 		pi, ok := modelPriority[names[i]]
 		if !ok {
@@ -123,14 +136,29 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 		return pi > pj
 	})
 
-	dm := &adaptiveModel{name: "_default", minLimit: 1, maxLimit: int64(defaultLimit)}
+	dm := &adaptiveModel{name: "_default", series: 0, minLimit: 1, maxLimit: int64(defaultLimit)}
 	dm.limit.Store(int64(defaultLimit))
+
+	var globalMu sync.Mutex
+	modelConds := make(map[string]*sync.Cond, len(models))
+	for name := range models {
+		modelConds[name] = sync.NewCond(&sync.Mutex{})
+	}
 
 	al := &AdaptiveLimiter{
 		globalLimit:   int64(globalLimit),
 		models:        models,
 		defaultModel:  dm,
 		fallbackOrder: names,
+		seriesBuckets: buildSeriesBuckets(names, models),
+		globalCond:    sync.NewCond(&globalMu),
+		modelConds:    modelConds,
+		candPool: sync.Pool{
+			New: func() any {
+				s := make([]seriesEntry, 0, maxModelsPerSeries)
+				return &s
+			},
+		},
 	}
 
 	slog.Info("adaptive limiter initialized",
@@ -140,22 +168,28 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 	return al
 }
 
+func buildSeriesBuckets(names []string, models map[string]*adaptiveModel) map[int][]seriesEntry {
+	buckets := make(map[int][]seriesEntry)
+	for _, name := range names {
+		am := models[name]
+		s := am.series
+		buckets[s] = append(buckets[s], seriesEntry{name: name, am: am})
+	}
+	return buckets
+}
+
 // Acquire obtains a concurrency slot. Returns the model name that was selected
 // (may differ from the requested model if fallback occurred) and whether
 // acquisition succeeded. On failure the caller MUST NOT call Release.
 // The caller MUST call Release(selectedModel) on success when done.
 func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
-	// Wait for a global slot.
-	for {
-		cur := al.globalInFlight.Load()
-		if cur >= al.globalLimit {
-			time.Sleep(5 * time.Millisecond)
-			continue
-		}
-		if al.globalInFlight.CompareAndSwap(cur, cur+1) {
-			break
-		}
+	// Wait for a global slot using signal-based notification.
+	al.globalCond.L.Lock()
+	for al.globalInFlight.Load() >= al.globalLimit {
+		al.globalCond.Wait()
 	}
+	al.globalInFlight.Add(1)
+	al.globalCond.L.Unlock()
 
 	// Try the requested model (non-blocking).
 	model := al.getModel(requestedModel)
@@ -165,36 +199,20 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 
 	// Requested model full - distribute within same series via round-robin.
 	// Only spill to lower series when current series has latency pressure.
-	reqSeries := modelSeries(requestedModel)
+	reqSeries := model.series
 
-	type candidate struct {
-		name string
-		am   *adaptiveModel
-	}
+	sameSeries := al.getCandidates(al.seriesBuckets[reqSeries])
+	lowerSeries := al.getCandidates(al.seriesBuckets[reqSeries-1])
+	defer al.putCandidates(sameSeries)
+	defer al.putCandidates(lowerSeries)
 
-	var sameSeries, lowerSeries []candidate
-	for _, fb := range al.fallbackOrder {
-		fbSeries := modelSeries(fb)
-		fm := al.models[fb]
-		headroom := fm.limit.Load() - fm.inFlight.Load()
-		if headroom <= 0 {
-			continue
-		}
-		c := candidate{name: fb, am: fm}
-		if fbSeries == reqSeries {
-			sameSeries = append(sameSeries, c)
-		} else if fbSeries == reqSeries-1 {
-			lowerSeries = append(lowerSeries, c)
-		}
-	}
-
-	tryRR := func(candidates []candidate) (string, *adaptiveModel) {
-		if len(candidates) == 0 {
+	tryRR := func(candidates *[]seriesEntry) (string, *adaptiveModel) {
+		if len(*candidates) == 0 {
 			return "", nil
 		}
 		offset := al.rrEpoch.Add(1)
-		for i := range candidates {
-			c := candidates[(int(offset)+i)%len(candidates)]
+		for i := range *candidates {
+			c := (*candidates)[(int(offset)+i)%len(*candidates)]
 			if c.am.tryAcquire() {
 				return c.name, c.am
 			}
@@ -215,40 +233,63 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 	}
 
 	// Phase 2: spill to lower series only under latency pressure.
-	if al.seriesLatencyPressure(reqSeries) && len(lowerSeries) > 0 {
+	if al.seriesLatencyPressure(reqSeries) && len(*lowerSeries) > 0 {
 		if picked, _ := tryRR(lowerSeries); picked != "" {
 			slog.Info("series spillover (latency pressure)",
 				"requested", requestedModel,
 				"selected", picked,
 				"from_series", reqSeries,
-				"to_series", modelSeries(picked),
+				"to_series", al.models[picked].series,
 			)
 			return picked, true
 		}
 	}
 
-	// All models full - release global slot before blocking wait.
+	// All models full - release global slot and block-wait on the requested model.
 	al.globalInFlight.Add(-1)
+	al.globalCond.Signal()
 	slog.Debug("all models full, waiting", "requested", requestedModel)
-	if model.acquireBlocking(30 * time.Second) {
-		for {
-			cur := al.globalInFlight.Load()
-			if cur >= al.globalLimit {
-				time.Sleep(5 * time.Millisecond)
-				continue
-			}
-			if al.globalInFlight.CompareAndSwap(cur, cur+1) {
-				break
-			}
+	if model.acquireBlocking(al.modelConds[requestedModel], 30*time.Second) {
+		al.globalCond.L.Lock()
+		for al.globalInFlight.Load() >= al.globalLimit {
+			al.globalCond.Wait()
 		}
+		al.globalInFlight.Add(1)
+		al.globalCond.L.Unlock()
 		return requestedModel, true
 	}
 	return "", false
 }
+
 func (al *AdaptiveLimiter) Release(model string) {
 	am := al.getModel(model)
 	am.inFlight.Add(-1)
 	al.globalInFlight.Add(-1)
+
+	if c, ok := al.modelConds[model]; ok {
+		c.Signal()
+	}
+	al.globalCond.Signal()
+}
+
+// getCandidates returns a pooled slice populated with entries that have headroom.
+func (al *AdaptiveLimiter) getCandidates(entries []seriesEntry) *[]seriesEntry {
+	buf := al.candPool.Get().(*[]seriesEntry)
+	*buf = (*buf)[:0]
+	for _, e := range entries {
+		if e.am.limit.Load()-e.am.inFlight.Load() > 0 {
+			*buf = append(*buf, e)
+		}
+	}
+	return buf
+}
+
+func (al *AdaptiveLimiter) putCandidates(buf *[]seriesEntry) {
+	if buf == nil {
+		return
+	}
+	*buf = (*buf)[:0]
+	al.candPool.Put(buf)
 }
 
 // Feedback adjusts limits based on the upstream response.
@@ -267,9 +308,9 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		defer al.mu.Unlock()
 
 		old := am.limit.Load()
-		am.peakBefore429.Store(old) // remember ceiling before 429
+		am.peakBefore429.Store(old)
 		am.peakSetNano.Store(time.Now().UnixNano())
-		newLim := old * 5 / 10 // multiplicative decrease x0.5
+		newLim := old * 5 / 10
 		if newLim < am.minLimit {
 			newLim = am.minLimit
 		}
@@ -285,7 +326,7 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 	}
 
 	if statusCode < 200 || statusCode >= 300 {
-		return // ignore non-success non-429
+		return
 	}
 
 	// --- Success path ---
@@ -323,7 +364,6 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		return
 	}
 
-	// Only consider increase every 5 consecutive successes.
 	if successes%5 != 0 {
 		return
 	}
@@ -339,20 +379,18 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 	var newLimit int64
 	minRTTNano := am.minRTT.Load()
 	if minRTTNano > 0 && rttNano > 0 {
-		// Envoy gradient controller formula.
 		bufferNano := minRTTNano / 10
 		gradient := float64(minRTTNano+bufferNano) / float64(rttNano)
-		gradient = math.Min(2.0, math.Max(0.8, gradient)) // prevent oscillation
+		gradient = math.Min(2.0, math.Max(0.8, gradient))
 		additive := math.Max(1, math.Sqrt(float64(oldLimit)))
 		newLimit = int64(gradient*float64(oldLimit) + additive)
 	} else {
-		newLimit = oldLimit + 1 // slow start
+		newLimit = oldLimit + 1
 	}
 
 	if newLimit > am.maxLimit {
 		newLimit = am.maxLimit
 	}
-	// Decay learned ceiling: if 5 min since last 429, allow re-probing.
 	if peak := am.peakBefore429.Load(); peak > 0 {
 		peakAge := time.Duration(time.Now().UnixNano() - am.peakSetNano.Load())
 		if peakAge > 5*time.Minute {
@@ -390,7 +428,7 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 			Total429s:      m.total429s.Load(),
 			MinRTTMs:       minRTTMs,
 			EwmaRTTMs:      ewmaRTTMs,
-			Series:         modelSeries(name),
+			Series:         m.series,
 		})
 	}
 	return out
@@ -429,17 +467,12 @@ func modelSeries(name string) int {
 }
 
 // seriesLatencyPressure returns true when a majority of models in the given
-// series show elevated latency (EWMA RTT > 1.5x minRTT), indicating the
-// series is overloaded and requests should spill to the lower series.
+// series show elevated latency (EWMA RTT > 1.5x minRTT).
 func (al *AdaptiveLimiter) seriesLatencyPressure(series int) bool {
 	var checked, pressured int
-	for _, name := range al.fallbackOrder {
-		if modelSeries(name) != series {
-			continue
-		}
-		m := al.models[name]
-		ewma := m.rttEWMA.Load()
-		minRTT := m.minRTT.Load()
+	for _, e := range al.seriesBuckets[series] {
+		ewma := e.am.rttEWMA.Load()
+		minRTT := e.am.minRTT.Load()
 		if minRTT == 0 || ewma == 0 {
 			continue
 		}
@@ -470,42 +503,45 @@ func (am *adaptiveModel) tryAcquire() bool {
 	}
 }
 
-// tryAcquireWithTimeout waits up to timeout for a slot on this model.
-// Returns false if timeout elapsed without acquiring.
-func (am *adaptiveModel) tryAcquireWithTimeout(timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		for {
-			cur := am.inFlight.Load()
-			limit := am.limit.Load()
-			if limit == 0 || cur >= limit {
-				break
-			}
-			if am.inFlight.CompareAndSwap(cur, cur+1) {
-				return true
-			}
-		}
-		time.Sleep(5 * time.Millisecond)
+// acquireBlocking waits for a slot using sync.Cond with a timeout.
+// Returns true if a slot was acquired, false on timeout.
+// No goroutine leak: the cond's locker is held here (not in a spawned goroutine).
+func (am *adaptiveModel) acquireBlocking(c *sync.Cond, timeout time.Duration) bool {
+	if c == nil {
+		return false
 	}
-	return false
-}
 
-func (am *adaptiveModel) acquireBlocking(timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		for {
-			cur := am.inFlight.Load()
-			limit := am.limit.Load()
-			if limit == 0 || cur >= limit {
-				break
-			}
-			if am.inFlight.CompareAndSwap(cur, cur+1) {
-				return true
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Kick a goroutine to broadcast after timeout so Wait() unblocks.
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-timer.C:
+			c.Broadcast() // wake the Wait() below
+		case <-done:
+		}
+	}()
+	defer close(done) // stop the timer goroutine on success
+
+	c.L.Lock()
+	defer c.L.Unlock()
+	for am.inFlight.Load() >= am.limit.Load() {
+		c.Wait()
+		// Check if we woke due to timeout (limit unchanged means timeout fired).
+		if am.inFlight.Load() >= am.limit.Load() {
+			// Spurious or timeout wake - check timer.
+			select {
+			case <-timer.C:
+				return false // timeout
+			default:
+				// spurious wake, loop back to Wait()
 			}
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
-	return false
+	am.inFlight.Add(1)
+	return true
 }
 
 // parseRetryAfter extracts the Retry-After header value as a duration.
@@ -517,6 +553,5 @@ func parseRetryAfter(headers http.Header) time.Duration {
 	if sec, err := strconv.Atoi(v); err == nil {
 		return time.Duration(sec) * time.Second
 	}
-	// RFC 7231 also allows HTTP-date format - skip for simplicity.
 	return 0
 }
