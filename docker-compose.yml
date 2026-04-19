@@ -387,11 +387,9 @@ services:
   arl-presidio:
     image: mcr.microsoft.com/presidio-analyzer:2.2.362
     container_name: arl-presidio
-    restart: unless-stopped
+    restart: always
     expose:
       - "3000"
-    profiles:
-      - pii
     deploy:
       resources:
         limits:
