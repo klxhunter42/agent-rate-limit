@@ -16,6 +16,9 @@
 7. [Gateway Metrics Status Hardcode](#7-gateway-metrics-status-hardcode)
 8. [Single Redis Connection ใน Worker](#8-single-redis-connection-ใน-worker)
 9. [Security Considerations](#9-security-considerations)
+10. [Vision Routing Limitations](#10-vision-routing-limitations)
+11. [Quota Placeholders](#11-quota-placeholders)
+12. [Resolved Issues (Recent Session)](#12-resolved-issues-recent-session)
 
 ---
 
@@ -320,7 +323,60 @@ arl-dragonfly:
 
 ---
 
-## 10. Resolved Issues (Recent Session)
+## 10. Vision Routing Limitations
+
+### SSE streaming รองรับแล้วสำหรับ vision
+
+Vision requests ขณะนี้รองรับ SSE streaming แล้ว -- Zhipu SSE chunks ถูก convert เป็น Anthropic SSE format แบบ real-time (stream=true)
+
+### Privacy pipeline ข้าม vision path
+
+`privacy.MaskRequest()` ไม่ทำงานบน vision requests
+
+**Files**: `api-gateway/handler/handler.go`
+
+### tool_use บน vision requests อาจไม่ทำงาน
+
+การแปลง format ระหว่าง Anthropic <-> Zhipu อาจทำให้ tool definitions ไม่สมบูรณ์
+
+**Workaround**: ใช้ text model สำหรับ tool loop, ใช้ vision model เฉพาะวิเคราะห์รูป
+
+### ไม่มี auto-resize รูปภาพ
+
+รูปขนาดใหญ่ (>=10MB) จะถูกปฏิเสติ รูปขนาดกลางอาจช้า
+
+**Workaround**: ย่อรูปก่อนส่ง, หรือใช้ URL image แทน base64
+
+### server_tool_use blocks ถูก strip
+
+Content blocks ประเภท `server_tool_use` จะถูกลบออกก่อนส่งไป upstream
+
+**เหตุผล**: GLM ไม่รองรับ content type นี้, ส่งไปจะได้ error
+
+---
+
+## 11. Quota Enforcement (Now Wired)
+
+### Status: Enforced (with placeholder data)
+
+Quota enforcement is now wired into the `Messages()` handler:
+- >= 95% quota: returns 429
+- >= 80% quota: broadcasts `quota-warning` via WebSocket
+- Fail-open on errors
+
+The `CheckQuota(provider, accountID, model)` method is implemented in `handler/quota.go`.
+
+**Remaining limitation**: Quota percentages still use placeholder data for some providers (Claude, Gemini) rather than real API quota values. Z.AI models use accurate pricing from docs.z.ai. The enforcement mechanism is real and functional -- the data source just needs to be connected to real provider APIs.
+
+### แก้ไข (ถ้าต้องการ real quota data)
+
+Integrate with Anthropic usage API and Google AI Studio quota API to fetch real data instead of placeholders.
+
+**Files**: `api-gateway/handler/quota.go`, `api-gateway/handler/handler.go` lines ~314-330
+
+---
+
+## 12. Resolved Issues (Recent Session)
 
 ### Global Slot Starvation Under Heavy Load (FIXED)
 
@@ -362,6 +418,22 @@ case <-r.Context().Done():
 
 **Files**: `docker-compose.yml`
 
+### Vision SSE Streaming (FIXED)
+
+**Problem**: Vision requests did not support SSE streaming -- response arrived in one shot.
+
+**Fix**: Implemented `convertZhipuStreamResponse()` that converts Zhipu SSE chunks (OpenAI format) to Anthropic SSE events in real-time. Supports both `delta.content` and `delta.reasoning_content`.
+
+**Files**: `api-gateway/proxy/anthropic.go`
+
+### Vision Model Auto-Select (FIXED)
+
+**Problem**: All vision requests used whatever model the client requested, no intelligence around model selection.
+
+**Fix**: Gateway now analyzes image payload (total base64 bytes + count) and auto-selects optimal vision model: `glm-4.6v` for normal payloads, `glm-4.6v-flashx` for heavy payloads.
+
+**Files**: `api-gateway/handler/handler.go`
+
 ---
 
 ## Summary
@@ -377,11 +449,13 @@ case <-r.Context().Done():
 | 7 | Metrics status hardcode "200" | Medium | Known |
 | 8 | Single Redis connection | Low | Known |
 | 9 | No auth on admin APIs | Low | Known (internal only) |
-| 10a | Global slot starvation | High | **Fixed** |
-| 10b | Key pool RPM wasted on bad requests | Medium | **Fixed** |
-| 10c | Retry backoff ignores context cancellation | Medium | **Fixed** |
-| 10d | Docker-compose default mismatch | Low | **Fixed** |
+| 10 | Vision routing limitations | Low | Known |
+| 11 | Quota enforcement wired, placeholder data | Medium | Partial Fix |
+| 12a | Global slot starvation | High | **Fixed** |
+| 12b | Key pool RPM wasted on bad requests | Medium | **Fixed** |
+| 12c | Retry backoff ignores context cancellation | Medium | **Fixed** |
+| 12d | Docker-compose default mismatch | Low | **Fixed** |
 
 ---
 
-*Known Issues v1.1 — updated with resolved items from session fixes*
+*Known Issues v1.3 -- updated: quota enforcement now wired (placeholder data remains)*

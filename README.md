@@ -18,12 +18,17 @@
 
 A self-hosted AI gateway that sits between your agents (Claude Code, CI/CD pipelines, agent frameworks) and AI providers (Z.ai, OpenAI, Anthropic, Gemini, OpenRouter).
 
-- **Transparent proxy** for Claude Code -- zero modification to requests/responses, SSE streaming passthrough
+- **Transparent proxy** for Claude Code -- zero modification to requests/responses, SSE streaming passthrough, TTFB tracking
 - **Async queue** for batch agents -- burst 100+ jobs, worker paces them automatically
 - **Distributed rate limiting** -- token bucket algorithm with per-key and global limits
-- **Per-model concurrency** -- 19 slots across 6 models with priority-based fallback (5.x first, 4.x when busy)
+- **Per-model concurrency** -- 19 slots across 6 models with series-based routing and round-robin fallback
 - **Multi-provider fallback** -- GLM -> OpenAI -> Anthropic -> Gemini -> OpenRouter
 - **Key cooldown** -- keys temporarily disabled on 429, auto-recover after 60s (no restart needed)
+- **Security middleware** -- SecurityHeaders, CorrelationID, RealIP, IPFilter
+- **Anomaly detection** -- Z-score ring buffer for rate anomaly detection
+- **21 Prometheus metrics** -- latency, tokens, cost, TTFB, adaptive limits, runtime stats
+- **Vision auto-routing** -- detects image content, auto-selects model by size/count, routes to native Zhipu endpoint with Anthropic SSE streaming conversion
+- **Content filtering** -- strips unsupported block types (server_tool_use) before forwarding
 
 ## Architecture
 
@@ -34,16 +39,30 @@ Client (Claude Code / Agent / CI)
   |
   v
 arl-gateway (:8080) -- Go, chi router
+  |-- SecurityHeaders, CorrelationID, RealIP middleware
   |-- Rate Limit --> arl-rate-limiter (Java/Spring) --> arl-dragonfly (Redis)
-  |-- Sync:  Transparent Proxy --> Upstream Provider
-  |-- Async: LPUSH to Queue --> arl-worker (Python, 50 coroutines)
-  |     |-- Per-Model Semaphores (19 slots, global cap 15)
-  |     |-- RPM Limiter (glm:5)
-  |     |-- Key Cooldown (60s, auto-recover)
-  |     |-- Provider Fallback Chain
-  |     +-- Result Cache (Dragonfly, TTL 600s)
   |
-  +-- Observability: OpenTelemetry --> Prometheus --> Grafana
+  |-- Text Request:
+  |     Sync:  Transparent Proxy --> Upstream Provider (api.z.ai/api/anthropic)
+  |     Async: LPUSH to Queue --> arl-worker (Python, 50 coroutines)
+  |
+  |-- Image Request (auto-detected):
+  |     Auto-select: glm-4.6v (default) or glm-4.6v-flashx (large/multi-image)
+  |     Format Convert (Anthropic -> OpenAI/Zhipu)
+  |     --> Native Zhipu Vision (open.bigmodel.cn/api/paas/v4/chat/completions)
+  |     <-- SSE Convert (Zhipu SSE -> Anthropic SSE) if stream=true
+  |     <-- JSON Convert (Zhipu -> Anthropic) if stream=false
+  |
+  |-- Content Filter: strip server_tool_use, convert Anthropic image -> GLM image_url
+  |
+  |-- Per-Model Semaphores (19 slots, global cap 9, series-based routing)
+  |-- RPM Limiter (glm:5)
+  |-- Key Cooldown (60s, auto-recover)
+  |-- Provider Fallback Chain
+  |-- Result Cache (Dragonfly, TTL 600s)
+  |
+  +-- Observability: 21 Prometheus metrics, TTFB, cost tracking, anomaly detection
+  +-- Tracing: OpenTelemetry --> Prometheus --> Grafana
 ```
 
 ## Quick Start
@@ -84,10 +103,58 @@ That's it. Claude Code works exactly the same -- tools, streaming, multi-turn co
 For **Claude Code** and interactive use. Real-time SSE streaming, tool loop compatible.
 
 ```
-Claude Code --> Gateway --> Rate Limit Check --> Proxy --> Z.ai
+Claude Code --> Gateway --> Rate Limit Check --> Content Filter
                                                          |
-Claude Code <-- SSE chunks <------------------------------
+                    +-- Text Request ---------------------+--> Proxy --> Z.ai
+                    |                                                        |
+                    +-- Image Request (auto-detected) ----+--> Format Convert
+                                                             --> Native Zhipu Vision
+                                                             <-- Format Convert Response
+Claude Code <-- SSE chunks <-----------------------------------
 ```
+
+### Vision Auto-Routing
+
+When a request contains image content, the gateway automatically routes to the native Zhipu vision endpoint instead of the Anthropic-compatible endpoint:
+
+```
+Request with image content
+  |
+  v
+Gateway detects image blocks
+  |-- strip server_tool_use blocks
+  |-- convert Anthropic image format -> GLM image_url format
+  |-- analyze image payload: total base64 size + image count
+  |-- auto-select vision model:
+  |     score = totalKB + (imageCount * 300)
+  |     score <= 2000 and < 3 images -> glm-4.6v (10 slots, best quality)
+  |     score > 2000 or >= 3 images -> glm-4.6v-flashx (3 slots, fastest)
+  |
+  v
+anthropicToZhipu():
+  |-- messages: Anthropic format -> OpenAI format
+  |-- system: string/array -> string
+  |-- image blocks: source{type,media_type,data} -> image_url{url}
+  |-- tool_result blocks -> text content
+  |
+  v
+POST to Native Zhipu Vision (open.bigmodel.cn/api/paas/v4/chat/completions)
+  |
+  v
+Response conversion:
+  |-- Zhipu SSE response (stream=true):
+  |     Zhipu chunk (delta.content) -> Anthropic content_block_delta (text_delta)
+  |     Emit: message_start -> content_block_start -> deltas -> content_block_stop -> message_stop
+  |
+  |-- Zhipu JSON response (stream=false):
+  |     choices -> content array (text)
+  |     usage -> token tracking
+  |
+  v
+Response to client (Anthropic format)
+```
+
+Supported vision models: `glm-4.6v`, `glm-4.5v`, `glm-4.6v-flash`, `glm-4.6v-flashx`
 
 ### Async Mode (`POST /v1/chat/completions`)
 For **batch agents**, CI/CD, scheduled tasks. Queue + worker handles pacing.
@@ -127,16 +194,17 @@ PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50
 
 ## Per-Model Concurrency
 
-19 concurrent slots distributed across 6 models. When a model is full, requests automatically fall back in strict priority order (5.x always preferred, 4.x only when busy):
+19 concurrent slots distributed across 6 models. When a model is full, requests first round-robin within the same series, then spill to lower series under latency pressure:
 
 ```
-Priority:  High ──────────────────────────────────────▶ Low
+Series 5 (preferred):  glm-5.1(1) → glm-5-turbo(1) → glm-5(2)  = 4 slots
+Series 4 (fallback):   glm-4.7(2) → glm-4.6(3) → glm-4.5(10)   = 15 slots
+Vision:                glm-4.6v(10) → glm-4.5v(10) → glm-4.6v-flashx(3) → glm-4.6v-flash(1)
 
-glm-5.1(1) → glm-5-turbo(1) → glm-5(2) → glm-4.7(2) → glm-4.6(3) → glm-4.5(10)
-Series 5: 4 slots (preferred)                              Series 4: 15 slots (fallback)
-
-Global cap: 15 concurrent across all models
+Global cap: 9 concurrent across all models
 ```
+
+Signal-based waiting (sync.Cond) replaces spin-wait for slot availability. RTT EWMA per model drives latency pressure detection for series spillover.
 
 ### Selection Examples
 
@@ -158,13 +226,22 @@ Global cap: 15 concurrent across all models
 | 10-14 | glm-5 | glm-4.5 | 4.6 full, last resort |
 | 15 | glm-5 | (waits) | Global cap reached |
 
-Configure in `.env`:
-
 ```bash
 UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10
-UPSTREAM_DEFAULT_LIMIT=2
-UPSTREAM_GLOBAL_LIMIT=15
+UPSTREAM_DEFAULT_LIMIT=1
+UPSTREAM_GLOBAL_LIMIT=9
 ```
+
+## Vision Model Auto-Select
+
+| Payload | Images | Score | Model | Reason |
+|---------|--------|-------|-------|--------|
+| < 500KB | 1 | < 800 | glm-4.6v | Best quality |
+| 500KB - 2MB | 1 | 800-2300 | glm-4.6v | Still manageable |
+| > 2MB | 1 | > 2300 | glm-4.6v-flashx | Large, use fastest |
+| any | >= 3 | any | glm-4.6v-flashx | Multiple images, use fastest |
+
+Score = `totalKB + (imageCount * 300)`. Threshold: 2000 with < 3 images selects glm-4.6v, otherwise glm-4.6v-flashx.
 
 ## Scaling Throughput
 

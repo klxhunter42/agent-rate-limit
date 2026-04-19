@@ -19,11 +19,15 @@ Claude Code ──▶ Gateway :8080 ──▶ api.z.ai/api/anthropic
                 (ANTHROPIC_BASE_URL)
 
 Gateway ทำอะไร:
-  1. รับ request (ไม่แก้ไขอะไรเลย)
-  2. เช็ค rate limit
-  3. ส่งต่อไป upstream (ทุก byte เหมือนเดิม)
-  4. รับ response กลับ
-  5. ส่งตรงไปหา client (ทุก byte เหมือนเดิม)
+  1. รับ request
+  2. เช็ค X-Profile header → profile routing (if present)
+  3. เช็ค quota enforcement (>= 95% → 429, >= 80% → warning)
+  4. เช็ค rate limit
+  5. ส่งต่อไป upstream (ทุก byte เหมือนเดิม)
+  6. รับ response กลับ
+  7. Record usage metrics + usage analytics (auto via callback)
+  8. Broadcast WS event (request-completed / request-error)
+  9. ส่งตรงไปหา client (ทุก byte เหมือนเดิม)
 ```
 
 ---
@@ -156,10 +160,23 @@ Request → Logging → Metrics → Rate Limit → Proxy
                         │ Handler:             │
                         │ 1. Read+validate body│
                         │ 2. Parse JSON        │
-                        │ 3. Resolve key pool  │
-                        │ 4. Acquire model slot│
+                        │ 3. X-Profile header? │
+                        │    ├─ YES: Load from │
+                        │    │  Redis, override │
+                        │    │  model/apiKey/   │
+                        │    │  baseUrl          │
+                        │    └─ NO: Normal flow │
+                        │ 4. Check quota       │
+                        │    (>= 95% → 429)    │
+                        │    (>= 80% → WS warn)│
+                        │ 5. Resolve key pool  │
+                        │ 6. Acquire model slot│
                         │    (may fallback)    │
-                        │ 5. Proxy upstream    │
+                        │ 7. Proxy upstream    │
+                        │ 8. Record usage      │
+                        │    (metrics + Redis  │
+                        │     via callback)    │
+                        │ 9. Broadcast WS event│
                         └───────────┬──────────┘
                                     │
                         ┌───────────▼──────────┐
@@ -187,6 +204,24 @@ Request → Logging → Metrics → Rate Limit → Proxy
 - `/v1/messages`: ใช้ `x-api-key` header หรือ `Authorization: Bearer <token>`
 - อื่นๆ: ใช้ `?agent_id=` query param
 
+**Additional gateway routes** (not proxied, served directly):
+- `/v1/messages` supports `X-Profile` header for profile-based routing (overrides model, apiKey, baseUrl)
+- `/v1/messages` enforces quota: 429 at >= 95%, WebSocket `quota-warning` at >= 80%
+- `/v1/messages` auto-records usage to Redis buckets via metrics callback on every request
+- `/v1/messages` broadcasts `request-completed`/`request-error` WebSocket events per request
+- `/v1/chat/completions` broadcasts `request-queued` WebSocket event on enqueue
+- `/v1/profiles/*` - Profile CRUD management
+- `/v1/usage/*` - Usage analytics (summary, hourly, daily, monthly, models, sessions)
+- `/quota/*` - Per-provider/account quota tracking
+- `/v1/overview` - Dashboard summary
+- `/v1/health/detailed` - 6 automated health checks with auto-fix hints
+- `/v1/config`, `/v1/config/raw`, `/v1/config` (PUT) - Server config management
+- `/v1/thinking` (GET/PUT) - Thinking budget configuration
+- `/v1/global-env` (GET/PUT) - Global environment variable overrides
+- `/ws` - WebSocket endpoint for 6 real-time event types (config-changed, request-completed, request-error, anomaly-detected, request-queued, quota-warning)
+- `/v1/auth/*` - Provider OAuth/API key authentication flows
+- `/admin/*` - Dashboard SPA (embedded Vite build)
+
 ดูรายละเอียดเพิ่มเติมที่ [docs/architecture.md](architecture.md#3-rate-limit-middleware)
 
 ### Code Design
@@ -198,14 +233,31 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
     body, _ := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
     // ... validate size + parse JSON ...
 
-    // 2. Resolve API key (หลัง validation — ไม่เสีย RPM บน bad request)
+    // 2. Profile-based routing (X-Profile header)
+    profileName := r.Header.Get("X-Profile")
+    if profileName != "" {
+        profile := loadProfileFromRedis(profileName)
+        if profile != nil {
+            // Override model, apiKey, baseUrl from profile
+            // Skip key pool + model fallback
+        }
+    }
+
+    // 3. Quota enforcement (before model slot)
+    quota := h.quotaHandler.CheckQuota(provider, accountID, model)
+    if quota >= 95% { return 429 }
+    if quota >= 80% { h.wsBroadcast("quota-warning", ...) }
+
+    // 4. Resolve API key (หลัง validation — ไม่เสีย RPM บน bad request)
     apiKey := h.keyPool.Acquire() // หรือ extract จาก header (passthrough mode)
 
-    // 3. Acquire model slot (อาจ fallback ไป model อื่น)
+    // 5. Acquire model slot (อาจ fallback ไป model อื่น)
     selectedModel, _ := h.modelLimiter.Acquire(requestedModel)
 
-    // 4. ส่งตรงไป upstream (body rewrite เฉพาะ model field)
+    // 6. ส่งตรงไป upstream (body rewrite เฉพาะ model field)
     h.proxy.ProxyTransparent(w, r, apiKey, isStream)
+
+    // 7. Usage recording + WS broadcast done via metrics callback + wsBroadcast
 }
 
 // anthropic.go — Transparent proxy
@@ -248,6 +300,7 @@ func (p *AnthropicProxy) ProxyTransparent(...) error {
 | **Extended thinking** | ✅ | เป็น content block อีกชนิด — gateway ไม่แตะ |
 | **NotebookEdit** | ✅ | เหมือน tools อื่นๆ |
 | **TodoRead / TodoWrite** | ✅ | เหมือน tools อื่นๆ |
+| **Image / Vision** | ✅ | Auto-routed to native Zhipu endpoint with format conversion |
 
 ### ทำงานที่ client (ไม่เกี่ยวกับ gateway)
 
@@ -262,15 +315,65 @@ TodoWrite  → จัดการ todo list ที่ client
 ### ทำงานที่ gateway (transparent)
 
 ```
-Rate limit check  → ดึง API key → เรียก rate limiter → ผ่าน/ไม่ผ่าน
-Proxy request     → ส่ง raw body ไป upstream
-Proxy response    → ส่ง raw body กลับ client
-Proxy SSE stream  → relay chunk by chunk
+Profile routing    → X-Profile header → load profile from Redis → override model/apiKey/baseUrl
+Quota enforcement  → CheckQuota() before model slot → 429 at >= 95%, WS warning at >= 80%
+Rate limit check   → ดึง API key → เรียก rate limiter → ผ่าน/ไม่ผ่าน
+Vision routing     -> detect image content -> convert format -> route to native Zhipu endpoint
+Content filter     -> strip server_tool_use -> convert image format to GLM-compatible
+Usage recording    -> metrics.RecordTokens() auto-calls usageHandler → Redis buckets
+WS broadcasting    -> request-completed, request-error, anomaly-detected, quota-warning
+Proxy request      → ส่ง raw body ไป upstream
+Proxy response     → ส่ง raw body กลับ client
+Proxy SSE stream   → relay chunk by chunk
+```
+
+### ทำงานที่ gateway (management APIs)
+
+```
+Profile CRUD       → /v1/profiles/* → Dragonfly storage
+Profile routing    → X-Profile header → profile lookup → override request config
+Usage analytics    → /v1/usage/* → Redis time-bucket aggregation (auto-recorded via metrics callback)
+Quota tracking     → /quota/* → per-provider quota with Redis cache
+Quota enforcement  → CheckQuota() in Messages handler → 429 at >= 95%, WS warning at >= 80%
+Health checks      → /v1/health/detailed → 6 automated checks
+Config management  → /v1/config, /v1/thinking, /v1/global-env → Redis overrides
+WebSocket          → /ws → 6 real-time event types to dashboard (request-completed, request-error,
+                      anomaly-detected, request-queued, quota-warning, config-changed)
+Provider auth      → /v1/auth/* → OAuth device code + auth code + API key flows
 ```
 
 ---
 
 ## การตั้งค่า
+
+### Image Handling
+
+Gateway จัดการ image requests อัตโนมัติ:
+
+```
+Claude Code ส่ง request พร้อม image block
+  |
+  v
+Gateway detects image content
+  |-- analyzeImagePayload(): count images + total base64 bytes
+  |-- selectVisionModel():
+  |     score = totalBase64KB + (imageCount * 300)
+  |     glm-4.6v (10 slots) or glm-4.6v-flashx (3 slots)
+  |-- filterUnsupportedContent(): strip server_tool_use, convert image format
+  |-- ProxyNativeVision(): convert Anthropic -> Zhipu format
+  |-- Send to native Zhipu vision endpoint
+  |-- stream=true? -> convertZhipuStreamResponse() (real-time SSE)
+  |-- stream=false? -> zhipuToAnthropic() (JSON response)
+  |
+  v
+Claude Code ได้ response (เหมือนเดิม, Anthropic format)
+```
+
+Client ไม่ต้องทำอะไรเพิ่ม -- gateway จัดการทุกอย่าง transparently
+
+Supported image formats:
+- Anthropic base64: `{"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}`
+- Anthropic URL: `{"type":"image","source":{"type":"url","url":"https://..."}}`
 
 ### Claude Code → Gateway
 
@@ -376,6 +479,24 @@ body → io.ReadAll() → ส่ง raw bytes ตรงไป upstream          
 
 **แก้:** Transparent proxy ส่ง status code + headers + body ตรงไป client
 
+### อาการ: "Unsupported content type: server_tool_use" เมื่อส่งรูป
+
+**สาเหตุ:** GLM ผ่าน z.ai Anthropic endpoint ไม่รองรับ image content และ server_tool_use block type
+
+**แก้:** Gateway ตอนนี้ filter server_tool_use blocks ออกอัตโนมัติ และ route image requests ไป native Zhipu endpoint แทน
+
+### อาการ: Vision model ตอบไม่แม่น
+
+**สาเหตุ:** System prompt ไม่มี vision-specific instructions
+
+**แก้:** Gateway มี vision prompt injection อัตโนมัติ (ENABLE_PROMPT_INJECTION=true)
+
+### อาการ: glm-4.6v-flash overload ตอนส่ง base64
+
+**สาเหตุ:** flash model มี payload limit ต่ำกว่า
+
+**แก้:** ใช้ URL image แทน base64, หรือใช้ glm-4.6v แทน
+
 ---
 
 ## Test Scripts
@@ -403,4 +524,4 @@ curl -X POST http://localhost:8080/v1/messages \
 
 ---
 
-*Transparent Proxy v2.3 — key pool RPM fix, context-aware backoff, handler order validation-first*
+*Transparent Proxy v2.7 -- profile-based routing, quota enforcement, usage recording integration, 6 WebSocket event types, Z.AI pricing update (19 models), UPSTREAM_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*

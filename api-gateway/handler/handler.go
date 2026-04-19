@@ -3,10 +3,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,8 +17,11 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/middleware"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
+	"github.com/redis/go-redis/v9"
 )
 
 // ChatRequest is the payload sent by clients to enqueue an AI inference job.
@@ -46,22 +52,70 @@ type ResultResponse struct {
 
 // HealthResponse is the health-check payload.
 type HealthResponse struct {
-	Status string `json:"status"`
+	Status        string `json:"status"`
+	QueueDepth    int64  `json:"queue_depth"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
+}
+
+// ErrorLogEntry stores a single error record.
+type ErrorLogEntry struct {
+	Timestamp  string `json:"timestamp"`
+	Method     string `json:"method"`
+	Path       string `json:"path"`
+	Status     int    `json:"status"`
+	DurationMs int64  `json:"duration_ms"`
+	Error      string `json:"error"`
+	Model      string `json:"model,omitempty"`
+}
+
+const errorLogMaxEntries = 100
+
+var (
+	errorLogMu    sync.Mutex
+	errorLogBuf   []ErrorLogEntry
+	errorLogTotal int
+)
+
+func pushError(entry ErrorLogEntry) {
+	errorLogMu.Lock()
+	defer errorLogMu.Unlock()
+	errorLogTotal++
+	if len(errorLogBuf) >= errorLogMaxEntries {
+		errorLogBuf = errorLogBuf[1:]
+	}
+	errorLogBuf = append(errorLogBuf, entry)
+}
+
+// RoutingStrategyRequest is the payload for setting routing strategy.
+type RoutingStrategyRequest struct {
+	Strategy string `json:"strategy"`
 }
 
 // Handler holds dependencies for the HTTP handlers.
 type Handler struct {
-	queue        *queue.DragonflyClient
-	metrics      *metrics.Metrics
-	proxy        *proxy.AnthropicProxy
-	modelLimiter *middleware.AdaptiveLimiter
-	keyPool      *proxy.KeyPool
-	cfg          *config.Config
+	queue           *queue.DragonflyClient
+	metrics         *metrics.Metrics
+	proxy           *proxy.AnthropicProxy
+	codeAssistProxy *proxy.GeminiCodeAssistProxy
+	openaiProxy     *proxy.OpenAIProxy
+	geminiAPIProxy  *proxy.GeminiAPIProxy
+	modelLimiter    *middleware.AdaptiveLimiter
+	keyPool         *proxy.KeyPool
+	cfg             *config.Config
+	privacy         *privacy.Pipeline
+	tokenStore      *provider.TokenStore
+	resolver        *provider.Resolver
+	anomalyDetector *middleware.AnomalyDetector
+	startedAt       time.Time
+	usageHandler    *UsageHandler
+	quotaHandler    *QuotaHandler
+	profileRedis    *redis.Client
+	wsBroadcast     func(eventType string, data interface{})
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config) *Handler {
-	return &Handler{queue: q, metrics: m, proxy: p, modelLimiter: ml, keyPool: kp, cfg: cfg}
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{})) *Handler {
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn}
 }
 
 // ChatCompletions validates the request, enqueues the job, and returns a request ID.
@@ -156,14 +210,14 @@ func (h *Handler) GetResult(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-const maxRequestBody = 10 * 1024 * 1024 // 10MB limit
+// maxRequestBody moved to cfg.MaxRequestBody
 
 // Messages handles POST /v1/messages — transparent proxy to upstream.
 // Applies system prompt injection, smart max_tokens, per-model concurrency
 // limiting with auto-fallback, and retries on 429.
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Read and validate body before acquiring any resources.
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxRequestBody+1))
+	body, err := io.ReadAll(io.LimitReader(r.Body, h.cfg.MaxRequestBody+1))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, proxy.ErrorResponse{
 			Type: "error",
@@ -175,12 +229,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		h.metrics.IncError("bad_request")
 		return
 	}
-	if len(body) > maxRequestBody {
+	if len(body) > int(h.cfg.MaxRequestBody) {
 		writeJSON(w, http.StatusRequestEntityTooLarge, proxy.ErrorResponse{
 			Type: "error",
 			Error: proxy.ErrorDetail{
 				Type:    "invalid_request_error",
-				Message: "request body exceeds 10MB limit",
+				Message: fmt.Sprintf("request body exceeds %dMB limit", h.cfg.MaxRequestBody/1024/1024),
 			},
 		})
 		h.metrics.IncError("bad_request")
@@ -201,9 +255,35 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve API key after validation to avoid wasting RPM budget on bad requests.
+	// Extract model early for provider resolution.
+	requestedModel, _ := payload["model"].(string)
+
+	// Profile-based routing: if X-Profile header is set, load profile and override.
+	var profileOverride *Profile
+	if profileName := r.Header.Get("X-Profile"); profileName != "" && h.profileRedis != nil {
+		if p, perr := getProfile(r.Context(), h.profileRedis, profileName); perr == nil && p != nil {
+			profileOverride = p
+			if p.Model != "" {
+				payload["model"] = p.Model
+				requestedModel = p.Model
+			}
+			slog.Info("profile routing", "profile", profileName, "model", requestedModel, "baseUrl", p.BaseURL)
+		} else {
+			slog.Warn("profile not found, using default routing", "profile", profileName, "error", perr)
+		}
+	}
+
 	var apiKey string
-	if !h.keyPool.Passthrough() {
+	var decision *provider.RoutingDecision
+	if h.resolver != nil {
+		decision = h.resolver.Resolve(requestedModel)
+	}
+
+	if profileOverride != nil && profileOverride.APIKey != "" {
+		apiKey = profileOverride.APIKey
+	} else if decision != nil && decision.APIKey != "" {
+		apiKey = decision.APIKey
+	} else if !h.keyPool.Passthrough() {
 		poolKey, ok := h.keyPool.Acquire()
 		if !ok {
 			writeJSON(w, http.StatusTooManyRequests, proxy.RateLimitError(10))
@@ -230,8 +310,26 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Extract and acquire model slot (may fallback).
-	requestedModel, _ := payload["model"].(string)
+	// Quota enforcement: check before acquiring slot (fail-open on errors).
+	if h.quotaHandler != nil {
+		providerID := "default"
+		accountID := "default"
+		if decision != nil {
+			providerID = decision.ProviderID
+		}
+		if allowed, pct, _ := h.quotaHandler.CheckQuota(providerID, accountID, requestedModel); !allowed {
+			writeJSON(w, http.StatusTooManyRequests, map[string]any{
+				"type":  "error",
+				"error": map[string]string{"type": "quota_exceeded", "message": fmt.Sprintf("quota for %s at %.1f%%", requestedModel, pct)},
+			})
+			h.metrics.IncError("quota_exceeded")
+			return
+		} else if pct >= 80 && h.wsBroadcast != nil {
+			h.wsBroadcast("quota-warning", map[string]any{"provider": providerID, "accountId": accountID, "model": requestedModel, "percentage": pct})
+		}
+	}
+
+	// Acquire model slot (may fallback).
 	selectedModel, ok := h.modelLimiter.Acquire(requestedModel)
 	if !ok {
 		writeJSON(w, http.StatusServiceUnavailable, proxy.OverloadedError("all model slots busy, please retry"))
@@ -242,6 +340,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	if selectedModel != requestedModel {
 		payload["model"] = selectedModel
+		h.metrics.RecordFallback(requestedModel, selectedModel)
 		slog.Info("model fallback",
 			"requested", requestedModel,
 			"selected", selectedModel,
@@ -258,6 +357,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		applySmartMaxTokens(payload, selectedModel)
 	}
 
+	// Strip content block types unsupported by upstream (e.g. GLM doesn't support server_tool_use).
+	filterUnsupportedContent(payload)
+
+	// Detect if request contains images for native vision routing.
+	hasImages := proxy.HasImageContent(payload)
+
 	// Re-encode modified payload.
 	body, err = json.Marshal(payload)
 	if err != nil {
@@ -265,9 +370,25 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Privacy masking: detect and mask secrets/PII before proxying.
+	var maskResult *privacy.MaskResult
+	if h.privacy != nil {
+		maskResult, _ = h.privacy.MaskRequest(body)
+		if maskResult != nil {
+			body = maskResult.MaskedBody
+		}
+	}
+
 	isStream, _ := payload["stream"].(bool)
 
-	// Feedback callback for adaptive limiter + key pool.
+	// Build profile proxy options if profile override is active.
+	profileOpts := &proxy.ProxyOptions{}
+	if profileOverride != nil && profileOverride.BaseURL != "" {
+		profileOpts.UpstreamOverride = profileOverride.BaseURL
+	}
+
+	// Feedback callback for adaptive limiter + key pool + anomaly detection.
+	start := time.Now()
 	feedbackFn := func(statusCode int, rtt time.Duration, headers http.Header) {
 		h.modelLimiter.Feedback(selectedModel, statusCode, rtt, headers)
 		if statusCode == 429 || statusCode == 503 {
@@ -275,9 +396,146 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		} else if statusCode >= 200 && statusCode < 300 {
 			h.keyPool.ReportSuccess(apiKey)
 		}
+		if h.anomalyDetector != nil {
+			anomaly := h.anomalyDetector.Record(float64(rtt.Milliseconds()))
+			if anomaly.Type != middleware.AnomalyNone && anomaly.Severity >= middleware.SeverityHigh {
+				slog.Warn("anomaly detected",
+					"type", anomaly.Type,
+					"severity", anomaly.Severity,
+					"z_score", anomaly.Score,
+					"value_ms", anomaly.Value,
+					"mean_ms", anomaly.Mean,
+					"model", selectedModel,
+				)
+				if h.wsBroadcast != nil {
+					h.wsBroadcast("anomaly-detected", map[string]any{"type": int(anomaly.Type), "severity": int(anomaly.Severity), "model": selectedModel, "rtt_ms": anomaly.Value})
+				}
+			}
+		}
+		if statusCode >= 400 {
+			if h.usageHandler != nil {
+				h.usageHandler.RecordError(selectedModel)
+			}
+			pushError(ErrorLogEntry{
+				Timestamp:  time.Now().UTC().Format(time.RFC3339),
+				Method:     r.Method,
+				Path:       r.URL.Path,
+				Status:     statusCode,
+				DurationMs: time.Since(start).Milliseconds(),
+				Error:      http.StatusText(statusCode),
+				Model:      selectedModel,
+			})
+			if h.wsBroadcast != nil {
+				h.wsBroadcast("request-error", map[string]any{"model": selectedModel, "statusCode": statusCode, "rtt_ms": rtt.Milliseconds()})
+			}
+		} else if h.wsBroadcast != nil {
+			h.wsBroadcast("request-completed", map[string]any{"model": selectedModel, "statusCode": statusCode, "rtt_ms": rtt.Milliseconds()})
+		}
 	}
 
-	if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+	if hasImages && (decision == nil || decision.ProviderID == "zai") {
+		// GLM models: use dedicated Z.AI vision endpoint (OpenAI format).
+		imgBytes, imgCount := analyzeImagePayload(payload)
+		visionModel := selectVisionModel(imgBytes, imgCount)
+		if visionModel != selectedModel {
+			slog.Info("vision model auto-selected",
+				"original", selectedModel,
+				"selected", visionModel,
+				"imageBytes", imgBytes,
+				"imageCount", imgCount,
+			)
+			selectedModel = visionModel
+			payload["model"] = selectedModel
+			body, _ = json.Marshal(payload)
+		}
+		slog.Info("routing to native vision endpoint", "model", selectedModel)
+		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+			slog.Error("vision proxy error", "error", err)
+			h.metrics.IncError("upstream")
+		}
+	} else if hasImages && decision != nil {
+		// Non-GLM models with images: re-resolve for the vision model and use normal routing.
+		visionDecision := decision
+		if selectedModel != requestedModel && h.resolver != nil {
+			if vd := h.resolver.Resolve(selectedModel); vd != nil && vd.APIKey != "" {
+				visionDecision = vd
+				apiKey = vd.APIKey
+			}
+		}
+		switch visionDecision.Format {
+		case provider.FormatOpenAI:
+			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+				slog.Error("openai vision proxy error", "error", err)
+				h.metrics.IncError("upstream")
+			}
+		case provider.FormatGemini:
+			if visionDecision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+					slog.Warn("code assist vision failed, falling back to gemini api", "error", err)
+					if h.geminiAPIProxy != nil {
+						if fbErr := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); fbErr != nil {
+							slog.Error("gemini vision api fallback error", "error", fbErr)
+							h.metrics.IncError("upstream")
+						}
+					} else {
+						h.metrics.IncError("upstream")
+					}
+				}
+			} else if h.geminiAPIProxy != nil {
+				if err := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+					slog.Error("gemini vision proxy error", "error", err)
+					h.metrics.IncError("upstream")
+				}
+			}
+		default:
+			opts := &proxy.ProxyOptions{
+				AuthMode:         visionDecision.AuthMode,
+				UpstreamOverride: visionDecision.UpstreamURL,
+				ExtraHeaders:     visionDecision.ExtraHeaders,
+			}
+			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
+				slog.Error("vision proxy error", "error", err)
+				h.metrics.IncError("upstream")
+			}
+		}
+	} else if decision != nil {
+		switch decision.Format {
+		case provider.FormatOpenAI:
+			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+				slog.Error("openai proxy error", "error", err)
+				h.metrics.IncError("upstream")
+			}
+		case provider.FormatGemini:
+			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+					slog.Warn("code assist failed, falling back to gemini api", "error", err)
+					if h.geminiAPIProxy != nil {
+						if fbErr := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); fbErr != nil {
+							slog.Error("gemini api fallback error", "error", fbErr)
+							h.metrics.IncError("upstream")
+						}
+					} else {
+						h.metrics.IncError("upstream")
+					}
+				}
+			} else if h.geminiAPIProxy != nil {
+				if err := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+					slog.Error("gemini proxy error", "error", err)
+					h.metrics.IncError("upstream")
+				}
+			}
+		default:
+			opts := &proxy.ProxyOptions{
+				AuthMode:         decision.AuthMode,
+				UpstreamOverride: decision.UpstreamURL,
+				ExtraHeaders:     decision.ExtraHeaders,
+			}
+			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
+				slog.Error("proxy error", "error", err)
+				h.metrics.IncError("upstream")
+			}
+		}
+	} else if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, profileOpts); err != nil {
 		slog.Error("proxy error", "error", err)
 		h.metrics.IncError("upstream")
 	}
@@ -285,7 +543,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 // Health returns the service health status.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, HealthResponse{Status: "healthy"})
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	var depth int64
+	if h.queue != nil {
+		depth, _ = h.queue.QueueDepth(ctx)
+	}
+	writeJSON(w, http.StatusOK, HealthResponse{
+		Status:        "healthy",
+		QueueDepth:    depth,
+		UptimeSeconds: int64(time.Since(h.startedAt).Seconds()),
+	})
 }
 
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
@@ -301,25 +569,36 @@ var allowedResponseHeaders = map[string]bool{
 }
 
 // LimiterStatus returns current adaptive limiter state for monitoring.
-// Requires x-api-key or Authorization header for basic auth.
 func (h *Handler) LimiterStatus(w http.ResponseWriter, r *http.Request) {
-	// Auth: require a valid API key.
-	key := r.Header.Get("x-api-key")
-	if key == "" {
-		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-			key = strings.TrimPrefix(auth, "Bearer ")
-		}
-	}
-	if key == "" || !h.keyPool.IsValidKey(key) {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
-		return
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"global":  h.modelLimiter.GlobalStatus(),
 		"models":  h.modelLimiter.Status(),
 		"keyPool": h.keyPool.Status(),
 	})
+}
+
+// LimiterOverride sets or clears a manual concurrency limit for a model.
+// Set limit=0 to clear an override.
+func (h *Handler) LimiterOverride(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Model string `json:"model"`
+		Limit int64  `json:"limit"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if req.Model == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "model is required"})
+		return
+	}
+
+	h.modelLimiter.SetOverride(req.Model, req.Limit)
+	action := "cleared"
+	if req.Limit > 0 {
+		action = "set to " + strconv.FormatInt(req.Limit, 10)
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "model": req.Model, "override": action})
 }
 
 func validateChatRequest(req *ChatRequest) string {
@@ -387,6 +666,142 @@ var modelMaxTokens = map[string]int{
 
 const fallbackMaxTokens = 4096
 
+// unsupportedContentTypes are Anthropic-specific block types that GLM does not handle.
+var unsupportedContentTypes = map[string]bool{
+	"server_tool_use": true,
+}
+
+// filterUnsupportedContent removes unsupported content block types from messages
+// and rewrites Anthropic image format to GLM-compatible format.
+func filterUnsupportedContent(payload map[string]any) {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return
+	}
+	for _, msg := range msgs {
+		m, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, ok := m["content"].([]any)
+		if !ok {
+			continue
+		}
+		filtered := make([]any, 0, len(content))
+		for _, block := range content {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				filtered = append(filtered, block)
+				continue
+			}
+			t, _ := cb["type"].(string)
+			if unsupportedContentTypes[t] {
+				continue
+			}
+			if t == "image" {
+				rewriteImageToGLMFormat(cb)
+			}
+			filtered = append(filtered, cb)
+		}
+		m["content"] = filtered
+	}
+}
+
+// rewriteImageToGLMFormat converts Anthropic image blocks to GLM-compatible format.
+// Anthropic: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
+// Anthropic: {"type":"image","source":{"type":"url","url":"https://..."}}
+// GLM native: {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
+func rewriteImageToGLMFormat(cb map[string]any) {
+	src, ok := cb["source"].(map[string]any)
+	if !ok {
+		return
+	}
+	srcType, _ := src["type"].(string)
+
+	var url string
+	switch srcType {
+	case "base64":
+		mediaType, _ := src["media_type"].(string)
+		data, _ := src["data"].(string)
+		if mediaType == "" || data == "" {
+			return
+		}
+		url = fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	case "url":
+		url, _ = src["url"].(string)
+	default:
+		return
+	}
+
+	// Rewrite to GLM image_url format.
+	cb["type"] = "image_url"
+	cb["image_url"] = map[string]any{"url": url}
+	delete(cb, "source")
+}
+
+// analyzeImagePayload walks all messages and returns total base64 image data size
+// (bytes) and image block count. Only counts image/image_url blocks with base64 data.
+func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int) {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return 0, 0
+	}
+	for _, msg := range msgs {
+		m, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, ok := m["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range content {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			t, _ := cb["type"].(string)
+			if t != "image" && t != "image_url" {
+				continue
+			}
+			imageCount++
+			// Anthropic image block: source.data (base64)
+			if src, ok := cb["source"].(map[string]any); ok {
+				if data, ok := src["data"].(string); ok {
+					totalBytes += len(data)
+				}
+			}
+			// GLM image_url block: image_url.url (data:...;base64,... or https://)
+			if iu, ok := cb["image_url"].(map[string]any); ok {
+				if url, ok := iu["url"].(string); ok {
+					if idx := strings.Index(url, ";base64,"); idx >= 0 {
+						totalBytes += len(url[idx+8:]) // skip ";base64,"
+					}
+				}
+			}
+		}
+	}
+	return totalBytes, imageCount
+}
+
+// selectVisionModel chooses the best vision model based on total image payload
+// size and count. Uses a score combining both factors:
+//
+//	score = totalBase64KB + (imageCount * 300)
+//
+// glm-4.6v is the default (10 slots, best quality). Only upgrades to
+// glm-4.6v-flashx for heavy payloads. glm-4.6v-flash (1 slot) is not
+// auto-selected.
+func selectVisionModel(totalBytes int, imageCount int) string {
+	totalKB := totalBytes / 1024
+	score := totalKB + imageCount*300
+
+	if score > 2000 || imageCount >= 3 {
+		return "glm-4.6v-flashx"
+	}
+	return "glm-4.6v"
+}
+
 // applySmartMaxTokens sets an optimal max_tokens if not already specified.
 func applySmartMaxTokens(payload map[string]any, model string) {
 	if _, exists := payload["max_tokens"]; exists {
@@ -397,4 +812,160 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 	} else {
 		payload["max_tokens"] = fallbackMaxTokens
 	}
+}
+
+func (h *Handler) GetRoutingStrategy(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"strategy": proxy.GetStrategy()})
+}
+
+func (h *Handler) SetRoutingStrategy(w http.ResponseWriter, r *http.Request) {
+	var req RoutingStrategyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if req.Strategy != "round-robin" && req.Strategy != "fill-first" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "strategy must be 'round-robin' or 'fill-first'"})
+		return
+	}
+	proxy.SetStrategy(req.Strategy)
+	writeJSON(w, http.StatusOK, map[string]string{"strategy": proxy.GetStrategy()})
+}
+
+func (h *Handler) GetErrorLogs(w http.ResponseWriter, r *http.Request) {
+	errorLogMu.Lock()
+	entries := make([]ErrorLogEntry, len(errorLogBuf))
+	copy(entries, errorLogBuf)
+	errorLogMu.Unlock()
+	writeJSON(w, http.StatusOK, entries)
+}
+
+func (h *Handler) GetErrorLogCount(w http.ResponseWriter, r *http.Request) {
+	errorLogMu.Lock()
+	total := errorLogTotal
+	current := len(errorLogBuf)
+	errorLogMu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]int{"total": total, "buffered": current})
+}
+
+// knownModels is a static catalog of models across all supported providers.
+// Limit=0 means "use config default". Pricing=0 means "not priced".
+var knownModels = []struct {
+	Name             string
+	Provider         string
+	Series           string
+	Format           string
+	InputPerMillion  float64
+	OutputPerMillion float64
+	ContextWindow    int
+	ThinkingSupport  string
+	ExtendedContext  bool
+	NativeImageInput bool
+	Deprecated       bool
+}{
+	// Z.AI / GLM — pricing from https://docs.z.ai/guides/overview/pricing
+	{"glm-5.1", "zai", "5", "anthropic", 1.4, 4.4, 128000, "budget", false, false, false},
+	{"glm-5", "zai", "5", "anthropic", 1.0, 3.2, 128000, "budget", false, false, false},
+	{"glm-5-turbo", "zai", "5", "anthropic", 1.2, 4.0, 128000, "budget", false, false, false},
+	{"glm-4.7", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
+	{"glm-4.7-flashx", "zai", "4", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
+	{"glm-4.7-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
+	{"glm-4.6", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
+	{"glm-4.5", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
+	{"glm-4.5-x", "zai", "4", "anthropic", 2.2, 8.9, 128000, "none", false, false, false},
+	{"glm-4.5-air", "zai", "4", "anthropic", 0.2, 1.1, 128000, "none", false, false, false},
+	{"glm-4.5-airx", "zai", "4", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
+	{"glm-4.5-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
+	{"glm-4-32b-0414-128k", "zai", "4", "anthropic", 0.1, 0.1, 128000, "none", false, false, false},
+	{"glm-5v-turbo", "zai", "5-vision", "anthropic", 1.2, 4.0, 128000, "budget", false, true, false},
+	{"glm-4.6v", "zai", "4-vision", "anthropic", 0.3, 0.9, 128000, "none", false, true, false},
+	{"glm-4.6v-flashx", "zai", "4-vision", "anthropic", 0.04, 0.4, 128000, "none", false, true, false},
+	{"glm-4.6v-flash", "zai", "4-vision", "anthropic", 0, 0, 128000, "none", false, true, false},
+	{"glm-4.5v", "zai", "4-vision", "anthropic", 0.6, 1.8, 128000, "none", false, true, false},
+	{"glm-ocr", "zai", "ocr", "anthropic", 0.03, 0.03, 128000, "none", false, true, false},
+	// Anthropic
+	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-haiku-4-5", "anthropic", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
+	{"claude-3-5-sonnet-20241022", "anthropic", "sonnet-3.5", "anthropic", 3, 15, 200000, "none", false, false, false},
+	{"claude-3-5-haiku-20241022", "anthropic", "haiku-3.5", "anthropic", 0.80, 4, 200000, "none", false, false, false},
+	// Claude OAuth
+	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	// OpenAI
+	{"gpt-4o", "openai", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
+	{"gpt-4o-mini", "openai", "gpt-4", "openai", 0.15, 0.60, 128000, "none", false, false, false},
+	{"o3", "openai", "o", "openai", 10, 40, 200000, "levels", false, false, false},
+	{"o4-mini", "openai", "o", "openai", 1.50, 6, 200000, "levels", false, false, false},
+	// Gemini
+	{"gemini-2.5-pro", "gemini", "2.5", "gemini", 1.25, 10, 1048576, "budget", true, false, false},
+	{"gemini-2.5-flash", "gemini", "2.5", "gemini", 0.15, 0.60, 1048576, "budget", true, false, false},
+	{"gemini-2.0-flash", "gemini", "2.0", "gemini", 0.10, 0.40, 1048576, "none", true, false, false},
+	// Gemini OAuth
+	{"gemini-2.5-pro", "gemini-oauth", "2.5", "gemini", 1.25, 10, 1048576, "budget", true, false, false},
+	{"gemini-2.5-flash", "gemini-oauth", "2.5", "gemini", 0.15, 0.60, 1048576, "budget", true, false, false},
+	// GitHub Copilot
+	{"gpt-4o", "copilot", "gpt-4", "openai", 0, 0, 128000, "none", false, false, false},
+	{"claude-sonnet-4-6", "copilot", "sonnet", "anthropic", 0, 0, 128000, "none", false, false, false},
+	// OpenRouter
+	{"or-anthropic/claude-sonnet-4-6", "openrouter", "sonnet", "openai", 3, 15, 200000, "budget", false, false, false},
+	{"or-openai/gpt-4o", "openrouter", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
+	{"or-google/gemini-2.5-pro", "openrouter", "gemini", "openai", 1.25, 10, 1048576, "budget", true, false, false},
+	{"or-meta/llama-4-maverick", "openrouter", "llama", "openai", 0.20, 0.80, 1048576, "none", true, false, false},
+	{"or-deepseek/deepseek-r1", "openrouter", "deepseek", "openai", 0.55, 2.19, 131072, "none", false, false, false},
+	{"or-qwen/qwen3-235b-a22b", "openrouter", "qwen", "openai", 0.10, 0.40, 131072, "none", false, false, false},
+	// Qwen
+	{"qwen-max", "qwen", "max", "openai", 0.40, 1.20, 32768, "none", false, false, false},
+	{"qwen-plus", "qwen", "plus", "openai", 0.08, 0.24, 131072, "none", false, false, false},
+	{"qwen-turbo", "qwen", "turbo", "openai", 0.03, 0.09, 1048576, "none", true, false, false},
+}
+
+func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {
+	type modelEntry struct {
+		Name             string  `json:"name"`
+		Provider         string  `json:"provider"`
+		Series           string  `json:"series"`
+		Limit            int     `json:"limit"`
+		Format           string  `json:"format"`
+		InputPerMillion  float64 `json:"input_per_million"`
+		OutputPerMillion float64 `json:"output_per_million"`
+		ContextWindow    int     `json:"context_window"`
+		ThinkingSupport  string  `json:"thinking_support"`
+		ExtendedContext  bool    `json:"extended_context"`
+		NativeImageInput bool    `json:"native_image_input"`
+		Deprecated       bool    `json:"deprecated"`
+	}
+
+	models := make([]modelEntry, 0, len(knownModels))
+	for _, km := range knownModels {
+		limit := h.cfg.DefaultLimit
+		if l, ok := h.cfg.ModelLimits[km.Name]; ok {
+			limit = l
+		}
+		models = append(models, modelEntry{
+			Name:             km.Name,
+			Provider:         km.Provider,
+			Series:           km.Series,
+			Limit:            limit,
+			Format:           km.Format,
+			InputPerMillion:  km.InputPerMillion,
+			OutputPerMillion: km.OutputPerMillion,
+			ContextWindow:    km.ContextWindow,
+			ThinkingSupport:  km.ThinkingSupport,
+			ExtendedContext:  km.ExtendedContext,
+			NativeImageInput: km.NativeImageInput,
+			Deprecated:       km.Deprecated,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
+func extractSeries(model string) string {
+	if len(model) >= 5 && model[:5] == "glm-4" {
+		return "4"
+	}
+	if len(model) >= 5 && model[:5] == "glm-5" {
+		return "5"
+	}
+	return "unknown"
 }

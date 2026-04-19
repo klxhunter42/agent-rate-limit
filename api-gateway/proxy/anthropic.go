@@ -16,7 +16,11 @@ import (
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
+
+const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
 
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
 var allowedResponseHeaders = map[string]bool{
@@ -69,10 +73,412 @@ func NewAnthropicProxy(cfg *config.Config, m *metrics.Metrics) *AnthropicProxy {
 	}
 }
 
-// ProxyTransparent forwards the request body to upstream with automatic retry on 429.
+// HasImageContent checks if payload contains any image blocks.
+func HasImageContent(payload map[string]any) bool {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return false
+	}
+	for _, msg := range msgs {
+		m, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, ok := m["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range content {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			if t, _ := cb["type"].(string); t == "image" || t == "image_url" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ProxyNativeVision sends a vision request to the native Zhipu API endpoint.
+// It converts Anthropic format to OpenAI/Zhipu format and converts the response back.
+func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc) error {
+	// Convert Anthropic payload to Zhipu OpenAI format.
+	zhipuReq, err := AnthropicToOpenAI(body, model)
+	if err != nil {
+		return fmt.Errorf("convert to zhipu format: %w", err)
+	}
+
+	zhipuBody, err := json.Marshal(zhipuReq)
+	if err != nil {
+		return fmt.Errorf("marshal zhipu request: %w", err)
+	}
+
+	upstreamURL := p.cfg.NativeVisionURL
+
+	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
+			if backoff > 5*time.Minute {
+				backoff = 5 * time.Minute
+			}
+			slog.Warn("vision upstream 429, retrying", "attempt", attempt, "backoff", backoff)
+			select {
+			case <-time.After(backoff):
+			case <-r.Context().Done():
+				return fmt.Errorf("request cancelled during retry: %w", r.Context().Err())
+			}
+		}
+
+		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(zhipuBody))
+		if err != nil {
+			return fmt.Errorf("create vision request: %w", err)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		httpReq.ContentLength = int64(len(zhipuBody))
+
+		start := time.Now()
+		resp, err := p.client.Do(httpReq)
+		rtt := time.Since(start)
+		if err != nil {
+			return fmt.Errorf("vision upstream call failed: %w", err)
+		}
+
+		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
+		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
+			feedback(resp.StatusCode, rtt, resp.Header)
+		}
+
+		if resp.StatusCode == 429 && attempt < p.cfg.UpstreamMaxRetries {
+			resp.Body.Close()
+			p.metrics.Inc429()
+			continue
+		}
+
+		// Convert Zhipu response back to Anthropic format.
+		return p.convertOpenAIResponse(w, resp, model, isStream)
+	}
+
+	return fmt.Errorf("vision upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
+}
+
+// AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
+func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
+	var src map[string]any
+	if err := json.Unmarshal(body, &src); err != nil {
+		return nil, err
+	}
+
+	// Convert messages.
+	srcMsgs, _ := src["messages"].([]any)
+	var messages []map[string]any
+	for _, msg := range srcMsgs {
+		m, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		role, _ := m["role"].(string)
+		content := m["content"]
+
+		switch v := content.(type) {
+		case string:
+			messages = append(messages, map[string]any{"role": role, "content": v})
+		case []any:
+			var parts []map[string]any
+			for _, block := range v {
+				cb, ok := block.(map[string]any)
+				if !ok {
+					continue
+				}
+				t, _ := cb["type"].(string)
+				switch t {
+				case "text":
+					parts = append(parts, map[string]any{"type": "text", "text": cb["text"]})
+				case "image":
+					parts = append(parts, convertImageBlock(cb))
+				case "image_url":
+					parts = append(parts, cb)
+				case "tool_result":
+					parts = append(parts, convertToolResultBlock(cb))
+				default:
+					parts = append(parts, cb)
+				}
+			}
+			messages = append(messages, map[string]any{"role": role, "content": parts})
+		default:
+			messages = append(messages, map[string]any{"role": role, "content": content})
+		}
+	}
+
+	result := map[string]any{
+		"model":    model,
+		"messages": messages,
+	}
+	if mt, ok := src["max_tokens"]; ok {
+		result["max_tokens"] = mt
+	}
+	if stream, ok := src["stream"].(bool); ok {
+		result["stream"] = stream
+	}
+
+	// Convert system prompt.
+	if sys, ok := src["system"]; ok {
+		switch v := sys.(type) {
+		case string:
+			messages = append([]map[string]any{{"role": "system", "content": v}}, messages...)
+			result["messages"] = messages
+		case []any:
+			var sysText []string
+			for _, s := range v {
+				if sm, ok := s.(map[string]any); ok {
+					if t, _ := sm["text"].(string); t != "" {
+						sysText = append(sysText, t)
+					}
+				}
+			}
+			if len(sysText) > 0 {
+				messages = append([]map[string]any{{"role": "system", "content": strings.Join(sysText, "\n\n")}}, messages...)
+				result["messages"] = messages
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// convertImageBlock converts Anthropic image to Zhipu image_url format.
+func convertImageBlock(cb map[string]any) map[string]any {
+	src, ok := cb["source"].(map[string]any)
+	if !ok {
+		return cb
+	}
+	srcType, _ := src["type"].(string)
+	var url string
+	switch srcType {
+	case "base64":
+		mediaType, _ := src["media_type"].(string)
+		data, _ := src["data"].(string)
+		url = fmt.Sprintf("data:%s;base64,%s", mediaType, data)
+	case "url":
+		url, _ = src["url"].(string)
+	}
+	return map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}
+}
+
+// convertToolResultBlock converts Anthropic tool_result to OpenAI tool message format.
+func convertToolResultBlock(cb map[string]any) map[string]any {
+	toolUseID, _ := cb["tool_use_id"].(string)
+	content := cb["content"]
+	return map[string]any{
+		"type":        "tool_result",
+		"tool_use_id": toolUseID,
+		"content":     content,
+	}
+}
+
+// convertOpenAIResponse reads an OpenAI response and converts back to Anthropic format.
+func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http.Response, model string, isStream bool) error {
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
+		return nil
+	}
+
+	if isStream {
+		return p.convertOpenAIStreamResponse(w, resp, model)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+	if err != nil {
+		return fmt.Errorf("read vision response: %w", err)
+	}
+
+	var zhipuResp map[string]any
+	if err := json.Unmarshal(body, &zhipuResp); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		w.Write(body)
+		return nil
+	}
+
+	// Track tokens from Zhipu usage.
+	if usage, ok := zhipuResp["usage"].(map[string]any); ok {
+		pt, _ := usage["prompt_tokens"].(float64)
+		ct, _ := usage["completion_tokens"].(float64)
+		p.metrics.RecordTokens(model, int(pt), int(ct))
+		slog.Info("token usage", "model", model, "input", int(pt), "output", int(ct), "format", "zhipu")
+	}
+
+	anthropicResp := OpenAIToAnthropic(zhipuResp, model)
+	respBody, _ := json.Marshal(anthropicResp)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(respBody)
+	return nil
+}
+
+// ConvertOpenAIStreamResponse converts OpenAI SSE chunks to Anthropic SSE format on-the-fly.
+func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, _ := w.(http.Flusher)
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+	msgID := fmt.Sprintf("msg_vision_%d", time.Now().UnixNano())
+	started := false
+	var inputTokens, outputTokens int
+	var ttfbRecorded bool
+	streamStart := time.Now()
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := line[6:]
+
+		if data == "[DONE]" {
+			if started {
+				// content_block_stop
+				fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+				// message_delta with stop_reason
+				fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
+				// message_stop
+				fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+			}
+			if flusher != nil {
+				flusher.Flush()
+			}
+			break
+		}
+
+		var chunk map[string]any
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+
+		// Extract token usage from chunks.
+		if usage, ok := chunk["usage"].(map[string]any); ok {
+			if pt, _ := usage["prompt_tokens"].(float64); pt > 0 {
+				inputTokens = int(pt)
+			}
+			if ct, _ := usage["completion_tokens"].(float64); ct > 0 {
+				outputTokens = int(ct)
+			}
+		}
+
+		choices, _ := chunk["choices"].([]any)
+		if len(choices) == 0 {
+			continue
+		}
+		choice, _ := choices[0].(map[string]any)
+		delta, _ := choice["delta"].(map[string]any)
+
+		// Get text content from delta.
+		text, _ := delta["content"].(string)
+		// Also check reasoning_content (some Zhipu models use this).
+		if text == "" {
+			text, _ = delta["reasoning_content"].(string)
+		}
+		if text == "" {
+			continue
+		}
+
+		if !ttfbRecorded {
+			p.metrics.RecordTTFB(model, time.Since(streamStart))
+			ttfbRecorded = true
+		}
+
+		if !started {
+			// message_start
+			fmt.Fprintf(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"%s\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"%s\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":%d,\"output_tokens\":0}}}\n\n", msgID, model, inputTokens)
+			// content_block_start
+			fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
+			started = true
+		}
+
+		outputTokens++
+
+		// content_block_delta
+		escaped, _ := json.Marshal(text)
+		fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
+
+	if inputTokens > 0 || outputTokens > 0 {
+		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		slog.Info("vision stream token usage", "model", model, "input", inputTokens, "output", outputTokens)
+	}
+
+	return nil
+}
+
+// OpenAIToAnthropic converts an OpenAI Chat Completions response to Anthropic Messages response format.
+func OpenAIToAnthropic(zhipu map[string]any, model string) map[string]any {
+	content := []any{}
+	var stopReason string
+
+	if choices, ok := zhipu["choices"].([]any); ok && len(choices) > 0 {
+		choice, _ := choices[0].(map[string]any)
+		if msg, ok := choice["message"].(map[string]any); ok {
+			if text, _ := msg["content"].(string); text != "" {
+				content = append(content, map[string]any{"type": "text", "text": text})
+			}
+		}
+		if fr, _ := choice["finish_reason"].(string); fr == "stop" {
+			stopReason = "end_turn"
+		} else {
+			stopReason = fr
+		}
+	}
+
+	var inputTokens, outputTokens int
+	if usage, ok := zhipu["usage"].(map[string]any); ok {
+		inputTokens = int(usage["prompt_tokens"].(float64))
+		outputTokens = int(usage["completion_tokens"].(float64))
+	}
+
+	return map[string]any{
+		"id":            zhipu["id"],
+		"type":          "message",
+		"role":          "assistant",
+		"model":         model,
+		"content":       content,
+		"stop_reason":   stopReason,
+		"stop_sequence": nil,
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+		},
+	}
+}
+
+// ProxyOptions configures proxy behavior for non-default upstream/auth scenarios.
+type ProxyOptions struct {
+	AuthMode         string            // "api_key" (default) or "bearer"
+	UpstreamOverride string            // if non-empty, use this instead of cfg.UpstreamURL
+	ExtraHeaders     map[string]string // additional headers to set
+}
+
 // It tracks token usage via Prometheus and optionally trims verbose responses.
-func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc) error {
+func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, opts *ProxyOptions) error {
 	upstreamURL := p.cfg.UpstreamURL + "/v1/messages"
+	if opts != nil && opts.UpstreamOverride != "" {
+		upstreamURL = opts.UpstreamOverride
+	}
 
 	var lastResp *http.Response
 
@@ -101,8 +507,17 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return fmt.Errorf("create upstream request: %w", err)
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("x-api-key", apiKey)
-		httpReq.Header.Set("anthropic-version", "2023-06-01")
+		if opts != nil && opts.AuthMode == "bearer" {
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		} else {
+			httpReq.Header.Set("x-api-key", apiKey)
+		}
+		httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
+		if opts != nil {
+			for k, v := range opts.ExtraHeaders {
+				httpReq.Header.Set(k, v)
+			}
+		}
 		httpReq.ContentLength = int64(len(body))
 
 		start := time.Now()
@@ -146,16 +561,20 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(lastResp.StatusCode)
 
 	if isStream {
-		return p.relayStreamWithTracking(w, lastResp, model)
+		var unmasker *masking.StreamUnmasker
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		}
+		return p.relayStreamWithTracking(w, lastResp, model, unmasker)
 	}
 
-	return p.handleNonStreamResponse(w, lastResp, model)
+	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
 }
 
 // handleNonStreamResponse buffers the full response, tracks tokens, optionally trims, and sends.
 const maxResponseSize = 100 * 1024 * 1024 // 100MB limit
 
-func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *http.Response, model string, maskResult *privacy.MaskResult) error {
 	// Limit response size to prevent OOM
 	limitedReader := io.LimitReader(resp.Body, maxResponseSize+1)
 	body, err := io.ReadAll(limitedReader)
@@ -234,13 +653,19 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		}
 	}
 
+	// Unmask secrets/PII placeholders before sending to client.
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		body = pipeline.UnmaskResponse(body, maskResult)
+	}
+
 	_, err = w.Write(body)
 	return err
 }
 
 const streamTimeout = 10 * time.Minute
 
-func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker) error {
 	// Add timeout to prevent hanging streams
 	ctx, cancel := context.WithTimeout(resp.Request.Context(), streamTimeout)
 	defer cancel()
@@ -249,12 +674,17 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	body := &readCloser{Reader: io.NopCloser(resp.Body), ctx: ctx}
 
 	scanner := bufio.NewScanner(body)
-	const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
 	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
+	var ttfbRecorded bool
 	var inputTokens, outputTokens int
+	var streamStart = time.Now()
 
 	for scanner.Scan() {
+		if !ttfbRecorded {
+			p.metrics.RecordTTFB(model, time.Since(streamStart))
+			ttfbRecorded = true
+		}
 		line := scanner.Text()
 
 		// Relay to client immediately.
@@ -294,6 +724,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("stream read error: %w", err)
+	}
+
+	// Flush remaining unmasker buffer.
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			fmt.Fprintf(w, "data: %s\n\n", remaining)
+		}
 	}
 
 	if inputTokens > 0 || outputTokens > 0 {

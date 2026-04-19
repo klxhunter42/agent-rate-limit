@@ -53,6 +53,45 @@ type Config struct {
 
 	// Per-model pricing: model -> {input, output} price per 1M tokens (USD).
 	ModelPricing map[string]ModelPrice
+
+	// Native Zhipu endpoint for vision requests (base64 image support).
+	NativeVisionURL string
+
+	// IP filtering: comma-separated IPs/CIDRs for whitelist or blacklist.
+	IPWhitelist string
+	IPBlacklist string
+
+	// Quota settings.
+	QuotaCacheTTL      time.Duration
+	QuotaDailyBudget   int64
+	QuotaBlockPct      float64
+	QuotaRedisPoolSize int
+	QuotaRedisMinIdle  int
+
+	// Provider model prefix mapping: "provider:prefix1,prefix2;provider2:prefix3"
+	ProviderModelPrefixes string
+
+	// Request limits.
+	MaxRequestBody int64
+
+	// Default values for chat requests.
+	DefaultModel       string
+	DefaultProvider    string
+	DefaultTemperature float64
+	DefaultMaxTokens   int
+
+	// Gemini endpoints.
+	GeminiCodeAssistEndpoint string
+	GeminiAPIEndpoint        string
+	GeminiDefaultModel       string
+
+	// Anthropic API version header.
+	AnthropicVersion string
+
+	// Adaptive limiter tuning.
+	ModelPriority      string // "model:priority,model:priority"
+	AnomalyCooldownSec int
+	AnomalyZThreshold  float64
 }
 
 // ModelPrice holds per-token pricing for cost calculation.
@@ -79,7 +118,7 @@ func Load() *Config {
 		RedisMinIdleConns:        envIntOr("REDIS_MIN_IDLE_CONNS", 10),
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
-		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3")),
+		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 1),
 		GlobalLimit:              envIntOr("UPSTREAM_GLOBAL_LIMIT", 9),
 		UpstreamMaxRetries:       envIntOr("UPSTREAM_MAX_RETRIES", 3),
@@ -92,6 +131,39 @@ func Load() *Config {
 		UpstreamRPMLimit:         envIntOr("UPSTREAM_RPM_LIMIT", 40),
 		ProbeMultiplier:          envIntOr("UPSTREAM_PROBE_MULTIPLIER", 5),
 		ModelPricing:             parseModelPricing(envOr("MODEL_PRICING", defaultModelPricing)),
+		NativeVisionURL:          envOr("NATIVE_VISION_URL", "https://open.bigmodel.cn/api/paas/v4/chat/completions"),
+		IPWhitelist:              envOr("IP_WHITELIST", ""),
+		IPBlacklist:              envOr("IP_BLACKLIST", ""),
+
+		// Quota settings.
+		QuotaCacheTTL:         envDurationOr("QUOTA_CACHE_TTL", 30*time.Second),
+		QuotaDailyBudget:      envInt64Or("QUOTA_DAILY_BUDGET", 57600),
+		QuotaBlockPct:         envFloatOr("QUOTA_BLOCK_PCT", 95),
+		QuotaRedisPoolSize:    envIntOr("QUOTA_REDIS_POOL_SIZE", 5),
+		QuotaRedisMinIdle:     envIntOr("QUOTA_REDIS_MIN_IDLE", 2),
+		ProviderModelPrefixes: envOr("PROVIDER_MODEL_PREFIXES", "zai:glm-;anthropic:claude-;claude:claude-;openai:gpt-,o3,o4-;gemini:gemini-;gemini-oauth:gemini-;openrouter:or-;qwen:qwen-"),
+
+		// Request limits.
+		MaxRequestBody: envInt64Or("MAX_REQUEST_BODY", 10*1024*1024),
+
+		// Default chat request values.
+		DefaultModel:       envOr("DEFAULT_MODEL", "glm-5"),
+		DefaultProvider:    envOr("DEFAULT_PROVIDER", "glm"),
+		DefaultTemperature: envFloatOr("DEFAULT_TEMPERATURE", 0.7),
+		DefaultMaxTokens:   envIntOr("DEFAULT_MAX_TOKENS", 1024),
+
+		// Gemini endpoints.
+		GeminiCodeAssistEndpoint: envOr("GEMINI_CODEASSIST_ENDPOINT", "https://cloudcode-pa.googleapis.com/v1internal"),
+		GeminiAPIEndpoint:        envOr("GEMINI_API_ENDPOINT", "https://generativelanguage.googleapis.com"),
+		GeminiDefaultModel:       envOr("GEMINI_DEFAULT_MODEL", "models/gemini-2.5-flash-preview-05-20"),
+
+		// Anthropic API version.
+		AnthropicVersion: envOr("ANTHROPIC_API_VERSION", "2023-06-01"),
+
+		// Adaptive limiter tuning.
+		ModelPriority:      envOr("MODEL_PRIORITY", "glm-5.1:100,glm-5-turbo:90,glm-5:80,glm-4.7:70,glm-4.6:60,glm-4.5:50"),
+		AnomalyCooldownSec: envIntOr("ANOMALY_COOLDOWN_SEC", 5),
+		AnomalyZThreshold:  envFloatOr("ANOMALY_Z_THRESHOLD", 2.0),
 	}
 }
 
@@ -130,6 +202,24 @@ func envDurationOr(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
+func envInt64Or(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func envFloatOr(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return fallback
+}
+
 func envBoolOr(key string, fallback bool) bool {
 	if v := os.Getenv(key); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
@@ -142,9 +232,15 @@ func envBoolOr(key string, fallback bool) bool {
 const defaultPromptInjection = `[GATEWAY RULES — strict]
 Be extremely concise. Use short, direct answers. Skip filler, preamble, and summaries.
 Prefer code over prose. Omit disclaimers and caveats. If the answer fits in one line, use one line.
-Never repeat or paraphrase the question back.`
+Never repeat or paraphrase the question back.
 
-const defaultModelPricing = "glm-5.1:0.5:1.5,glm-5-turbo:0.5:1.5,glm-5:0.5:1.5,glm-4.7:0.3:1.0,glm-4.6:0.3:1.0,glm-4.5:0.15:0.75"
+[VISION — strict]
+When an image is provided: examine every pixel region carefully before answering.
+Identify dominant colors, shapes, text, objects, and spatial layout.
+Answer based only on what is visibly present in the image — never assume or guess.
+If the image is unclear or too small, state that explicitly.`
+
+const defaultModelPricing = "glm-5.1:0.5:1.5,glm-5-turbo:0.5:1.5,glm-5:0.5:1.5,glm-4.7:0.3:1.0,glm-4.6:0.3:1.0,glm-4.5:0.15:0.75,glm-4.6v:0.3:1.0,glm-4.5v:0.15:0.75,glm-4.6v-flashx:0.1:0.5,glm-4.6v-flash:0.1:0.5"
 
 // parseModelPricing parses "model1:input:output,model2:input:output" into a pricing map.
 // Prices are USD per 1M tokens.
@@ -198,4 +294,35 @@ func parseAPIKeys(s string) []string {
 
 func splitColon(s string) []string {
 	return strings.Split(s, ":")
+}
+
+// ParseProviderModelPrefixes parses "provider:prefix1,prefix2;provider2:prefix3" into a map.
+func ParseProviderModelPrefixes(s string) map[string][]string {
+	m := make(map[string][]string)
+	for _, entry := range strings.Split(s, ";") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		provider := strings.TrimSpace(parts[0])
+		prefixes := strings.Split(parts[1], ",")
+		clean := make([]string, 0, len(prefixes))
+		for _, p := range prefixes {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				clean = append(clean, p)
+			}
+		}
+		m[provider] = clean
+	}
+	return m
+}
+
+// ParseModelPriority parses "model:priority,model:priority" into a map.
+func ParseModelPriority(s string) map[string]int {
+	return parseModelLimits(s)
 }

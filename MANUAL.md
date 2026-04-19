@@ -16,13 +16,15 @@
 7. [API Endpoints](#7-api-endpoints)
 8. [Grafana Dashboard](#8-grafana-dashboard)
 9. [Rate Limiter Web Dashboard](#9-rate-limiter-web-dashboard)
+9.1. [Gateway Dashboard UI](#91-gateway-dashboard-ui)
 10. [Distributed Rate Limiter Management API](#10-distributed-rate-limiter-management-api)
 11. [Prometheus & Observability](#11-prometheus--observability)
 12. [Cost Calculator](#12-cost-calculator)
 13. [Docker Management Commands](#13-docker-management-commands)
 14. [การเพิ่ม AI Provider](#14-การเพิ่ม-ai-provider)
-15. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
-16. [Multi-Agent และการเลือกโหมด](#16-multi-agent-และการเลือกโหมด)
+16. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
+17. [Vision Auto-Routing (รูปภาพ)](#17-vision-auto-routing-รูปภาพ)
+18. [Multi-Agent และการเลือกโหมด](#18-multi-agent-และการเลือกโหมด)
 
 ---
 
@@ -53,8 +55,10 @@
 │                    │  glm-5.1(1) glm-5-turbo(1)   │                  │
 │                    │  glm-5(2) glm-4.7(2) glm-4.6(3)│                │
 │                    │  glm-4.5(10)                  │                  │
+│                    │  Vision: glm-4.6v(10) glm-4.5v(10)│             │
+│                    │  glm-4.6v-flashx(3) glm-4.6v-flash(1)│         │
 │                    │  RPM Limiter: glm:5 req/min  │                  │
-│                    │  Global Limit: 15 concurrent │                  │
+│                    │  Global Limit: 9 concurrent │                  │
 │                    └─────┼────────────────────────┘                  │
 │                          │       │       │                           │
 │              ┌───────────▼───────▼───────▼──────────┐               │
@@ -79,6 +83,7 @@
 | **arl-dragonfly** | DragonflyDB (Redis-compatible) | 6379 (internal) | Cache, queue, rate limit state |
 | **arl-worker** | Python 3.12 (asyncio + httpx) | 9090/9091 (internal) | ประมวลผล AI jobs, provider fallback |
 | **arl-rl-dashboard** | React + Vite + nginx | 8081 (external) | Rate limiter web management UI |
+| **arl-dashboard** | React + Vite + Bun + nginx | 8082 (external) | Gateway dashboard UI (model limits, metrics, controls) |
 | **arl-prometheus** | Prometheus | 9090 (internal) | Metrics collection |
 | **arl-grafana** | Grafana | 3000 (external) | Dashboard & visualization |
 | **arl-otel** | OpenTelemetry | 4317/4318 (internal) | Trace & metric pipeline |
@@ -107,11 +112,36 @@ API Gateway (:8080)
   │   ├─ ถ้าผ่าน: ส่งต่อไป upstream
   │   └─ ถ้าไม่ผ่าน: ตอบ 429 Rate Limit Error (Anthropic format)
   │
-  ▼
-Upstream Provider (https://api.z.ai/api/anthropic)
+  ├─ Content Filter (strip server_tool_use, convert image format)
   │
-  ▼
-SSE Streaming Response → ส่งกลับ Claude Code chunk by chunk
+  ├─ ไม่มีรูป (Text Request):
+  │     ▼
+  │   Upstream Provider (https://api.z.ai/api/anthropic)
+  │     │
+  │     ▼
+  │   SSE Streaming Response → ส่งกลับ Claude Code chunk by chunk
+  │
+  └─ มีรูป (Image Request - auto-detected):
+        │
+        ├─ analyzeImagePayload(): นับรูป + ขนาด base64
+        ├─ selectVisionModel():
+        │     score = totalKB + (imageCount * 300)
+        │     <= 2000 และ < 3 รูป → glm-4.6v (10 slots)
+        │     > 2000 หรือ >= 3 รูป → glm-4.6v-flashx (3 slots)
+        │
+        ├─ anthropicToZhipu(): แปลง format Anthropic → OpenAI/Zhipu
+        │
+        ▼
+      Native Zhipu Vision (open.bigmodel.cn/api/paas/v4/chat/completions)
+        │
+        ├─ stream=true:  convertZhipuStreamResponse()
+        │     Zhipu SSE → Anthropic SSE (real-time chunk by chunk)
+        │
+        └─ stream=false: zhipuToAnthropic()
+              Zhipu JSON → Anthropic JSON
+        │
+        ▼
+      Response กลับ Claude Code (Anthropic format, เหมือนเดิม)
 ```
 
 ### โหมด Async (สำหรับ Batch Agents)
@@ -263,9 +293,10 @@ cp .env.example .env
 | `WORKER_POOL_SIZE` | `100` | จำนวน goroutine pool สำหรับ async mode |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider endpoint |
 | `STREAM_TIMEOUT` | `300s` | Timeout สำหรับ streaming requests |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (model:limit comma-separated, รวม 19 slots, global cap 15) |
-| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า |
-| `UPSTREAM_GLOBAL_LIMIT` | `15` | จำนวน concurrent request สูงสุดรวมทุก model |
+| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (model:limit comma-separated, รวม 19 slots, global cap 9) |
+| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า |
+| `UPSTREAM_GLOBAL_LIMIT` | `9` | จำนวน concurrent request สูงสุดรวมทุก model |
+| `NATIVE_VISION_URL` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | Native Zhipu endpoint for vision requests |
 
 ### Dragonfly
 
@@ -289,8 +320,8 @@ cp .env.example .env
 | `BASE_BACKOFF` | `1.0` | Backoff base (วินาที) สำหรับ exponential retry | 0.5-5.0 |
 | `RESULT_TTL` | `600` | เวลาเก็บ result (วินาที) | 60-3600 |
 | `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (เหมือน gateway) | รวมควรเท่ากับ UPSTREAM_GLOBAL_LIMIT |
-| `UPSTREAM_DEFAULT_LIMIT` | `2` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า | - |
-| `UPSTREAM_GLOBAL_LIMIT` | `15` | Concurrent request สูงสุดรวมทุก model (0 = unlimited) | - |
+| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit สำหรับ model ที่ไม่ได้ตั้งค่า | - |
+| `UPSTREAM_GLOBAL_LIMIT` | `9` | Concurrent request สูงสุดรวมทุก model (must be > 0) | - |
 | `PROVIDER_RPM_LIMITS` | `glm:5` | Per-provider RPM limit ป้องกัน 429 (provider:rpm) | ขึ้นกับจำนวน key |
 
 #### WORKER_CONCURRENCY แนะนำ
@@ -330,6 +361,7 @@ GLM_ENDPOINT=https://api.z.ai/api/anthropic
 |----------|---------|----------|
 | `GRAFANA_PORT` | `3000` | Grafana port (ภายนอก container) |
 | `GRAFANA_ADMIN_PASSWORD` | `klxhunter` | รหัสผ่าน admin ของ Grafana |
+| `DASHBOARD_PORT` | `8082` | Gateway Dashboard UI port (ภายนอก container) |
 
 ---
 
@@ -527,6 +559,10 @@ bash scripts/stress-test.sh
 | `GET` | `/v1/results/{id}` | ดึงผล async job |
 | `GET` | `/health` | Health check |
 | `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/admin` | Management dashboard (SPA, API key auth) |
+| `GET` | `/admin/*` | SPA sub-routes (fallback to index.html) |
+| `GET` | `/v1/limiter-status` | Adaptive limiter state (requires x-api-key) |
+| `POST` | `/v1/limiter-override` | Set/clear model concurrency limit (requires x-api-key) |
 
 ---
 
@@ -647,7 +683,47 @@ URL: http://localhost:8081
 
 ---
 
-## 10. Distributed Rate Limiter Management API
+## 9.1 Gateway Dashboard UI
+
+### การเข้าถึง
+
+| วิธี | URL | หมายเหตุ |
+|------|-----|---------|
+| Embedded (Go binary) | `http://localhost:8080/admin` | ใช้งานได้หลัง `bun run build` ใน `ui/` |
+| Docker Compose | `http://localhost:8082` | Standalone container, nginx proxy ไป gateway |
+| Dev mode (hot reload) | `http://localhost:5173` | `cd ui && bun run dev` |
+
+> Login ด้วย Gateway URL + API key (เก็บใน sessionStorage)
+
+### Pages
+
+| Page | Route | ฟีเจอร์ |
+|------|-------|---------|
+| Overview | `/` | Status, queue depth, total requests, concurrency, model utilization |
+| Model Limits | `/model-limits` | ตาราง model status: in-flight, limit, max, ceiling, RTT EWMA, requests, 429s |
+| Key Pool | `/key-pool` | API key rotation pool status |
+| Metrics | `/metrics` | Recharts time-series: request rate, token usage, errors (auto-poll 5s) |
+| Controls | `/controls` | Manual override model limits, active overrides table |
+
+### Build & Deploy
+
+```bash
+# Dev (hot reload)
+cd ui && bun run dev
+
+# Build static files -> api-gateway/static/ (embedded in Go binary)
+cd ui && bun run build
+
+# Docker
+docker-compose up -d --build arl-dashboard
+```
+
+### Tech Stack
+
+- React 19 + Vite 7 + TailwindCSS v4 + shadcn/ui (Radix)
+- Recharts (Prometheus metrics visualization)
+- Bun runtime
+- Playwright E2E tests (10 tests)
 
 Rate limiter รันอยู่ที่ internal port 8080 เข้าถึงได้จากภายใน Docker network:
 
@@ -806,6 +882,7 @@ docker-compose logs -f              # ดู logs real-time
 
 # === Service เดียว ===
 docker-compose up -d --build arl-worker      # Rebuild + restart
+docker-compose up -d --build arl-dashboard   # Rebuild dashboard UI
 docker-compose logs -f arl-gateway          # ดู logs
 docker-compose restart prometheus           # Restart
 
@@ -924,7 +1001,129 @@ docker-compose down -v && docker-compose up -d --build
 
 ---
 
-## 16. Multi-Agent และการเลือกโหมด
+## 17. Vision Auto-Routing (รูปภาพ)
+
+Gateway ตรวจจับ image content ใน request อัตโนมัติ แล้ว route ไปยัง native Zhipu vision endpoint แทน z.ai Anthropic endpoint พร้อม **auto-select vision model** ตามขนาดภาพ และ **SSE streaming** แบบ real-time
+
+### Flow Diagram
+
+```
+Client ส่ง request พร้อมรูปภาพ
+  |
+  v
+arl-gateway (:8080)
+  |-- HasImageContent() scan messages หา image blocks
+  |
+  +-- ไม่มีรูป: ProxyTransparent -> Z.ai (เหมือนเดิม)
+  |
+  +-- มีรูป: analyzeImagePayload()
+        |-- คำนวณ totalBase64Bytes + imageCount
+        |-- selectVisionModel(): score = totalBase64KB + (imageCount * 300)
+        |     |-- score <= 2000 && count < 3 -> glm-4.6v (10 slots, best quality)
+        |     |-- score > 2000 || count >= 3 -> glm-4.6v-flashx (3 slots, fastest)
+        |
+        |-- filterUnsupportedContent():
+        |     strip server_tool_use blocks
+        |     convert Anthropic image -> GLM image_url format
+        |
+        |-- anthropicToZhipu():
+        |     Anthropic Messages format -> OpenAI/Zhipu format
+        |     image blocks: {source:{type,media_type,data}} -> {image_url:{url}}
+        |
+        |-- POST to NATIVE_VISION_URL
+        |     Bearer auth with API key
+        |
+        +-- stream=true?
+              |-- YES: convertZhipuStreamResponse()
+              |     Zhipu SSE (OpenAI format) -> Anthropic SSE events
+              |     message_start -> content_block_start -> content_block_delta...
+              |     -> content_block_stop -> message_delta -> message_stop
+              |
+              |-- NO: zhipuToAnthropic()
+                    Zhipu JSON -> Anthropic JSON response
+```
+
+### Vision Model Auto-Select
+
+Gateway เลือก vision model อัตโนมัติตาม **scoring formula**:
+
+```
+score = totalBase64KB + (imageCount * 300)
+```
+
+| Score / Condition | Selected Model | Slots | Reason |
+|---|---|---|---|
+| score <= 2000 && count < 3 | `glm-4.6v` | 10 | Best quality, high capacity |
+| score > 2000 or count >= 3 | `glm-4.6v-flashx` | 3 | Fast processing for heavy payloads |
+
+**ตัวอย่าง:**
+
+| Scenario | Total KB | Count | Score | Model |
+|---|---|---|---|---|
+| 1 screenshot (200KB) | 200 | 1 | 500 | glm-4.6v |
+| 1 photo (1.5MB) | 1500 | 1 | 1800 | glm-4.6v |
+| 2 photos (1MB each) | 2000 | 2 | 2600 | glm-4.6v-flashx |
+| 5 screenshots (100KB each) | 500 | 5 | 2000 | glm-4.6v-flashx |
+| 1 large photo (3MB) | 3000 | 1 | 3300 | glm-4.6v-flashx |
+
+### SSE Streaming for Vision
+
+Vision responses **รองรับ SSE streaming** แล้ว -- Zhipu SSE chunks ถูก convert เป็น Anthropic SSE format แบบ real-time:
+
+```
+Zhipu SSE (OpenAI format):
+  data: {"choices":[{"delta":{"content":"Hello"}}]}
+
+Converted to Anthropic SSE:
+  event: content_block_delta
+  data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+```
+
+รองรับทั้ง `delta.content` และ `delta.reasoning_content` จาก Zhipu
+
+### Vision Models ที่รองรับ
+
+| Model | Slots | Status | Notes |
+|---|---|---|---|
+| `glm-4.6v` | 10 | ✅ แนะนำ | Best quality, highest capacity |
+| `glm-4.5v` | 10 | ✅ | Good quality, same capacity |
+| `glm-4.6v-flashx` | 3 | ✅ | Fastest, auto-selected for heavy payloads |
+| `glm-4.6v-flash` | 1 | ✅ | Fast, not auto-selected (limited slots) |
+
+### Image Format ที่รองรับ
+
+```json
+// Anthropic base64 (แปลงอัตโนมัติ)
+{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "..."}}
+
+// Anthropic URL (แปลงอัตโนมัติ)
+{"type": "image", "source": {"type": "url", "url": "https://..."}}
+
+// แปลงเป็น GLM format ก่อนส่ง:
+{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+```
+
+### การตั้งค่า
+
+```bash
+# Native Zhipu vision endpoint (default)
+NATIVE_VISION_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+
+# Vision model concurrency limits (included in UPSTREAM_MODEL_LIMITS)
+UPSTREAM_MODEL_LIMITS=...,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1
+```
+
+### ข้อจำกัด
+
+| ข้อจำกัด | รายละเอียด |
+|----------|-----------|
+| Privacy pipeline ข้าม | Vision path ไม่ผ่าน privacy masking |
+| tool_use บน vision อาจไม่ทำงาน | ขึ้นกับ upstream model |
+| ไม่มี auto-resize | รูปขนาดใหญ่อาจช้า/ล้มเหลว |
+
+---
+
+## 18. Multi-Agent และการเลือกโหมด
 
 ### Sync vs Async — เลือกโหมดไหน
 
@@ -1021,6 +1220,38 @@ docker-compose up -d --build
 # Grafana:         http://localhost:3000 (admin/klxhunter)
 # Rate Limiter UI: http://localhost:8081
 # Gateway Health:  http://localhost:8080/health
+# Admin Dashboard: http://localhost:8080/admin
+```
+
+### การ Build Dashboard UI
+
+Dashboard เป็น React + Vite + TailwindCSS แยกใน `ui/` directory:
+
+```bash
+cd ui
+bun install        # ครั้งแรกเท่านั้น
+bun run dev        # dev server (port 5173, proxy to :8080)
+bun run build      # build production -> api-gateway/static/
+```
+
+> **สำคัญ**: หลังจาก `bun run build` จะต้อง rebuild Go binary เพื่อ embed static files ใหม่
+
+### การ Build Gateway (Go)
+
+```bash
+cd api-gateway
+
+# Build binary
+go build -o api-gateway .
+
+# **ทุกครั้งหลัง build**: ลบ binary artifact
+rm -f api-gateway
+
+# Run tests with race detection
+go test ./... -count=1 -race
+
+# Combined: build UI -> build Go -> cleanup binary
+cd ../ui && bun run build && cd ../api-gateway && go build -o api-gateway . && rm -f api-gateway
 ```
 
 ---

@@ -6,6 +6,32 @@ import (
 	"time"
 )
 
+type strategy string
+
+const (
+	strategyRoundRobin strategy = "round-robin"
+	strategyFillFirst  strategy = "fill-first"
+)
+
+var currentStrategy strategy = strategyRoundRobin
+
+func SetStrategy(s string) {
+	switch s {
+	case "fill-first":
+		currentStrategy = strategyFillFirst
+	case "round-robin":
+		currentStrategy = strategyRoundRobin
+	default:
+		slog.Warn("unknown strategy, keeping current", "requested", s, "current", currentStrategy)
+		return
+	}
+	slog.Info("routing strategy changed", "strategy", currentStrategy)
+}
+
+func GetStrategy() string {
+	return string(currentStrategy)
+}
+
 // KeyPool manages a pool of upstream API keys with per-key RPM tracking
 // and automatic cooldown on 429/overloaded errors.
 //
@@ -76,9 +102,31 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 		}
 
 		budget := kp.rpmLimit - int64(len(k.timestamps))
-		if budget > bestBudget {
-			bestBudget = budget
-			best = k
+		if currentStrategy == strategyFillFirst {
+			if budget > bestBudget {
+				bestBudget = budget
+				best = k
+			}
+		} else {
+			if budget > 0 && budget > bestBudget {
+				bestBudget = budget
+				best = k
+			}
+		}
+	}
+
+	// round-robin: if no key has budget > 0 but some have budget == 0, allow them.
+	if currentStrategy == strategyRoundRobin && best == nil {
+		for _, k := range kp.keys {
+			k.trimBefore(windowStart)
+			if k.cooldownUntil > 0 && now < k.cooldownUntil {
+				continue
+			}
+			budget := kp.rpmLimit - int64(len(k.timestamps))
+			if budget > bestBudget {
+				bestBudget = budget
+				best = k
+			}
 		}
 	}
 
@@ -184,6 +232,36 @@ func (kp *KeyPool) Status() KeyPoolStatus {
 }
 
 const cooldownDuration = 10 * time.Second
+
+// SyncFromStore replaces the key pool entries with the provided keys.
+// Preserves RPM state for keys that still exist, adds new ones, removes stale ones.
+func (kp *KeyPool) SyncFromStore(keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+
+	kp.mu.Lock()
+	defer kp.mu.Unlock()
+
+	existing := make(map[string]*keyEntry, len(kp.keys))
+	for _, e := range kp.keys {
+		existing[e.apiKey] = e
+	}
+
+	var entries []*keyEntry
+	for _, k := range keys {
+		if e, ok := existing[k]; ok {
+			entries = append(entries, e)
+		} else {
+			entries = append(entries, &keyEntry{apiKey: k})
+		}
+	}
+
+	if len(entries) > 0 {
+		kp.keys = entries
+		slog.Info("key pool synced from token store", "keys", len(entries))
+	}
+}
 
 // IsValidKey checks if the given key matches any key in the pool.
 // In passthrough mode (no keys configured), accepts any non-empty key.

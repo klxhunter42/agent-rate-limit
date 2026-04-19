@@ -1,10 +1,13 @@
 package metrics
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -28,9 +31,12 @@ type Metrics struct {
 	AdaptiveLimit     *prometheus.GaugeVec
 	AdaptiveInFlight  *prometheus.GaugeVec
 	CostTotal         *prometheus.CounterVec
+	ModelFallback     *prometheus.CounterVec
+	TTFB              *prometheus.HistogramVec
 	registry          *prometheus.Registry
 	queueDepthFn      func() float64
 	pricing           map[string]modelPrice
+	usageRecorder     func(model string, input, output int, cost float64)
 }
 
 type modelPrice struct {
@@ -120,6 +126,19 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "cost_total",
 			Help:      "Estimated cost in USD by model, calculated from token usage * configured pricing.",
 		}, []string{"model"}),
+
+		ModelFallback: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "model_fallback_total",
+			Help:      "Number of times a request was routed to a different model.",
+		}, []string{"requested", "selected"}),
+
+		TTFB: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "ttfb_seconds",
+			Help:      "Time to first byte for streaming responses.",
+			Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		}, []string{"model"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -141,6 +160,8 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.AdaptiveLimit,
 		m.AdaptiveInFlight,
 		m.CostTotal,
+		m.ModelFallback,
+		m.TTFB,
 	)
 
 	return m
@@ -180,8 +201,9 @@ func (m *Metrics) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(sw, r)
 
 		routePattern := chi.RouteContext(r.Context()).RoutePattern()
-		if routePattern == "" {
-			routePattern = r.URL.Path
+		if routePattern == "" || routePattern == "/*" {
+			// Avoid unbounded cardinality from raw URL paths.
+			routePattern = "_unknown"
 		}
 
 		status := strconv.Itoa(sw.status)
@@ -196,7 +218,12 @@ func (m *Metrics) IncError(errType string) {
 }
 
 // IncRateLimit increments the rate-limit counter for the given key.
+// Agent-specific keys are hashed to prevent unbounded cardinality.
 func (m *Metrics) IncRateLimit(key string) {
+	if strings.HasPrefix(key, "agent:") {
+		h := sha1.Sum([]byte(key))
+		key = "agent:" + hex.EncodeToString(h[:])[:8]
+	}
 	m.RateLimitHits.WithLabelValues(key).Inc()
 }
 
@@ -208,13 +235,21 @@ func (m *Metrics) RecordTokens(model string, input, output int) {
 	if output > 0 {
 		m.TokenOutput.WithLabelValues(model).Add(float64(output))
 	}
-	// Calculate cost from configured pricing.
+	var cost float64
 	if p, ok := m.pricing[model]; ok {
-		cost := float64(input)/1_000_000*p.inputPerMillion + float64(output)/1_000_000*p.outputPerMillion
+		cost = float64(input)/1_000_000*p.inputPerMillion + float64(output)/1_000_000*p.outputPerMillion
 		if cost > 0 {
 			m.CostTotal.WithLabelValues(model).Add(cost)
 		}
 	}
+	if m.usageRecorder != nil && (input > 0 || output > 0) {
+		m.usageRecorder(model, input, output, cost)
+	}
+}
+
+// SetUsageRecorder registers a callback invoked after every RecordTokens call.
+func (m *Metrics) SetUsageRecorder(fn func(model string, input, output int, cost float64)) {
+	m.usageRecorder = fn
 }
 
 // IncRetry increments the upstream retry counter.
@@ -227,11 +262,26 @@ func (m *Metrics) Inc429() {
 	m.Upstream429.Inc()
 }
 
+// RecordFallback records a model fallback event.
+func (m *Metrics) RecordFallback(requested, selected string) {
+	m.ModelFallback.WithLabelValues(requested, selected).Inc()
+}
+
+// RecordTTFB records time-to-first-byte for a streaming response.
+func (m *Metrics) RecordTTFB(model string, d time.Duration) {
+	m.TTFB.WithLabelValues(model).Observe(d.Seconds())
+}
+
 // ModelStatusSnapshot holds per-model limiter state for metrics export.
 type ModelStatusSnapshot struct {
 	Name     string
 	Limit    float64
 	InFlight float64
+}
+
+// Registry returns the underlying Prometheus registry for external metric registration.
+func (m *Metrics) Registry() *prometheus.Registry {
+	return m.registry
 }
 
 // UpdateAdaptiveMetrics sets the adaptive limit and in-flight gauges from a limiter snapshot.

@@ -18,16 +18,14 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
     namespace: "agent_rate_limit"
-  debug:
-    verbosity: basic
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [debug]
+      exporters: []  # no trace backend configured; drop silently
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [prometheus, debug]
+      exporters: [prometheus]
