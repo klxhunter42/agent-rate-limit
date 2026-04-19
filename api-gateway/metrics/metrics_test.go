@@ -43,8 +43,10 @@ func TestRecordTokensWithPricing(t *testing.T) {
 	// 1M input * 0.5 + 2M output * 1.5 = 0.5 + 3.0 = 3.5
 	m.RecordTokens("glm-5.1", 1_000_000, 2_000_000)
 
-	costVal := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5.1"))
-	assert.InDelta(t, 3.5, costVal, 0.001)
+	costInput := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5.1", "input"))
+	costOutput := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5.1", "output"))
+	assert.InDelta(t, 0.5, costInput, 0.001)
+	assert.InDelta(t, 3.0, costOutput, 0.001)
 }
 
 func TestRecordTokensZeroValues(t *testing.T) {
@@ -54,7 +56,7 @@ func TestRecordTokensZeroValues(t *testing.T) {
 
 	inputVal := testutil.ToFloat64(m.TokenInput.WithLabelValues("glm-5"))
 	outputVal := testutil.ToFloat64(m.TokenOutput.WithLabelValues("glm-5"))
-	costVal := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5"))
+	costVal := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5", "input"))
 	assert.Equal(t, 0.0, inputVal)
 	assert.Equal(t, 0.0, outputVal)
 	assert.Equal(t, 0.0, costVal)
@@ -70,9 +72,7 @@ func TestRecordTokensUnknownModelNoCost(t *testing.T) {
 	assert.Equal(t, 500.0, inputVal)
 	assert.Equal(t, 200.0, outputVal)
 
-	// No pricing configured for unknown-model, so cost should be 0.
-	// WithLabelValues creates the label but counter stays at 0.
-	costVal := testutil.ToFloat64(m.CostTotal.WithLabelValues("unknown-model"))
+	costVal := testutil.ToFloat64(m.CostTotal.WithLabelValues("unknown-model", "input"))
 	assert.Equal(t, 0.0, costVal)
 }
 
@@ -386,7 +386,7 @@ func TestNewRegistersAllMetrics(t *testing.T) {
 	m.Upstream429.Inc()
 	m.AdaptiveLimit.WithLabelValues("test").Set(1)
 	m.AdaptiveInFlight.WithLabelValues("test").Set(0)
-	m.CostTotal.WithLabelValues("test").Inc()
+	m.CostTotal.WithLabelValues("test", "input").Inc()
 	m.ModelFallback.WithLabelValues("a", "b").Inc()
 	m.TTFB.WithLabelValues("test").Observe(0.1)
 

@@ -1,4 +1,5 @@
 export function formatNumber(n: number): string {
+  if (!Number.isFinite(n)) return '0';
   if (n < 1000) return String(Math.round(n));
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}K`;
   if (n < 1_000_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -6,7 +7,7 @@ export function formatNumber(n: number): string {
 }
 
 export function formatCost(usd: number): string {
-  if (usd < 0.01) return '< $0.01';
+  if (!Number.isFinite(usd) || usd === 0) return '$0.00';
   return `$${usd.toFixed(2)}`;
 }
 

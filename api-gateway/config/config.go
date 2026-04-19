@@ -240,7 +240,7 @@ Identify dominant colors, shapes, text, objects, and spatial layout.
 Answer based only on what is visibly present in the image — never assume or guess.
 If the image is unclear or too small, state that explicitly.`
 
-const defaultModelPricing = "glm-5.1:0.5:1.5,glm-5-turbo:0.5:1.5,glm-5:0.5:1.5,glm-4.7:0.3:1.0,glm-4.6:0.3:1.0,glm-4.5:0.15:0.75,glm-4.6v:0.3:1.0,glm-4.5v:0.15:0.75,glm-4.6v-flashx:0.1:0.5,glm-4.6v-flash:0.1:0.5"
+const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-5v-turbo:1.2:4.0,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8,glm-ocr:0.03:0.03,glm-4-32b-0414-128k:0.1:0.1"
 
 // parseModelPricing parses "model1:input:output,model2:input:output" into a pricing map.
 // Prices are USD per 1M tokens.
