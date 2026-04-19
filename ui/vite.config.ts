@@ -47,6 +47,7 @@ export default defineConfig({
       '/health': 'http://arl-gateway:8080',
       '/api/metrics': 'http://arl-gateway:8080',
       '/metrics': 'http://arl-gateway:8080',
+      '/ws': { target: 'http://arl-gateway:8080', ws: true },
     },
   },
 });
