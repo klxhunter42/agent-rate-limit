@@ -1,8 +1,59 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts';
-import { Shield, Eye, Fingerprint, Timer } from 'lucide-react';
+import { Shield, Eye, Fingerprint, Timer, Key, Lock, FileKey, Server, CreditCard, Globe } from 'lucide-react';
 import { fetchPrivacyMetrics, type PrivacyMetrics } from '@/lib/privacy-api';
+
+const detectableTypes = [
+  {
+    category: 'Private Keys',
+    icon: Key,
+    items: [
+      { name: 'OpenSSH Private Key', tag: 'OPENSSH_PRIVATE_KEY', description: 'OpenSSH format private key used for SSH authentication.', example: '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA...\n-----END OPENSSH PRIVATE KEY-----' },
+      { name: 'PEM Private Key', tag: 'PEM_PRIVATE_KEY', description: 'PEM-encoded private key (RSA, EC, DSA, generic).', example: '-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----' },
+    ],
+  },
+  {
+    category: 'API Keys & Tokens',
+    icon: Lock,
+    items: [
+      { name: 'Generic API Key (sk-)', tag: 'API_KEY_SK', description: 'API keys starting with sk- prefix (OpenAI, Anthropic, etc.).', example: 'sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { name: 'AWS Access Key', tag: 'API_KEY_AWS', description: 'AWS IAM access key ID (starts with AKIA).', example: 'AKIAIOSFODNN7EXAMPLE' },
+      { name: 'GitHub Token', tag: 'API_KEY_GITHUB', description: 'GitHub personal access, OAuth, or refresh tokens.', example: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { name: 'GitLab Token', tag: 'API_KEY_GITLAB', description: 'GitLab personal access (glpat-), deploy (gldt-), CI build (glcbt-), or pipeline trigger (glptt-) tokens.', example: 'glpat-xxxxxxxxxxxxxxxxxxxx' },
+      { name: 'JWT Token', tag: 'JWT_TOKEN', description: 'JSON Web Token with 3 base64url-encoded segments.', example: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456ghi789' },
+      { name: 'Bearer Token', tag: 'BEARER_TOKEN', description: 'HTTP Authorization header with Bearer scheme (40+ chars).', example: 'Bearer abcdefghijklmnopqrstuvwxyz0123456789ABCD' },
+    ],
+  },
+  {
+    category: 'Environment Secrets',
+    icon: Server,
+    items: [
+      { name: 'Password Variable', tag: 'ENV_PASSWORD', description: 'Environment variables or config entries containing PASSWORD or _PWD.', example: 'DB_PASSWORD=supersecretvalue123' },
+      { name: 'Secret Variable', tag: 'ENV_SECRET', description: 'Environment variables ending with _SECRET.', example: 'JWT_SECRET=myjwtsecretproduction123' },
+      { name: 'Connection String', tag: 'CONNECTION_STRING', description: 'Database or message broker URLs with embedded credentials.', example: 'postgres://admin:pass123@db.example.com:5432/mydb' },
+    ],
+  },
+  {
+    category: 'PII (via Presidio)',
+    icon: Globe,
+    items: [
+      { name: 'Email Address', tag: 'EMAIL_ADDRESS', description: 'Email addresses detected by Microsoft Presidio analyzer.', example: 'user.name@example.com' },
+      { name: 'Phone Number', tag: 'PHONE_NUMBER', description: 'Phone numbers in various international formats.', example: '+1 (555) 123-4567' },
+      { name: 'Person Name', tag: 'PERSON', description: 'Personal names detected by NLP-based analysis.', example: 'John Smith' },
+      { name: 'Credit Card Number', tag: 'CREDIT_CARD', description: 'Payment card numbers (Visa, Mastercard, Amex, etc.).', example: '4111 1111 1111 1111' },
+      { name: 'IBAN Code', tag: 'IBAN_CODE', description: 'International Bank Account Numbers.', example: 'DE89370400440532013000' },
+      { name: 'IP Address', tag: 'IP_ADDRESS', description: 'IPv4 and IPv6 addresses.', example: '192.168.1.100' },
+    ],
+  },
+  {
+    category: 'Local PII (Regex)',
+    icon: CreditCard,
+    items: [
+      { name: 'Thai National ID', tag: 'THAI_NATIONAL_ID', description: '13-digit Thai national identification number (starts with 1-8). Not covered by Presidio.', example: '1100100473221' },
+    ],
+  },
+];
 
 export default function PrivacyPage() {
   const [data, setData] = useState<PrivacyMetrics | null>(null);
@@ -144,6 +195,36 @@ export default function PrivacyPage() {
               </LineChart>
             </ResponsiveContainer>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Detectable Types Reference</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {detectableTypes.map((group) => (
+              <div key={group.category}>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <group.icon className="w-4 h-4" />
+                  {group.category}
+                </h3>
+                <div className="space-y-2">
+                  {group.items.map((item) => (
+                    <div key={item.name} className="rounded-lg border p-3 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{item.name}</span>
+                        <code className="text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{item.tag}</code>
+                      </div>
+                      <div className="text-muted-foreground">{item.description}</div>
+                      <div className="bg-muted/50 rounded p-2 font-mono text-[11px] break-all">{item.example}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

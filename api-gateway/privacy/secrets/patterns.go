@@ -10,11 +10,13 @@ const (
 	EntityAPIKeySK     EntityType = "API_KEY_SK"
 	EntityAPIKeyAWS    EntityType = "API_KEY_AWS"
 	EntityAPIKeyGitHub EntityType = "API_KEY_GITHUB"
+	EntityAPIKeyGitLab EntityType = "API_KEY_GITLAB"
 	EntityJWTToken     EntityType = "JWT_TOKEN"
 	EntityBearerToken  EntityType = "BEARER_TOKEN"
 	EntityEnvPassword  EntityType = "ENV_PASSWORD"
 	EntityEnvSecret    EntityType = "ENV_SECRET"
 	EntityConnString   EntityType = "CONNECTION_STRING"
+	EntityThaiID       EntityType = "THAI_NATIONAL_ID"
 )
 
 type patternSpec struct {
@@ -33,6 +35,7 @@ var allPatterns = []patternSpec{
 	{EntityAPIKeySK, regexp.MustCompile(`sk[-_][a-zA-Z0-9_-]{20,}`)},
 	{EntityAPIKeyAWS, regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
 	{EntityAPIKeyGitHub, regexp.MustCompile(`gh[pousr]_[a-zA-Z0-9]{36,}`)},
+	{EntityAPIKeyGitLab, regexp.MustCompile(`gl(?:pat|dt|cbt|ptt)-[a-zA-Z0-9_-]{20,}`)},
 
 	// Tokens
 	{EntityJWTToken, regexp.MustCompile(`eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}`)},
@@ -44,4 +47,7 @@ var allPatterns = []patternSpec{
 
 	// Connection strings
 	{EntityConnString, regexp.MustCompile(`(?i)(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+`)},
+
+	// Local PII (entities not covered by Presidio)
+	{EntityThaiID, regexp.MustCompile(`\b[1-8]\d{12}\b`)},
 }
