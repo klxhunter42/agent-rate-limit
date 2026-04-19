@@ -144,7 +144,7 @@ services:
       - "--maxmemory=${DRAGONFLY_MAX_MEMORY:-4gb}"
       - "--proactor_threads=4"
       - "--cache_mode=true"
-      - "--eviction_policy=allkeys-lru"
+
       - "--tcp_keepalive=60"
       - "--pipeline_squash=10"
     healthcheck:

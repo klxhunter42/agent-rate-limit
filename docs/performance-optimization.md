@@ -239,32 +239,6 @@ Dashboard UI: refresh every 5s (Prometheus downsamples 10s->5s display)
 
 ---
 
-## 10. Dragonfly Eviction Policy
-
-**Before:**
-```
-Dragonfly:
-  --cache_mode=true
-  (no eviction policy -> uses volatile-lru by default)
-  -> Only evicts keys with TTL set
-  -> Keys without TTL never evicted -> OOM risk
-```
-
-**After:**
-```
-Dragonfly:
-  --cache_mode=true
-  --eviction_policy=allkeys-lru
-  -> Evicts least-recently-used keys when memory full
-  -> All keys eligible -> no OOM
-```
-
-**File:** `docker-compose.yml` - `arl-dragonfly` command
-
-**Impact:** Prevents OOM when Dragonfly hits memory limit under high load.
-
----
-
 ## Summary Table
 
 | # | Fix | Before | After | Impact |
@@ -278,7 +252,6 @@ Dragonfly:
 | 7 | automaxprocs | Host CPU count threads | Container-aware GOMAXPROCS | Correct thread scheduling |
 | 8 | OTel debug | Debug spam in production | Clean pipeline | Reduced log noise/CPU |
 | 9 | Scrape interval | 5s (excessive) | 10s (aligned) | 50% less scrape load |
-| 10 | Dragonfly eviction | volatile-lru (OOM risk) | allkeys-lru (safe) | Prevents OOM |
 
 ## Files Modified
 
