@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <g fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round">
+    <!-- gauge arc -->
+    <path d="M16 40 A16 16 0 0 1 48 40"/>
+    <!-- tick marks -->
+    <line x1="16" y1="40" x2="13" y2="44" stroke-width="2.5" opacity=".6"/>
+    <line x1="19" y1="27" x2="15.5" y2="24.5" stroke-width="2.5" opacity=".6"/>
+    <line x1="32" y1="24" x2="32" y2="20" stroke-width="2.5" opacity=".6"/>
+    <line x1="45" y1="27" x2="48.5" y2="24.5" stroke-width="2.5" opacity=".6"/>
+    <line x1="48" y1="40" x2="51" y2="44" stroke-width="2.5" opacity=".6"/>
+    <!-- needle -->
+    <line x1="32" y1="40" x2="23" y2="30" stroke-width="3"/>
+    <!-- center dot -->
+    <circle cx="32" cy="40" r="2.5" fill="#fff" stroke="none"/>
+  </g>
+</svg>

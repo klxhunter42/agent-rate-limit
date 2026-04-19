@@ -2,7 +2,7 @@
 # Multi-Agent AI Rate-Limited System - Production Docker Compose
 # Architecture: Client -> API Gateway (Go) -> Rate Limiter -> Dragonfly -> Python Workers -> AI Provider
 #
-# External ports:  arl-gateway (8080), arl-grafana (3000), arl-rl-dashboard (8081)
+# External ports:  arl-gateway (8080), arl-grafana (3000), arl-rl-dashboard (8081), arl-dashboard (8082)
 # Internal only:   arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
 # =============================================================================
 
@@ -28,6 +28,8 @@ services:
     environment:
       <<: *common-env
       SERVER_PORT: ":8080"
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:8082}
+      OAUTH_CALLBACK_BASE: ${OAUTH_CALLBACK_BASE:-http://127.0.0.1:8080}
       GLOBAL_RATE_LIMIT: ${GLOBAL_RATE_LIMIT:-100}
       AGENT_RATE_LIMIT: ${AGENT_RATE_LIMIT:-5}
       WORKER_POOL_SIZE: ${WORKER_POOL_SIZE:-100}
@@ -44,10 +46,19 @@ services:
       ENABLE_RESPONSE_TRIM: ${ENABLE_RESPONSE_TRIM:-true}
       ENABLE_SMART_MAX_TOKENS: ${ENABLE_SMART_MAX_TOKENS:-true}
       PROMPT_INJECTION_TEXT: ${PROMPT_INJECTION_TEXT:-}
-      UPSTREAM_API_KEYS: ${UPSTREAM_API_KEYS:-}
+      UPSTREAM_API_KEYS: ${UPSTREAM_API_KEYS:-${GLM_API_KEYS:-}}
       UPSTREAM_RPM_LIMIT: ${UPSTREAM_RPM_LIMIT:-40}
       UPSTREAM_PROBE_MULTIPLIER: ${UPSTREAM_PROBE_MULTIPLIER:-5}
       MODEL_PRICING: ${MODEL_PRICING:-glm-5.1:0.5:1.5,glm-5-turbo:0.5:1.5,glm-5:0.5:1.5,glm-4.7:0.3:1.0,glm-4.6:0.3:1.0,glm-4.5:0.15:0.75}
+      PASTEGUARD_ENABLED: ${PASTEGUARD_ENABLED:-true}
+      PASTEGUARD_SECRETS_ENABLED: ${PASTEGUARD_SECRETS_ENABLED:-true}
+      PASTEGUARD_SECRET_ENTITIES: ${PASTEGUARD_SECRET_ENTITIES:-}
+      PASTEGUARD_MAX_SCAN_CHARS: ${PASTEGUARD_MAX_SCAN_CHARS:-200000}
+      PASTEGUARD_PII_ENABLED: ${PASTEGUARD_PII_ENABLED:-true}
+      PASTEGUARD_PRESIDIO_URL: ${PASTEGUARD_PRESIDIO_URL:-http://arl-presidio:3000}
+      PASTEGUARD_PII_SCORE_THRESHOLD: ${PASTEGUARD_PII_SCORE_THRESHOLD:-0.7}
+      PASTEGUARD_PII_ENTITIES: ${PASTEGUARD_PII_ENTITIES:-}
+      PASTEGUARD_PII_LANGUAGE: ${PASTEGUARD_PII_LANGUAGE:-en}
     depends_on:
       arl-dragonfly:
         condition: service_healthy
@@ -61,16 +72,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "1.0"
+          memory: 1G
+          cpus: "2.0"
         reservations:
-          memory: 128M
-          cpus: "0.25"
+          memory: 256M
+          cpus: "0.5"
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "20m"
+        max-file: "5"
     networks:
       - arl-network
 
@@ -109,16 +120,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
-          cpus: "1.0"
+          memory: 1.5G
+          cpus: "2.0"
         reservations:
-          memory: 256M
+          memory: 512M
           cpus: "0.5"
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "20m"
+        max-file: "5"
     networks:
       - arl-network
 
@@ -130,9 +141,10 @@ services:
     expose:
       - "6379"
     command:
-      - "--maxmemory=${DRAGONFLY_MAX_MEMORY:-2gb}"
+      - "--maxmemory=${DRAGONFLY_MAX_MEMORY:-4gb}"
       - "--proactor_threads=4"
       - "--cache_mode=true"
+      - "--eviction_policy=allkeys-lru"
       - "--tcp_keepalive=60"
       - "--pipeline_squash=10"
     healthcheck:
@@ -145,16 +157,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G
-          cpus: "2.0"
+          memory: 8G
+          cpus: "4.0"
         reservations:
-          memory: 512M
+          memory: 1G
           cpus: "0.5"
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
     networks:
       - arl-network
 
@@ -199,16 +211,16 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: "2.0"
+          memory: 2G
+          cpus: "4.0"
         reservations:
-          memory: 256M
+          memory: 512M
           cpus: "0.5"
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "20m"
+        max-file: "5"
     networks:
       - arl-network
 
@@ -224,22 +236,22 @@ services:
       - arl-prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=15d"
-      - "--storage.tsdb.retention.size=2GB"
+      - "--storage.tsdb.retention.time=30d"
+      - "--storage.tsdb.retention.size=10GB"
       - "--storage.tsdb.wal-compression"
       - "--web.enable-lifecycle"
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: "0.5"
+          memory: 2G
+          cpus: "2.0"
         reservations:
-          memory: 128M
+          memory: 256M
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
     networks:
       - arl-network
 
@@ -262,15 +274,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.5"
+          memory: 1G
+          cpus: "2.0"
         reservations:
-          memory: 64M
+          memory: 256M
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
     networks:
       - arl-network
 
@@ -288,15 +300,15 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: "0.5"
+          memory: 512M
+          cpus: "1.0"
         reservations:
-          memory: 64M
+          memory: 128M
     logging:
       driver: json-file
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
     networks:
       - arl-network
 
@@ -316,15 +328,80 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: "0.25"
+          memory: 256M
+          cpus: "0.5"
         reservations:
-          memory: 32M
+          memory: 64M
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
+    networks:
+      - arl-network
+
+  # --- Dashboard UI (React / Vite / Bun) ---
+  arl-dashboard:
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    container_name: arl-dashboard
+    restart: always
+    ports:
+      - "${DASHBOARD_PORT:-8082}:5173"
+    volumes:
+      - ./ui/src:/app/src:ro
+      - ./ui/public:/app/public:ro
+      - ./ui/index.html:/app/index.html:ro
+      - ./ui/vite.config.ts:/app/vite.config.ts:ro
+      - ./ui/tsconfig.json:/app/tsconfig.json:ro
+      - ./ui/tsconfig.app.json:/app/tsconfig.app.json:ro
+    depends_on:
+      arl-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - arl-network
+
+  # --- Presidio PII Analyzer (opt-in via --profile pii) ---
+  arl-presidio:
+    image: mcr.microsoft.com/presidio-analyzer:2.2.362
+    container_name: arl-presidio
+    restart: unless-stopped
+    expose:
+      - "3000"
+    profiles:
+      - pii
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - arl-network
 

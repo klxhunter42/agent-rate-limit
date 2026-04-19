@@ -1,6 +1,6 @@
 # Provider Setup Guide / คู่มือตั้งค่า Provider
 
-ระบบรองรับ 5 providers สำหรับ async queue path (POST /v1/chat/completions -> Dragonfly -> Python Worker).
+ระบบรองรับ 5 providers สำหรับ async queue path (POST /v1/chat/completions -> Dragonfly -> Python Worker) และ 17 providers ผ่าน gateway registry (sync path + OAuth/API key auth flows).
 สำหรับ sync proxy path (POST /v1/messages -> Go Gateway) ใช้ `UPSTREAM_URL` ชี้ไปยัง provider ตัวใดตัวหนึ่งโดยตรง.
 
 Provider บางตัว (Claude, Gemini) มี subscription plan หรือ free tier ที่ไม่คิดตาม token -- แต่ระบบยัง track token usage ผ่าน Prometheus เพื่อ monitoring เหมือนเดิม.
@@ -12,7 +12,9 @@ Sync path:  Client -> POST /v1/messages -> Go Gateway -> UPSTREAM_URL (single pr
 Async path: Client -> POST /v1/chat/completions -> Dragonfly -> Worker -> multi-provider dispatch
 ```
 
-Provider fallback order: `glm` -> `openai` -> `anthropic` -> `gemini` -> `openrouter`
+Provider fallback order: `glm` -> `openai` -> `anthropic` -> `gemini` -> `openrouter` -> `deepseek` -> `kimi` -> `huggingface` -> `ollama` -> `agy` -> `cursor` -> `codebuddy` -> `kilo`
+
+Async path (Python worker) uses the first 5 providers with configured keys. Gateway registry supports all 17 providers with OAuth/API key auth flows.
 
 ---
 
@@ -111,12 +113,16 @@ API ของ Z.ai เข้ากันได้กับ Anthropic SDK (Anthro
 ### Setup
 
 ```bash
-# Endpoint (default value, ไม่ต้องเปลี่ยนถ้าใช้ Z.ai)
-GLM_ENDPOINT=https://api.z.ai/api/anthropic
+# Sync proxy path (Gateway): use UPSTREAM_API_KEYS + UPSTREAM_URL
+UPSTREAM_URL=https://api.z.ai/api/anthropic
+UPSTREAM_API_KEYS=your-zai-key-1,your-zai-key-2
 
-# API keys (คั่นด้วยคอมม่าสำหรับหลาย key)
+# Async path (Worker): use GLM_API_KEYS + GLM_ENDPOINT (unchanged)
+GLM_ENDPOINT=https://api.z.ai/api/anthropic
 GLM_API_KEYS=your-zai-key-1,your-zai-key-2
 ```
+
+> **Note**: `GLM_API_KEYS` and `GLM_ENDPOINT` have been removed from the sync proxy path. The gateway now uses `UPSTREAM_API_KEYS` and `UPSTREAM_URL` exclusively for the sync proxy. The worker async path still uses `GLM_API_KEYS`/`GLM_ENDPOINT` independently.
 
 ### How to get API key
 
@@ -138,11 +144,72 @@ UPSTREAM_URL=https://api.z.ai/api/anthropic
 UPSTREAM_API_KEYS=your-zai-key-1,your-zai-key-2
 ```
 
+### Dashboard registration
+
+เพิ่ม Z.AI API key ผ่าน dashboard ที่หน้า Providers:
+1. ไปที่ /providers
+2. กด Connect ที่การ์ด Z.AI
+3. ใส่ API key ในช่อง input (กด icon ตาเพื่อ show/hide)
+4. กด Register
+
+รองรับหลาย key ต่อ provider -- เพิ่มได้เรื่อย ๆ ผ่านปุ่ม Add.
+Key แรกจะถูกตั้งเป็น default อัตโนมัติ.
+Account management (pause/resume/remove/set default) ทำได้จาก account list ใต้การ์ด provider.
+
 ### Token tracking
 
 Prometheus metrics:
 - `api_gateway_token_input_total{model="glm-5"}` (sync path)
 - `ai_worker_token_input_total{provider="glm",model="glm-5"}` (async path)
+- `api_gateway_cost_total{model="..."}` (estimated cost from token usage x pricing)
+
+Usage recording (sync path): Token counts automatically populate Redis hourly/daily/monthly/session buckets via `metrics.RecordTokens()` callback. Query via `/v1/usage/*` endpoints.
+
+### Z.AI Pricing
+
+19 Z.AI models have accurate pricing from https://docs.z.ai/guides/overview/pricing. Includes flash (free tier), air, and turbo variants. The `api_gateway_cost_total` metric reflects real pricing.
+
+| Tier | Models | Notes |
+|------|--------|-------|
+| Flash | glm-5-flash, glm-4.6-flash, glm-4.6v-flash | Free tier available |
+| Air | glm-5-air, glm-5-air-turbo | Budget tier |
+| Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose |
+| Plus | glm-4.7, glm-4.6, glm-4.5 | Older generation |
+| Vision | glm-4.6v, glm-4.5v, glm-4.6v-flashx | Image analysis |
+
+### Vision Models (Native Zhipu Endpoint)
+
+GLM vision models ใช้ native Zhipu API endpoint แยกจาก z.ai Anthropic-compatible endpoint:
+
+```bash
+# Vision endpoint (auto-configured, ไม่ต้องตั้งเอง)
+NATIVE_VISION_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+```
+
+Gateway ตรวจจับ image content อัตโนมัติแล้ว route ไป native endpoint:
+
+```
+Text request -> api.z.ai/api/anthropic (Anthropic-compatible)
+Image request -> open.bigmodel.cn/api/paas/v4/chat/completions (OpenAI-compatible)
+```
+
+Vision models ที่รองรับ:
+
+| Model | Slots | Input Price | Notes |
+|-------|-------|-----------|-------|
+| glm-4.6v | 10 | Same as glm-4.6 | แนะนำ, default for most vision requests |
+| glm-4.5v | 10 | Same as glm-4.5 | Works well |
+| glm-4.6v-flashx | 3 | Lower | Auto-selected for heavy payloads |
+| glm-4.6v-flash | 1 | Lower | Fast, not auto-selected |
+
+Gateway เลือก vision model อัตโนมัติ:
+- `score = totalBase64KB + (imageCount * 300)`
+- score <= 2000 and count < 3 -> glm-4.6v (best quality)
+- score > 2000 or count >= 3 -> glm-4.6v-flashx (fastest)
+
+SSE streaming รองรับแล้ว: Zhipu SSE chunks ถูก convert เป็น Anthropic SSE format แบบ real-time
+
+ไม่ต้องตั้งค่าเพิ่มเติม -- gateway จัดการ format conversion + model selection อัตโนมัติ
 
 ---
 
@@ -287,6 +354,229 @@ OpenRouter คิดเงินตาม token usage ผ่าน credit system
 
 ---
 
+## 6. DeepSeek
+
+DeepSeek API สำหรับ DeepSeek Chat และ DeepSeek Coder models.
+
+### Setup
+
+```bash
+# API keys
+DEEPSEEK_API_KEYS=sk-xxxx,sk-yyyy
+```
+
+### How to get API key
+
+1. ไปที่ [platform.deepseek.com](https://platform.deepseek.com)
+2. ล็อกอิน หรือสมัคร
+3. ไปที่ API Keys -> Create new key
+4. คัดลอก key
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- SDK: OpenAI-compatible API
+- Upstream: `https://api.deepseek.com`
+- Default model: `deepseek-chat`
+
+### Pricing
+
+DeepSeek คิดเงินตาม token usage. ราคาประหยัดกว่า provider อื่นอย่างมาก.
+
+---
+
+## 7. Kimi (Moonshot)
+
+Kimi AI โดย Moonshot AI. รองรับ context window ยาว.
+
+### Setup
+
+```bash
+# API keys
+KIMI_API_KEYS=sk-xxxx,sk-yyyy
+```
+
+### How to get API key
+
+1. ไปที่ [platform.moonshot.cn](https://platform.moonshot.cn)
+2. ล็อกอิน หรือสมัคร
+3. ไปที่ API Keys -> Create new key
+4. คัดลอก key
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- SDK: OpenAI-compatible API
+- Upstream: `https://api.moonshot.cn/v1`
+- Default model: `moonshot-v1-8k`
+
+---
+
+## 8. Hugging Face
+
+Hugging Face Inference API สำหรับ open-source models.
+
+### Setup
+
+```bash
+# API keys
+HUGGINGFACE_API_KEYS=hf_xxxx,hf_yyyy
+```
+
+### How to get API key
+
+1. ไปที่ [huggingface.co](https://huggingface.co)
+2. ล็อกอิน หรือสมัคร
+3. ไปที่ Settings -> Access Tokens -> New token
+4. คัดลอก token (ขึ้นต้นด้วย `hf_`)
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- Upstream: `https://api-inference.huggingface.co/models`
+- Model format: model repository ID (เช่น `meta-llama/Llama-3-70b-chat-hf`)
+
+### Free tier
+
+Hugging Face มี free inference API แต่ rate limit ต่ำ. Pro plan ให้ rate limit สูงขึ้น.
+
+---
+
+## 9. Ollama
+
+Ollama สำหรับรัน models ที่ local. เหมาะสำหรับ development และ air-gapped environments.
+
+### Setup
+
+```bash
+# ไม่จำเป็นต้องใช้ API key (local)
+# แต่ต้องติดตั้ง Ollama และรัน model ก่อน
+OLLAMA_UPSTREAM_BASE=http://localhost:11434
+```
+
+### Prerequisites
+
+1. ติดตั้ง Ollama: [ollama.com](https://ollama.com)
+2. Pull model: `ollama pull llama3`
+3. รัน server: `ollama serve` (default port 11434)
+
+### Auth mechanism
+
+- ไม่มี auth (local)
+- Upstream: `http://localhost:11434` (configurable via `OLLAMA_UPSTREAM_BASE`)
+- Default model: depends on what is pulled locally
+
+### Note
+
+Ollama เหมาะสำหรับ dev/testing. Production ควรใช้ cloud providers.
+
+---
+
+## 10. AGY (Antigravity)
+
+Antigravity AI platform.
+
+### Setup
+
+```bash
+AGY_API_KEYS=agy-xxxx
+```
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- Upstream: `https://antigravity.com`
+
+---
+
+## 11. Cursor
+
+Cursor AI coding assistant API.
+
+### Setup
+
+```bash
+CURSOR_API_KEYS=cursor-xxxx
+```
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- Upstream: `https://api2.cursor.sh`
+
+---
+
+## 12. CodeBuddy
+
+CodeBuddy AI coding assistant.
+
+### Setup
+
+```bash
+CODEBUDDY_API_KEYS=cb-xxxx
+```
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- Upstream: `https://api.codebuddy.io`
+
+---
+
+## 13. Kilo
+
+Kilo AI platform.
+
+### Setup
+
+```bash
+KILO_API_KEYS=kilo-xxxx
+```
+
+### Auth mechanism
+
+- Header: `Authorization: Bearer <key>`
+- Upstream: `https://api.kilo.ai`
+
+---
+
+## OAuth Providers (Gateway Auth Flow)
+
+นอกจาก API key authentication ข้างต้น gateway ยังรองรับ OAuth flows สำหรับ providers เหล่านี้:
+
+### Claude (OAuth)
+
+PKCE-based OAuth flow ผ่าน `platform.claude.com`:
+- Auth URL: `https://platform.claude.com/oauth/authorize`
+- Token URL: `https://platform.claude.com/v1/oauth/token`
+- Client ID: embedded (from Claude Code CLI pattern)
+- Scopes: org:create_api_key, user:profile, user:inference, user:sessions:claude_code, user:mcp_servers, user:file_upload
+- Callback: `http://localhost:{port}/callback` (loopback redirect)
+
+### Google Gemini (OAuth via Code Assist)
+
+OAuth ผ่าน Gemini Code Assist proxy:
+- Auth URL: `https://accounts.google.com/o/oauth2/v2/auth`
+- Token URL: `https://oauth2.googleapis.com/token`
+- Upstream: `cloudcode-pa.googleapis.com` (not generativelanguage.googleapis.com)
+- Scopes: cloud-platform, userinfo.email, userinfo.profile
+
+### GitHub Copilot
+
+Device code flow:
+- Device code URL: `https://github.com/login/device/code`
+- Token URL: `https://github.com/login/oauth/access_token`
+- Upstream: `https://api.github.com/copilot`
+
+### Qwen (Aliyun)
+
+Device code flow (configurable):
+- Device code URL: `QWEN_DEVICE_CODE_URL` env var
+- Token URL: `QWEN_TOKEN_URL` env var
+- Upstream: `https://dashscope.aliyuncs.com`
+
+---
+
 ## Token Monitoring without Billing Concerns
 
 ถ้าใช้ provider ที่ไม่คิดตาม token (Claude subscription, Gemini free tier), token tracking ยังมีประโยชน์:
@@ -358,7 +648,7 @@ UPSTREAM_URL=https://api.z.ai/api/anthropic
 STREAM_TIMEOUT=300s
 
 # Key pool for sync proxy (ถ้าว่าง = passthrough mode)
-UPSTREAM_API_KEYS=glm-key-1,glm-key-2
+UPSTREAM_API_KEYS=zai-key-1,zai-key-2
 UPSTREAM_RPM_LIMIT=40
 
 # Per-model concurrency
@@ -369,7 +659,8 @@ UPSTREAM_GLOBAL_LIMIT=9
 # Per-provider RPM limits
 PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50,gemini:15,openrouter:30
 
-# --- GLM / Z.ai (Primary) ---
+# --- GLM / Z.ai (Primary - async/worker path) ---
+# NOTE: Sync proxy uses UPSTREAM_API_KEYS + UPSTREAM_URL above
 GLM_API_KEYS=your-glm-key
 GLM_ENDPOINT=https://api.z.ai/api/anthropic
 
@@ -384,6 +675,30 @@ GEMINI_API_KEYS=AIzaSy-your-key
 
 # --- OpenRouter ---
 OPENROUTER_API_KEYS=sk-or-v1-your-key
+
+# --- DeepSeek ---
+DEEPSEEK_API_KEYS=sk-your-key
+
+# --- Kimi (Moonshot) ---
+KIMI_API_KEYS=sk-your-key
+
+# --- Hugging Face ---
+HUGGINGFACE_API_KEYS=hf_your-key
+
+# --- Ollama (local) ---
+OLLAMA_UPSTREAM_BASE=http://localhost:11434
+
+# --- AGY ---
+AGY_API_KEYS=agy-your-key
+
+# --- Cursor ---
+CURSOR_API_KEYS=cursor-your-key
+
+# --- CodeBuddy ---
+CODEBUDDY_API_KEYS=cb-your-key
+
+# --- Kilo ---
+KILO_API_KEYS=kilo-your-key
 
 # --- Worker ---
 WORKER_CONCURRENCY=50

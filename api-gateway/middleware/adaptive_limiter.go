@@ -36,6 +36,9 @@ type AdaptiveLimiter struct {
 	globalCond *sync.Cond
 	modelConds map[string]*sync.Cond // per-model signal on Release
 
+	overrides  map[string]int64 // model -> pinned limit (0 = no override)
+	overrideMu sync.RWMutex     // protects overrides
+
 	candPool sync.Pool // pool candidate slices to reduce GC pressure
 
 	mu sync.Mutex // serialises limit adjustments (cold path)
@@ -75,10 +78,11 @@ type ModelStatus struct {
 	MinRTTMs       int64  `json:"min_rtt_ms"`
 	EwmaRTTMs      int64  `json:"ewma_rtt_ms"`
 	Series         int    `json:"series"`
+	Overridden     bool   `json:"overridden"`
 }
 
 // modelPriority defines fallback order (higher = preferred).
-// Newer models should be tried first before falling back to older ones.
+// Populated from config or defaults.
 var modelPriority = map[string]int{
 	"glm-5.1":     100,
 	"glm-5-turbo": 90,
@@ -86,6 +90,13 @@ var modelPriority = map[string]int{
 	"glm-4.7":     70,
 	"glm-4.6":     60,
 	"glm-4.5":     50,
+}
+
+// SetModelPriority overrides the default model priority map.
+func SetModelPriority(p map[string]int) {
+	if len(p) > 0 {
+		modelPriority = p
+	}
 }
 
 // maxModelsPerSeries is the pool slice capacity.
@@ -153,6 +164,7 @@ func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeM
 		seriesBuckets: buildSeriesBuckets(names, models),
 		globalCond:    sync.NewCond(&globalMu),
 		modelConds:    modelConds,
+		overrides:     make(map[string]int64),
 		candPool: sync.Pool{
 			New: func() any {
 				s := make([]seriesEntry, 0, maxModelsPerSeries)
@@ -272,6 +284,35 @@ func (al *AdaptiveLimiter) Release(model string) {
 	al.globalCond.Signal()
 }
 
+// SetOverride pins a model's concurrency limit to a specific value.
+// Set to 0 to clear the override.
+func (al *AdaptiveLimiter) SetOverride(model string, limit int64) {
+	al.overrideMu.Lock()
+	defer al.overrideMu.Unlock()
+	if limit <= 0 {
+		delete(al.overrides, model)
+		slog.Info("adaptive override cleared", "model", model)
+		return
+	}
+	al.overrides[model] = limit
+	// Apply immediately.
+	if am, ok := al.models[model]; ok {
+		am.limit.Store(limit)
+	}
+	slog.Info("adaptive override set", "model", model, "limit", limit)
+}
+
+// Overrides returns current override state.
+func (al *AdaptiveLimiter) Overrides() map[string]int64 {
+	al.overrideMu.RLock()
+	defer al.overrideMu.RUnlock()
+	out := make(map[string]int64, len(al.overrides))
+	for k, v := range al.overrides {
+		out[k] = v
+	}
+	return out
+}
+
 // getCandidates returns a pooled slice populated with entries that have headroom.
 func (al *AdaptiveLimiter) getCandidates(entries []seriesEntry) *[]seriesEntry {
 	buf := al.candPool.Get().(*[]seriesEntry)
@@ -358,6 +399,15 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 		}
 	}
 
+	// Skip adaptive adjustment if model has a manual override.
+	al.overrideMu.RLock()
+	_, overridden := al.overrides[model]
+	al.overrideMu.RUnlock()
+	if overridden {
+		// Still track RTT and success stats, but don't change the limit.
+		return
+	}
+
 	// Cooldown: don't increase within 5 s of last 429.
 	last429 := am.last429Nano.Load()
 	if last429 > 0 && time.Now().UnixNano()-last429 < int64(5*time.Second) {
@@ -418,6 +468,10 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 		m := al.models[name]
 		minRTTMs := m.minRTT.Load() / int64(time.Millisecond)
 		ewmaRTTMs := m.rttEWMA.Load() / int64(time.Millisecond)
+		al.overrideMu.RLock()
+		_, overridden := al.overrides[name]
+		al.overrideMu.RUnlock()
+
 		out = append(out, ModelStatus{
 			Name:           name,
 			InFlight:       m.inFlight.Load(),
@@ -429,6 +483,7 @@ func (al *AdaptiveLimiter) Status() []ModelStatus {
 			MinRTTMs:       minRTTMs,
 			EwmaRTTMs:      ewmaRTTMs,
 			Series:         m.series,
+			Overridden:     overridden,
 		})
 	}
 	return out
@@ -514,29 +569,23 @@ func (am *adaptiveModel) acquireBlocking(c *sync.Cond, timeout time.Duration) bo
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	// Kick a goroutine to broadcast after timeout so Wait() unblocks.
-	done := make(chan struct{})
+	var timedOut atomic.Bool
 	go func() {
 		select {
 		case <-timer.C:
-			c.Broadcast() // wake the Wait() below
-		case <-done:
+			timedOut.Store(true)
+			c.Broadcast()
+		case <-time.After(timeout + time.Second):
 		}
 	}()
-	defer close(done) // stop the timer goroutine on success
 
 	c.L.Lock()
 	defer c.L.Unlock()
 	for am.inFlight.Load() >= am.limit.Load() {
 		c.Wait()
-		// Check if we woke due to timeout (limit unchanged means timeout fired).
 		if am.inFlight.Load() >= am.limit.Load() {
-			// Spurious or timeout wake - check timer.
-			select {
-			case <-timer.C:
-				return false // timeout
-			default:
-				// spurious wake, loop back to Wait()
+			if timedOut.Load() {
+				return false
 			}
 		}
 	}

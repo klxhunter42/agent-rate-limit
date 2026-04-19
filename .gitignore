@@ -3,3 +3,15 @@
 __pycache__/
 .DS_Store
 *.log
+node_modules/
+
+repo
+
+# Go build artifacts
+api-gateway/api-gateway
+
+# UI build artifacts
+ui/node_modules/
+ui/dist/
+ui/.vite/
+api-gateway/static/assets/

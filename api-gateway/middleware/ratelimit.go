@@ -88,7 +88,7 @@ func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip rate limiting for internal endpoints.
-		if r.URL.Path == "/metrics" || r.URL.Path == "/health" {
+		if r.URL.Path == "/metrics" || r.URL.Path == "/api/metrics" || r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -125,9 +125,8 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 				agentID = keySuffix(strings.TrimPrefix(authHeader, "Bearer "))
 			}
 			if agentID == "" {
-				w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusUnauthorized)
-					json.NewEncoder(w).Encode(map[string]string{"error": "x-api-key header is required"})
+				// No client key provided - let handler/resolver handle auth via provider tokens.
+				next.ServeHTTP(w, r)
 				return
 			}
 		} else {

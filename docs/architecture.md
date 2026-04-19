@@ -9,17 +9,26 @@
 
 1. [ภาพรวม](#1-ภาพรวม)
 2. [API Gateway (Go)](#2-api-gateway-go)
-3. [Rate Limit Middleware](#3-rate-limit-middleware)
-4. [Per-Model Upstream Limiter](#4-per-model-upstream-limiter)
-5. [Transparent Proxy](#5-transparent-proxy)
-6. [AI Worker (Python)](#6-ai-worker-python)
-7. [Provider Fallback Chain](#7-provider-fallback-chain)
-8. [Key Rotation](#8-key-rotation)
-9. [Metrics & Observability](#9-metrics--observability)
-10. [Data Flow: Queue & Cache](#10-data-flow-queue--cache)
-11. [Network & Ports](#11-network--ports)
-12. [Resource Limits](#12-resource-limits)
-13. [Multi-Agent Use Cases](#13-multi-agent-use-cases)
+3. [Middleware Stack](#3-middleware-stack)
+4. [Rate Limit Middleware](#4-rate-limit-middleware)
+5. [Security Middleware](#5-security-middleware)
+6. [Anomaly Detection](#6-anomaly-detection)
+7. [Runtime Metrics](#7-runtime-metrics)
+8. [Per-Model Upstream Limiter (Adaptive)](#8-per-model-upstream-limiter-adaptive)
+9. [Transparent Proxy](#9-transparent-proxy)
+9.5. [Vision Auto-Routing](#95-vision-auto-routing)
+9.6. [Profile-Based Routing](#96-profile-based-routing)
+9.7. [Quota Enforcement](#97-quota-enforcement)
+9.8. [Usage Recording Integration](#98-usage-recording-integration)
+9.9. [WebSocket Events (Full List)](#99-websocket-events-full-list)
+10. [AI Worker (Python)](#10-ai-worker-python)
+11. [Provider Fallback Chain](#11-provider-fallback-chain)
+12. [Key Rotation](#12-key-rotation)
+13. [Metrics & Observability](#13-metrics--observability)
+14. [Data Flow: Queue & Cache](#14-data-flow-queue--cache)
+15. [Network & Ports](#15-network--ports)
+16. [Resource Limits](#16-resource-limits)
+17. [Multi-Agent Use Cases](#17-multi-agent-use-cases)
 
 ---
 
@@ -33,24 +42,56 @@
 │    │ POST /v1/messages หรือ POST /v1/chat/completions           │
 │    ▼                                                             │
 │  arl-gateway (:8080)                                             │
+│    ├─ SecurityHeaders Middleware                                 │
+│    ├─ CorrelationID Middleware                                   │
+│    ├─ RealIP Middleware                                          │
+│    ├─ IPFilter Middleware (optional)                              │
 │    ├─ Logging Middleware                                         │
 │    ├─ Metrics Middleware                                         │
 │    ├─ Rate Limit Middleware ──▶ arl-rate-limiter (:8080)        │
 │    │                              │                              │
 │    │                              └─▶ arl-dragonfly (:6379)     │
 │    │                                                             │
-│    ├─ Sync mode: Transparent Proxy ──▶ Upstream Provider        │
-│    │                                    (api.z.ai/api/anthropic) │
+│    ├─ Login Limiter (5 attempts/15min per IP, auth endpoints)    │
 │    │                                                             │
-│    └─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)          │
-│                                    │                             │
-│                              arl-worker (BRPOP x 50)             │
-│                                ├─ Per-Model Semaphores (19 slots, global cap 9)  │
-│                                ├─ RPM Limiter (glm:5)            │
-│                                ├─ Provider Cache (httpx reuse)    │
-│                                ├─ Provider Fallback Chain        │
-│                                ├─ Key Rotation                   │
-│                                └─ Result → arl-dragonfly (cache) │
+│    ├─ API Routes:                                                │
+│    │   ├─ /v1/messages          (Sync proxy)                     │
+│    │   │   ├─ X-Profile header → Profile-based routing           │
+│    │   │   ├─ Quota check (>=95% → 429, >=80% → WS warning)     │
+│    │   │   └─ Normal: key pool → model slot → proxy              │
+│    │   ├─ /v1/chat/completions  (Async queue)                    │
+│    │   │   └─ WS event: request-queued                           │
+│    │   ├─ /v1/profiles/*        (Profile CRUD)                   │
+│    │   ├─ /v1/usage/*           (Usage analytics)                │
+│    │   ├─ /quota/*              (Quota tracking)                 │
+│    │   ├─ /v1/overview          (Dashboard summary)              │
+│    │   ├─ /v1/health/detailed   (6 health checks)                │
+│    │   ├─ /v1/config/*          (Config + Thinking + GlobalEnv)  │
+│    │   └─ /v1/auth/*            (OAuth + API key auth)           │
+│    │                                                             │
+│    ├─ Sync mode: Transparent Proxy ──▶ Upstream Provider        │
+│    │                                    (17 providers)           │
+│    │                                                             │
+│    ├─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)          │
+│    │                                    │                        │
+│    │                              arl-worker (BRPOP x 50)        │
+│    │                                ├─ Per-Model Semaphores      │
+│    │                                ├─ RPM Limiter               │
+│    │                                ├─ Provider Cache             │
+│    │                                ├─ Provider Fallback Chain    │
+│    │                                ├─ Key Rotation               │
+│    │                                └─ Result → arl-dragonfly     │
+│    │                                                             │
+│    ├─ WebSocket /ws (real-time dashboard updates)                │
+│    │   ├─ 6 event types: config-changed, request-completed,      │
+│    │   │   request-error, anomaly-detected, request-queued,      │
+│    │   │   quota-warning                                         │
+│    │   ├─ Config file watcher (.env changes → broadcast)         │
+│    │   └─ Session secret persistence (config/session_secret)     │
+│    │                                                             │
+│    ├─ Static Dashboard SPA (embedded Vite build)                 │
+│    │                                                             │
+│    └─ Admin routes /admin/* (with optional auth)                 │
 │                                                                  │
 │  Observability                                                   │
 │    arl-otel (:4317/4318) ──▶ arl-prometheus ──▶ arl-grafana    │
@@ -83,17 +124,38 @@
 
 ```
 1. Load config from env vars
-2. Init OTel tracer (→ arl-otel:4317) — ถ้าไม่ได้จะ warn และทำงานต่อ
-3. Connect Dragonfly (ping test) — ถ้าไม่ได้จะ exit
-4. Init Prometheus metrics
-5. Create AnthropicProxy (transparent)
-6. Create Handler
-7. Setup chi router with middleware stack:
-   a. Logging (structured JSON)
-   b. Metrics (latency + active connections)
-   c. Rate Limiter (global + per-agent)
-8. Start HTTP server (WriteTimeout=0 for SSE)
-9. Graceful shutdown on SIGINT/SIGTERM (10s timeout)
+2. Init OTel tracer (-> arl-otel:4317) -- if unavailable, warn and continue
+3. Connect Dragonfly (ping test) -- if unavailable, exit
+4. Init Prometheus metrics (custom registry, 21 metrics)
+5. Init RuntimeMetrics (goroutines, heap, GC, Dragonfly health -- 10s interval)
+6. Init AnomalyDetector (z-score ring buffer, 1000 samples)
+7. Create AnthropicProxy (transparent)
+8. Create AdaptiveLimiter (series buckets, EWMA, signal-based waiting)
+9. Create KeyPool
+10. Create Handler
+11. Init Provider Registry (17 providers, 4 auth types)
+12. Init TokenStore (Dragonfly-backed OAuth token persistence)
+13. Init AuthHandler (OAuth device code + auth code + API key flows)
+14. Init ProfileHandler, UsageHandler, QuotaHandler, OverviewHandler, ConfigHandler
+15. Init RefreshWorker (background OAuth token refresh)
+16. Init WebSocketHub for real-time dashboard updates
+17. Load/generate session secret (persisted to config/session_secret)
+18. Start session secret file watcher (fsnotify)
+19. Start config file watcher (.env changes -> WS broadcast)
+20. Start Z.AI key sync from TokenStore into KeyPool (30s interval)
+21. Setup chi router with middleware stack:
+    a. SecurityHeaders (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy)
+    b. CorrelationID (generate/propagate X-Correlation-ID)
+    c. RealIP (extract from CF-Connecting-IP, X-Real-IP, X-Forwarded-For)
+    d. IPFilter (optional CIDR whitelist/blacklist)
+    e. Logging (structured JSON)
+    f. Metrics (latency + active connections + status tracking)
+    g. Rate Limiter (global + per-agent, fail-open)
+    h. Login Limiter (available for auth endpoints, 5 attempts/15min per IP)
+22. Register all routes (messages, profiles, usage, quota, overview, config, WebSocket)
+23. Start periodic adaptive limiter metrics export (10s interval)
+24. Start HTTP server (WriteTimeout=0 for SSE)
+25. Graceful shutdown on SIGINT/SIGTERM (10s timeout)
 ```
 
 ### Routes
@@ -102,9 +164,86 @@
 |--------|------|---------|------|
 | `POST` | `/v1/messages` | `Messages` | Sync (transparent proxy) |
 | `POST` | `/v1/chat/completions` | `ChatCompletions` | Async (enqueue) |
-| `GET` | `/v1/result/{requestID}` | `GetResult` | Async (poll result) |
+| `GET` | `/v1/results/{requestID}` | `GetResult` | Async (poll result) |
 | `GET` | `/health` | `Health` | Health check |
-| `GET` | `/metrics` | Prometheus | Metrics scrape |
+| `GET` | `/v1/limiter-status` | `LimiterStatus` | Adaptive limiter state (auth required) |
+| `POST` | `/v1/limiter-override` | `LimiterOverride` | Set/clear manual override |
+| `GET` | `/v1/routing/strategy` | `GetRoutingStrategy` | Current routing strategy |
+| `PUT` | `/v1/routing/strategy` | `SetRoutingStrategy` | Update routing strategy |
+| `GET` | `/v1/logs/errors` | `GetErrorLogs` | Recent error log entries |
+| `GET` | `/v1/logs/errors/count` | `GetErrorLogCount` | Error log count |
+| `GET` | `/v1/models` | `GetModels` | Known models list |
+| `GET` | `/metrics` | Prometheus | Metrics scrape (custom registry) |
+| `GET` | `/api/metrics` | Prometheus | Metrics scrape (alias) |
+
+#### Profile Management (`handler/profile.go`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/profiles` | List all profiles |
+| `POST` | `/v1/profiles` | Create profile (409 if exists) |
+| `GET` | `/v1/profiles/{name}` | Get profile by name |
+| `PUT` | `/v1/profiles/{name}` | Update profile (preserves createdAt) |
+| `DELETE` | `/v1/profiles/{name}` | Delete profile |
+| `POST` | `/v1/profiles/{name}/copy` | Copy profile (body: `{"destination":"new-name"}`) |
+| `POST` | `/v1/profiles/{name}/export` | Export profile (body: `{"includeSecrets":false}`) |
+| `POST` | `/v1/profiles/import` | Import profile from bundle |
+
+Profiles stored in Dragonfly as `profile:{name}` keys. Each profile contains: name, baseUrl, apiKey, model, target (claude/droid/codex), provider. Export redacts API keys by default (`__CCS_REDACTED__`).
+
+#### Usage Analytics (`handler/usage.go`)
+
+| Method | Path | Query Params | Description |
+|--------|------|-------------|-------------|
+| `GET` | `/v1/usage/summary` | `period=24h|7d|30d|all` | Aggregated totals |
+| `GET` | `/v1/usage/hourly` | `hours=24|48` | Hourly breakdown |
+| `GET` | `/v1/usage/daily` | - | Last 30 days |
+| `GET` | `/v1/usage/monthly` | - | Last 12 months |
+| `GET` | `/v1/usage/models` | `period=24h|7d|30d` | Per-model breakdown |
+| `GET` | `/v1/usage/sessions` | `days=1-30` | Session-level (daily) usage |
+
+Data stored in Redis hashes: `usage:hourly:YYYY-MM-DDTHH`, `usage:daily:YYYY-MM-DD`, `usage:monthly:YYYY-MM`, `usage:sessions:YYYY-MM-DD`. TTLs: hourly 48h, daily 35d, monthly 400d.
+
+#### Quota Tracking (`handler/quota.go`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/quota/{provider}/{accountId}` | Per-account quota (30s Redis cache) |
+| `GET` | `/quota/{provider}` | All accounts for a provider |
+
+Supported providers: `claude`/`anthropic`, `gemini`/`gemini-oauth`. Returns per-model quota percentages and reset times. Falls back to stub for unsupported providers.
+
+#### Dashboard Overview & Health (`handler/overview.go`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/overview` | Dashboard summary (profiles, accounts, providers, keys, queue, health, uptime) |
+| `GET` | `/v1/health/detailed` | 6 health checks: dragonfly, rate-limiter, prometheus, key-pool, upstream, memory |
+| `POST` | `/v1/health/fix/{checkId}` | Auto-fix hint for a failed check |
+
+Health check categories: connectivity (dragonfly, rate-limiter), resources (prometheus, memory), config (key-pool), upstream. Overall status: healthy / degraded / unhealthy.
+
+#### Server Config (`handler/config.go`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/config` | Current config (secrets redacted) |
+| `GET` | `/v1/config/raw` | Config as plain text (secrets redacted) |
+| `PUT` | `/v1/config` | Merge config overrides (preserve `[redacted]` values) |
+| `GET` | `/v1/thinking` | Thinking budget config (defaultBudget, modelBudgets, enabled) |
+| `PUT` | `/v1/thinking` | Update thinking config |
+| `GET` | `/v1/global-env` | Global env vars (sensitive keys redacted) |
+| `PUT` | `/v1/global-env` | Update global env vars |
+
+Overrides stored in Redis: `config:overrides`, `config:thinking`, `config:global-env`. Sensitive key detection: keys containing "key", "secret", "token", "password".
+
+#### WebSocket (`handler/websocket.go`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/ws` | WebSocket endpoint for real-time dashboard updates |
+
+Hub-based broadcast: all connected clients receive events. Ping/pong keepalive (54s ping period, 60s pong deadline). Events: `config-changed` (from .env watcher), `request-completed`, `request-error`, `anomaly-detected`, `request-queued`, `quota-warning`. Used by UI via `use-websocket.ts` hook with exponential backoff reconnect. Full event list in [Section 9.9](#99-websocket-events-full-list).
 
 ### Config (`config/config.go`)
 
@@ -125,6 +264,7 @@
 | `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive probe ceiling multiplier (initial * this = maxLimit) |
 | `UPSTREAM_MAX_RETRIES` | `3` | Max retry attempts on upstream 429/503 |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff between retries (quadratic: base * attempt^2, capped at 5min) |
+| `UPSTREAM_API_KEYS` | | Upstream API keys (replaces `GLM_API_KEYS`/`GLM_ENDPOINT` for sync proxy) |
 | `READ_TIMEOUT` | `5s` | HTTP read timeout |
 | `OTLP_ENDPOINT` | `otel-collector:4317` | OTel collector |
 | `REDIS_POOL_SIZE` | `50` | Connection pool size |
@@ -206,7 +346,230 @@ if err != nil {
 
 ---
 
-## 4. Per-Model Upstream Limiter (Adaptive)
+## 5. Security Middleware
+
+### SecurityHeaders, CorrelationID, RealIP, IPFilter (`middleware/security.go`)
+
+#### SecurityHeaders
+
+เพิ่ม HTTP security headers ทุก response:
+
+| Header | Value |
+|--------|-------|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `X-XSS-Protection` | `1; mode=block` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Cache-Control` | `no-store` (เฉพาะ `/v1/*` paths) |
+
+#### CorrelationID
+
+สร้างหรือ propagate `X-Correlation-ID` สำหรับ distributed tracing:
+
+```
+Request เข้ามา
+  ├─ มี X-Correlation-ID header? → ใช้ค่าเดิม
+  └─ ไม่มี? → สร้าง UUID v4 ใหม่
+  → เซ็ต header ใน response และ context
+```
+
+#### RealIP
+
+ดึง real client IP จาก proxy headers (ใช้สำหรับ IPFilter + logging):
+
+```
+Priority: CF-Connecting-IP > X-Real-IP > X-Forwarded-For (first IP) > RemoteAddr
+```
+
+เก็บ IP ใน request context ผ่าน `GetRealIP(ctx)`.
+
+#### IPFilter (CIDR whitelist/blacklist)
+
+Middleware สำหรับบล็อก/อนุญาต IP:
+
+```go
+IPFilterConfig{
+    Whitelist: []string{"10.0.0.0/8", "192.168.0.0/16"},
+    Blacklist: []string{"203.0.113.0/24"},
+}
+```
+
+- Whitelist ไม่ว่าง = เฉพาะ IP ที่ match ถึงจะผ่าน
+- Blacklist = block IP ที่ match
+- ใช้ `GetRealIP()` context ดึง IP (เชื่อมกับ RealIP middleware)
+- Response: `403 {"error": "access denied"}`
+
+---
+
+## 5.5. Login Rate Limiter
+
+### Login Limiter (`middleware/login_limiter.go`)
+
+Per-IP rate limiter for login/auth endpoints. 5 attempts per 15-minute window.
+
+```
+Request to login endpoint
+  |
+  +-- Extract IP from RemoteAddr
+  |
+  +-- Check attempt counter for this IP:
+      |
+      +-- No record or expired -> allow, start new window
+      +-- count < 5 -> allow, increment counter
+      +-- count >= 5 -> 429 {"error":"too many login attempts"}
+                       Retry-After: 900
+```
+
+Background cleanup: expired entries removed every 5 minutes.
+
+Usage: wrap auth endpoints with `middleware.NewLoginLimiter()`.
+
+---
+
+## 5.6. Session Secret Persistence
+
+### Session Secret (`middleware/session_secret.go`)
+
+Session cookie signing secret persisted to `config/session_secret` file. Survives gateway restarts.
+
+```
+Startup:
+  |-- File exists and >= 32 bytes -> load from file
+  |-- File missing or too short -> generate 64-byte hex secret
+  |   |-- mkdir config/ (0700)
+  |   |-- write to config/session_secret (0600)
+  |
+  |-- Watch with fsnotify:
+      |-- Write/Create event -> reload secret from file
+      |-- Allows secret rotation without restart
+```
+
+File permissions: directory 0700, file 0600 (owner-only read/write).
+
+---
+
+## 5.7. Config File Watcher
+
+### Config Watcher (`middleware/config_watcher.go`)
+
+Watches `.env` file for changes using fsnotify. On change, calls callback with changed key/value. Used to broadcast `config-changed` events via WebSocket.
+
+```
+NewConfigWatcher(".env", callback)
+  |
+  +-- fsnotify watches parent directory
+  |
+  +-- On Write event to .env:
+      |-- Debounce 500ms (avoid duplicate events)
+      |-- Parse new .env -> compare with previous values
+      |-- For each changed key: callback(key, newValue)
+      |-- wsHub.Broadcast("config-changed", {key})
+```
+
+Runs in background goroutine, stops on context cancellation.
+
+---
+
+## 5.8. WebSocket Hub
+
+### WebSocket (`handler/websocket.go`)
+
+Real-time event broadcast to connected dashboard clients.
+
+```
+Client connects GET /ws
+  |
+  +-- Upgrade to WebSocket (gorilla/websocket, CheckOrigin: allow all)
+  +-- Register in WebSocketHub
+  +-- Start readPump goroutine (pong handler, read limit 512 bytes)
+  +-- Start writePump goroutine (ping every 54s, write deadline 10s)
+  |
+  +-- On broadcast:
+      |-- Hub locks, iterates all clients
+      |-- Non-blocking send to client channel (buffer 256)
+      |-- If channel full -> close and unregister client
+
+Event format:
+  {"type":"config-changed","data":{"key":"SOME_VAR"},"timestamp":"2026-04-19T12:00:00Z"}
+```
+
+Ping/pong: 54s ping period, 60s pong deadline, 10s write deadline.
+
+---
+
+## 6. Anomaly Detection
+
+### ที่ตั้งค่า (`middleware/anomaly.go`)
+
+Z-score anomaly detector สำหรับ detect rate anomalies ใน metrics stream:
+
+### Algorithm
+
+```
+Ring buffer: 1000 samples
+Baseline: rolling mean + stddev
+
+On new sample:
+  1. เพิ่ม sample เข้า ring buffer
+  2. คำนวณ mean, stddev จาก buffer
+  3. คำนวณ z-score: z = (value - mean) / stddev
+  4. Classify:
+     ├─ z > 2.0  → AnomalySpike (high streak counter++)
+     ├─ z < -2.0 → AnomalyDrop (low streak counter++)
+     └─ else     → reset streaks, return AnomalyNone
+
+  5. Sustained detection (override spike/drop):
+     ├─ highStreak >= 5  → AnomalySustainedHigh
+     └─ lowStreak >= 5   → AnomalySustainedLow
+
+  6. Severity:
+     ├─ |z| > 4.0 → SeverityCritical
+     ├─ |z| > 3.0 → SeverityHigh
+     └─ else      → SeverityMedium
+```
+
+### Prometheus Metric
+
+```
+api_gateway_anomaly_total{type="spike|drop|sustained_high|sustained_low", severity="low|medium|high|critical"}
+```
+
+### Warm-up
+
+ต้องมีอย่างน้อย 10 samples ก่อนจะเริ่ม detect -- ก่อนนั้น return `AnomalyNone`.
+
+---
+
+## 7. Runtime Metrics
+
+### ที่ตั้งค่า (`middleware/runtime_metrics.go`)
+
+Background collector ที่รันทุก 10 วินาที เก็บ Go runtime metrics + Dragonfly health:
+
+### Metrics Collected
+
+| Metric | Type | คำอธิบาย |
+|--------|------|----------|
+| `api_gateway_go_goroutines` | Gauge | จำนวน goroutines ปัจจุบัน |
+| `api_gateway_go_heap_alloc_bytes` | Gauge | Heap allocation ปัจจุบัน (bytes) |
+| `api_gateway_go_heap_objects` | Gauge | จำนวน heap objects |
+| `api_gateway_go_gc_pause_ns` | Gauge | GC pause ของรอบล่าสุด (nanoseconds) |
+| `api_gateway_go_stack_inuse_bytes` | Gauge | Stack ใช้งานปัจจุบัน (bytes) |
+| `api_gateway_dragonfly_up` | Gauge | Dragonfly health (1=healthy, 0=down) |
+
+### Dragonfly Health Check
+
+```
+ทุก 10 วินาที:
+  ├─ Dragonfly Ping → OK → dragonfly_up = 1
+  └─ Dragonfly Ping → Error → dragonfly_up = 0
+```
+
+ใช้ `go-redis` client เชื่อมต่อแยกจาก main Dragonfly client (connection pool ของ runtime metrics).
+
+---
+
+## 8. Per-Model Upstream Limiter (Adaptive)
 
 ### Architecture (`middleware/adaptive_limiter.go`)
 
@@ -214,6 +577,17 @@ Adaptive concurrency limiter with automatic limit discovery. Starts at configure
 probes upward based on upstream feedback (success rate, latency), and backs off on 429/503 errors.
 
 Inspired by Envoy gradient controller + Netflix concurrency limits.
+
+### Key Features
+
+- **Series-based routing**: Models grouped by major version (glm-5.x = series 5, glm-4.x = series 4)
+- **Same-series round-robin**: When requested model is full, distribute within same series first
+- **Series spillover**: Only fall to lower series under latency pressure (EWMA > 1.5x minRTT)
+- **Signal-based waiting**: `sync.Cond` replaces spin-wait for slot availability
+- **RTT EWMA tracking**: Per-model exponentially weighted moving average (alpha=0.3)
+- **sync.Pool optimization**: Pooled candidate slices reduce GC pressure
+- **Manual overrides**: `SetOverride(model, limit)` pins a model's limit (0 = clear)
+- **Learned ceiling**: Remembers peak limit before 429, decays after 5 minutes
 
 ### Adaptive Algorithm
 
@@ -223,42 +597,95 @@ On 429/503:
   limit_new = max(minLimit, limit * 0.5)  (multiplicative decrease x0.5)
 
 On 200:
-  gradient = (minRTT + buffer) / sampleRTT
+  Update minRTT (CAS loop — keep lowest ever)
+  Update RTT EWMA (alpha=0.3, CAS loop):
+    ewma_new = ewma_old * 0.7 + sampleRTT * 0.3
+  Skip if model has manual override (still track RTT/stats)
+  Cooldown: 5s after any 429 before increasing again
+  Probe: every 5 consecutive successes
+  gradient = (minRTT + buffer) / sampleRTT   (clamped 0.8-2.0)
   limit_new = min(maxLimit, gradient * limit + sqrt(limit))
   if newLimit >= peakBefore429 → cap at peakBefore429 - 1  (don't re-probe learned ceiling)
-
-Cooldown: 5s after any 429 before increasing again
-Probe: every 5 consecutive successes
+  Learned ceiling decay: peakBefore429 resets to 0 after 5 minutes
 ```
 
-### Fallback with Wait-then-Fallback
+### Series-Based Fallback
 
 ```
 Request: { "model": "glm-5", ... }
   │
-  ├─ 1. Try glm-5 (non-blocking CAS acquire)
+  ├─ 1. Wait for global slot (sync.Cond signal-based)
+  │
+  ├─ 2. Try glm-5 (non-blocking CAS acquire)
   │     └─ Available? → use glm-5
   │
-  ├─ 2. glm-5 full → wait up to 2s for slot
-  │     └─ Slot freed? → use glm-5 (preferred model preserved)
+  ├─ 3. glm-5 full → round-robin within same series (series 5):
+  │     ├─ glm-5.1, glm-5-turbo, glm-5 (pooled candidate slices)
+  │     └─ Any available? → use it (same-series round-robin)
   │
-  ├─ 3. Timeout → try fallback models in STRICT PRIORITY order:
-  │     ├─ glm-5.1 (priority 100) → skip if >2 tiers below requested
-  │     ├─ glm-5-turbo (priority 90)
-  │     ├─ glm-5 (priority 80)
-  │     ├─ glm-4.7 (priority 70)
-  │     ├─ glm-4.6 (priority 60)
-  │     └─ glm-4.5 (priority 50) → only if within tier gap
+  ├─ 4. Same series full → check latency pressure:
+  │     ├─ EWMA > 1.5x minRTT for majority of series 5 models? → PRESSURE
+  │     └─ No pressure → no spillover (stay in series 5)
   │
-  └─ 4. All models full → release global slot → block-wait on requested model (30s timeout)
-                                            → re-acquire global slot after model slot obtained
+  ├─ 5. Spillover to lower series (series 4) under pressure:
+  │     ├─ glm-4.7, glm-4.6, glm-4.5 (round-robin)
+  │     └─ Any available? → use it
+  │
+  └─ 6. All models full → release global slot → signal-based block-wait (30s timeout)
+                              → re-acquire global slot after model slot obtained
 ```
 
-**Wait-then-fallback trade-off**: Adds 0-2s latency when series 5 is temporarily full,
-but results in using higher-quality models more often. If series 5 is genuinely saturated,
-falls back to series 4 after the 2s wait.
+**Series spillover trade-off**: Only spills to lower series when the current series shows latency pressure (EWMA RTT > 1.5x minRTT for majority of models). This prevents unnecessary downgrades when a model is temporarily full but not under load.
 
-**Global slot starvation prevention**: When all models are full and `Acquire()` needs to block-wait on the requested model, it first **releases the global slot** before blocking, then **re-acquires** it after obtaining a model slot. This prevents a scenario where many requests hold global slots while waiting for a single popular model, starving other requests that could use different models.
+**Global slot starvation prevention**: When all models are full and `Acquire()` needs to block-wait on the requested model, it first **releases the global slot** before blocking, then **re-acquires** it after obtaining a model slot. Signal-based waiting (`sync.Cond`) replaces spin-wait polling.
+
+### Signal-Based Waiting
+
+```
+Old (spin-wait):  for { if tryAcquire() { break }; time.Sleep(100ms) }
+New (sync.Cond):  cond.L.Lock(); for !available { cond.Wait() }; cond.L.Unlock()
+
+Benefits:
+  - Zero CPU usage while waiting (blocked in kernel, not polling)
+  - Instant wake-up on Signal() (no 100ms polling delay)
+  - No goroutine leak: timeout goroutine cleaned up via channel
+```
+
+### sync.Pool Optimization
+
+```go
+// Pool candidate slices to reduce GC pressure during fallback evaluation
+candPool: sync.Pool{ New: func() any { s := make([]seriesEntry, 0, 8); return &s } }
+
+// Usage: getCandidates() gets from pool, putCandidates() returns to pool
+// Eliminates allocation per Acquire() call on the hot path
+```
+
+### RTT EWMA Tracking
+
+```
+Per-model RTT EWMA (alpha = 0.3):
+  ewma = ewma * 0.7 + sampleRTT * 0.3
+
+Uses:
+  - Series latency pressure detection (EWMA > 1.5x minRTT)
+  - Exposed in /v1/limiter-status as ewma_rtt_ms
+  - Helps adaptive algorithm understand real load vs transient spikes
+```
+
+### Manual Override API
+
+```
+SetOverride(model, limit):
+  ├─ limit > 0: pin model's limit to exact value (bypass adaptive)
+  ├─ limit = 0: clear override (resume adaptive)
+  └─ Applied immediately + logged
+
+Overrides(): returns current override state (map[string]int64)
+
+Feedback() still tracks RTT/stats when override is active, but doesn't change limit.
+Visible in /v1/limiter-status as "overridden": true field.
+```
 
 ### Probe Multiplier (Configurable)
 
@@ -298,7 +725,7 @@ UPSTREAM_MODEL_LIMITS=glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.
 # Default limit for models not in the list
 UPSTREAM_DEFAULT_LIMIT=1
 
-# Total concurrent across all models (0 = unlimited)
+# Total concurrent across all models (must be > 0)
 UPSTREAM_GLOBAL_LIMIT=9
 
 # Probe multiplier for adaptive limit discovery
@@ -312,14 +739,18 @@ Models configured: glm-5.1:1, glm-5-turbo:1, glm-5:2, glm-4.7:2, glm-4.6:3, glm-
 Total model capacity: 1+1+2+2+3+10 = 19
 Global cap: 9 concurrent
 
-Selection: Strict priority order (5.x always preferred before 4.x)
+Series grouping:
+  Series 5: glm-5.1(1), glm-5-turbo(1), glm-5(2) = 4 slots
+  Series 4: glm-4.7(2), glm-4.6(3), glm-4.5(10) = 15 slots
+
+Selection: Round-robin within same series, spillover to lower series under pressure
 
 Low load example (5 requests for glm-5):
   req 1 → glm-5 slot (limit 2)         ✅ direct
   req 2 → glm-5 slot                    ✅ direct
-  req 3 → glm-5.1 (fallback)            ✅ 5.x preferred
-  req 4 → glm-5-turbo (fallback)        ✅ 5.x preferred
-  req 5 → glm-4.7 (fallback)            ✅ all 5.x full, start 4.x
+  req 3 → glm-5.1 (same-series RR)      ✅ series 5 round-robin
+  req 4 → glm-5-turbo (same-series RR)  ✅ series 5 round-robin
+  req 5 → glm-4.7 (series spillover)    ✅ series 5 full + latency pressure → series 4
 ```
 
 ### Body Rewrite
@@ -336,15 +767,16 @@ This is the only modification to the request body — all other fields (tools, m
 ### Log Output
 
 ```json
-{"msg":"model limiter configured","model":"glm-5.1","limit":1}
-{"msg":"model limiter configured","model":"glm-5-turbo","limit":1}
-{"msg":"model limiter configured","model":"glm-5","limit":2}
-{"msg":"model limiter configured","model":"glm-4.7","limit":2}
-{"msg":"model limiter configured","model":"glm-4.6","limit":3}
-{"msg":"model limiter configured","model":"glm-4.5","limit":10}
-{"msg":"model limiter initialized","models":["glm-5.1","glm-5-turbo","glm-5","glm-4.7","glm-4.6","glm-4.5"],"global_limit":15}
-{"msg":"model fallback","requested":"glm-5","selected":"glm-5-turbo"}
+{"msg":"adaptive model configured","model":"glm-5.1","initial_limit":1,"max_limit":5}
+{"msg":"adaptive limiter initialized","models":["glm-5.1","glm-5-turbo","glm-5","glm-4.7","glm-4.6","glm-4.5"],"global_limit":9}
+{"msg":"model fallback (same-series round-robin)","requested":"glm-5","selected":"glm-5.1","series":5}
+{"msg":"series spillover (latency pressure)","requested":"glm-5","selected":"glm-4.7","from_series":5,"to_series":4}
 {"msg":"all models full, waiting","requested":"glm-5"}
+{"msg":"adaptive limit increased","model":"glm-5","old":2,"new":3,"successes":5}
+{"msg":"adaptive limit decreased after 429/503","model":"glm-5","old":3,"new":1}
+{"msg":"adaptive override set","model":"glm-5","limit":5}
+{"msg":"adaptive override cleared","model":"glm-5"}
+{"msg":"learned ceiling decayed, allowing re-probe","model":"glm-5","old_peak":5}
 {"msg":"rpm limiter waiting","provider":"glm","wait_seconds":60.1}
 ```
 
@@ -360,8 +792,9 @@ This is the only modification to the request body — all other fields (tools, m
 - ไม่ decode/re-encode response body
 - SSE streaming: relay chunk by chunk พร้อม flush ทุก chunk
 - Token tracking: parse `usage` from response for Prometheus metrics (input/output by model)
+- TTFB tracking: record time-to-first-byte for streaming responses (`api_gateway_ttfb_seconds`)
+- Response header filtering: only safe headers forwarded (prevent header injection)
 - Headers ส่งตรง: `Content-Type`, `x-api-key`, `anthropic-version`
-- Response headers ส่งตรงทั้งหมด
 - Status code ส่งตรง (429 ไม่แปลงเป็น 502)
 
 ### Key Pool (Gateway-managed upstream keys)
@@ -410,6 +843,293 @@ case <-r.Context().Done():
 - อ่านทีละ 8192 bytes (8KB)
 - Flush ทุกครั้งที่อ่านได้ข้อมูล
 - ไม่มี buffer limit — ใช้ `io.Copy` สำหรับ non-streaming
+
+---
+
+## 9.5. Vision Auto-Routing
+
+### Overview
+
+Gateway ตรวจจับ image content ใน request อัตโนมัติ แล้ว route ไป native Zhipu vision endpoint แทน z.ai Anthropic endpoint เพราะ z.ai ไม่สามารถ decode base64 image ผ่าน Anthropic-compatible format ได้ พร้อม **auto-select vision model** ตาม image payload size/count และ **SSE streaming conversion** จาก Zhipu format เป็น Anthropic format
+
+### Dual-Path Architecture
+
+```
+Client POST /v1/messages
+  |
+  v
+arl-gateway (:8080)
+  |
+  |-- parse body, resolve key, acquire model slot
+  |
+  |-- filterUnsupportedContent():
+  |     strip server_tool_use blocks
+  |     convert Anthropic image -> GLM image_url format
+  |
+  |-- HasImageContent() scan messages?
+  |
+  +-- NO images:
+  |     ProxyTransparent()
+  |       -> POST UPSTREAM_URL (api.z.ai/api/anthropic)
+  |       <- raw response relay (SSE support)
+  |
+  +-- HAS images:
+        |-- analyzeImagePayload() -> totalBase64Bytes, imageCount
+        |-- selectVisionModel():
+        |     score = totalBase64KB + (imageCount * 300)
+        |     score <= 2000 && count < 3 -> glm-4.6v (10 slots)
+        |     score > 2000 || count >= 3 -> glm-4.6v-flashx (3 slots)
+        |
+        ProxyNativeVision()
+          -> anthropicToZhipu() format conversion
+          -> POST NATIVE_VISION_URL (open.bigmodel.cn/api/paas/v4/chat/completions)
+          <- stream=true?
+             YES: convertZhipuStreamResponse()
+                  Zhipu SSE -> Anthropic SSE events (real-time)
+                  message_start -> content_block_start -> content_block_delta...
+                  -> content_block_stop -> message_delta -> message_stop
+             NO:  zhipuToAnthropic()
+                  Zhipu JSON -> Anthropic JSON response
+          <- response to client (Anthropic format)
+```
+
+### Format Conversion (Anthropic <-> Zhipu)
+
+```
+anthropicToZhipu():
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Anthropic Messages API        ->    Zhipu OpenAI API         │
+  │                                                              │
+  │ messages[].role: "user"       ->    messages[].role: "user"  │
+  │ messages[].role: "assistant"  ->    messages[].role: "assis" │
+  │ messages[].content (array)    ->    messages[].content (str) │
+  │                                                              │
+  │ content[].type="text"         ->    text string              │
+  │ content[].type="image"        ->    type="image_url"         │
+  │   source.type="base64"        ->      url="data:mime;base64" │
+  │   source.type="url"           ->      url=<original url>     │
+  │ content[].type="tool_use"     ->    tool_calls[]             │
+  │ content[].type="tool_result"  ->    text (converted)         │
+  │                                                              │
+  │ system (string or array)      ->    system (string)          │
+  │ tools[]                       ->    tools[]                  │
+  │ stream: bool                  ->    stream: bool             │
+  └──────────────────────────────────────────────────────────────┘
+
+zhipuToAnthropic():
+  ┌──────────────────────────────────────────────────────────────┐
+  │ Zhipu Response                ->    Anthropic Response       │
+  │                                                              │
+  │ choices[0].message.content    ->    content[] array          │
+  │   (text string)               ->      [{type:"text",text:..}]│
+  │   (tool_calls[])              ->      [{type:"tool_use",...}]│
+  │ usage.prompt_tokens           ->    usage.input_tokens       │
+  │ usage.completion_tokens       ->    usage.output_tokens      │
+  │ finish_reason: "stop"         ->    stop_reason: "end_turn"  │
+  │ finish_reason: "tool_calls"   ->    stop_reason: "tool_use"  │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+### Content Filtering
+
+Before routing, `filterUnsupportedContent()` processes all messages:
+
+1. Strip `server_tool_use` blocks (GLM does not support this type)
+2. Convert Anthropic image format to GLM-compatible `image_url` format:
+   ```
+   Before: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
+   After:  {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
+   ```
+
+### Configuration
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `NATIVE_VISION_URL` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | Zhipu native vision endpoint |
+
+### Vision Models
+
+| Model | Slots | Status | Notes |
+|-------|--------|--------|-------|
+| glm-4.6v | 10 | Available | Recommended, default for most requests |
+| glm-4.5v | 10 | Available | Good quality, same capacity |
+| glm-4.6v-flashx | 3 | Available | Auto-selected for heavy payloads (score > 2000 or count >= 3) |
+| glm-4.6v-flash | 1 | Available | Fast, not auto-selected (limited capacity) |
+
+### Vision Model Auto-Select
+
+Gateway analyzes image payload and selects optimal vision model:
+
+```
+analyzeImagePayload(payload) -> (totalBase64Bytes, imageCount)
+selectVisionModel(totalBytes, imageCount):
+  score = totalBase64KB + (imageCount * 300)
+  if score > 2000 or imageCount >= 3:
+    return "glm-4.6v-flashx"   // 3 slots, fastest for heavy payloads
+  return "glm-4.6v"            // 10 slots, best quality for normal payloads
+```
+
+### SSE Streaming Conversion
+
+Vision requests with `stream: true` get real-time SSE streaming. Zhipu SSE chunks (OpenAI format) are converted to Anthropic SSE events:
+
+```
+Zhipu SSE (input):
+  data: {"choices":[{"delta":{"content":"Hello"}}]}
+  data: {"choices":[{"delta":{"reasoning_content":"Let me..."}}]}
+
+Anthropic SSE (output):
+  event: content_block_delta
+  data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+
+  event: content_block_delta
+  data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"Let me..."}}
+```
+
+Full event sequence: `message_start` -> `content_block_start` -> `content_block_delta`(x N) -> `content_block_stop` -> `message_delta` -> `message_stop`
+
+### Limitations
+
+- Privacy pipeline is skipped for vision path
+- tool_use on vision requests may not work depending on upstream model
+- No automatic image resizing
+
+---
+
+## 9.6. Profile-Based Routing
+
+### Overview
+
+The `X-Profile` header enables per-request profile-based routing. When present, the gateway loads the named profile from Redis and overrides the model, apiKey, and baseUrl for that request. If the profile is not found, the request falls through to normal routing.
+
+### Flow
+
+```
+Request with X-Profile: my-profile
+  |
+  v
+Handler.Messages()
+  |-- Extract X-Profile header
+  |-- Profile name non-empty?
+  |     |
+  |     +-- YES: Lookup profile:{name} from Redis
+  |     |     |
+  |     |     +-- Found: Override model, apiKey, baseUrl from profile
+  |     |     |         Skip model fallback logic (profile model is used directly)
+  |     |     |         Skip key pool acquire (profile has its own apiKey)
+  |     |     |         Proxy to profile.baseUrl with profile.apiKey
+  |     |     |
+  |     |     +-- Not found: Log warning, fall through to normal routing
+  |     |
+  |     +-- NO: Normal routing (key pool + adaptive limiter)
+```
+
+### Profile Fields Used for Routing
+
+| Field | Override Target |
+|-------|----------------|
+| `model` | Replaces requested model in body |
+| `apiKey` | Used as upstream API key (bypasses key pool) |
+| `baseUrl` | Replaces UPSTREAM_URL for this request |
+
+### Handler Struct Expansion
+
+The `Handler` struct now holds these additional fields:
+- `usageHandler` -- usage analytics recorder
+- `quotaHandler` -- quota enforcement checker
+- `profileRedis` -- dedicated `redis.Client` for profile lookups
+- `wsBroadcast` -- callback function for WebSocket event broadcasting
+
+Constructor accepts 4 new parameters to inject these dependencies.
+
+**File**: `handler/handler.go` lines ~260-275
+
+---
+
+## 9.7. Quota Enforcement
+
+### Overview
+
+Quota enforcement is now wired into the sync proxy request flow. Before acquiring a model slot in `Messages()`, the handler checks whether the requested model is at or above quota. Returns HTTP 429 if at >= 95% quota. Broadcasts a `quota-warning` via WebSocket at >= 80%.
+
+### Flow
+
+```
+Messages() handler
+  |-- Resolve model from request (or profile)
+  |-- CheckQuota(provider, accountID, model)
+  |     |
+  |     +-- >= 95% quota → return 429 (Anthropic rate_limit_error format)
+  |     +-- >= 80% quota → broadcast quota-warning via WebSocket
+  |     |                  continue processing (soft warning)
+  |     +-- < 80% → continue normally
+  |     +-- Error → fail-open (log warning, continue processing)
+  |
+  |-- Acquire model slot (adaptive limiter)
+  |-- Proxy upstream
+```
+
+### Behavior
+
+- **Fail-open**: If `CheckQuota()` encounters an error (Redis down, etc.), the request proceeds normally
+- **429 format**: Returns Anthropic-compatible error format for `/v1/messages`
+- **Soft warning**: At 80-95% quota, a `quota-warning` WebSocket event is broadcast but the request still proceeds
+- **Hard block**: At >= 95% quota, the request is rejected with 429
+
+**File**: `handler/handler.go` lines ~314-330, `handler/quota.go`
+
+---
+
+## 9.8. Usage Recording Integration
+
+### Overview
+
+`metrics.RecordTokens()` now auto-calls `usageHandler.RecordUsage()` via a callback hook, so every request that records token metrics also populates the Redis usage buckets (hourly, daily, monthly, session) automatically.
+
+### Wiring
+
+```
+main.go startup:
+  |-- metrics.SetUsageRecorder(usageHandler.RecordUsage)
+  |     // Sets callback in metrics package
+
+Per-request flow:
+  |-- proxy response received, usage parsed
+  |-- metrics.RecordTokens(model, inputTokens, outputTokens)
+  |     |-- Increment Prometheus counters (existing)
+  |     |-- If usageRecorder callback set:
+  |     |     Call usageRecorder(model, inputTokens, outputTokens)
+  |     |     |-- Records to Redis:
+  |     |     |     usage:hourly:YYYY-MM-DDTHH
+  |     |     |     usage:daily:YYYY-MM-DD
+  |     |     |     usage:monthly:YYYY-MM
+  |     |     |     usage:sessions:YYYY-MM-DD
+```
+
+**File**: `metrics/metrics.go` lines ~221-237, `main.go` lines ~107-111
+
+---
+
+## 9.9. WebSocket Events (Full List)
+
+### Event Types
+
+The WebSocket hub now broadcasts 6 event types from various sources:
+
+| Event Type | Source | Trigger | Data Fields |
+|------------|--------|---------|-------------|
+| `request-completed` | Handler | Successful upstream response | `model`, `statusCode`, `rtt_ms` |
+| `request-error` | Handler | Failed upstream response | `model`, `statusCode`, `rtt_ms` |
+| `anomaly-detected` | Handler | High-severity anomaly | `type`, `severity`, `model`, `rtt_ms` |
+| `request-queued` | ChatCompletions | Async job enqueued | `requestId`, `model`, `provider` |
+| `quota-warning` | Handler | Quota at >= 80% | `provider`, `accountId`, `model`, `percentage` |
+| `config-changed` | Config watcher | .env file changed | `key` |
+
+### Broadcast Wiring
+
+Events are broadcast via the `wsBroadcast` function pointer stored in the Handler struct. This is set during handler construction from the WebSocketHub instance.
+
+**File**: `handler/handler.go` lines ~408-432
 
 ---
 
@@ -594,6 +1314,51 @@ glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6 → glm-4.5
 
 ---
 
+## 7.5. Provider Registry (Gateway)
+
+### Provider Registry (`provider/registry.go`)
+
+Gateway maintains a provider registry for OAuth/API key auth flows and upstream resolution. Each provider defines: ID, name, auth type, upstream base URL, and OAuth config.
+
+#### Supported Auth Types
+
+| Auth Type | Flow | Providers |
+|-----------|------|-----------|
+| `api_key` | Header-based | Anthropic, Gemini, OpenAI, Z.AI, OpenRouter, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo |
+| `device_code` | Device code flow | GitHub Copilot, Qwen (Aliyun) |
+| `auth_code` | OAuth authorization code + PKCE | Claude (OAuth), Gemini (OAuth via Code Assist) |
+| `session_cookie` | Cookie-based | (reserved) |
+
+#### All Registered Providers
+
+| ID | Name | Auth | Upstream Base |
+|----|------|------|---------------|
+| `anthropic` | Anthropic | API key | `api.anthropic.com` |
+| `gemini` | Google Gemini | API key | `generativelanguage.googleapis.com` |
+| `gemini-oauth` | Google Gemini (OAuth) | Auth code | `cloudcode-pa.googleapis.com` |
+| `openai` | OpenAI | API key | `api.openai.com` |
+| `copilot` | GitHub Copilot | Device code | `api.github.com/copilot` |
+| `zai` | Z.AI | API key | `api.z.ai/api/anthropic` |
+| `openrouter` | OpenRouter | API key | `openrouter.ai/api` |
+| `qwen` | Qwen (Aliyun) | Device code | `dashscope.aliyuncs.com` |
+| `claude` | Claude (OAuth) | Auth code (PKCE) | `api.anthropic.com` |
+| `deepseek` | DeepSeek | API key | `api.deepseek.com` |
+| `kimi` | Kimi (Moonshot) | API key | `api.moonshot.cn/v1` |
+| `huggingface` | Hugging Face | API key | `api-inference.huggingface.co/models` |
+| `ollama` | Ollama | API key | `localhost:11434` (configurable) |
+| `agy` | Antigravity | API key | `antigravity.com` |
+| `cursor` | Cursor | API key | `api2.cursor.sh` |
+| `codebuddy` | CodeBuddy | API key | `api.codebuddy.io` |
+| `kilo` | Kilo | API key | `api.kilo.ai` |
+
+#### Token Store & Auth Flow
+
+The `provider.TokenStore` persists OAuth tokens and API keys in Dragonfly. The `provider.AuthHandler` exposes endpoints for device code flow, auth code flow, and API key registration. The `provider.Resolver` maps incoming requests to the correct upstream based on provider and token.
+
+The `provider.RefreshWorker` runs in background and refreshes expiring OAuth tokens automatically.
+
+---
+
 ## 8. Key Rotation
 
 ### KeyManager (`key_manager.py`)
@@ -618,21 +1383,37 @@ Request → key1 → 429 Rate Limit
 
 ---
 
-## 9. Metrics & Observability
+## 13. Metrics & Observability
 
-### Gateway Metrics (Prometheus — port 8080)
+### Gateway Metrics (Prometheus -- port 8080, custom registry)
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `api_gateway_request_latency_seconds` | Histogram | method, path, status | Request latency |
-| `api_gateway_queue_depth` | Gauge | | Queue depth (polled on scrape) |
-| `api_gateway_error_total` | Counter | type | Error count |
+| `api_gateway_queue_depth` | GaugeFunc | | Queue depth (polled on scrape) |
+| `api_gateway_error_total` | Counter | type | Error count by type |
 | `api_gateway_rate_limit_hits_total` | Counter | key | Rate limit hits |
 | `api_gateway_active_connections` | Gauge | | Active connections |
 | `api_gateway_token_input_total` | Counter | model | Input tokens consumed by model |
 | `api_gateway_token_output_total` | Counter | model | Output tokens generated by model |
+| `api_gateway_upstream_retries_total` | Counter | | Upstream retries on 429 |
+| `api_gateway_upstream_429_total` | Counter | | Upstream 429 responses received |
+| `api_gateway_adaptive_limit` | Gauge | model | Current adaptive concurrency limit per model |
+| `api_gateway_adaptive_in_flight` | Gauge | model | Current in-flight requests per model |
+| `api_gateway_cost_total` | Counter | model | Estimated cost (USD) from token usage x pricing |
+| `api_gateway_model_fallback_total` | Counter | requested, selected | Model fallback events |
+| `api_gateway_ttfb_seconds` | Histogram | model | Time to first byte for streaming |
+| `api_gateway_go_goroutines` | Gauge | | Current goroutines |
+| `api_gateway_go_heap_alloc_bytes` | Gauge | | Current heap allocation |
+| `api_gateway_go_heap_objects` | Gauge | | Current heap objects |
+| `api_gateway_go_gc_pause_ns` | Gauge | | GC pause of last cycle (ns) |
+| `api_gateway_go_stack_inuse_bytes` | Gauge | | Current stack in-use |
+| `api_gateway_dragonfly_up` | Gauge | | Dragonfly health (1=healthy, 0=down) |
+| `api_gateway_anomaly_total` | Counter | type, severity | Detected anomalies |
 
-> **หมายเหตุ**: Status label ใน latency histogram ปัจจุบัน hardcode เป็น "200" เสมอ (metrics middleware ไม่ได้ดึง status จริงจาก response writer wrapper ใน chi middleware chain)
+**Total: 21 metrics** in `api_gateway` namespace on a custom Prometheus registry (not default).
+
+> **หมายเหตุ**: Status label ใน latency histogram ใช้ `statusWriter` wrapper ที่จับ status code จริงจาก response writer แล้ว (แก้ไขจากเดิมที่ hardcode "200")
 
 ### Worker Metrics
 
@@ -877,6 +1658,14 @@ PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50
 | **Anthropic** | `ANTHROPIC_API_KEYS` | 50 | claude-sonnet-4-6, claude-haiku-4-5 |
 | **Gemini** | `GEMINI_API_KEYS` | 60 | gemini-2.0-flash |
 | **OpenRouter** | `OPENROUTER_API_KEYS` | 60 | Multi-provider aggregator |
+| **DeepSeek** | `DEEPSEEK_API_KEYS` | 60 | deepseek-chat, deepseek-coder |
+| **Kimi** | `KIMI_API_KEYS` | 60 | Moonshot AI |
+| **HuggingFace** | `HUGGINGFACE_API_KEYS` | 60 | Open-source models |
+| **Ollama** | `OLLAMA_API_KEYS` | 60 | Local models (default: localhost:11434) |
+| **AGY** | `AGY_API_KEYS` | 60 | Antigravity |
+| **Cursor** | `CURSOR_API_KEYS` | 60 | Cursor AI |
+| **CodeBuddy** | `CODEBUDDY_API_KEYS` | 60 | CodeBuddy AI |
+| **Kilo** | `KILO_API_KEYS` | 60 | Kilo AI |
 
 ### Fallback Order
 
@@ -1046,43 +1835,45 @@ Worker จะ rotate key อัตโนมัติ (random selection)
 
 ---
 
-## 14. Model Selection Priority (Adaptive Limiter with Wait-then-Fallback)
+## 14. Model Selection Priority (Adaptive Limiter with Series Routing)
 
-### Fallback Order
+### Series Grouping
 
-เมื่อ requested model เต็ม ระบบจะรอ 2s ก่อน fallback ตามลำดับ:
+Models grouped by major version for intelligent fallback:
 
 ```
-Priority: High-tier → Low-tier (strict order, 5.x always before 4.x)
-
-glm-5.1 (1) → glm-5-turbo (1) → glm-5 (2) → glm-4.7 (2) → glm-4.6 (3) → glm-4.5 (10)
-Series 5: 4 slots                          Series 4: 15 slots
+Series 5 (preferred): glm-5.1(1), glm-5-turbo(1), glm-5(2)  = 4 slots
+Series 4 (fallback):  glm-4.7(2), glm-4.6(3), glm-4.5(10)  = 15 slots
+Vision:               glm-4.6v(10), glm-4.5v(10), glm-4.6v-flashx(3), glm-4.6v-flash(1) = 24 slots
 Global cap: 9 concurrent
+```
 
-### Selection Algorithm (Wait-then-Fallback)
+### Selection Algorithm (Series-Based)
 
 Request: { "model": "glm-5", ... }
 
-Step 1: Try requested model (non-blocking CAS acquire)
+Step 1: Wait for global slot (sync.Cond signal-based, not spin-wait)
+
+Step 2: Try requested model (non-blocking CAS acquire)
         glm-5 (limit 2) → available? → use glm-5
-                          → full? → Step 2
+                          → full? → Step 3
 
-Step 2: Wait up to 2s for slot on requested model
-        glm-5 → slot freed? → use glm-5 (preferred)
-                              → timeout? → Step 3
+Step 3: Round-robin within same series (series 5):
+        glm-5.1, glm-5-turbo, glm-5 (pooled candidate slices)
+        Any available? → use it
 
-Step 3: Try fallback models in strict priority order (skip >2 tier gap):
-        1. glm-5.1 (limit 1)  → available? → fallback to glm-5.1
-        2. glm-5-turbo (limit 1) → available? → fallback to glm-5-turbo
-        3. glm-4.7 (limit 2)  → available? → fallback to glm-4.7
-        4. glm-4.6 (limit 3)  → available? → fallback to glm-4.6
-        5. glm-4.5 (limit 10) → available? → fallback to glm-4.5
+Step 4: Check series latency pressure:
+        EWMA RTT > 1.5x minRTT for majority of series 5 models?
+        ├─ Yes → spill to series 4 (round-robin: glm-4.7, glm-4.6, glm-4.5)
+        └─ No  → no spillover, wait for series 5
 
-Step 4: All models full or global cap (15) reached → block-wait on requested model
+Step 5: All models full or global cap reached:
+        Release global slot → signal-based block-wait on requested model (30s timeout)
+        → re-acquire global slot after model slot obtained
 
-Key: Wait-then-fallback gives series 5 a 2s window before downgrading.
-     This means more requests use higher-quality models at the cost of up to 2s extra latency
-     when series 5 is genuinely saturated.
+Key: Series routing keeps requests within the same quality tier when possible.
+     Spillover to lower series only happens under confirmed latency pressure.
+     Signal-based waiting eliminates CPU waste from polling.
 
 ### Adaptive Limit Discovery
 
@@ -1229,10 +2020,14 @@ Bottleneck hierarchy (slowest first):
 
 **Fixed**: Retry backoff in `proxy/anthropic.go` uses `select` with `r.Context().Done()` instead of `time.Sleep`. Previously, a client disconnect during retry backoff would leave the goroutine sleeping for the full backoff duration.
 
+### Gateway Metrics Status Tracking
+
+**Fixed**: `metrics/metrics.go` now uses `statusWriter` wrapper that captures the actual HTTP status code from the response writer. Previously, the status label was always "200".
+
 ### Global Slot Starvation Prevention
 
 **Fixed**: `AdaptiveLimiter.Acquire()` releases the global slot before blocking-waiting on a model, then re-acquires it after. Previously, many requests could hold global slots while blocked on a popular model, starving requests that could use other models.
 
 ---
 
-*Architecture docs v1.5 — updated with global slot starvation fix, key pool RPM fix, context-aware backoff, unified docker-compose defaults*
+*Architecture docs v3.1 -- updated with profile-based routing, quota enforcement, usage recording integration, WebSocket event expansion (6 types), Z.AI pricing update (19 models), UPSTREAM_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*

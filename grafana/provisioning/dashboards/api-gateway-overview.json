@@ -1,0 +1,221 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Traffic & Latency",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "title": "Request Rate by Path",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))", "legendFormat": "{{method}} {{path}} {{status}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } }
+      }
+    },
+    {
+      "title": "Latency Percentiles",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Avg Latency by Path",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        { "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_sum[$__rate_interval])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))", "legendFormat": "{{path}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Active Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        { "expr": "api_gateway_active_connections", "legendFormat": "Active", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 30 } } }
+    },
+    {
+      "title": "Tokens & Fallback",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false
+    },
+    {
+      "title": "Token Input by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        { "expr": "rate(api_gateway_token_input_total[$__rate_interval])", "legendFormat": "{{model}} input", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps" } }
+    },
+    {
+      "title": "Token Output by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        { "expr": "rate(api_gateway_token_output_total[$__rate_interval])", "legendFormat": "{{model}} output", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps" } }
+    },
+    {
+      "title": "Model Fallback Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "targets": [
+        { "expr": "sum by (requested, selected) (rate(api_gateway_model_fallback_total[$__rate_interval]))", "legendFormat": "{{requested}} -> {{selected}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Adaptive Limiter",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "collapsed": false
+    },
+    {
+      "title": "Concurrency Limit per Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10, "showPoints": "never", "spanNulls": true },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "sort": { "by": "name", "desc": true } },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        { "expr": "api_gateway_adaptive_limit", "legendFormat": "{{model}}", "refId": "A" }
+      ]
+    },
+    {
+      "title": "In-Flight vs Limit per Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10, "showPoints": "never", "spanNulls": true, "lineWidth": 2 },
+          "unit": "short"
+        },
+        "overrides": [
+          { "matcher": { "id": "byRegexp", "options": "limit.*" }, "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dot" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "sort": { "by": "name", "desc": true } },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        { "expr": "api_gateway_adaptive_in_flight", "legendFormat": "in-flight: {{model}}", "refId": "A" },
+        { "expr": "api_gateway_adaptive_limit", "legendFormat": "limit: {{model}}", "refId": "B" }
+      ]
+    },
+    {
+      "title": "Errors & Rate Limits",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "collapsed": false
+    },
+    {
+      "title": "Upstream 429s & Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])", "legendFormat": "429s/s", "refId": "A" },
+        { "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval])", "legendFormat": "Retries/s", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Errors by Type",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "targets": [
+        { "expr": "rate(api_gateway_error_total[$__rate_interval])", "legendFormat": "{{type}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Error Rate %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_error_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval])) * 100", "legendFormat": "error rate", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
+    },
+    {
+      "title": "Rate Limit Hits by Key",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 },
+      "targets": [
+        { "expr": "rate(api_gateway_rate_limit_hits_total[$__rate_interval])", "legendFormat": "{{key}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "fixedColor": "orange", "mode": "fixed" } } }
+    },
+    {
+      "title": "Anomaly Detections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 60 },
+      "targets": [
+        { "expr": "sum by (type, severity) (rate(api_gateway_anomaly_total[$__rate_interval]))", "legendFormat": "{{type}} ({{severity}})", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "title": "Time to First Byte (TTFB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Queue Depth",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 },
+      "targets": [
+        { "expr": "api_gateway_queue_depth", "legendFormat": "Queue Depth", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["agent-rate-limit", "api-gateway"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "30s",
+  "title": "Gateway - Overview",
+  "uid": "arl-gw-overview",
+  "version": 1
+}
