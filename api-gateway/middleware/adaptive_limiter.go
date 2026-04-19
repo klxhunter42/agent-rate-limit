@@ -195,13 +195,10 @@ func buildSeriesBuckets(names []string, models map[string]*adaptiveModel) map[in
 // acquisition succeeded. On failure the caller MUST NOT call Release.
 // The caller MUST call Release(selectedModel) on success when done.
 func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
-	// Wait for a global slot using signal-based notification.
-	al.globalCond.L.Lock()
-	for al.globalInFlight.Load() >= al.globalLimit {
-		al.globalCond.Wait()
+	// Wait for a global slot with timeout (60s) to prevent goroutine leaks.
+	if !al.acquireGlobal(60 * time.Second) {
+		return "", false
 	}
-	al.globalInFlight.Add(1)
-	al.globalCond.L.Unlock()
 
 	// Try the requested model (non-blocking).
 	model := al.getModel(requestedModel)
@@ -209,8 +206,48 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return requestedModel, true
 	}
 
-	// Requested model full - distribute within same series via round-robin.
-	// Only spill to lower series when current series has latency pressure.
+	// Requested model full - try fallback candidates.
+	selected, ok := al.tryFallback(requestedModel, model)
+	if ok {
+		return selected, true
+	}
+
+	// All immediate candidates full - release global slot and retry with backoff.
+	al.globalInFlight.Add(-1)
+	al.globalCond.Signal()
+	return al.acquireAnyModel(30*time.Second, requestedModel)
+}
+
+// acquireGlobal waits for a global concurrency slot with a timeout.
+func (al *AdaptiveLimiter) acquireGlobal(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Goroutine to broadcast on timeout so we unblock from Wait().
+	go func() {
+		select {
+		case <-timer.C:
+			al.globalCond.Broadcast()
+		case <-time.After(timeout + time.Second):
+		}
+	}()
+
+	al.globalCond.L.Lock()
+	for al.globalInFlight.Load() >= al.globalLimit {
+		if time.Now().After(deadline) {
+			al.globalCond.L.Unlock()
+			return false
+		}
+		al.globalCond.Wait()
+	}
+	al.globalInFlight.Add(1)
+	al.globalCond.L.Unlock()
+	return true
+}
+
+// tryFallback attempts same-series round-robin then lower-series spillover.
+func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveModel) (string, bool) {
 	reqSeries := model.series
 
 	sameSeries := al.getCandidates(al.seriesBuckets[reqSeries])
@@ -262,18 +299,42 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		}
 	}
 
-	// All models full - release global slot and block-wait on the requested model.
-	al.globalInFlight.Add(-1)
-	al.globalCond.Signal()
-	slog.Debug("all models full, waiting", "requested", requestedModel)
-	if model.acquireBlocking(al.modelConds[requestedModel], 30*time.Second) {
-		al.globalCond.L.Lock()
-		for al.globalInFlight.Load() >= al.globalLimit {
-			al.globalCond.Wait()
+	return "", false
+}
+
+// acquireAnyModel polls for ANY available model slot with a timeout.
+// Prefer the requested model but accept any model that has capacity.
+func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel string) (string, bool) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		// Try the requested model first.
+		model := al.getModel(requestedModel)
+		if model.tryAcquire() {
+			if al.acquireGlobal(time.Until(deadline)) {
+				return requestedModel, true
+			}
+			model.inFlight.Add(-1)
+			return "", false
 		}
-		al.globalInFlight.Add(1)
-		al.globalCond.L.Unlock()
-		return requestedModel, true
+
+		// Try any model in fallback order.
+		for _, name := range al.fallbackOrder {
+			am := al.models[name]
+			if am.tryAcquire() {
+				if al.acquireGlobal(time.Until(deadline)) {
+					slog.Info("model fallback (blocking-poll)",
+						"requested", requestedModel,
+						"selected", name,
+					)
+					return name, true
+				}
+				am.inFlight.Add(-1)
+				return "", false
+			}
+		}
+
+		// Brief sleep before retrying to avoid busy-loop.
+		time.Sleep(50 * time.Millisecond)
 	}
 	return "", false
 }
@@ -561,41 +622,6 @@ func (am *adaptiveModel) tryAcquire() bool {
 			return true
 		}
 	}
-}
-
-// acquireBlocking waits for a slot using sync.Cond with a timeout.
-// Returns true if a slot was acquired, false on timeout.
-// No goroutine leak: the cond's locker is held here (not in a spawned goroutine).
-func (am *adaptiveModel) acquireBlocking(c *sync.Cond, timeout time.Duration) bool {
-	if c == nil {
-		return false
-	}
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	var timedOut atomic.Bool
-	go func() {
-		select {
-		case <-timer.C:
-			timedOut.Store(true)
-			c.Broadcast()
-		case <-time.After(timeout + time.Second):
-		}
-	}()
-
-	c.L.Lock()
-	defer c.L.Unlock()
-	for am.inFlight.Load() >= am.limit.Load() {
-		c.Wait()
-		if am.inFlight.Load() >= am.limit.Load() {
-			if timedOut.Load() {
-				return false
-			}
-		}
-	}
-	am.inFlight.Add(1)
-	return true
 }
 
 // parseRetryAfter extracts the Retry-After header value as a duration.

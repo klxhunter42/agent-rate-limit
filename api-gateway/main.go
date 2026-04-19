@@ -182,6 +182,11 @@ func main() {
 	r.Use(middleware.Logging)
 	r.Use(m.Middleware)
 
+	// WebSocket endpoint - before rate limiter to avoid upgrade failures under load
+	r.Get("/ws", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		handler.HandleWebSocket(wsHub, w, req)
+	}))
+
 	// Rate limiting
 	rl := middleware.NewRateLimiter(cfg)
 	r.Use(rl.Middleware)
@@ -219,11 +224,6 @@ func main() {
 	quotaHandler.Routes()(r)
 	overviewHandler.Routes(r)
 	configHandler.Routes(r)
-
-	// WebSocket endpoint for live dashboard updates
-	r.Get("/ws", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		handler.HandleWebSocket(wsHub, w, req)
-	}))
 
 	// Static dashboard SPA (Vite build output)
 	staticSub, _ := fs.Sub(staticFS, "static")
