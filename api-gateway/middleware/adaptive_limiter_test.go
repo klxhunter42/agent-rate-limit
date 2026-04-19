@@ -986,11 +986,10 @@ func TestAcquireBlocking_Timeout(t *testing.T) {
 	// Fill the model's limit
 	am.inFlight.Store(1)
 
-	// acquireBlocking should timeout
-	cond := al.modelConds["glm-5.1"]
-	result := am.acquireBlocking(cond, 50*time.Millisecond)
-	if result {
-		t.Error("acquireBlocking should return false on timeout")
+	// acquireAnyModel should timeout
+	_, ok := al.acquireAnyModel(50*time.Millisecond, "glm-5.1")
+	if ok {
+		t.Error("acquireAnyModel should return false on timeout")
 	}
 
 	am.inFlight.Store(0)

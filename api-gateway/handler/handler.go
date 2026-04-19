@@ -345,6 +345,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			"requested", requestedModel,
 			"selected", selectedModel,
 		)
+		// Re-resolve provider for the fallback model.
+		if h.resolver != nil {
+			if fb := h.resolver.Resolve(selectedModel); fb != nil {
+				decision = fb
+				if profileOverride == nil || profileOverride.APIKey == "" {
+					if fb.APIKey != "" {
+						apiKey = fb.APIKey
+					}
+				}
+			}
+		}
 	}
 
 	// Inject system prompt for token efficiency.
