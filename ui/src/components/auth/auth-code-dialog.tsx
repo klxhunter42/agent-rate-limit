@@ -7,8 +7,10 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 function getSSHTunnelCommand(): string {
   const host = window.location.hostname || 'localhost';
-  const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-  return `ssh -L 8080:localhost:8080 -L ${port}:localhost:${port} user@${host}`;
+  const gwPort = '8080';
+  const dashPort = '8082';
+  const grafanaPort = '3000';
+  return `ssh -L ${gwPort}:localhost:${gwPort} -L ${dashPort}:localhost:${dashPort} -L ${grafanaPort}:localhost:${grafanaPort} user@${host}`;
 }
 
 interface AuthCodeDialogProps {
