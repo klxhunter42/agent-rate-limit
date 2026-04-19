@@ -125,7 +125,7 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Namespace: namespace,
 			Name:      "cost_total",
 			Help:      "Estimated cost in USD by model, calculated from token usage * configured pricing.",
-		}, []string{"model"}),
+		}, []string{"model", "type"}),
 
 		ModelFallback: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -235,11 +235,17 @@ func (m *Metrics) RecordTokens(model string, input, output int) {
 	if output > 0 {
 		m.TokenOutput.WithLabelValues(model).Add(float64(output))
 	}
+	var inputCost, outputCost float64
 	var cost float64
 	if p, ok := m.pricing[model]; ok {
-		cost = float64(input)/1_000_000*p.inputPerMillion + float64(output)/1_000_000*p.outputPerMillion
-		if cost > 0 {
-			m.CostTotal.WithLabelValues(model).Add(cost)
+		inputCost = float64(input) / 1_000_000 * p.inputPerMillion
+		outputCost = float64(output) / 1_000_000 * p.outputPerMillion
+		cost = inputCost + outputCost
+		if inputCost > 0 {
+			m.CostTotal.WithLabelValues(model, "input").Add(inputCost)
+		}
+		if outputCost > 0 {
+			m.CostTotal.WithLabelValues(model, "output").Add(outputCost)
 		}
 	}
 	if m.usageRecorder != nil && (input > 0 || output > 0) {

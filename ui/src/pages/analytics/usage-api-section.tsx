@@ -115,9 +115,9 @@ export function UsageApiSection() {
         />
         <StatCard
           title="Error Rate"
-          value={`${(summary.error_rate * 100).toFixed(1)}%`}
+          value={`${((summary.error_rate ?? 0) * 100).toFixed(1)}%`}
           icon={AlertTriangle}
-          variant={summary.error_rate > 0.1 ? 'error' : 'warning'}
+          variant={(summary.error_rate ?? 0) > 0.1 ? 'error' : 'warning'}
         />
       </div>
 
