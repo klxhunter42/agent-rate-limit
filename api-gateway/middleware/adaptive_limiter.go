@@ -244,10 +244,15 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return picked, true
 	}
 
-	// Phase 2: spill to lower series only under latency pressure.
-	if al.seriesLatencyPressure(reqSeries) && len(*lowerSeries) > 0 {
+	// Phase 2: spill to lower series when same-series is full or under latency pressure.
+	sameSeriesFull := len(*sameSeries) == 0
+	if (sameSeriesFull || al.seriesLatencyPressure(reqSeries)) && len(*lowerSeries) > 0 {
 		if picked, _ := tryRR(lowerSeries); picked != "" {
-			slog.Info("series spillover (latency pressure)",
+			reason := "same-series full"
+			if !sameSeriesFull {
+				reason = "latency pressure"
+			}
+			slog.Info("series spillover ("+reason+")",
 				"requested", requestedModel,
 				"selected", picked,
 				"from_series", reqSeries,

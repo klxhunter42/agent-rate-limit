@@ -42,8 +42,10 @@ func DefaultDetector() *SecretDetector {
 		string(EntityAPIKeySK),
 		string(EntityAPIKeyAWS),
 		string(EntityAPIKeyGitHub),
+		string(EntityAPIKeyGitLab),
 		string(EntityJWTToken),
 		string(EntityBearerToken),
+		string(EntityThaiID),
 	}, 200000)
 }
 

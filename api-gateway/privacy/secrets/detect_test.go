@@ -126,6 +126,58 @@ func TestDuplicatePositions(t *testing.T) {
 	assert.True(t, r.Detected)
 }
 
+func TestPatternThaiID(t *testing.T) {
+	d := DefaultDetector()
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"valid ID", "My ID is 1100100473221 please check", true},
+		{"valid start 2", "2509800345678", true},
+		{"valid start 8", "8901234567890", true},
+		{"invalid start 0", "0100100473221", false},
+		{"invalid start 9", "9100100473221", false},
+		{"too short", "110010047322", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := d.Detect(tt.input)
+			assert.Equal(t, tt.want, r.Detected)
+			if tt.want {
+				found := false
+				for _, m := range r.Matches {
+					if m.Type == EntityThaiID {
+						found = true
+					}
+				}
+				assert.True(t, found, "expected THAI_NATIONAL_ID in matches")
+			}
+		})
+	}
+}
+
+func TestPatternGitLabToken(t *testing.T) {
+	d := DefaultDetector()
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"PAT", "token glpat-xxxxxxxxxxxxxxxxxxxx", true},
+		{"deploy token", "token gldt-xxxxxxxxxxxxxxxxxxxx", true},
+		{"CI build trigger", "token glcbt-xxxxxxxxxxxxxxxxxxxx", true},
+		{"pipeline trigger", "token glptt-xxxxxxxxxxxxxxxxxxxx", true},
+		{"too short", "glpat-short", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := d.Detect(tt.input)
+			assert.Equal(t, tt.want, r.Detected)
+		})
+	}
+}
+
 func TestLocationsSortedDesc(t *testing.T) {
 	d := DefaultDetector()
 	text := "first=AKIAIOSFODNN7EXAMPL second=sk-abc123def456ghi789jkl012"
