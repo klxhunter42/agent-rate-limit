@@ -165,13 +165,41 @@ func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Reques
 }
 
 // AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
+// Z.AI vision API only accepts "user" and "assistant" roles, so system prompts are prepended
+// to the first user message. Unsupported content types (server_tool_use, tool_use, etc.) are filtered.
 func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 	var src map[string]any
 	if err := json.Unmarshal(body, &src); err != nil {
 		return nil, err
 	}
 
-	// Convert messages.
+	// Extract system text before converting messages.
+	var systemText string
+	if sys, ok := src["system"]; ok {
+		switch v := sys.(type) {
+		case string:
+			systemText = v
+		case []any:
+			var parts []string
+			for _, s := range v {
+				if sm, ok := s.(map[string]any); ok {
+					if t, _ := sm["text"].(string); t != "" {
+						parts = append(parts, t)
+					}
+				}
+			}
+			systemText = strings.Join(parts, "\n\n")
+		}
+	}
+
+	// Supported content types for Z.AI vision API.
+	supportedTypes := map[string]bool{
+		"text":      true,
+		"image":     true,
+		"image_url": true,
+	}
+
+	// Convert messages - only user and assistant roles, filter unsupported content types.
 	srcMsgs, _ := src["messages"].([]any)
 	var messages []map[string]any
 	for _, msg := range srcMsgs {
@@ -180,6 +208,12 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 			continue
 		}
 		role, _ := m["role"].(string)
+
+		// Skip system/tool roles entirely.
+		if role != "user" && role != "assistant" {
+			continue
+		}
+
 		content := m["content"]
 
 		switch v := content.(type) {
@@ -193,6 +227,12 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 					continue
 				}
 				t, _ := cb["type"].(string)
+
+				// Filter unsupported content types.
+				if !supportedTypes[t] {
+					continue
+				}
+
 				switch t {
 				case "text":
 					parts = append(parts, map[string]any{"type": "text", "text": cb["text"]})
@@ -200,15 +240,33 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 					parts = append(parts, convertImageBlock(cb))
 				case "image_url":
 					parts = append(parts, cb)
-				case "tool_result":
-					parts = append(parts, convertToolResultBlock(cb))
-				default:
-					parts = append(parts, cb)
 				}
 			}
-			messages = append(messages, map[string]any{"role": role, "content": parts})
+			if len(parts) > 0 {
+				messages = append(messages, map[string]any{"role": role, "content": parts})
+			}
 		default:
 			messages = append(messages, map[string]any{"role": role, "content": content})
+		}
+	}
+
+	// Prepend system text to first user message instead of using unsupported system role.
+	if systemText != "" && len(messages) > 0 {
+		first := messages[0]
+		if first["role"] == "user" {
+			switch v := first["content"].(type) {
+			case string:
+				first["content"] = systemText + "\n\n" + v
+			case []any:
+				// Prepend a text block with system prompt.
+				sysBlock := map[string]any{"type": "text", "text": systemText}
+				newParts := make([]any, 0, len(v)+1)
+				newParts = append(newParts, sysBlock)
+				for _, p := range v {
+					newParts = append(newParts, p)
+				}
+				first["content"] = newParts
+			}
 		}
 	}
 
@@ -221,28 +279,6 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 	}
 	if stream, ok := src["stream"].(bool); ok {
 		result["stream"] = stream
-	}
-
-	// Convert system prompt.
-	if sys, ok := src["system"]; ok {
-		switch v := sys.(type) {
-		case string:
-			messages = append([]map[string]any{{"role": "system", "content": v}}, messages...)
-			result["messages"] = messages
-		case []any:
-			var sysText []string
-			for _, s := range v {
-				if sm, ok := s.(map[string]any); ok {
-					if t, _ := sm["text"].(string); t != "" {
-						sysText = append(sysText, t)
-					}
-				}
-			}
-			if len(sysText) > 0 {
-				messages = append([]map[string]any{{"role": "system", "content": strings.Join(sysText, "\n\n")}}, messages...)
-				result["messages"] = messages
-			}
-		}
 	}
 
 	return result, nil
