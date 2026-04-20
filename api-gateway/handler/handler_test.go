@@ -469,7 +469,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 				},
 			},
 			expected: []any{
-				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img.png"}},
+				map[string]any{"type": "text", "text": "[image could not be loaded]"},
 			},
 		},
 		{
@@ -504,7 +504,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			},
 			expected: []any{
 				map[string]any{"type": "text", "text": "hi"},
-				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/img.png"}},
+				map[string]any{"type": "text", "text": "[image could not be loaded]"},
 				map[string]any{"type": "tool_result", "tool_use_id": "tu_1", "content": "result"},
 			},
 		},
