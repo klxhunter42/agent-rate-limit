@@ -16,13 +16,18 @@ import { LatencyChart } from './latency-chart';
 import { AnomalyInsightsCard } from './anomaly-insights-card';
 import { UsageApiSection } from './usage-api-section';
 import { TimeRangeFilter, RANGE_POINTS, type TimeRange } from './time-range-filter';
+import { filterByModels } from '@/lib/metrics-helpers';
 
 export function AnalyticsPage() {
   const { metrics, loading } = usePrometheusMetrics();
-  const { models } = useDashboard();
+  const { models, glmMode } = useDashboard();
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
   const anomaly = useAnomalyDetection();
+
+  // Filter metrics to only include models visible in current mode.
+  const modelNames = new Set(models.map((m) => m.name));
+  const filteredMetrics = glmMode ? metrics : filterByModels(metrics, modelNames);
 
   useEffect(() => {
     anomaly.analyze(metrics);
@@ -41,19 +46,19 @@ export function AnalyticsPage() {
         <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
       </div>
 
-      <AnalyticsSummaryCards metrics={metrics} models={models} />
+      <AnalyticsSummaryCards metrics={filteredMetrics} models={models} />
 
-      <UsageTrendChart metrics={metrics} />
+      <UsageTrendChart metrics={filteredMetrics} />
 
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-4">
-          <CostByModelCard metrics={metrics} onModelClick={setSelectedModel} />
+          <CostByModelCard metrics={filteredMetrics} onModelClick={setSelectedModel} />
         </div>
         <div className="lg:col-span-4 h-full">
           <Card className="h-full">
             <CardHeader><CardTitle className="text-base">Model Distribution</CardTitle></CardHeader>
             <CardContent>
-              <ModelDistributionChart metrics={metrics} />
+              <ModelDistributionChart metrics={filteredMetrics} />
             </CardContent>
           </Card>
         </div>
@@ -61,23 +66,23 @@ export function AnalyticsPage() {
           <Card className="h-full">
             <CardHeader><CardTitle className="text-base">Token Breakdown</CardTitle></CardHeader>
             <CardContent>
-              <TokenBreakdownChart metrics={metrics} />
+              <TokenBreakdownChart metrics={filteredMetrics} />
             </CardContent>
           </Card>
         </div>
       </div>
 
-      <HourlyBreakdown metrics={metrics} />
+      <HourlyBreakdown metrics={filteredMetrics} />
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ErrorRateChart metrics={metrics} maxPoints={rangePoints} />
-        <LatencyChart metrics={metrics} maxPoints={rangePoints} />
+        <ErrorRateChart metrics={filteredMetrics} maxPoints={rangePoints} />
+        <LatencyChart metrics={filteredMetrics} maxPoints={rangePoints} />
       </div>
 
       <Card>
         <CardHeader><CardTitle className="text-base">Model Cost Breakdown</CardTitle></CardHeader>
         <CardContent>
-          <ModelCostTable metrics={metrics} />
+          <ModelCostTable metrics={filteredMetrics} />
         </CardContent>
       </Card>
 
@@ -88,7 +93,7 @@ export function AnalyticsPage() {
       {selectedModel && (
         <ModelDetailsPopover
           model={selectedModel}
-          metrics={metrics}
+          metrics={filteredMetrics}
           onClose={() => setSelectedModel(null)}
         />
       )}

@@ -3,9 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X } from 'lucide-react';
-import { fetchProviders, providerName } from '@/lib/providers';
+import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
+import { fetchProviders, providerName, authTypeLabel } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
+
+interface AccountInfo {
+  accountId: string;
+  provider: string;
+  email?: string;
+  scopes?: string;
+  paused?: boolean;
+  isDefault?: boolean;
+}
 
 interface Profile {
   name: string;
@@ -13,6 +22,8 @@ interface Profile {
   model?: string;
   apiKey?: string;
   baseUrl?: string;
+  target?: string;
+  accountIds?: string[];
   maxTokens?: number;
   temperature?: number;
   createdAt?: string;
@@ -28,6 +39,7 @@ export function ProfilesPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const fetchProfiles = useCallback(() => {
     fetch('/v1/profiles')
@@ -56,6 +68,7 @@ export function ProfilesPage() {
     apiKey: string;
     model: string;
     target: string;
+    accountIds: string[];
   }) {
     const res = await fetch('/v1/profiles', {
       method: 'POST',
@@ -117,6 +130,9 @@ export function ProfilesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Profiles</h1>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowGuide(!showGuide)}>
+            <Info className="h-4 w-4 mr-1" /> Setup Guide
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setShowImport(!showImport)}>
             <Upload className="h-4 w-4 mr-1" /> Import
           </Button>
@@ -125,6 +141,8 @@ export function ProfilesPage() {
           </Button>
         </div>
       </div>
+
+      {showGuide && <SetupGuideCard />}
 
       {showImport && (
         <Card>
@@ -164,7 +182,7 @@ export function ProfilesPage() {
         <div className="text-center py-8 text-muted-foreground text-sm">Loading profiles...</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm">
-          {search ? 'No profiles match your search' : 'No profiles yet'}
+          {search ? 'No profiles match your search' : 'No profiles yet. Create one or check the Setup Guide.'}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -195,11 +213,98 @@ export function ProfilesPage() {
   );
 }
 
+function SetupGuideCard() {
+  const [open, setOpen] = useState<string | null>('usage');
+
+  function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+    const isOpen = open === id;
+    return (
+      <div className="border rounded-md">
+        <button
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50"
+          onClick={() => setOpen(isOpen ? null : id)}
+        >
+          {title}
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+        {isOpen && <div className="px-4 pb-4 text-sm text-muted-foreground space-y-2">{children}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Terminal className="h-4 w-4" /> Profile Setup Guide
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Section id="usage" title="How to Use Profiles">
+          <p>Profiles let you route requests through specific provider configurations. Send the <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header with your request:</p>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
+{`# With curl
+curl http://localhost:8080/v1/chat/completions \\
+  -H "X-Profile: my-profile" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"claude-sonnet-4-20250514","messages":[...]}'`}
+          </pre>
+          <p>The proxy looks up the profile and uses its <strong>baseUrl</strong>, <strong>apiKey</strong>, <strong>model</strong>, and <strong>accountIds</strong> to route the request.</p>
+        </Section>
+
+        <Section id="claude-code" title="Claude Code Setup (apiKeyHelper)">
+          <p>Configure Claude Code to route through the proxy without a static API key:</p>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
+{`# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080"
+  },
+  "apiKeyHelper": "~/.claude/get-token.sh"
+}
+
+# ~/.claude/get-token.sh
+#!/bin/bash
+echo "proxy-no-key"`}
+          </pre>
+          <p>To use a specific profile, add the header:</p>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
+{`# In settings.json env, add:
+"ANTHROPIC_BASE_URL": "http://localhost:8080"
+
+# Then set profile via custom header in Claude Code config
+# or use the profile's API key directly as apiKeyHelper output`}
+          </pre>
+        </Section>
+
+        <Section id="account-pool" title="Account Pool Selection">
+          <p>When a profile has <strong>accountIds</strong> set, the proxy selects an account from only those IDs in the provider token pool. This is useful for:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>Isolating specific OAuth accounts per profile</li>
+            <li>Separating free-tier vs paid-tier usage</li>
+            <li>Rotating through a subset of available accounts</li>
+          </ul>
+          <p>Leave <strong>accountIds</strong> empty to use all available accounts for the provider.</p>
+        </Section>
+
+        <Section id="target" title="Target Field">
+          <p>The <strong>target</strong> field determines the API compatibility mode:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li><code className="bg-muted px-1 rounded text-xs">claude</code> - Anthropic Claude API format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">droid</code> - Google Gemini API format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">codex</code> - OpenAI Codex API format</li>
+          </ul>
+        </Section>
+      </CardContent>
+    </Card>
+  );
+}
+
 function CreateProfileForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (data: { name: string; baseUrl: string; apiKey: string; model: string; target: string }) => void;
+  onSubmit: (data: { name: string; baseUrl: string; apiKey: string; model: string; target: string; accountIds: string[] }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
@@ -207,7 +312,10 @@ function CreateProfileForm({
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('');
   const [target, setTarget] = useState('');
+  const [accountIds, setAccountIds] = useState<string[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
   const canSubmit = name.trim() && apiKey.trim() && target;
 
   useEffect(() => {
@@ -216,6 +324,22 @@ function CreateProfileForm({
       if (list.length > 0 && !target) setTarget(list[0]!.id);
     });
   }, []);
+
+  useEffect(() => {
+    if (!target) { setAccounts([]); return; }
+    setAccountsLoading(true);
+    fetch(`/v1/auth/accounts/${encodeURIComponent(target)}`)
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((data) => setAccounts(data.accounts ?? []))
+      .catch(() => setAccounts([]))
+      .finally(() => setAccountsLoading(false));
+  }, [target]);
+
+  function toggleAccount(id: string) {
+    setAccountIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -229,11 +353,11 @@ function CreateProfileForm({
           <select
             className="w-full h-9 rounded-md border bg-background px-3 text-sm"
             value={target}
-            onChange={(e) => setTarget(e.target.value)}
+            onChange={(e) => { setTarget(e.target.value); setAccountIds([]); }}
           >
             {providers.length === 0 && <option value="">Loading...</option>}
             {providers.map((p) => (
-              <option key={p.id} value={p.id}>{providerName(p.id)}</option>
+              <option key={p.id} value={p.id}>{providerName(p.id)} ({authTypeLabel(p.authType)})</option>
             ))}
           </select>
         </div>
@@ -252,11 +376,38 @@ function CreateProfileForm({
         <label className="text-xs text-muted-foreground">API Key *</label>
         <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." />
       </div>
+
+      {accounts.length > 0 && (
+        <div>
+          <label className="text-xs text-muted-foreground">Account Pool (select accounts to use, leave empty for all)</label>
+          <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
+            {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading accounts...</div>}
+            {accounts.map((acc) => (
+              <label key={acc.accountId} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={accountIds.includes(acc.accountId)}
+                  onChange={() => toggleAccount(acc.accountId)}
+                  className="rounded"
+                />
+                <span className="font-mono text-xs">{acc.accountId}</span>
+                {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
+                {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
+                {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
+              </label>
+            ))}
+          </div>
+          {accountIds.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">{accountIds.length} account(s) selected</p>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-2 justify-end">
         <Button size="sm" variant="ghost" onClick={onCancel}>
           <X className="h-4 w-4 mr-1" /> Cancel
         </Button>
-        <Button size="sm" onClick={() => onSubmit({ name, baseUrl, apiKey, model, target })} disabled={!canSubmit}>
+        <Button size="sm" onClick={() => onSubmit({ name, baseUrl, apiKey, model, target, accountIds })} disabled={!canSubmit}>
           <Check className="h-4 w-4 mr-1" /> Create
         </Button>
       </div>
@@ -284,21 +435,68 @@ function ProfileCard({
   onExport: () => void;
 }) {
   const [model, setModel] = useState(profile.model ?? '');
+  const [editAccountIds, setEditAccountIds] = useState<string[]>(profile.accountIds ?? []);
+  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+
+  useEffect(() => {
+    if (editing && profile.provider) {
+      setAccountsLoading(true);
+      fetch(`/v1/auth/accounts/${encodeURIComponent(profile.provider)}`)
+        .then((r) => (r.ok ? r.json() : { accounts: [] }))
+        .then((data) => setAccounts(data.accounts ?? []))
+        .catch(() => setAccounts([]))
+        .finally(() => setAccountsLoading(false));
+    }
+  }, [editing, profile.provider]);
+
+  function toggleAccount(id: string) {
+    setEditAccountIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   if (editing) {
     return (
       <Card>
-        <CardContent className="pt-4 flex gap-3 items-end">
-          <div className="flex-1">
-            <label className="text-xs text-muted-foreground">Model</label>
-            <Input value={model} onChange={(e) => setModel(e.target.value)} />
+        <CardContent className="pt-4 space-y-3">
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="text-xs text-muted-foreground">Model</label>
+              <Input value={model} onChange={(e) => setModel(e.target.value)} />
+            </div>
+            <Button size="sm" onClick={() => onSave(profile.name, { ...profile, model, accountIds: editAccountIds })}>
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <Button size="sm" onClick={() => onSave(profile.name, { ...profile, model })}>
-            <Check className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-            <X className="h-4 w-4" />
-          </Button>
+          {accounts.length > 0 && (
+            <div>
+              <label className="text-xs text-muted-foreground">Account Pool</label>
+              <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
+                {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading...</div>}
+                {accounts.map((acc) => (
+                  <label key={acc.accountId} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editAccountIds.includes(acc.accountId)}
+                      onChange={() => toggleAccount(acc.accountId)}
+                      className="rounded"
+                    />
+                    <span className="font-mono text-xs">{acc.accountId}</span>
+                    {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
+                    {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
+                    {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
+                  </label>
+                ))}
+              </div>
+              {editAccountIds.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">{editAccountIds.length} account(s) selected</p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -312,6 +510,11 @@ function ProfileCard({
             <span className="font-mono text-sm font-semibold">{profile.name}</span>
             <Badge variant="outline">{providerName(profile.provider)}</Badge>
             {profile.model && <span className="text-xs text-muted-foreground">{profile.model}</span>}
+            {profile.accountIds && profile.accountIds.length > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-4">
+                {profile.accountIds.length} account{profile.accountIds.length > 1 ? 's' : ''}
+              </Badge>
+            )}
           </div>
           <div className="flex gap-1">
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit} title="Edit">
@@ -328,6 +531,13 @@ function ProfileCard({
             </Button>
           </div>
         </div>
+        {profile.accountIds && profile.accountIds.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {profile.accountIds.map((id) => (
+              <span key={id} className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded">{id}</span>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

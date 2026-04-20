@@ -48,6 +48,8 @@ export interface LimiterStatus {
   global: GlobalStatus;
   models: ModelStatus[];
   keyPool: KeyPoolStatus;
+  seenModels: string[];
+  glmMode: boolean;
 }
 
 export async function fetchLimiterStatus(): Promise<LimiterStatus> {

@@ -20,6 +20,9 @@ type AuthCodeStartResponse struct {
 	AuthURL      string `json:"auth_url"`
 	State        string `json:"state"`
 	PKCEVerifier string `json:"-"`
+	ClientID     string `json:"client_id"`
+	RedirectURI  string `json:"redirect_uri"`
+	Scopes       string `json:"scopes"`
 }
 
 type AuthCallbackResult struct {
@@ -32,6 +35,7 @@ type AuthCallbackResult struct {
 type tokenExchangeResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	IDToken      string `json:"id_token,omitempty"`
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
 	Error        string `json:"error,omitempty"`
@@ -110,6 +114,9 @@ func StartAuthCode(ctx context.Context, pc ProviderConfig, redirectBase string) 
 		AuthURL:      authURL,
 		State:        state,
 		PKCEVerifier: verifier,
+		ClientID:     pc.ClientID,
+		RedirectURI:  redirectURI,
+		Scopes:       strings.Join(pc.Scopes, " "),
 	}, nil
 }
 
@@ -186,6 +193,10 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 	if pc.UserInfoURL != "" && tokResp.AccessToken != "" {
 		email = fetchUserInfo(ctx, pc.UserInfoURL, tokResp.AccessToken)
 	}
+	// Fallback: extract email from ID token JWT (for providers like Claude OAuth).
+	if email == "" && tokResp.IDToken != "" {
+		email = extractEmailFromIDToken(tokResp.IDToken)
+	}
 
 	accountID := email
 	if accountID == "" {
@@ -205,6 +216,7 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 		Provider:     pc.ID,
 		AccountID:    accountID,
 		CreatedAt:    time.Now(),
+		Scopes:       strings.Join(pc.Scopes, " "),
 	}
 
 	slog.Info("auth code token obtained", "provider", pc.ID, "account_id", accountID, "email", email)
@@ -240,4 +252,35 @@ func fetchUserInfo(ctx context.Context, userInfoURL, accessToken string) string 
 		return ""
 	}
 	return info.Email
+}
+
+// extractEmailFromIDToken parses an unverified JWT id_token to extract the email claim.
+// No signature verification since we only use it for display purposes (account identification).
+func extractEmailFromIDToken(idToken string) string {
+	parts := strings.Split(idToken, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	// Decode base64url payload (2nd part).
+	payload := parts[1]
+	// Fix padding.
+	if l := len(payload) % 4; l > 0 {
+		payload += strings.Repeat("=", 4-l)
+	}
+	data, err := base64.URLEncoding.DecodeString(payload)
+	if err != nil {
+		// Try raw base64url.
+		data, err = base64.RawURLEncoding.DecodeString(parts[1])
+		if err != nil {
+			return ""
+		}
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(data, &claims); err != nil {
+		return ""
+	}
+	if email, ok := claims["email"].(string); ok && email != "" {
+		return email
+	}
+	return ""
 }

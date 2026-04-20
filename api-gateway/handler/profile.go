@@ -25,6 +25,7 @@ type Profile struct {
 	HaikuModel  string `json:"haikuModel,omitempty"`
 	Target      string `json:"target"`
 	Provider    string `json:"provider,omitempty"`
+	AccountIDs  []string `json:"accountIds,omitempty"`
 	CreatedAt   string `json:"createdAt"`
 	UpdatedAt   string `json:"updatedAt"`
 }

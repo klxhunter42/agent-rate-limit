@@ -279,7 +279,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		decision = h.resolver.Resolve(requestedModel)
 	}
 
-	if profileOverride != nil && profileOverride.APIKey != "" {
+	// Account pool: if profile has accountIds, pick from pool.
+	// Otherwise use profile API key, resolved token, or key pool.
+	if profileOverride != nil && len(profileOverride.AccountIDs) > 0 && h.tokenStore != nil {
+		providerID := ""
+		if profileOverride.Provider != "" {
+			providerID = profileOverride.Provider
+		} else if decision != nil {
+			providerID = decision.ProviderID
+		}
+		if providerID != "" {
+			if tok, err := h.tokenStore.GetFromPool(providerID, profileOverride.AccountIDs); err == nil && tok != nil {
+				apiKey = tok.AccessToken
+				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
+			}
+		}
+	} else if profileOverride != nil && profileOverride.APIKey != "" {
 		apiKey = profileOverride.APIKey
 	} else if decision != nil && decision.APIKey != "" {
 		apiKey = decision.APIKey
@@ -329,6 +344,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+
+	// Non-GLM mode: require a resolved provider. No Z.AI fallback.
+	if !h.cfg.GLMMode && decision == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"type":  "error",
+			"error": map[string]string{"type": "no_provider", "message": fmt.Sprintf("no provider configured for model %s - authenticate via /v1/auth/claude/start or configure an API key", requestedModel)},
+		})
+		h.metrics.IncError("no_provider")
+		return
+	}
 	// Acquire model slot (may fallback).
 	selectedModel, ok := h.modelLimiter.Acquire(requestedModel)
 	if !ok {
@@ -337,6 +362,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer h.modelLimiter.Release(selectedModel)
+	h.modelLimiter.RecordSeenModel(selectedModel)
 
 	if selectedModel != requestedModel {
 		payload["model"] = selectedModel
@@ -368,8 +394,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		applySmartMaxTokens(payload, selectedModel)
 	}
 
-	// Strip content block types unsupported by upstream (e.g. GLM doesn't support server_tool_use).
-	filterUnsupportedContent(payload)
+	// Strip content block types unsupported by upstream (only needed for Z.AI).
+	if h.cfg.GLMMode {
+		filterUnsupportedContent(payload)
+	}
 
 	// Detect if request contains images for native vision routing.
 	hasImages := proxy.HasImageContent(payload)
@@ -444,7 +472,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if hasImages && (decision == nil || decision.ProviderID == "zai") {
+	if h.cfg.GLMMode && hasImages && (decision == nil || decision.ProviderID == "zai") {
 		// GLM models: use dedicated Z.AI vision endpoint (OpenAI format).
 		imgBytes, imgCount := analyzeImagePayload(payload)
 		visionModel := selectVisionModel(imgBytes, imgCount)
@@ -582,9 +610,11 @@ var allowedResponseHeaders = map[string]bool{
 // LimiterStatus returns current adaptive limiter state for monitoring.
 func (h *Handler) LimiterStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"global":  h.modelLimiter.GlobalStatus(),
-		"models":  h.modelLimiter.Status(),
-		"keyPool": h.keyPool.Status(),
+		"global":     h.modelLimiter.GlobalStatus(),
+		"models":     h.modelLimiter.Status(),
+		"seenModels": h.modelLimiter.SeenModels(),
+		"keyPool":    h.keyPool.Status(),
+		"glmMode":    h.cfg.GLMMode,
 	})
 }
 
@@ -959,6 +989,9 @@ func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {
 
 	models := make([]modelEntry, 0, len(knownModels))
 	for _, km := range knownModels {
+		if !h.cfg.GLMMode && km.Provider == "zai" {
+			continue
+		}
 		limit := h.cfg.DefaultLimit
 		if l, ok := h.cfg.ModelLimits[km.Name]; ok {
 			limit = l

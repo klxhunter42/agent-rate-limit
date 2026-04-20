@@ -92,6 +92,10 @@ type Config struct {
 	ModelPriority      string // "model:priority,model:priority"
 	AnomalyCooldownSec int
 	AnomalyZThreshold  float64
+
+	// GLM mode toggle. true = Z.AI features active (vision, key pool, model limits).
+	// false = pure multi-provider proxy for Claude/Gemini/OpenAI.
+	GLMMode bool
 }
 
 // ModelPrice holds per-token pricing for cost calculation.
@@ -164,6 +168,9 @@ func Load() *Config {
 		ModelPriority:      envOr("MODEL_PRIORITY", "glm-5.1:100,glm-5-turbo:90,glm-5:80,glm-4.7:70,glm-4.6:60,glm-4.5:50"),
 		AnomalyCooldownSec: envIntOr("ANOMALY_COOLDOWN_SEC", 5),
 		AnomalyZThreshold:  envFloatOr("ANOMALY_Z_THRESHOLD", 2.0),
+
+		// GLM mode.
+		GLMMode: envBoolOr("GLM_MODE", true),
 	}
 }
 

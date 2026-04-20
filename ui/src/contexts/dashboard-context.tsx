@@ -6,6 +6,8 @@ interface DashboardData {
   global: GlobalStatus | null;
   keyPool: KeyPoolStatus | null;
   health: HealthStatus | null;
+  glmMode: boolean;
+  seenModels: string[];
   loading: boolean;
   error: string | null;
   lastRefresh: Date | null;
@@ -17,6 +19,8 @@ const DashboardContext = createContext<DashboardData>({
   global: null,
   keyPool: null,
   health: null,
+  glmMode: true,
+  seenModels: [],
   loading: false,
   error: null,
   lastRefresh: null,
@@ -28,6 +32,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [global, setGlobal] = useState<GlobalStatus | null>(null);
   const [keyPool, setKeyPool] = useState<KeyPoolStatus | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [glmMode, setGlmMode] = useState(true);
+  const [seenModels, setSeenModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -38,9 +44,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     try {
       const [limiterRes, healthRes] = await Promise.allSettled([fetchLimiterStatus(), fetchHealth()]);
       if (limiterRes.status === 'fulfilled') {
-        setModels(limiterRes.value.models ?? []);
-        setGlobal(limiterRes.value.global ?? null);
-        setKeyPool(limiterRes.value.keyPool ?? null);
+        const raw = limiterRes.value;
+        const isGlm = raw.glmMode ?? true;
+        const seen = raw.seenModels ?? [];
+        const seenSet = new Set(seen);
+        const filtered = isGlm
+          ? (raw.models ?? [])
+          : (raw.models ?? []).filter((m) => seenSet.has(m.name));
+        setModels(filtered);
+        setGlobal(raw.global ?? null);
+        setKeyPool(isGlm ? (raw.keyPool ?? null) : null);
+        setGlmMode(isGlm);
+        setSeenModels(seen);
       } else {
         setError(limiterRes.reason?.message || 'Failed to fetch limiter status');
       }
@@ -58,7 +73,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <DashboardContext.Provider value={{ models, global, keyPool, health, loading, error, lastRefresh, refresh }}>
+    <DashboardContext.Provider value={{ models, global, keyPool, health, glmMode, seenModels, loading, error, lastRefresh, refresh }}>
       {children}
     </DashboardContext.Provider>
   );

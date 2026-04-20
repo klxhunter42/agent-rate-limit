@@ -12,7 +12,7 @@ import { Activity, Server, Wifi, Clock } from 'lucide-react';
 import { formatUptime, formatNumber } from '@/lib/format';
 
 export function OverviewPage() {
-  const { models, health, loading } = useDashboard();
+  const { models, health, loading, glmMode, seenModels } = useDashboard();
   const { metrics } = usePrometheusMetrics();
   const { events } = useEventTimeline(metrics, models, null);
 
@@ -80,9 +80,10 @@ export function OverviewPage() {
         </CardContent>
       </Card>
 
+      {models.length > 0 && (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Model Utilization</CardTitle>
+          <CardTitle className="text-base">Model Utilization {!glmMode && <span className="text-xs text-muted-foreground ml-2">(live traffic)</span>}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -101,9 +102,15 @@ export function OverviewPage() {
                 </div>
               );
             })}
+            {!glmMode && seenModels.length > 0 && (
+              <div className="pt-2 text-xs text-muted-foreground">
+                Seen models: {seenModels.join(', ')}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Key Flow Monitor (OAuth-style Control Center) */}
       <KeyFlowMonitor />
