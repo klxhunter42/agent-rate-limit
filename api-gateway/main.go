@@ -182,14 +182,14 @@ func main() {
 	r.Use(middleware.Logging)
 	r.Use(m.Middleware)
 
-	// WebSocket endpoint - before rate limiter to avoid upgrade failures under load
-	r.Get("/ws", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		handler.HandleWebSocket(wsHub, w, req)
-	}))
-
 	// Rate limiting
 	rl := middleware.NewRateLimiter(cfg)
 	r.Use(rl.Middleware)
+
+	// WebSocket endpoint - rate limiter skips /ws internally to avoid upgrade failures
+	r.Get("/ws", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		handler.HandleWebSocket(wsHub, w, req)
+	}))
 
 	// Provider auth routes
 	// To rate-limit login: wrap authHandler.DashboardLogin with middleware.NewLoginLimiter().
