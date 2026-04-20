@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-04-20] Z.AI Vision Conversion Fix
+
+### แก้ไข: Vision API error 1210
+
+`AnthropicToOpenAI()` ใน `api-gateway/proxy/anthropic.go` เขียนใหม่เพื่อแก้ error 1210 ("API 调用参数有误") จาก Z.AI vision API:
+
+1. **System role handling**: System prompt (`role: "system"`) ไม่ส่งไป Z.AI vision API แล้ว -- แทนที่ด้วยการนำ system prompt text ไปไว้ด้านหน้าของ user message แรก
+2. **Content type filtering**: ส่งเฉพาะ `text`, `image`, `image_url` content types -- strip `server_tool_use`, `tool_use`, `tool_result` และ Anthropic-specific content blocks อื่นๆ
+3. **Role filtering**: ส่งเฉพาะ `user` และ `assistant` roles -- `system` และ `tool` roles ถูก drop
+
+**Root cause**: Z.AI vision API (open.bigmodel.cn) รองรับเฉพาะ `user`/`assistant` roles และ `text`/`image`/`image_url` content types เท่านั้น การส่ง `system` role หรือ `server_tool_use` content blocks ทำให้เกิด error 1210
+
+**ไฟล์:** `api-gateway/proxy/anthropic.go`
+
+### แผนภาพการแปลง Vision
+
+```
+Client (Claude Code)                    arl-gateway                     Z.AI Vision API
+====================                    ===========                     ================
+                                         │                                │
+POST /v1/messages                       │                                │
+  system: "Examine every pixel..."      │                                │
+  messages: [                           │                                │
+    {role: user,                        │                                │
+     content: [                         │                                │
+       {type: image, source: {...}},   │                                │
+       {type: text, text: "describe"}, │                                │
+       {type: server_tool_use, ...}    │   AnthropicToOpenAI()          │
+     ]}                                │   ┌─────────────────────┐      │
+  ]                                     │   │ 1. Extract system    │      │
+                                         │   │ 2. Filter roles:     │      │
+                                         │   │    keep user/assist   │      │
+                                         │   │    drop system/tool   │      │
+                                         │   │ 3. Filter content:    │      │
+                                         │   │    keep text/image/   │      │
+                                         │   │          image_url    │      │
+                                         │   │    drop server_tool_  │      │
+                                         │   │         use/tool_use  │      │
+                                         │   │ 4. Prepend system     │      │
+                                         │   │    text to first user │      │
+                                         │   └─────────────────────┘      │
+                                         │                                │
+                                         POST /chat/completions ────────►│
+                                         model: glm-4.6v                 │
+                                         messages: [                     │
+                                           {role: user,                  │
+                                            content: [                   │
+                                              {type: text,
+                                               text: "Examine...\n\ndescribe"},
+                                              {type: image_url,          │
+                                               image_url: {url: ...}}   │
+                                            ]}                          │
+                                         ]                               │
+```
+
+---
+
 ## [2026-04-19] Integration: Profile Routing + Quota Enforcement + Usage Recording + WS Events
 
 ### เพิ่ม: Profile-Based Routing (wired into request flow)
@@ -501,4 +558,7 @@ Prometheus counters สำหรับติดตาม token usage:
 | `docs/architecture.md` | v3.1 - profile routing, quota enforcement, usage recording, 6 WS events |
 | `docs/known-issues.md` | v1.3 - quota enforcement wired (placeholder data remains) |
 | `docs/claude-code-proxy.md` | v2.7 - profile routing, quota enforcement, WS events, usage integration |
-| `docs/changelog.md` | v1.3 - ไฟล์นี้ |
+| `docs/changelog.md` | v1.4 - Z.AI vision conversion fix (error 1210), text diagram |
+| `docs/known-issues.md` | v1.4 - vision conversion fix with text diagram (TH) |
+| `docs/architecture.md` | v3.2 - updated format conversion diagram (TH) |
+| `docs/providers.md` | v1.7 - vision format conversion notes (TH) |
