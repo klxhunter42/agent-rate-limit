@@ -739,7 +739,17 @@ func rewriteImageToGLMFormat(cb map[string]any) {
 		}
 		url = fmt.Sprintf("data:%s;base64,%s", mediaType, data)
 	case "url":
-		url, _ = src["url"].(string)
+		imgURL, _ := src["url"].(string)
+		if base64URI := proxy.FetchImageAsBase64(imgURL); base64URI != "" {
+			url = base64URI
+		} else {
+			// Z.AI vision API doesn't support external URLs - skip this image.
+			slog.Warn("skipping unfetchable URL image", "url", imgURL)
+			delete(cb, "source")
+			cb["type"] = "text"
+			cb["text"] = "[image could not be loaded]"
+			return
+		}
 	default:
 		return
 	}

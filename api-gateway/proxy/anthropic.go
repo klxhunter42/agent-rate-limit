@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -285,6 +286,8 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 }
 
 // convertImageBlock converts Anthropic image to Zhipu image_url format.
+// Z.AI vision API only supports base64-encoded images, not external URLs.
+// URL images are downloaded and converted to base64 data URIs.
 func convertImageBlock(cb map[string]any) map[string]any {
 	src, ok := cb["source"].(map[string]any)
 	if !ok {
@@ -298,9 +301,45 @@ func convertImageBlock(cb map[string]any) map[string]any {
 		data, _ := src["data"].(string)
 		url = fmt.Sprintf("data:%s;base64,%s", mediaType, data)
 	case "url":
-		url, _ = src["url"].(string)
+		imgURL, _ := src["url"].(string)
+		if base64URI := FetchImageAsBase64(imgURL); base64URI != "" {
+			url = base64URI
+		} else {
+			// Z.AI vision API doesn't support external URLs - skip this image.
+			slog.Warn("skipping URL image that couldn't be fetched for base64 conversion", "url", imgURL)
+			return map[string]any{"type": "text", "text": "[image could not be loaded]"}
+		}
 	}
 	return map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}
+}
+
+// FetchImageAsBase64 downloads an image URL and converts it to a base64 data URI.
+func FetchImageAsBase64(imgURL string) string {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(imgURL)
+	if err != nil {
+		slog.Warn("failed to fetch image URL for base64 conversion", "url", imgURL, "error", err)
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 || resp.ContentLength > 20*1024*1024 {
+		slog.Warn("image URL fetch failed or too large", "url", imgURL, "status", resp.StatusCode, "size", resp.ContentLength)
+		return ""
+	}
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 20*1024*1024))
+	if err != nil {
+		slog.Warn("failed to read image data", "url", imgURL, "error", err)
+		return ""
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+
+	return fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(data))
 }
 
 // convertToolResultBlock converts Anthropic tool_result to OpenAI tool message format.
