@@ -112,7 +112,7 @@ API Gateway (:8080)
   │   ├─ ถ้าผ่าน: ส่งต่อไป upstream
   │   └─ ถ้าไม่ผ่าน: ตอบ 429 Rate Limit Error (Anthropic format)
   │
-  ├─ Content Filter (strip server_tool_use, convert image format)
+  ├─ Content Filter (strip server_tool_use/tool_use/tool_result, convert image format, prepend system to user)
   │
   ├─ ไม่มีรูป (Text Request):
   │     ▼
@@ -1026,9 +1026,12 @@ arl-gateway (:8080)
         |     strip server_tool_use blocks
         |     convert Anthropic image -> GLM image_url format
         |
-        |-- anthropicToZhipu():
+        |-- AnthropicToOpenAI():
         |     Anthropic Messages format -> OpenAI/Zhipu format
         |     image blocks: {source:{type,media_type,data}} -> {image_url:{url}}
+        |     system role: text prepend to first user message
+        |     strip: server_tool_use, tool_use, tool_result, other unsupported
+        |     only pass: user/assistant roles, text/image/image_url content types
         |
         |-- POST to NATIVE_VISION_URL
         |     Bearer auth with API key
@@ -1118,8 +1121,10 @@ UPSTREAM_MODEL_LIMITS=...,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-fla
 | ข้อจำกัด | รายละเอียด |
 |----------|-----------|
 | Privacy pipeline ข้าม | Vision path ไม่ผ่าน privacy masking |
-| tool_use บน vision อาจไม่ทำงาน | ขึ้นกับ upstream model |
+| tool_use บน vision ถูก strip | `server_tool_use`, `tool_use`, `tool_result` content blocks ถูกกรองออกก่อนส่ง (Z.AI ไม่รองรับ) |
 | ไม่มี auto-resize | รูปขนาดใหญ่อาจช้า/ล้มเหลว |
+
+> **หมายเหตุ**: Error 1210 ("API 调用参数有误") ที่เคยเกิดจากการส่ง `system` role และ Anthropic-specific content blocks ได้รับการแก้ไขแล้ว (commit 7c08cb0) -- gateway ตอนนี้กรอง role และ content type อัตโนมัติ
 
 ---
 
