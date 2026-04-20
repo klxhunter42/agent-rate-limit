@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as authApi from '@/lib/auth-api';
 import { useAuthFlow } from '@/hooks/use-auth-flow';
+import { useDashboard } from '@/contexts/dashboard-context';
 import { AccountList } from './account-list';
 import { DeviceCodeDialog } from '@/components/auth/device-code-dialog';
 import { AuthCodeDialog } from '@/components/auth/auth-code-dialog';
@@ -151,6 +152,7 @@ const AUTH_TYPE_STYLES: Record<string, string> = {
 };
 
 export default function ProvidersPage() {
+  const { glmMode } = useDashboard();
   const [accountsMap, setAccountsMap] = useState<Record<string, authApi.AccountInfo[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -231,7 +233,7 @@ export default function ProvidersPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {PROVIDERS.map((provider) => {
+          {PROVIDERS.filter((p) => glmMode || p.id !== 'zai').map((provider) => {
             const accounts = accountsMap[provider.id] ?? [];
             const isExpanded = expanded === provider.id;
             const Icon = provider.icon;

@@ -41,6 +41,8 @@ type AdaptiveLimiter struct {
 
 	candPool sync.Pool // pool candidate slices to reduce GC pressure
 
+	seenModels sync.Map // model name -> struct{} — tracks all models seen at runtime
+
 	mu sync.Mutex // serialises limit adjustments (cold path)
 }
 
@@ -566,6 +568,20 @@ func (al *AdaptiveLimiter) GlobalStatus() GlobalStatus {
 		GlobalInFlight: al.globalInFlight.Load(),
 		GlobalLimit:    al.globalLimit,
 	}
+}
+
+func (al *AdaptiveLimiter) RecordSeenModel(model string) {
+	al.seenModels.Store(model, struct{}{})
+}
+
+func (al *AdaptiveLimiter) SeenModels() []string {
+	names := make([]string, 0)
+	al.seenModels.Range(func(key, _ any) bool {
+		names = append(names, key.(string))
+		return true
+	})
+	sort.Strings(names)
+	return names
 }
 
 // --- internal helpers ---

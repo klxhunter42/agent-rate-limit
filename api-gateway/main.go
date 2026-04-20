@@ -37,6 +37,7 @@ func main() {
 
 	cfg := config.Load()
 	slog.Info("configuration loaded", "port", cfg.ServerPort, "redis", cfg.RedisAddr, "upstream", cfg.UpstreamURL)
+	slog.Info("GLM mode", "enabled", cfg.GLMMode)
 
 	// --- OpenTelemetry ---
 	shutdown := initTracer(cfg.OTLPEndpoint)
@@ -93,7 +94,7 @@ func main() {
 	providerRegistry := provider.NewRegistry()
 	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
-	resolver := provider.NewResolver(providerRegistry, tokenStore)
+	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
 
 	// --- WebSocket Hub ---
 	wsHub := handler.NewWebSocketHub()
@@ -137,14 +138,16 @@ func main() {
 	go cfgWatcher.Start(context.Background())
 
 	// Sync Z.AI keys from token store into KeyPool for rotation.
-	go func() {
-		syncZAIKeys(keyPool, tokenStore)
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
+	if cfg.GLMMode {
+		go func() {
 			syncZAIKeys(keyPool, tokenStore)
-		}
-	}()
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				syncZAIKeys(keyPool, tokenStore)
+			}
+		}()
+	}
 
 	// Periodically export adaptive limiter state to Prometheus.
 	go func() {

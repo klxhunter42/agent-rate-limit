@@ -6,6 +6,15 @@ interface ModelTokens {
   output: number;
 }
 
+export function filterByModels(metrics: ParsedMetric[], allowedModels: Set<string>): ParsedMetric[] {
+  if (allowedModels.size === 0) return metrics;
+  return metrics.filter((m) => {
+    const model = m.labels.model;
+    if (!model) return true; // non-model metrics pass through
+    return allowedModels.has(model);
+  });
+}
+
 export function extractModelTokens(metrics: ParsedMetric[]): ModelTokens[] {
   const map = new Map<string, ModelTokens>();
   for (const m of metrics) {

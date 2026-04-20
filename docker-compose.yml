@@ -61,6 +61,7 @@ services:
       PASTEGUARD_PII_LANGUAGE: ${PASTEGUARD_PII_LANGUAGE:-en}
       GEMINI_OAUTH_CLIENT_ID: ${GEMINI_OAUTH_CLIENT_ID:-}
       GEMINI_OAUTH_CLIENT_SECRET: ${GEMINI_OAUTH_CLIENT_SECRET:-}
+      GLM_MODE: ${GLM_MODE:-true}
     depends_on:
       arl-dragonfly:
         condition: service_healthy

@@ -26,10 +26,11 @@ type RoutingDecision struct {
 type Resolver struct {
 	registry   *Registry
 	tokenStore *TokenStore
+	glmMode    bool
 }
 
-func NewResolver(registry *Registry, tokenStore *TokenStore) *Resolver {
-	return &Resolver{registry: registry, tokenStore: tokenStore}
+func NewResolver(registry *Registry, tokenStore *TokenStore, glmMode bool) *Resolver {
+	return &Resolver{registry: registry, tokenStore: tokenStore, glmMode: glmMode}
 }
 
 type providerRoute struct {
@@ -100,14 +101,15 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 		}
 	}
 
-	// Default fallback: zai
-	decision := r.tryResolve("zai", model)
-	if decision != nil {
-		return decision
+	// Default fallback: Z.AI only in GLM mode.
+	if r.glmMode {
+		decision := r.tryResolve("zai", model)
+		if decision != nil {
+			return decision
+		}
+		return r.buildDecision("zai", model, "")
 	}
-
-	// Last resort: build decision without API key (caller handles fallback)
-	return r.buildDecision("zai", model, "")
+	return nil
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {

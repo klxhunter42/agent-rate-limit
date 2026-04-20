@@ -117,8 +117,11 @@ func (h *AuthHandler) startAuthCode(w http.ResponseWriter, r *http.Request, pc P
 	h.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"auth_url": resp.AuthURL,
-		"state":    resp.State,
+		"auth_url":     resp.AuthURL,
+		"state":        resp.State,
+		"client_id":    resp.ClientID,
+		"redirect_uri": resp.RedirectURI,
+		"scopes":       resp.Scopes,
 	})
 }
 

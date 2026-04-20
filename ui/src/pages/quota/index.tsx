@@ -43,6 +43,8 @@ interface UsageResponse {
   models: ModelUsage[];
 }
 
+import { useDashboard } from '@/contexts/dashboard-context';
+
 function pctColor(pct: number): string {
   if (pct >= 95) return 'text-red-500';
   if (pct >= 80) return 'text-yellow-500';
@@ -69,6 +71,7 @@ function fmtCost(n: number): string {
 }
 
 export function QuotaPage() {
+  const { glmMode } = useDashboard();
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [providerResults, setProviderResults] = useState<ProviderQuotaResult[]>([]);
   const [usageMap, setUsageMap] = useState<Record<string, ModelUsage>>({});
@@ -81,7 +84,7 @@ export function QuotaPage() {
 
       const providers = new Set<string>();
       for (const a of accs) providers.add(a.provider);
-      providers.add('zai');
+      if (glmMode) providers.add('zai');
 
       const results: ProviderQuotaResult[] = [];
       for (const provider of providers) {

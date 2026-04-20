@@ -23,6 +23,7 @@ type TokenInfo struct {
 	Paused       bool      `json:"paused"`
 	IsDefault    bool      `json:"is_default"`
 	CreatedAt    time.Time `json:"created_at"`
+	Scopes       string    `json:"scopes,omitempty"`
 }
 
 func (t *TokenInfo) redisKey() string {
@@ -249,4 +250,55 @@ func (s *TokenStore) updateField(provider, accountID string, fn func(*TokenInfo)
 	}
 	fn(token)
 	return s.Store(*token)
+}
+
+// GetFromPool returns a non-paused token from the given account IDs for a provider.
+// Falls back to GetDefault if accountIDs is empty.
+func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenInfo, error) {
+	if len(accountIDs) == 0 {
+		return s.GetDefault(provider)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	pipe := s.client.Pipeline()
+	cmds := make([]*redis.StringCmd, len(accountIDs))
+	for i, id := range accountIDs {
+		cmds[i] = pipe.Get(ctx, tokenKey(provider, id))
+	}
+	if _, err := pipe.Exec(ctx); err != nil && len(cmds) == 0 {
+		return nil, fmt.Errorf("redis pipeline: %w", err)
+	}
+
+	var candidates []TokenInfo
+	for _, cmd := range cmds {
+		data, err := cmd.Bytes()
+		if err != nil {
+			continue
+		}
+		var t TokenInfo
+		if err := json.Unmarshal(data, &t); err != nil {
+			continue
+		}
+		if !t.Paused {
+			candidates = append(candidates, t)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	// Prefer default account if it's in the pool.
+	for _, t := range candidates {
+		if t.IsDefault {
+			tCopy := t
+			return &tCopy, nil
+		}
+	}
+
+	// Round-robin: return first available.
+	tCopy := candidates[0]
+	return &tCopy, nil
 }

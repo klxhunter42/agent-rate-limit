@@ -11,7 +11,7 @@ import { Settings2, Trash2 } from 'lucide-react';
 import { RoutingStrategy } from '@/components/routing/routing-strategy';
 
 export function ControlsPage() {
-  const { models, refresh } = useDashboard();
+  const { models, refresh, glmMode } = useDashboard();
   const [selectedModel, setSelectedModel] = useState('');
   const [limitValue, setLimitValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -47,11 +47,20 @@ export function ControlsPage() {
     }
   };
 
+  const noModels = !glmMode && models.length === 0;
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Controls</h1>
 
-      {/* Apply override */}
+      {noModels ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground text-sm">
+            No models available. Models will appear here once traffic flows through the proxy.
+          </CardContent>
+        </Card>
+      ) : (
+      <>
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -93,7 +102,6 @@ export function ControlsPage() {
         </CardContent>
       </Card>
 
-      {/* Active overrides */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Active Overrides</CardTitle>
@@ -106,7 +114,7 @@ export function ControlsPage() {
           ) : (
             <div className="space-y-2">
               {overriddenModels.map((m) => (
-                <div key={m.name} className="flex items-center justify-between p-3 rounded-md bg-muted/50">
+                <div key={m.name} className="flex items-center justify-between p-3 rounded-lg">
                   <div className="flex items-center gap-3">
                     <span className="font-mono font-medium">{m.name}</span>
                     <Badge variant="secondary">pinned at {m.limit}</Badge>
@@ -117,7 +125,7 @@ export function ControlsPage() {
                     onClick={() => handleClear(m.name)}
                     className="text-destructive"
                   >
-                    <Trash2 className="h-4 w-4 mr-1" /> Clear
+                    <Trash2 className="h-4 w-4" /> Clear
                   </Button>
                 </div>
               ))}
@@ -125,6 +133,8 @@ export function ControlsPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
 
       <RoutingStrategy />
     </div>
