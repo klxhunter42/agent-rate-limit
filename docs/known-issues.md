@@ -347,11 +347,56 @@ Vision requests ขณะนี้รองรับ SSE streaming แล้ว 
 
 **Workaround**: ย่อรูปก่อนส่ง, หรือใช้ URL image แทน base64
 
-### server_tool_use blocks ถูก strip
+### server_tool_use / tool_use / tool_result blocks stripped (FIXED)
 
-Content blocks ประเภท `server_tool_use` จะถูกลบออกก่อนส่งไป upstream
+Content blocks ประเภท `server_tool_use`, `tool_use`, `tool_result` และ Anthropic-specific อื่นๆ ถูกกรองออกก่อนส่งไป Z.AI vision upstream ส่งผ่านเฉพาะ `text`, `image`, `image_url` เท่านั้น
 
-**เหตุผล**: GLM ไม่รองรับ content type นี้, ส่งไปจะได้ error
+**เหตุผล**: Z.AI vision API ไม่รองรับ content types เหล่านี้ -- ส่งไปจะเจอ error 1210 ("API 调用参数有误") นอกจากนี้ยังส่งผ่านเฉพาะ role `user` และ `assistant` เท่านั้น ข้อความระบบจะถูกนำหน้าไปที่ข้อความผู้ใช้แรกแทนการใช้ `role: "system"`
+
+**ไฟล์**: `api-gateway/proxy/anthropic.go`
+
+### แผนภาพการแปลงสำหรับ Vision (Anthropic -> Z.AI)
+
+```
+Anthropic Request (เข้า)                  Z.AI Vision Request (ส่งออก)
+===========================               ============================
+{                                         {
+  "system": "You are helpful...",    ──┐
+  "messages": [                       │  system text ถูกนำหน้าไป
+    {                                 │  ที่ user message แรก
+      "role": "user",                 │
+      "content": [                    │
+        {"type":"text","text":"hi"}   │
+      ]                               │
+    },                                │
+    {                                 │     ↓↓↓ แปลงแล้ว ↓↓↓
+      "role": "user",           ──────┤
+      "content": [                    {       "messages": [
+        {"type":"image","source":{        "role": "user",
+         "type":"base64",                 "content": "You are helpful...\n\nhi"
+         "media_type":"image/png",      },
+         "data":"iVBOR..."              {
+        }},                               "role": "user",
+        {"type":"server_tool_use",         "content": [
+         ...  <-- ถูกกรองออก!                {"type":"text","text":"describe"},
+        },                                   {"type":"image_url",
+        {"type":"text",                        "image_url":{
+         "text":"describe this"}                 "url":"data:image/png;base64,iVBOR..."
+      ]                                        }
+    }                                        }
+  ]                                        ]
+}                                        }
+                                         }
+  role "system"    →  ถูกกรองออก, text ไป user แรก
+  role "tool"      →  ถูกกรองออกทั้งหมด
+  server_tool_use  →  ถูกกรองออก
+  tool_use         →  ถูกกรองออก
+  tool_result      →  ถูกกรองออก
+  ─────────────────────────────────────────
+  ส่งผ่านเฉพาะ:
+  ✓ role: "user" / "assistant"
+  ✓ type: "text" / "image" / "image_url"
+```
 
 ---
 
@@ -434,6 +479,17 @@ case <-r.Context().Done():
 
 **Files**: `api-gateway/handler/handler.go`
 
+### Z.AI Vision Conversion Fix (FIXED)
+
+**Problem**: Sending `system` role and Anthropic-specific content blocks (`server_tool_use`, `tool_use`, `tool_result`) to Z.AI vision API caused error 1210 ("API 调用参数有误").
+
+**Fix**: `AnthropicToOpenAI()` now:
+1. Prepends system prompt text to the first user message instead of sending as `role: "system"`
+2. Only passes `text`, `image`, `image_url` content types; strips `server_tool_use`, `tool_use`, `tool_result`, and other Anthropic-specific blocks
+3. Only forwards `user` and `assistant` roles; drops `system` and `tool` roles
+
+**Files**: `api-gateway/proxy/anthropic.go`
+
 ---
 
 ## Summary
@@ -455,7 +511,10 @@ case <-r.Context().Done():
 | 12b | Key pool RPM wasted on bad requests | Medium | **Fixed** |
 | 12c | Retry backoff ignores context cancellation | Medium | **Fixed** |
 | 12d | Docker-compose default mismatch | Low | **Fixed** |
+| 12e | Vision SSE streaming | Medium | **Fixed** |
+| 12f | Vision model auto-select | Low | **Fixed** |
+| 12g | Z.AI vision conversion (error 1210) | High | **Fixed** |
 
 ---
 
-*Known Issues v1.3 -- updated: quota enforcement now wired (placeholder data remains)*
+*Known Issues v1.4 -- updated: Z.AI vision conversion fix (error 1210 resolved)*

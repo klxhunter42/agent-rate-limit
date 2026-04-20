@@ -895,26 +895,43 @@ arl-gateway (:8080)
 
 ### Format Conversion (Anthropic <-> Zhipu)
 
+**หมายเหตุ**: Z.AI vision API รองรับเฉพาะ role `user` และ `assistant` เท่านั้น (ไม่มี `system` หรือ `tool`) และรองรับเฉพาะ content type `text`, `image`, `image_url` เท่านั้น
+
 ```
-anthropicToZhipu():
+anthropicToZhipu() / AnthropicToOpenAI():
   ┌──────────────────────────────────────────────────────────────┐
   │ Anthropic Messages API        ->    Zhipu OpenAI API         │
   │                                                              │
   │ messages[].role: "user"       ->    messages[].role: "user"  │
   │ messages[].role: "assistant"  ->    messages[].role: "assis" │
-  │ messages[].content (array)    ->    messages[].content (str) │
+  │ messages[].role: "system"     ->    X กรองออก, text ไป user  │
+  │ messages[].role: "tool"       ->    X กรองออกทั้งหมด         │
   │                                                              │
   │ content[].type="text"         ->    text string              │
   │ content[].type="image"        ->    type="image_url"         │
   │   source.type="base64"        ->      url="data:mime;base64" │
   │   source.type="url"           ->      url=<original url>     │
-  │ content[].type="tool_use"     ->    tool_calls[]             │
-  │ content[].type="tool_result"  ->    text (converted)         │
+  │ content[].type="server_tool_use" -> X กรองออก (ไม่รองรับ)   │
+  │ content[].type="tool_use"     ->    X กรองออก (ไม่รองรับ)   │
+  │ content[].type="tool_result"  ->    X กรองออก (ไม่รองรับ)   │
   │                                                              │
-  │ system (string or array)      ->    system (string)          │
-  │ tools[]                       ->    tools[]                  │
+  │ system (string or array)      ->    นำหน้าไปที่ user msg แรก │
   │ stream: bool                  ->    stream: bool             │
+  │ max_tokens                    ->    max_tokens               │
   └──────────────────────────────────────────────────────────────┘
+
+ขั้นตอนการแปลง system prompt:
+  ┌─────────────────────────────────────────────────────┐
+  │ ก่อน:                                               │
+  │   system: "You are helpful..."                      │
+  │   messages: [{role:"user", content:"describe"}]     │
+  │                                                     │
+  │ หลัง:                                               │
+  │   messages: [                                       │
+  │     {role:"user",                                   │
+  │      content:"You are helpful...\n\ndescribe"}      │
+  │   ]                                                 │
+  └─────────────────────────────────────────────────────┘
 
 zhipuToAnthropic():
   ┌──────────────────────────────────────────────────────────────┐
@@ -930,16 +947,19 @@ zhipuToAnthropic():
   └──────────────────────────────────────────────────────────────┘
 ```
 
-### Content Filtering
+### Content Filtering (กรองเนื้อหา)
 
-Before routing, `filterUnsupportedContent()` processes all messages:
+ก่อน routing, `AnthropicToOpenAI()` ประมวลผล messages ทั้งหมด:
 
-1. Strip `server_tool_use` blocks (GLM does not support this type)
-2. Convert Anthropic image format to GLM-compatible `image_url` format:
+1. กรอง role ที่ Z.AI ไม่รองรับ: `system`, `tool` ถูกตัดออก
+2. กรอง content type ที่ Z.AI ไม่รองรับ: `server_tool_use`, `tool_use`, `tool_result` ถูกตัดออก
+3. ส่งผ่านเฉพาะ: `text`, `image`, `image_url`
+4. แปลงรูปแบบรูปภาพจาก Anthropic เป็น GLM-compatible `image_url`:
    ```
    Before: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
    After:  {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
    ```
+5. System prompt นำหน้าไปที่ user message แรกแทนการใช้ `role: "system"`
 
 ### Configuration
 
@@ -2030,4 +2050,4 @@ Bottleneck hierarchy (slowest first):
 
 ---
 
-*Architecture docs v3.1 -- updated with profile-based routing, quota enforcement, usage recording integration, WebSocket event expansion (6 types), Z.AI pricing update (19 models), UPSTREAM_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*
+*Architecture docs v3.2 -- updated with Z.AI vision conversion fix (error 1210 resolved, role/content type filtering, system prompt prepending)*
