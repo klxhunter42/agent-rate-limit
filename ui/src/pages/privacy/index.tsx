@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts';
-import { Shield, Eye, Fingerprint, Timer, Key, Lock, FileKey, Server, CreditCard, Globe } from 'lucide-react';
+import { Shield, Eye, Fingerprint, Timer, Key, Lock, Server, CreditCard, Globe } from 'lucide-react';
 import { fetchPrivacyMetrics, type PrivacyMetrics } from '@/lib/privacy-api';
 
 const detectableTypes = [

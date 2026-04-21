@@ -6,6 +6,7 @@ const MODEL_COLORS: Record<string, string> = {
   'gpt-4o': '#10a37f',
   'gpt-3.5': '#10a37f',
   'claude': '#d4a27f',
+  'claude-oauth': '#d4a27f',
   'claude-3': '#d4a27f',
   'claude-4': '#d4a27f',
   'gemini': '#4285f4',

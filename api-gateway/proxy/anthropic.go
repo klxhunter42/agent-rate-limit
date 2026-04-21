@@ -104,7 +104,7 @@ func HasImageContent(payload map[string]any) bool {
 
 // ProxyNativeVision sends a vision request to the native Zhipu API endpoint.
 // It converts Anthropic format to OpenAI/Zhipu format and converts the response back.
-func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc) error {
+func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult) error {
 	// Convert Anthropic payload to Zhipu OpenAI format.
 	zhipuReq, err := AnthropicToOpenAI(body, model)
 	if err != nil {
@@ -159,7 +159,7 @@ func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Reques
 		}
 
 		// Convert Zhipu response back to Anthropic format.
-		return p.convertOpenAIResponse(w, resp, model, isStream)
+		return p.convertOpenAIResponse(w, resp, model, isStream, maskResult)
 	}
 
 	return fmt.Errorf("vision upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
@@ -354,7 +354,7 @@ func convertToolResultBlock(cb map[string]any) map[string]any {
 }
 
 // convertOpenAIResponse reads an OpenAI response and converts back to Anthropic format.
-func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http.Response, model string, isStream bool) error {
+func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http.Response, model string, isStream bool, maskResult *privacy.MaskResult) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -365,7 +365,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	}
 
 	if isStream {
-		return p.convertOpenAIStreamResponse(w, resp, model)
+		return p.convertOpenAIStreamResponse(w, resp, model, maskResult)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
@@ -391,6 +391,13 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 
 	anthropicResp := OpenAIToAnthropic(zhipuResp, model)
 	respBody, _ := json.Marshal(anthropicResp)
+
+	// Unmask secrets/PII placeholders before sending to client.
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
@@ -398,7 +405,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 }
 
 // ConvertOpenAIStreamResponse converts OpenAI SSE chunks to Anthropic SSE format on-the-fly.
-func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp *http.Response, model string, maskResult *privacy.MaskResult) error {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -414,6 +421,11 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	var inputTokens, outputTokens int
 	var ttfbRecorded bool
 	streamStart := time.Now()
+
+	var unmasker *masking.StreamUnmasker
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -485,11 +497,26 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 
 		outputTokens++
 
+		// Unmask text chunk if privacy masking is active.
+		if unmasker != nil {
+			text = unmasker.ProcessChunk(text)
+		}
 		// content_block_delta
 		escaped, _ := json.Marshal(text)
 		fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 		if flusher != nil {
 			flusher.Flush()
+		}
+	}
+
+	// Flush remaining unmasker buffer.
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}
 
@@ -543,9 +570,10 @@ func OpenAIToAnthropic(zhipu map[string]any, model string) map[string]any {
 
 // ProxyOptions configures proxy behavior for non-default upstream/auth scenarios.
 type ProxyOptions struct {
-	AuthMode         string            // "api_key" (default) or "bearer"
-	UpstreamOverride string            // if non-empty, use this instead of cfg.UpstreamURL
-	ExtraHeaders     map[string]string // additional headers to set
+	AuthMode         string                                       // "api_key" (default) or "bearer"
+	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
+	ExtraHeaders     map[string]string                            // additional headers to set
+	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
 }
 
 // It tracks token usage via Prometheus and optionally trims verbose responses.
@@ -613,6 +641,48 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			resp.Body.Close()
 			p.metrics.Inc429()
 			continue
+		}
+
+		// On 401 with OAuth bearer, try refreshing the token once.
+		if resp.StatusCode == 401 && opts != nil && opts.AuthMode == "bearer" && opts.OnAuthError != nil {
+			resp.Body.Close()
+			if newKey, ok := opts.OnAuthError(apiKey); ok {
+				slog.Info("retrying with refreshed token", "model", model)
+				apiKey = newKey
+				httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
+				if err != nil {
+					return fmt.Errorf("create retry request: %w", err)
+				}
+				httpReq.Header.Set("Content-Type", "application/json")
+				httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+				httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
+				for k, v := range opts.ExtraHeaders {
+					httpReq.Header.Set(k, v)
+				}
+				httpReq.ContentLength = int64(len(body))
+
+				start2 := time.Now()
+				resp2, err2 := p.client.Do(httpReq)
+				rtt2 := time.Since(start2)
+				if err2 != nil {
+					return fmt.Errorf("retry after refresh failed: %w", err2)
+				}
+				if feedback != nil {
+					feedback(resp2.StatusCode, rtt2, resp2.Header)
+				}
+				lastResp = resp2
+				break
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(401)
+			json.NewEncoder(w).Encode(ErrorResponse{
+				Type: "error",
+				Error: ErrorDetail{
+					Type:    "authentication_error",
+					Message: "OAuth token expired and refresh failed. Please re-authenticate.",
+				},
+			})
+			return fmt.Errorf("upstream 401: token refresh failed")
 		}
 
 		lastResp = resp

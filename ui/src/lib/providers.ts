@@ -19,7 +19,7 @@ export function authTypeLabel(t: string): string {
 const FALLBACK_NAMES: Record<string, string> = {
   zai: 'Z.AI',
   anthropic: 'Anthropic',
-  claude: 'Claude (OAuth)',
+  'claude-oauth': 'Claude (OAuth)',
   openai: 'OpenAI',
   gemini: 'Gemini',
   'gemini-oauth': 'Gemini (OAuth)',
@@ -43,7 +43,7 @@ export function providerName(id: string): string {
 const PROVIDER_ACCENT: Record<string, string> = {
   zai: '#6366f1',
   anthropic: '#d97706',
-  claude: '#d97706',
+  'claude-oauth': '#d97706',
   openai: '#10b981',
   gemini: '#3b82f6',
   'gemini-oauth': '#3b82f6',

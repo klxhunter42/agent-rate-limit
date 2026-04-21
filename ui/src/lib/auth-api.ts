@@ -101,6 +101,15 @@ export async function setDefaultAccount(provider: string, accountId: string): Pr
   if (!res.ok) throw new Error(`set default account: ${res.status}`);
 }
 
+export async function updateAccountEmail(provider: string, accountId: string, email: string): Promise<void> {
+  const res = await fetch(`/v1/auth/accounts/${provider}/${accountId}/email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(`update email: ${res.status}`);
+}
+
 export async function registerAPIKey(provider: string, apiKey: string): Promise<{ status: string; account: AccountInfo }> {
   const res = await fetch(`/v1/auth/${provider}/register`, {
     method: 'POST',

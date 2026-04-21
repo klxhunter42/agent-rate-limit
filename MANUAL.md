@@ -22,7 +22,8 @@
 12. [Cost Calculator](#12-cost-calculator)
 13. [Docker Management Commands](#13-docker-management-commands)
 14. [การเพิ่ม AI Provider](#14-การเพิ่ม-ai-provider)
-16. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
+15. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
+16. [Profile-Based Routing](#16-profile-based-routing)
 17. [Vision Auto-Routing (รูปภาพ)](#17-vision-auto-routing-รูปภาพ)
 18. [Multi-Agent และการเลือกโหมด](#18-multi-agent-และการเลือกโหมด)
 
@@ -65,6 +66,8 @@
 │              │   Provider Fallback Chain             │               │
 │              │   glm → openai → anthropic → gemini  │               │
 │              │   → openrouter                        │               │
+│              │   OAuth: claude-oauth, gemini-oauth   │               │
+│              │   Profile: X-Profile header routing   │               │
 │              └───────────────────────────────────────┘               │
 │                                                                     │
 │  ┌──────────────── Observability Stack ─────────────────┐          │
@@ -100,6 +103,7 @@ Claude Code
   │ POST /v1/messages (Anthropic API format)
   │ Header: x-api-key: <your-key>
   │ Header: anthropic-version: 2023-06-01
+  │ Header: X-Profile: <profile-name> (optional)
   │
   ▼
 API Gateway (:8080)
@@ -111,6 +115,10 @@ API Gateway (:8080)
   │   │
   │   ├─ ถ้าผ่าน: ส่งต่อไป upstream
   │   └─ ถ้าไม่ผ่าน: ตอบ 429 Rate Limit Error (Anthropic format)
+  │
+  ├─ X-Profile header (optional):
+  │     ├─ มี: โหลด profile จาก Redis → ใช้ target provider + token pool
+  │     └─ ไม่มี: ใช้ routing ปกติ (key pool + model fallback)
   │
   ├─ Content Filter (strip server_tool_use/tool_use/tool_result, convert image format, prepend system to user)
   │
@@ -465,6 +473,12 @@ Request เข้ามา
   │   ├─ ผ่าน: ส่ง request ต่อไป upstream แบบไม่แก้ไขอะไรเลย
   │   └─ ไม่ผ่าน: ตอบ 429 (Anthropic error format) ทันที
   │
+  ├─ X-Profile header (ถ้ามี):
+  │     ├─ โหลด profile จาก Redis
+  │     ├─ ใช้ target provider + token จาก provider pool
+  │     ├─ ข้าม key pool + model fallback logic
+  │     └─ Proxy ไป provider upstream โดยตรง
+  │
   ├─ Per-Model Upstream Limiter (Gateway + Worker)
   │   ├─ ดึง model จาก request body
   │   ├─ ลอง acquire slot สำหรับ model ที่ขอ (non-blocking)
@@ -563,6 +577,26 @@ bash scripts/stress-test.sh
 | `GET` | `/admin/*` | SPA sub-routes (fallback to index.html) |
 | `GET` | `/v1/limiter-status` | Adaptive limiter state (requires x-api-key) |
 | `POST` | `/v1/limiter-override` | Set/clear model concurrency limit (requires x-api-key) |
+| `GET` | `/v1/profiles` | ดู profiles ทั้งหมด |
+| `POST` | `/v1/profiles` | สร้าง profile (ต้องการ name + target เท่านั้น) |
+| `GET` | `/v1/profiles/{name}` | ดู profile ตามชื่อ |
+| `PUT` | `/v1/profiles/{name}` | แก้ไข profile |
+| `DELETE` | `/v1/profiles/{name}` | ลบ profile |
+| `POST` | `/v1/profiles/{name}/copy` | คัดลอก profile |
+| `POST` | `/v1/profiles/{name}/export` | ส่งออก profile (API key redacted) |
+| `POST` | `/v1/profiles/import` | นำเข้า profile |
+| `POST` | `/v1/auth/{provider}/start` | เริ่ม OAuth flow (device code / auth code) |
+| `GET` | `/v1/auth/{provider}/callback` | OAuth callback endpoint |
+| `GET` | `/v1/auth/{provider}/status` | ตรวจสอบสถานะ OAuth |
+| `POST` | `/v1/auth/{provider}/register` | ลงทะเบียน API key / session cookie |
+| `GET` | `/v1/auth/accounts` | ดู accounts ทั้งหมด |
+| `GET` | `/v1/auth/accounts/{provider}` | ดู accounts ตาม provider |
+| `DELETE` | `/v1/auth/accounts/{provider}/{accountId}` | ลบ account |
+| `POST` | `/v1/auth/accounts/{provider}/{accountId}/pause` | หยุด account ชั่วคราว |
+| `POST` | `/v1/auth/accounts/{provider}/{accountId}/resume` | เปิดใช้ account อีกครั้ง |
+| `POST` | `/v1/auth/accounts/{provider}/{accountId}/default` | ตั้งเป็น default account |
+| `POST` | `/v1/auth/accounts/{provider}/{accountId}/email` | แก้ไข email ของ account |
+| `GET` | `/v1/providers` | ดู provider ทั้งหมด |
 
 ---
 
@@ -702,6 +736,8 @@ URL: http://localhost:8081
 | Overview | `/` | Status, queue depth, total requests, concurrency, model utilization |
 | Model Limits | `/model-limits` | ตาราง model status: in-flight, limit, max, ceiling, RTT EWMA, requests, 429s |
 | Key Pool | `/key-pool` | API key rotation pool status |
+| Profiles | `/profiles` | Profile CRUD management (สร้างต้องการ name + target เท่านั้น) |
+| Accounts | `/accounts` | OAuth/API key accounts, inline email editing, pause/resume, default selection |
 | Metrics | `/metrics` | Recharts time-series: request rate, token usage, errors (auto-poll 5s) |
 | Controls | `/controls` | Manual override model limits, active overrides table |
 
@@ -927,15 +963,87 @@ OPENROUTER_API_KEYS=sk-or-xxx
 docker-compose up -d --build arl-worker
 ```
 
+### Provider ที่รองรับ
+
+#### API Key Auth (ใส่ใน `.env`)
+
+| Provider ID | Env Var | Upstream |
+|------------|---------|----------|
+| `anthropic` | `ANTHROPIC_API_KEYS` | api.anthropic.com |
+| `gemini` | `GEMINI_API_KEYS` | generativelanguage.googleapis.com |
+| `openai` | `OPENAI_API_KEYS` | api.openai.com |
+| `zai` | `UPSTREAM_API_KEYS` | api.z.ai/api/anthropic |
+| `openrouter` | `OPENROUTER_API_KEYS` | openrouter.ai/api |
+| `deepseek` | `DEEPSEEK_API_KEYS` | api.deepseek.com |
+| `kimi` | `KIMI_API_KEYS` | api.moonshot.cn/v1 |
+| `huggingface` | `HUGGINGFACE_API_KEYS` | api-inference.huggingface.co |
+| `ollama` | `OLLAMA_API_KEYS` | localhost:11434 |
+| `agy` | `AGY_API_KEYS` | antigravity.com |
+| `cursor` | `CURSOR_API_KEYS` | api2.cursor.sh |
+| `codebuddy` | `CODEBUDDY_API_KEYS` | api.codebuddy.io |
+| `kilo` | `KILO_API_KEYS` | api.kilo.ai |
+
+#### OAuth Auth (ผ่าน Dashboard UI)
+
+| Provider ID | ชื่อ | วิธี Auth | หมายเหตุ |
+|------------|------|-----------|----------|
+| `claude-oauth` | Claude (OAuth) | OAuth PKCE + Bearer token | ใช้ Claude Code Client ID, proxy ไป api.anthropic.com |
+| `gemini-oauth` | Google Gemini (OAuth) | OAuth auth code | ใช้ Code Assist proxy (cloudcode-pa.googleapis.com) |
+| `copilot` | GitHub Copilot | Device code flow | ใช้ GitHub device code |
+
+### anthropic vs claude-oauth
+
+| Provider | Auth | Use Case |
+|----------|------|----------|
+| `anthropic` | API Key (`x-api-key` header) | มี Anthropic API key ตรง |
+| `claude-oauth` | OAuth Bearer token (`Authorization: Bearer`) | ใช้ Claude Code subscription, ไม่ต้องมี API key |
+
+> **หมายเหตุ**: Provider `claude-oauth` (เดิมชื่อ `claude`) ใช้ OAuth PKCE flow ผ่าน platform.claude.com พร้อม Bearer token auth ส่งไป api.anthropic.com/v1/messages (พร้อม `anthropic-beta: oauth-2025-04-20` header)
+
+### gemini vs gemini-oauth
+
+| Provider | Auth | Use Case |
+|----------|------|----------|
+| `gemini` | API Key (query param `?key=`) | มี Google AI API key ตรง |
+| `gemini-oauth` | OAuth Bearer token | ใช้ Google account + Code Assist |
+
+> **สำคัญ**: `gemini-oauth` และ `gemini` เป็น provider คนละตัวกัน -- Gemini OAuth **ไม่ fallback** ไปใช้ direct Gemini API ถ้าต้องการใช้ทั้งสองอย่าง ต้องลงทะเบียน API key ของ `gemini` แยกต่างหาก
+
+### Token Migration (อัตโนมัติ)
+
+เมื่อ gateway เริ่มทำงาน ระบบจะ migrate token ของ provider เก่าอัตโนมัติ:
+
+- `claude` -> `claude-oauth` (ทุก token ที่เคยลงทะเบียนในชื่อ `claude` จะถูกย้ายไป `claude-oauth` อัตโนมัติ ไม่ต้องทำอะไร)
+
 ### Provider Fallback Order
 
-1. **glm** (Z.ai) — Primary
+1. **glm** (Z.ai) -- Primary
 2. **openai**
 3. **anthropic**
 4. **gemini**
 5. **openrouter**
 
 ถ้า provider แรกล้มเหลว จะข้ามไป provider ถัดไปที่มี API key อัตโนมัติ
+
+### การเพิ่ม Provider ผ่าน OAuth (Dashboard UI)
+
+1. เปิด `http://localhost:8080/admin`
+2. ไปที่หน้า Providers หรือ Accounts
+3. เลือก provider ที่ต้องการ (เช่น `claude-oauth`, `gemini-oauth`, `copilot`)
+4. กด "Start Auth" แล้วทำตามขั้นตอนบนจอ
+5. เมื่อ auth สำเร็จ token จะถูกเก็บใน Dragonfly อัตโนมัติ
+
+### Email Input (กรอก email หลัง OAuth)
+
+บาง provider (เช่น `claude-oauth`) ไม่ return email จาก OAuth flow เมื่อ auth สำเร็จ ระบบจะแสดง step ให้กรอก email (optional) เพื่อให้ระบุ account ได้ง่ายขึ้น
+
+Email สามารถแก้ไขได้ทีหลังจากหน้า Account List โดยกดที่ email field โดยตรง (inline editing) หรือใช้ API:
+
+```bash
+curl -X POST http://localhost:8080/v1/auth/accounts/claude-oauth/{accountId}/email \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
 
 ---
 
@@ -998,6 +1106,96 @@ docker-compose down -v && docker-compose up -d --build
 | 4317 | OTel Collector (gRPC) | No | gRPC |
 | 4318 | OTel Collector (HTTP) | No | HTTP |
 | 8889 | OTel Collector (Prom) | No | HTTP |
+
+---
+
+## 16. Profile-Based Routing
+
+Profile คือชุดการตั้งค่าสำหรับเชื่อมต่อ provider ที่เก็บใน Redis เมื่อส่ง `X-Profile` header พร้อม request gateway จะโหลด profile และใช้การตั้งค่านั้น route request ไปยัง provider เป้าหมาย
+
+### การทำงาน
+
+```
+Request พร้อม X-Profile: my-profile
+  |
+  v
+Handler.Messages()
+  |-- อ่าน X-Profile header
+  |-- โหลด profile:{name} จาก Redis
+  |
+  +-- พบ profile:
+  |     |-- ใช้ target provider ของ profile
+  |     |-- ดึง token จาก provider token pool
+  |     |     |-- มี accountIds: เลือกจาก pool เฉพาะ accounts ที่กำหนด
+  |     |     |-- ไม่มี accountIds: ใช้ default token ของ provider
+  |     |-- Proxy ไปยัง provider upstream โดยตรง
+  |     |-- ข้าม key pool + model fallback logic
+  |
+  +-- ไม่พบ profile:
+        |-- Log warning
+        |-- ใช้ routing ปกติ (key pool + adaptive limiter)
+```
+
+### สร้าง Profile
+
+Profile create form ง่ายขึ้น -- ต้องการเพียง **name** + **target provider**:
+
+```
+Dashboard UI: /admin/profiles -> New
+  1. Name: ชื่อ profile (จำเป็น)
+  2. Target: เลือก provider จาก dropdown (จำเป็น)
+  3. Account Pool: เลือก accounts ที่จะใช้ (optional, ว่าง = ใช้ทั้งหมด)
+```
+
+ไม่ต้องใส่ base URL, model, หรือ API key manually -- gateway ดึงจาก provider registry และ token pool อัตโนมัติ
+
+### ตัวอย่างการใช้งาน
+
+```bash
+# สร้าง profile
+curl -X POST http://localhost:8080/v1/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-claude", "target": "claude-oauth"}'
+
+# ใช้ profile ใน request
+curl -X POST http://localhost:8080/v1/messages \
+  -H "X-Profile: my-claude" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"claude-sonnet-4-20250514","max_tokens":100,"messages":[...]}'
+
+# ใช้กับ Claude Code (apiKeyHelper)
+# ~/.claude/settings.json
+{
+  "env": { "ANTHROPIC_BASE_URL": "http://localhost:8080" },
+  "apiKeyHelper": "~/.claude/get-token.sh"
+}
+# ~/.claude/get-token.sh
+#!/bin/bash
+echo "proxy-no-key"
+```
+
+### Profile Fields
+
+| Field | จำเป็น | คำอธิบาย |
+|-------|:------:|----------|
+| `name` | Yes | ชื่อ profile |
+| `target` | Yes | Provider ID (เช่น `claude-oauth`, `gemini-oauth`, `anthropic`) |
+| `accountIds` | No | เลือก accounts เฉพาะจาก pool (ว่าง = ใช้ default) |
+| `model` | No | Override model (ว่าง = ใช้ model จาก request) |
+| `provider` | Auto | กำหนดอัตโนมัติจาก target |
+
+### Profile API Endpoints
+
+| Method | Path | คำอธิบาย |
+|--------|------|----------|
+| `GET` | `/v1/profiles` | ดู profiles ทั้งหมด |
+| `POST` | `/v1/profiles` | สร้าง profile (ต้องการ name + target เท่านั้น) |
+| `GET` | `/v1/profiles/{name}` | ดู profile ตามชื่อ |
+| `PUT` | `/v1/profiles/{name}` | แก้ไข profile |
+| `DELETE` | `/v1/profiles/{name}` | ลบ profile |
+| `POST` | `/v1/profiles/{name}/copy` | คัดลอก profile |
+| `POST` | `/v1/profiles/{name}/export` | ส่งออก profile (API key redacted) |
+| `POST` | `/v1/profiles/import` | นำเข้า profile |
 
 ---
 
@@ -1261,4 +1459,4 @@ cd ../ui && bun run build && cd ../api-gateway && go build -o api-gateway . && r
 
 ---
 
-*Multi-Agent AI Rate-Limited System v1.1*
+*Multi-Agent AI Rate-Limited System v1.2*

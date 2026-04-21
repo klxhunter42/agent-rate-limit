@@ -93,8 +93,10 @@ func main() {
 	// --- Provider OAuth ---
 	providerRegistry := provider.NewRegistry()
 	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
+	tokenStore.MigrateProviderRenames()
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
 	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
+	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
 
 	// --- WebSocket Hub ---
 	wsHub := handler.NewWebSocketHub()
@@ -119,11 +121,10 @@ func main() {
 		profileRdb = profileHandler.Redis()
 	}
 
-	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast)
+	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker)
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)
-	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
 	go refreshWorker.Start(context.Background())
 	defer refreshWorker.Stop()
 

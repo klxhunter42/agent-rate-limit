@@ -20,7 +20,9 @@ interface AuthCodeDialogProps {
   authUrl: string;
   status: 'opening' | 'waiting' | 'complete' | 'error';
   error?: string;
+  needsEmail?: boolean;
   onSubmitCallback?: (url: string) => void;
+  onSubmitEmail?: (email: string) => void;
 }
 
 export function AuthCodeDialog({
@@ -31,8 +33,11 @@ export function AuthCodeDialog({
   status,
   error,
   onSubmitCallback,
+  needsEmail,
+  onSubmitEmail,
 }: AuthCodeDialogProps) {
   const [callbackUrl, setCallbackUrl] = useState('');
+  const [emailInput, setEmailInput] = useState('');
 
   if (!open) return null;
 
@@ -121,10 +126,37 @@ export function AuthCodeDialog({
           </div>
         )}
 
-        {status === 'complete' && (
+        {status === 'complete' && !needsEmail && (
           <div className="mt-4 flex justify-end">
             <Button size="sm" onClick={onClose}>
               Done
+            </Button>
+          </div>
+        )}
+
+        {status === 'complete' && needsEmail && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This provider didn't return an email. Add one to identify this account:
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                className="text-sm"
+              />
+              <Button
+                size="sm"
+                disabled={!emailInput.includes('@')}
+                onClick={() => onSubmitEmail?.(emailInput.trim())}
+              >
+                Save
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              Skip
             </Button>
           </div>
         )}

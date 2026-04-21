@@ -13,6 +13,7 @@ interface AuthFlowState {
   error: string | null;
   completed: boolean;
   completedAccount: authApi.AccountInfo | null;
+  needsEmail: boolean;
 }
 
 const DEFAULT_STATE: AuthFlowState = {
@@ -27,10 +28,11 @@ const DEFAULT_STATE: AuthFlowState = {
   error: null,
   completed: false,
   completedAccount: null,
+  needsEmail: false,
 };
 
 const DEVICE_CODE_PROVIDERS = ['copilot', 'qwen', 'codebuddy', 'kimi', 'cursor'];
-const AUTH_CODE_PROVIDERS = ['gemini', 'gemini-oauth', 'claude'];
+const AUTH_CODE_PROVIDERS = ['gemini', 'gemini-oauth', 'claude-oauth'];
 const POLL_INTERVAL_MS = 3000;
 
 export function useAuthFlow() {
@@ -57,10 +59,12 @@ export function useAuthFlow() {
           const result = await authApi.pollAuthStatus(provider, params);
           if (result.status === 'complete' && result.account) {
             stopPolling();
+            const needsEmail = !result.account.email;
             setState((s) => ({
               ...s,
               isAuthenticating: false,
-              completed: true,
+              completed: !needsEmail,
+              needsEmail,
               completedAccount: result.account!,
               error: null,
             }));
@@ -168,10 +172,12 @@ export function useAuthFlow() {
         if (result.account) {
           stopPolling();
           const account = result.account;
+          const needsEmail = !account.email;
           setState((s) => ({
             ...s,
             isAuthenticating: false,
-            completed: true,
+            completed: !needsEmail,
+            needsEmail,
             completedAccount: account,
             error: null,
           }));
@@ -185,6 +191,25 @@ export function useAuthFlow() {
     },
     [stopPolling],
   );
+
+  const submitEmail = useCallback(async (email: string) => {
+    const { completedAccount, provider } = state;
+    if (!completedAccount || !provider) return;
+    try {
+      await authApi.updateAccountEmail(provider, completedAccount.id, email);
+      setState((s) => ({
+        ...s,
+        completedAccount: { ...s.completedAccount!, email },
+        needsEmail: false,
+        completed: true,
+      }));
+    } catch (e) {
+      setState((s) => ({
+        ...s,
+        error: e instanceof Error ? e.message : 'failed to save email',
+      }));
+    }
+  }, [state.completedAccount, state.provider]);
 
   const reset = useCallback(() => {
     cancelRef.current = true;
@@ -204,6 +229,7 @@ export function useAuthFlow() {
     startAuth,
     cancelAuth,
     submitCallback,
+    submitEmail,
     reset,
   };
 }

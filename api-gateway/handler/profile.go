@@ -383,7 +383,7 @@ func (h *ProfileHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if p.Target == "" {
-		p.Target = "claude"
+		p.Target = "claude-oauth"
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
@@ -422,15 +422,8 @@ func validateProfile(p *Profile) string {
 	if p.Name == "" {
 		return "name is required"
 	}
-	if p.APIKey == "" {
-		return "apiKey is required"
-	}
-	if p.Target != "claude" && p.Target != "droid" && p.Target != "codex" {
-		if p.Target == "" {
-			p.Target = "claude"
-		} else {
-			return "target must be 'claude', 'droid', or 'codex'"
-		}
+	if p.Target == "" {
+		p.Target = "claude-oauth"
 	}
 	return ""
 }
