@@ -9,6 +9,8 @@ repo
 
 # Go build artifacts
 api-gateway/api-gateway
+api-gateway/agent-rate-limit
+api-gateway/agent-rate-limit-new
 
 # UI build artifacts
 ui/node_modules/
