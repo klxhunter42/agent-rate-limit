@@ -20,14 +20,13 @@ import { filterByModels } from '@/lib/metrics-helpers';
 
 export function AnalyticsPage() {
   const { metrics, loading } = usePrometheusMetrics();
-  const { models, glmMode } = useDashboard();
+  const { models, glmMode, seenModels } = useDashboard();
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('24H');
   const anomaly = useAnomalyDetection();
 
-  // Filter metrics to only include models visible in current mode.
-  const modelNames = new Set(models.map((m) => m.name));
-  const filteredMetrics = glmMode ? metrics : filterByModels(metrics, modelNames);
+  const seenSet = new Set(seenModels);
+  const filteredMetrics = glmMode ? metrics : filterByModels(metrics, seenSet);
 
   useEffect(() => {
     anomaly.analyze(metrics);
