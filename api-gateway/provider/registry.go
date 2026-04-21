@@ -123,8 +123,8 @@ func NewRegistry() *Registry {
 	// Uses Bearer token with api.anthropic.com/v1/messages.
 	// Auth: platform.claude.com/oauth/authorize (CONSOLE_AUTHORIZE_URL)
 	// Token: platform.claude.com/v1/oauth/token (JSON body, not form-urlencoded)
-	r.providers["claude"] = ProviderConfig{
-		ID:           "claude",
+	r.providers["claude-oauth"] = ProviderConfig{
+		ID:           "claude-oauth",
 		Name:         "Claude (OAuth)",
 		AuthType:     AuthTypeAuthCode,
 		AuthURL:      "https://platform.claude.com/oauth/authorize",

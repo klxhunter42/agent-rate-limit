@@ -42,7 +42,8 @@ type providerRoute struct {
 
 var providerRouteTable = map[string]providerRoute{
 	"anthropic":    {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"claude":       {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}},
+	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}},
+		"claude":       {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}}, // alias
 	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
 	"copilot":      {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
@@ -66,7 +67,7 @@ type modelRule struct {
 }
 
 var modelRules = []modelRule{
-	{"claude-", []string{"claude", "anthropic"}},
+	{"claude-", []string{"claude-oauth", "anthropic"}},
 	{"gpt-", []string{"openai"}},
 	{"o1-", []string{"openai"}},
 	{"o3-", []string{"openai"}},
@@ -110,6 +111,21 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 		return r.buildDecision("zai", model, "")
 	}
 	return nil
+}
+
+// ResolveByProvider creates a routing decision for a specific provider ID,
+// looking up its token and route config.
+func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool) {
+	if _, ok := r.registry.Get(providerID); !ok {
+		return nil, false
+	}
+	var apiKey string
+	if r.tokenStore != nil {
+		if tok, err := r.tokenStore.GetDefault(providerID); err == nil && tok != nil {
+			apiKey = tok.AccessToken
+		}
+	}
+	return r.buildDecision(providerID, "", apiKey), true
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {

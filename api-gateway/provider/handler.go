@@ -202,7 +202,7 @@ func (h *AuthHandler) HandleClaudeCallback(w http.ResponseWriter, r *http.Reques
 
 	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:8080")
 	dashboardURL := envOr("DASHBOARD_URL", "http://localhost:8082")
-	pc, ok := h.registry.Get("claude")
+	pc, ok := h.registry.Get("claude-oauth")
 	if !ok {
 		http.Redirect(w, r, dashboardURL+"/admin?auth_error=no_claude_provider", http.StatusTemporaryRedirect)
 		return
@@ -531,6 +531,24 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 		"status":  "registered",
 		"account": token,
 	})
+
+}
+
+func (h *AuthHandler) UpdateAccountEmail(w http.ResponseWriter, r *http.Request) {
+	provider := chi.URLParam(r, "provider")
+	accountID := chi.URLParam(r, "accountId")
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if err := h.store.UpdateEmail(provider, accountID, body.Email); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 // Routes returns all auth routes for mounting on a chi.Router.
@@ -548,6 +566,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/accounts/{provider}/{accountId}/pause", h.PauseAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/resume", h.ResumeAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/default", h.SetDefaultAccount)
+			r.Post("/auth/accounts/{provider}/{accountId}/email", h.UpdateAccountEmail)
 		r.Post("/auth/login", h.DashboardLogin)
 		r.Post("/auth/logout", h.DashboardLogout)
 		r.Get("/auth/check", h.CheckAuth)

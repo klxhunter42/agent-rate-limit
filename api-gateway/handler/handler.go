@@ -111,11 +111,12 @@ type Handler struct {
 	quotaHandler    *QuotaHandler
 	profileRedis    *redis.Client
 	wsBroadcast     func(eventType string, data interface{})
+	refreshWorker   *provider.RefreshWorker
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{})) *Handler {
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn}
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker) *Handler {
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw}
 }
 
 // ChatCompletions validates the request, enqueues the job, and returns a request ID.
@@ -285,6 +286,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		providerID := ""
 		if profileOverride.Provider != "" {
 			providerID = profileOverride.Provider
+		} else if profileOverride.Target != "" {
+			providerID = profileOverride.Target
 		} else if decision != nil {
 			providerID = decision.ProviderID
 		}
@@ -294,8 +297,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
 			}
 		}
-	} else if profileOverride != nil && profileOverride.APIKey != "" {
-		apiKey = profileOverride.APIKey
+	} else if profileOverride != nil {
+		pid := profileOverride.Provider
+		if pid == "" {
+			pid = profileOverride.Target
+		}
+		if pid != "" && h.tokenStore != nil {
+			if tok, err := h.tokenStore.GetDefault(pid); err == nil && tok != nil {
+				apiKey = tok.AccessToken
+				slog.Info("profile default token selected", "profile", profileOverride.Name, "provider", pid, "account", tok.AccountID)
+			}
+		}
 	} else if decision != nil && decision.APIKey != "" {
 		apiKey = decision.APIKey
 	} else if !h.keyPool.Passthrough() {
@@ -344,9 +356,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-
 	// Non-GLM mode: require a resolved provider. No Z.AI fallback.
-	if !h.cfg.GLMMode && decision == nil {
+	if !h.cfg.GLMMode && decision == nil && profileOverride == nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"type":  "error",
 			"error": map[string]string{"type": "no_provider", "message": fmt.Sprintf("no provider configured for model %s - authenticate via /v1/auth/claude/start or configure an API key", requestedModel)},
@@ -422,9 +433,45 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Build profile proxy options if profile override is active.
 	profileOpts := &proxy.ProxyOptions{}
-	if profileOverride != nil && profileOverride.BaseURL != "" {
-		profileOpts.UpstreamOverride = profileOverride.BaseURL
+	if profileOverride != nil {
+		if profileOverride.BaseURL != "" {
+			profileOpts.UpstreamOverride = profileOverride.BaseURL
+		}
+		if decision == nil && profileOverride.Target != "" {
+			if d, ok := h.resolver.ResolveByProvider(profileOverride.Target); ok {
+				decision = d
+			}
+		}
 	}
+
+	// OAuth token refresh callback: on 401, refresh the token and retry once.
+	oauthRefreshFn := func(oldKey string) (string, bool) {
+		pid := ""
+		if profileOverride != nil && profileOverride.Provider != "" {
+			pid = profileOverride.Provider
+		} else if decision != nil {
+			pid = decision.ProviderID
+		}
+		if pid == "" {
+			return "", false
+		}
+		tokens, err := h.tokenStore.ListByProvider(pid)
+		if err != nil || len(tokens) == 0 {
+			return "", false
+		}
+		for _, t := range tokens {
+			if t.AccessToken == oldKey && t.RefreshToken != "" {
+				if h.refreshWorker.RefreshOne(pid, t.AccountID) == nil {
+					if refreshed, err := h.tokenStore.Get(pid, t.AccountID); err == nil && refreshed != nil {
+						slog.Info("token refreshed on 401", "provider", pid, "account", t.AccountID)
+						return refreshed.AccessToken, true
+					}
+				}
+			}
+		}
+		return "", false
+	}
+	profileOpts.OnAuthError = oauthRefreshFn
 
 	// Feedback callback for adaptive limiter + key pool + anomaly detection.
 	start := time.Now()
@@ -488,7 +535,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			body, _ = json.Marshal(payload)
 		}
 		slog.Info("routing to native vision endpoint", "model", selectedModel)
-		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
 			slog.Error("vision proxy error", "error", err)
 			h.metrics.IncError("upstream")
 		}
@@ -503,25 +550,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		switch visionDecision.Format {
 		case provider.FormatOpenAI:
-			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
 				slog.Error("openai vision proxy error", "error", err)
 				h.metrics.IncError("upstream")
 			}
 		case provider.FormatGemini:
 			if visionDecision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
-					slog.Warn("code assist vision failed, falling back to gemini api", "error", err)
-					if h.geminiAPIProxy != nil {
-						if fbErr := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); fbErr != nil {
-							slog.Error("gemini vision api fallback error", "error", fbErr)
-							h.metrics.IncError("upstream")
-						}
-					} else {
-						h.metrics.IncError("upstream")
-					}
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn); err != nil {
+					slog.Error("code assist vision failed", "error", err)
+					h.metrics.IncError("upstream")
 				}
 			} else if h.geminiAPIProxy != nil {
-				if err := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+				if err := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
 					slog.Error("gemini vision proxy error", "error", err)
 					h.metrics.IncError("upstream")
 				}
@@ -531,6 +571,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				AuthMode:         visionDecision.AuthMode,
 				UpstreamOverride: visionDecision.UpstreamURL,
 				ExtraHeaders:     visionDecision.ExtraHeaders,
+				OnAuthError:      oauthRefreshFn,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("vision proxy error", "error", err)
@@ -540,25 +581,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	} else if decision != nil {
 		switch decision.Format {
 		case provider.FormatOpenAI:
-			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
 				slog.Error("openai proxy error", "error", err)
 				h.metrics.IncError("upstream")
 			}
 		case provider.FormatGemini:
 			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
-					slog.Warn("code assist failed, falling back to gemini api", "error", err)
-					if h.geminiAPIProxy != nil {
-						if fbErr := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); fbErr != nil {
-							slog.Error("gemini api fallback error", "error", fbErr)
-							h.metrics.IncError("upstream")
-						}
-					} else {
-						h.metrics.IncError("upstream")
-					}
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn); err != nil {
+					// Don't fallback to direct Gemini API with OAuth token (requires API key).
+					slog.Error("code assist failed", "error", err)
+					h.metrics.IncError("upstream")
 				}
 			} else if h.geminiAPIProxy != nil {
-				if err := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn); err != nil {
+				if err := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
 					slog.Error("gemini proxy error", "error", err)
 					h.metrics.IncError("upstream")
 				}
@@ -568,6 +603,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				AuthMode:         decision.AuthMode,
 				UpstreamOverride: decision.UpstreamURL,
 				ExtraHeaders:     decision.ExtraHeaders,
+				OnAuthError:      oauthRefreshFn,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("proxy error", "error", err)

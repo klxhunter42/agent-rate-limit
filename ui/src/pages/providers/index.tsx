@@ -37,7 +37,7 @@ const PROVIDERS: ProviderDef[] = [
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
-  { id: 'claude', name: 'Claude (OAuth)', icon: Bot, authType: 'OAuth',
+  { id: 'claude-oauth', name: 'Claude (OAuth)', icon: Bot, authType: 'OAuth',
     setup: [
       'Zero-config - uses Claude Code CLI Client ID',
       'Click Connect - browser opens Claude login',
@@ -312,6 +312,7 @@ export default function ProvidersPage() {
                       onPause={(id) => handleAction(id, () => authApi.pauseAccount(provider.id, id))}
                       onResume={(id) => handleAction(id, () => authApi.resumeAccount(provider.id, id))}
                       onSetDefault={(id) => handleAction(id, () => authApi.setDefaultAccount(provider.id, id))}
+                      onUpdate={loadAccounts}
                     />
                     {actionLoading && (
                       <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
@@ -359,7 +360,9 @@ export default function ProvidersPage() {
         authUrl={authFlow.authUrl ?? ''}
         status={authCodeStatus}
         error={authFlow.error ?? undefined}
+        needsEmail={authFlow.needsEmail}
         onSubmitCallback={(url) => authFlow.submitCallback(authFlow.provider ?? '', url)}
+        onSubmitEmail={(email) => authFlow.submitEmail(email)}
       />
     </div>
   );

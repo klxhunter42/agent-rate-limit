@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import type { AccountInfo } from '@/lib/auth-api';
+import { updateAccountEmail } from '@/lib/auth-api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, Star, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Pause, Play, Star, Trash2, Pencil } from 'lucide-react';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +15,7 @@ interface AccountListProps {
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onSetDefault: (id: string) => void;
+  onUpdate?: () => void;
 }
 
 const TIER_STYLES: Record<string, string> = {
@@ -27,13 +31,24 @@ function blurEmail(email: string | undefined): string {
 }
 
 export function AccountList({
+  provider,
   accounts,
   onPause,
   onResume,
   onSetDefault,
   onRemove,
+  onUpdate,
 }: AccountListProps) {
   const { privacyMode } = usePrivacy();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editEmail, setEditEmail] = useState('');
+
+  const handleSaveEmail = async (id: string) => {
+    if (!editEmail.includes('@')) return;
+    await updateAccountEmail(provider, id, editEmail.trim());
+    setEditingId(null);
+    onUpdate?.();
+  };
 
   if (accounts.length === 0) {
     return <p className="text-sm text-muted-foreground py-2">No accounts connected.</p>;
@@ -58,9 +73,43 @@ export function AccountList({
           />
 
           {/* Email */}
-          <span className="text-sm font-mono truncate flex-1 min-w-0">
-            {privacyMode ? blurEmail(acct.email) : (acct.email ?? acct.id)}
-          </span>
+          {editingId === acct.id ? (
+            <div className="flex gap-1.5 flex-1 min-w-0">
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveEmail(acct.id)}
+                className="h-6 text-xs"
+                autoFocus
+              />
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                disabled={!editEmail.includes('@')}
+                onClick={() => handleSaveEmail(acct.id)}>
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                onClick={() => setEditingId(null)}>
+                X
+              </Button>
+            </div>
+          ) : (
+            <span className="text-sm font-mono truncate flex-1 min-w-0">
+              {privacyMode ? blurEmail(acct.email) : (acct.email ?? acct.id)}
+            </span>
+          )}
+
+          {/* Edit email */}
+          {editingId !== acct.id && (
+            <button
+              onClick={() => { setEditingId(acct.id); setEditEmail(acct.email ?? ''); }}
+              className="shrink-0 p-1 rounded hover:bg-muted transition-colors text-muted-foreground/30 hover:text-muted-foreground"
+              title="Edit email"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
 
           {/* Tier badge */}
           {acct.tier && (

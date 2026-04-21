@@ -12,20 +12,22 @@ import (
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
 // codeAssistEndpoint moved to cfg.GeminiCodeAssistEndpoint
 
 type GeminiCodeAssistProxy struct {
-	client   *http.Client
-	metrics  *metrics.Metrics
-	endpoint string
+	client       *http.Client
+	metrics      *metrics.Metrics
+	endpoint     string
 	defaultModel string
 }
 
 func NewGeminiCodeAssistProxy(m *metrics.Metrics, codeAssistEndpoint, defaultModel string) *GeminiCodeAssistProxy {
 	return &GeminiCodeAssistProxy{
-		endpoint: codeAssistEndpoint,
+		endpoint:     codeAssistEndpoint,
 		defaultModel: defaultModel,
 		client: &http.Client{
 			Timeout: 0,
@@ -381,7 +383,7 @@ func geminiToAnthropic(gResp geminiResponse, model string, stream bool) map[stri
 
 // ---------- Proxy ----------
 
-func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.Request, accessToken string, body []byte, model string, isStream bool, feedback FeedbackFunc) error {
+func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.Request, accessToken string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, onAuthError func(string) (string, bool)) error {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("parse payload: %w", err)
@@ -425,16 +427,58 @@ func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.R
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("code assist error (%d): %s", resp.StatusCode, string(respBody))
+		errBody := string(respBody)
+
+		// On 401 with OAuth bearer, try refreshing the token once.
+		if resp.StatusCode == 401 && onAuthError != nil {
+			if newKey, ok := onAuthError(accessToken); ok {
+				httpReq2, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, bytes.NewReader(gBody))
+				if err == nil {
+					httpReq2.Header.Set("Content-Type", "application/json")
+					httpReq2.Header.Set("Authorization", "Bearer "+newKey)
+					start2 := time.Now()
+					resp2, err := p.client.Do(httpReq2)
+					if err == nil {
+						defer resp2.Body.Close()
+						if feedback != nil {
+							feedback(resp2.StatusCode, time.Since(start2), resp2.Header)
+						}
+						if resp2.StatusCode == http.StatusOK {
+							if isStream {
+								return p.streamResponse(w, resp2, model, maskResult)
+							}
+							return p.nonStreamResponse(w, resp2, model, maskResult)
+						}
+						// Refresh succeeded but upstream still rejected
+						errBody2, _ := io.ReadAll(resp2.Body)
+						errBody = string(errBody2)
+					} else {
+						errBody = err.Error()
+					}
+				}
+			}
+		}
+
+		// Write error response to client instead of empty 200
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		json.NewEncoder(w).Encode(map[string]any{
+			"type": "error",
+			"error": map[string]any{
+				"type":    "authentication_error",
+				"message": fmt.Sprintf("upstream error (%d): %s", resp.StatusCode, errBody),
+			},
+		})
+		return fmt.Errorf("code assist error (%d): %s", resp.StatusCode, errBody)
 	}
 
 	if isStream {
-		return p.streamResponse(w, resp, model)
+		return p.streamResponse(w, resp, model, maskResult)
 	}
-	return p.nonStreamResponse(w, resp, model)
+	return p.nonStreamResponse(w, resp, model, maskResult)
 }
 
-func (p *GeminiCodeAssistProxy) nonStreamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *GeminiCodeAssistProxy) nonStreamResponse(w http.ResponseWriter, resp *http.Response, model string, maskResult *privacy.MaskResult) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("read response: %w", err)
@@ -458,11 +502,22 @@ func (p *GeminiCodeAssistProxy) nonStreamResponse(w http.ResponseWriter, resp *h
 	}
 
 	anthropicResp := geminiToAnthropic(*gResp, model, false)
+	respBody, err := json.Marshal(anthropicResp)
+	if err != nil {
+		return fmt.Errorf("marshal anthropic response: %w", err)
+	}
+
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	return json.NewEncoder(w).Encode(anthropicResp)
+	_, err = w.Write(respBody)
+	return err
 }
 
-func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http.Response, model string, maskResult *privacy.MaskResult) error {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return fmt.Errorf("streaming not supported")
@@ -497,6 +552,11 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var unmasker *masking.StreamUnmasker
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+	}
 
 	var totalTokens int
 	_ = 0
@@ -540,14 +600,29 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 			if cand.Content != nil {
 				for _, part := range cand.Content.Parts {
 					if part.Text != "" {
+						text := part.Text
+						if unmasker != nil {
+							text = unmasker.ProcessChunk(text)
+						}
 						writeSSE(w, flusher, "content_block_delta", map[string]any{
 							"type":  "content_block_delta",
 							"index": 0,
-							"delta": map[string]any{"type": "text_delta", "text": part.Text},
+							"delta": map[string]any{"type": "text_delta", "text": text},
 						})
 					}
 				}
 			}
+		}
+	}
+
+	// Flush remaining unmasker buffer.
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			writeSSE(w, flusher, "content_block_delta", map[string]any{
+				"type":  "content_block_delta",
+				"index": 0,
+				"delta": map[string]any{"type": "text_delta", "text": remaining},
+			})
 		}
 	}
 

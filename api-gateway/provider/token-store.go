@@ -12,6 +12,11 @@ import (
 
 const tokenKeyPrefix = "arl:tokens:"
 
+// Provider renames: old ID -> new ID. Migrated once on startup.
+var providerRenames = map[string]string{
+	"claude": "claude-oauth",
+}
+
 type TokenInfo struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
@@ -55,6 +60,47 @@ func NewTokenStore(redisAddr string) *TokenStore {
 	}
 
 	return &TokenStore{client: rdb}
+}
+
+// MigrateProviderRenames copies tokens from old provider IDs to new ones.
+func (s *TokenStore) MigrateProviderRenames() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for oldID, newID := range providerRenames {
+		oldIdx := tokenKeyPrefix + oldID + ":_index"
+		ids, err := s.client.SMembers(ctx, oldIdx).Result()
+		if err != nil || len(ids) == 0 {
+			continue
+		}
+
+		newIdx := tokenKeyPrefix + newID + ":_index"
+		for _, id := range ids {
+			if id == "_index" {
+				continue
+			}
+			oldKey := tokenKeyPrefix + oldID + ":" + id
+			newKey := tokenKeyPrefix + newID + ":" + id
+
+			data, err := s.client.Get(ctx, oldKey).Bytes()
+			if err != nil {
+				continue
+			}
+
+			var t TokenInfo
+			if json.Unmarshal(data, &t) != nil {
+				continue
+			}
+			t.Provider = newID
+			migrated, _ := json.Marshal(t)
+
+			s.client.Set(ctx, newKey, migrated, 0)
+			s.client.SAdd(ctx, newIdx, id)
+			s.client.Del(ctx, oldKey)
+		}
+		s.client.Del(ctx, oldIdx)
+		slog.Info("migrated provider tokens", "from", oldID, "to", newID, "count", len(ids))
+	}
 }
 
 func (s *TokenStore) Client() *redis.Client {
@@ -198,16 +244,29 @@ func (s *TokenStore) SetDefault(provider, accountID string) error {
 		return err
 	}
 
+	// Toggle: if already default, clear all defaults.
+	alreadyDefault := false
+	for _, t := range tokens {
+		if t.AccountID == accountID && t.IsDefault {
+			alreadyDefault = true
+			break
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	for _, t := range tokens {
-		t.IsDefault = t.AccountID == accountID
+		if alreadyDefault {
+			t.IsDefault = false
+		} else {
+			t.IsDefault = t.AccountID == accountID
+		}
 		data, _ := json.Marshal(t)
 		s.client.Set(ctx, tokenKey(t.Provider, t.AccountID), data, 0)
 	}
 
-	slog.Info("default account set", "provider", provider, "account_id", accountID)
+	slog.Info("default account updated", "provider", provider, "account_id", accountID, "cleared", alreadyDefault)
 	return nil
 }
 
@@ -238,6 +297,12 @@ func (s *TokenStore) GetDefault(provider string) (*TokenInfo, error) {
 		}
 	}
 	return nil, nil
+}
+
+func (s *TokenStore) UpdateEmail(provider, accountID, email string) error {
+	return s.updateField(provider, accountID, func(t *TokenInfo) {
+		t.Email = email
+	})
 }
 
 func (s *TokenStore) updateField(provider, accountID string, fn func(*TokenInfo)) error {

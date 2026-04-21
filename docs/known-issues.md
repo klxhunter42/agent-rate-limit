@@ -514,7 +514,37 @@ case <-r.Context().Done():
 | 12e | Vision SSE streaming | Medium | **Fixed** |
 | 12f | Vision model auto-select | Low | **Fixed** |
 | 12g | Z.AI vision conversion (error 1210) | High | **Fixed** |
+| 12h | CodeAssist empty 200 on upstream errors | Critical | **Fixed** |
+| 12i | CodeAssist 401 auto-refresh missing | High | **Fixed** |
+| 12j | Favorite/unfavorite toggle not working | Medium | **Fixed** |
+| 12k | Profile edit broken (missing provider field) | Medium | **Fixed** |
 
 ---
 
-*Known Issues v1.4 -- updated: Z.AI vision conversion fix (error 1210 resolved)*
+### CodeAssist Empty 200 on Upstream Errors (FIXED)
+
+**Problem**: When Google CodeAssist returned non-200, `ProxyCodeAssist` returned a Go error but never wrote to `http.ResponseWriter`. Go's default behavior sent an empty 200 (Content-Length: 0) to the client instead of the actual error.
+
+**Fix**: Write JSON error body with upstream status code to `http.ResponseWriter` before returning error. Added `onAuthError` callback for 401 auto-refresh (retry once with refreshed token).
+
+**Files**: `api-gateway/proxy/gemini-codeassist.go`, `api-gateway/handler/handler.go`
+
+### Favorite/Unfavorite Toggle (FIXED)
+
+**Problem**: `SetDefault()` backend only set accounts as default - clicking the star on an already-default account was a no-op. No way to unset default.
+
+**Fix**: `SetDefault()` now toggles - if the account is already default, it clears all defaults for that provider.
+
+**Files**: `api-gateway/provider/token-store.go`
+
+### Profile Edit Broken (FIXED)
+
+**Problem**: `CreateProfileForm` sent `{ name, target, accountIds }` without `provider` field. Backend Profile had separate `Provider` (omitempty) and `Target` fields. Created profiles had no `provider`, causing: (1) edit form couldn't load accounts (checked `profile.provider`), (2) provider badge showed "undefined".
+
+**Fix**: (1) Create sends `provider: target`, (2) ProfileCard uses `resolvedProvider = profile.provider || profile.target || ''` as fallback.
+
+**Files**: `ui/src/pages/profiles/index.tsx`
+
+---
+
+*Known Issues v1.5 -- updated: CodeAssist error handling, favorite toggle, profile edit fixes*

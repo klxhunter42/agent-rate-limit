@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
-import { fetchProviders, providerName, authTypeLabel } from '@/lib/providers';
+import { fetchProviders, providerName } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
 
 interface AccountInfo {
@@ -20,8 +20,6 @@ interface Profile {
   name: string;
   provider: string;
   model?: string;
-  apiKey?: string;
-  baseUrl?: string;
   target?: string;
   accountIds?: string[];
   maxTokens?: number;
@@ -64,16 +62,13 @@ export function ProfilesPage() {
 
   async function createProfile(data: {
     name: string;
-    baseUrl: string;
-    apiKey: string;
-    model: string;
     target: string;
     accountIds: string[];
   }) {
     const res = await fetch('/v1/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, provider: data.target }),
     });
     if (res.ok) {
       setShowCreate(false);
@@ -252,8 +247,19 @@ curl http://localhost:8080/v1/chat/completions \\
           <p>The proxy looks up the profile and uses its <strong>baseUrl</strong>, <strong>apiKey</strong>, <strong>model</strong>, and <strong>accountIds</strong> to route the request.</p>
         </Section>
 
-        <Section id="claude-code" title="Claude Code Setup (apiKeyHelper)">
-          <p>Configure Claude Code to route through the proxy without a static API key:</p>
+        <Section id="claude-code" title="Claude Code Setup">
+          <p className="mb-2"><strong>Option A:</strong> Set <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> (simplest):</p>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
+{`# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
+  }
+}`}
+          </pre>
+
+          <p className="mt-4 mb-2"><strong>Option B:</strong> Use <code className="bg-muted px-1 rounded text-xs">apiKeyHelper</code> (no hardcoded key):</p>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
 {`# ~/.claude/settings.json
 {
@@ -267,16 +273,25 @@ curl http://localhost:8080/v1/chat/completions \\
 #!/bin/bash
 echo "proxy-no-key"`}
           </pre>
-          <p>To use a specific profile, add the header:</p>
+
+          <p className="mt-4 mb-2"><strong>To use a specific profile</strong>, add the profile name via headers:</p>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
-{`# In settings.json env, add:
-"ANTHROPIC_BASE_URL": "http://localhost:8080"
-
-# Then set profile via custom header in Claude Code config
-# or use the profile's API key directly as apiKeyHelper output`}
+{`# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
+  },
+  "headers": {
+    "X-Profile": "my-profile"
+  }
+}`}
           </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            The gateway reads the <code className="bg-muted px-1 rounded">X-Profile</code> header.
+            Set it via the <code className="bg-muted px-1 rounded">headers</code> field in settings.json.
+          </p>
         </Section>
-
         <Section id="account-pool" title="Account Pool Selection">
           <p>When a profile has <strong>accountIds</strong> set, the proxy selects an account from only those IDs in the provider token pool. This is useful for:</p>
           <ul className="list-disc list-inside space-y-1">
@@ -290,7 +305,8 @@ echo "proxy-no-key"`}
         <Section id="target" title="Target Field">
           <p>The <strong>target</strong> field determines the API compatibility mode:</p>
           <ul className="list-disc list-inside space-y-1">
-            <li><code className="bg-muted px-1 rounded text-xs">claude</code> - Anthropic Claude API format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">claude-oauth</code> - Claude via OAuth (Bearer token)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">anthropic</code> - Anthropic API key format</li>
             <li><code className="bg-muted px-1 rounded text-xs">droid</code> - Google Gemini API format</li>
             <li><code className="bg-muted px-1 rounded text-xs">codex</code> - OpenAI Codex API format</li>
           </ul>
@@ -304,19 +320,17 @@ function CreateProfileForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (data: { name: string; baseUrl: string; apiKey: string; model: string; target: string; accountIds: string[] }) => void;
+  onSubmit: (data: { name: string; target: string; accountIds: string[] }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('');
+
   const [target, setTarget] = useState('');
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
-  const canSubmit = name.trim() && apiKey.trim() && target;
+  const canSubmit = name.trim() && target;
 
   useEffect(() => {
     fetchProviders().then((list) => {
@@ -357,25 +371,13 @@ function CreateProfileForm({
           >
             {providers.length === 0 && <option value="">Loading...</option>}
             {providers.map((p) => (
-              <option key={p.id} value={p.id}>{providerName(p.id)} ({authTypeLabel(p.authType)})</option>
+              <option key={p.id} value={p.id}>{providerName(p.id)}</option>
             ))}
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground">Base URL</label>
-          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.anthropic.com" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Model</label>
-          <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="claude-sonnet-4-20250514" />
-        </div>
-      </div>
-      <div>
-        <label className="text-xs text-muted-foreground">API Key *</label>
-        <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." />
-      </div>
+
+
 
       {accounts.length > 0 && (
         <div>
@@ -407,7 +409,7 @@ function CreateProfileForm({
         <Button size="sm" variant="ghost" onClick={onCancel}>
           <X className="h-4 w-4 mr-1" /> Cancel
         </Button>
-        <Button size="sm" onClick={() => onSubmit({ name, baseUrl, apiKey, model, target, accountIds })} disabled={!canSubmit}>
+        <Button size="sm" onClick={() => onSubmit({ name, target, accountIds })} disabled={!canSubmit}>
           <Check className="h-4 w-4 mr-1" /> Create
         </Button>
       </div>
@@ -439,16 +441,18 @@ function ProfileCard({
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
+  const resolvedProvider = profile.provider || profile.target || '';
+
   useEffect(() => {
-    if (editing && profile.provider) {
+    if (editing && resolvedProvider) {
       setAccountsLoading(true);
-      fetch(`/v1/auth/accounts/${encodeURIComponent(profile.provider)}`)
+      fetch(`/v1/auth/accounts/${encodeURIComponent(resolvedProvider)}`)
         .then((r) => (r.ok ? r.json() : { accounts: [] }))
         .then((data) => setAccounts(data.accounts ?? []))
         .catch(() => setAccounts([]))
         .finally(() => setAccountsLoading(false));
     }
-  }, [editing, profile.provider]);
+  }, [editing, resolvedProvider]);
 
   function toggleAccount(id: string) {
     setEditAccountIds((prev) =>
@@ -508,7 +512,7 @@ function ProfileCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm font-semibold">{profile.name}</span>
-            <Badge variant="outline">{providerName(profile.provider)}</Badge>
+            <Badge variant="outline">{providerName(resolvedProvider)}</Badge>
             {profile.model && <span className="text-xs text-muted-foreground">{profile.model}</span>}
             {profile.accountIds && profile.accountIds.length > 0 && (
               <Badge variant="secondary" className="text-[10px] h-4">

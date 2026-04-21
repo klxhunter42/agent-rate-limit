@@ -172,6 +172,25 @@ func (w *RefreshWorker) doRefresh(ctx context.Context, pc ProviderConfig, t *Tok
 	return nil
 }
 
+// RefreshOne refreshes a single token by provider and accountID.
+// Returns error if the token or provider is not found, or if refresh fails.
+func (w *RefreshWorker) RefreshOne(providerID, accountID string) error {
+	t, err := w.store.Get(providerID, accountID)
+	if err != nil {
+		return fmt.Errorf("get token: %w", err)
+	}
+	if t == nil {
+		return fmt.Errorf("token not found: %s/%s", providerID, accountID)
+	}
+
+	pc, ok := w.registry.Get(providerID)
+	if !ok {
+		return fmt.Errorf("provider not found: %s", providerID)
+	}
+
+	return w.doRefresh(context.Background(), pc, t)
+}
+
 // AuthType returns the auth type for a TokenInfo based on whether it has a refresh token.
 // This is a convenience method to avoid needing the provider config.
 func (t *TokenInfo) AuthType() AuthType {

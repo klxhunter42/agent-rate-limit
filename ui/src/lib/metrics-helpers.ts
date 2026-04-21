@@ -7,10 +7,10 @@ interface ModelTokens {
 }
 
 export function filterByModels(metrics: ParsedMetric[], allowedModels: Set<string>): ParsedMetric[] {
-  if (allowedModels.size === 0) return metrics;
   return metrics.filter((m) => {
     const model = m.labels.model;
     if (!model) return true; // non-model metrics pass through
+    if (allowedModels.size === 0) return false; // no models seen yet, hide all model metrics
     return allowedModels.has(model);
   });
 }

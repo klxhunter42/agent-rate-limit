@@ -13,6 +13,8 @@ import (
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
 type OpenAIProxy struct {
@@ -39,7 +41,7 @@ func NewOpenAIProxy(cfg *config.Config, m *metrics.Metrics) *OpenAIProxy {
 func (p *OpenAIProxy) ProxyOpenAI(
 	w http.ResponseWriter, r *http.Request,
 	upstreamURL, apiKey string, body []byte, model string,
-	isStream bool, feedback FeedbackFunc,
+	isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult,
 ) error {
 	openaiReq, err := AnthropicToOpenAI(body, model)
 	if err != nil {
@@ -111,12 +113,16 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	}
 
 	if isStream {
-		return p.relayOpenAIStream(w, lastResp, model)
+		var unmasker *masking.StreamUnmasker
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		}
+		return p.relayOpenAIStream(w, lastResp, model, unmasker)
 	}
-	return p.handleOpenAIResponse(w, lastResp, model)
+	return p.handleOpenAIResponse(w, lastResp, model, maskResult)
 }
 
-func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Response, model string, maskResult *privacy.MaskResult) error {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 	if err != nil {
 		return fmt.Errorf("read openai response: %w", err)
@@ -138,13 +144,19 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 
 	anthropicResp := OpenAIToAnthropic(openaiResp, model)
 	respBody, _ := json.Marshal(anthropicResp)
+
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
 	return nil
 }
 
-func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Response, model string) error {
+func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker) error {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -218,6 +230,13 @@ func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Respon
 		}
 
 		outputTokens++
+
+		if unmasker != nil {
+			text = unmasker.ProcessChunk(text)
+		}
+		if text == "" {
+			continue
+		}
 
 		escaped, _ := json.Marshal(text)
 		fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))

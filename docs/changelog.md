@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-04-21] Bug Fixes: CodeAssist Error Handling, Favorite Toggle, Profile Edit
+
+### แก้ไข: CodeAssist empty 200 on upstream errors (Critical)
+
+เมื่อ Google CodeAssist upstream return non-200, proxy return empty 200 (Content-Length: 0) ให้ client แทน error response เพราะ `ProxyCodeAssist` return error โดยไม่ได้ write response body ไปที่ `http.ResponseWriter`
+
+**แก้:** write JSON error body + upstream status code ไป client ก่อน return error
+
+**ไฟล์:** `api-gateway/proxy/gemini-codeassist.go`
+
+---
+
+### แก้ไข: CodeAssist 401 auto-refresh
+
+เพิ่ม `onAuthError` callback ใน `ProxyCodeAssist` - เมื่อ upstream return 401 จะ refresh token ผ่าน `oauthRefreshFn` แล้ว retry request 1 ครั้ง (pattern เดียวกับ `anthropic.go`)
+
+**ไฟล์:** `api-gateway/proxy/gemini-codeassist.go`, `api-gateway/handler/handler.go`
+
+---
+
+### แก้ไข: Favorite/Unfavorite toggle ไม่ทำงาน
+
+`SetDefault` backend ทำได้แค่ "set default" - กด star อีกทีกับ account เดิมก็ยังเป็น default อยู่ (no toggle behavior)
+
+**แก้:** `SetDefault` เปลี่ยนเป็น toggle - ถ้า account ที่กดเป็น default อยู่แล้วจะ unset (clear default ทั้งหมด)
+
+**ไฟล์:** `api-gateway/provider/token-store.go` `SetDefault()` method
+
+---
+
+### แก้ไข: Profile edit ไม่ทำงาน + provider badge แสดง "undefined"
+
+`CreateProfileForm` ส่ง `{ name, target, accountIds }` โดยไม่มี `provider` field -> profile ที่สร้างใหม่ไม่มี `provider` -> edit form โหลด accounts ไม่ได้ (ใช้ `profile.provider`) + badge แสดง "undefined"
+
+**แก้:**
+1. ส่ง `provider: target` เมื่อสร้าง profile (provider = target ในทุกกรณี)
+2. `ProfileCard` ใช้ `resolvedProvider = profile.provider || profile.target || ''` เป็น fallback
+
+**ไฟล์:** `ui/src/pages/profiles/index.tsx`
+
+---
+
 ## [2026-04-20] Z.AI Vision Conversion Fix
 
 ### แก้ไข: Vision API error 1210

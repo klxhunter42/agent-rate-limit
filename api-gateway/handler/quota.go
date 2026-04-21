@@ -197,12 +197,12 @@ func (q *QuotaHandler) fetchFromProvider(ctx context.Context, prov, accountID st
 	}
 
 	switch prov {
-	case "claude", "anthropic":
+	case "claude-oauth", "anthropic":
 		return &QuotaResult{
 			Success:     true,
 			Models:      []ModelQuota{},
 			AccountID:   accountID,
-			Provider:    "claude",
+			Provider:    "claude-oauth",
 			LastUpdated: now,
 		}
 	case "gemini", "gemini-oauth":
