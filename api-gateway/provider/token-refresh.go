@@ -123,19 +123,36 @@ func (w *RefreshWorker) refreshToken(ctx context.Context, pc ProviderConfig, t T
 }
 
 func (w *RefreshWorker) doRefresh(ctx context.Context, pc ProviderConfig, t *TokenInfo) error {
-	form := url.Values{}
-	form.Set("grant_type", "refresh_token")
-	form.Set("refresh_token", t.RefreshToken)
-	form.Set("client_id", pc.ClientID)
-	if pc.ClientSecret != "" {
-		form.Set("client_secret", pc.ClientSecret)
-	}
+	var req *http.Request
+	var err error
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, pc.TokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return fmt.Errorf("build refresh request: %w", err)
+	// Claude OAuth requires JSON body, others use form-urlencoded
+	if t.Provider == "claude-oauth" {
+		payload := map[string]string{
+			"grant_type":    "refresh_token",
+			"refresh_token": t.RefreshToken,
+			"client_id":     pc.ClientID,
+		}
+		body, _ := json.Marshal(payload)
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, pc.TokenURL, strings.NewReader(string(body)))
+		if err != nil {
+			return fmt.Errorf("build refresh request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		form := url.Values{}
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", t.RefreshToken)
+		form.Set("client_id", pc.ClientID)
+		if pc.ClientSecret != "" {
+			form.Set("client_secret", pc.ClientSecret)
+		}
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, pc.TokenURL, strings.NewReader(form.Encode()))
+		if err != nil {
+			return fmt.Errorf("build refresh request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
