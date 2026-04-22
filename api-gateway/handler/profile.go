@@ -2,17 +2,24 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 )
 
+const profileTokenPrefix = "profile_token:"
+
 const profilePrefix = "profile:"
+
+const profileTokensPrefix = "profile_tokens:"
 
 // Profile represents a configuration for connecting to an AI provider.
 type Profile struct {
@@ -28,6 +35,15 @@ type Profile struct {
 	AccountIDs  []string `json:"accountIds"`
 	CreatedAt   string   `json:"createdAt"`
 	UpdatedAt   string   `json:"updatedAt"`
+}
+
+// ProfileToken represents a named API token tied to a profile.
+type ProfileToken struct {
+	KeyName   string `json:"keyName"`
+	Token     string `json:"token"`
+	Profile   string `json:"profile"`
+	ExpiresAt string `json:"expiresAt,omitempty"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ProfileHandler manages profile CRUD against Dragonfly/Redis.
@@ -87,6 +103,10 @@ func (h *ProfileHandler) Routes() func(r chi.Router) {
 				r.Delete("/", h.Delete)
 				r.Post("/copy", h.Copy)
 				r.Post("/export", h.Export)
+				r.Get("/export", h.Export)
+				r.Get("/tokens", h.ListTokens)
+				r.Post("/tokens", h.GenerateToken)
+				r.Delete("/tokens/{keyName}", h.RevokeToken)
 			})
 		})
 	}
@@ -235,7 +255,7 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// Delete removes a profile. Returns 404 if not found.
+// Delete removes a profile and all its tokens. Returns 404 if not found.
 func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
@@ -245,6 +265,16 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
+
+	// Revoke all tokens for this profile.
+	tokens, _ := h.redis.HGetAll(ctx, profileTokensPrefix+name).Result()
+	for _, val := range tokens {
+		var pt ProfileToken
+		if json.Unmarshal([]byte(val), &pt) == nil {
+			h.redis.Del(ctx, profileTokenPrefix+pt.Token)
+		}
+	}
+	h.redis.Del(ctx, profileTokensPrefix+name)
 
 	deleted, err := h.redis.Del(ctx, profilePrefix+name).Result()
 	if err != nil {
@@ -305,6 +335,7 @@ func (h *ProfileHandler) Copy(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	src.Name = req.Destination
+	src.APIKey = ""
 	src.CreatedAt = now
 	src.UpdatedAt = now
 
@@ -414,6 +445,170 @@ func (h *ProfileHandler) Import(w http.ResponseWriter, r *http.Request) {
 		resp["warnings"] = warnings
 	}
 	writeJSON(w, http.StatusCreated, resp)
+}
+
+// --- token handlers ---
+
+// ListTokens returns all tokens for a profile.
+func (h *ProfileHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	data, err := h.redis.HGetAll(ctx, profileTokensPrefix+name).Result()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list tokens"})
+		return
+	}
+
+	tokens := make([]ProfileToken, 0, len(data))
+	for _, val := range data {
+		var pt ProfileToken
+		if json.Unmarshal([]byte(val), &pt) == nil {
+			tokens = append(tokens, pt)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"tokens": tokens})
+}
+
+// GenerateToken creates a named API token tied to this profile.
+// Body: {"keyName": "my-laptop", "expiresIn": 3600}
+func (h *ProfileHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	var req struct {
+		KeyName   string `json:"keyName"`
+		ExpiresIn int    `json:"expiresIn"` // seconds, 0 = never
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if req.KeyName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "keyName is required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	// Check profile exists.
+	if _, err := getProfile(ctx, h.redis, name); err == redis.Nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "profile not found: " + name})
+		return
+	} else if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get profile"})
+		return
+	}
+
+	// If keyName already exists, revoke old token first.
+	tokensKey := profileTokensPrefix + name
+	if existing, err := h.redis.HGet(ctx, tokensKey, req.KeyName).Result(); err == nil {
+		var old ProfileToken
+		if json.Unmarshal([]byte(existing), &old) == nil {
+			h.redis.Del(ctx, profileTokenPrefix+old.Token)
+		}
+	}
+
+	// Generate token: arl_<32 random hex chars>.
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
+		return
+	}
+	token := "arl_" + hex.EncodeToString(b)
+
+	// Determine TTL.
+	var ttl time.Duration
+	var expiresAt string
+	if req.ExpiresIn > 0 {
+		ttl = time.Duration(req.ExpiresIn) * time.Second
+		expiresAt = time.Now().Add(ttl).UTC().Format(time.RFC3339)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	pt := ProfileToken{
+		KeyName:   req.KeyName,
+		Token:     token,
+		Profile:   name,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}
+
+	ptData, _ := json.Marshal(pt)
+
+	// Store reverse mapping: token -> profile name (with optional TTL).
+	if err := h.redis.Set(ctx, profileTokenPrefix+token, name, ttl).Err(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store token"})
+		return
+	}
+
+	// Store token metadata in hash: profile_tokens:{name} -> {keyName: json}.
+	if err := h.redis.HSet(ctx, tokensKey, req.KeyName, ptData).Err(); err != nil {
+		h.redis.Del(ctx, profileTokenPrefix+token)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store token metadata"})
+		return
+	}
+
+	slog.Info("profile token generated", "profile", name, "keyName", req.KeyName, "ttl", ttl)
+	writeJSON(w, http.StatusOK, pt)
+}
+
+// RevokeToken removes a named token for a profile.
+func (h *ProfileHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	keyName := chi.URLParam(r, "keyName")
+	if name == "" || keyName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and keyName are required"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	tokensKey := profileTokensPrefix + name
+	existing, err := h.redis.HGet(ctx, tokensKey, keyName).Result()
+	if err == redis.Nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "token not found: " + keyName})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get token"})
+		return
+	}
+
+	var pt ProfileToken
+	if json.Unmarshal([]byte(existing), &pt) == nil {
+		h.redis.Del(ctx, profileTokenPrefix+pt.Token)
+	}
+	h.redis.HDel(ctx, tokensKey, keyName)
+
+	slog.Info("profile token revoked", "profile", name, "keyName", keyName)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked", "profile": name, "keyName": keyName})
+}
+
+// ResolveProfileToken looks up a token and returns the profile name.
+func ResolveProfileToken(rdb *redis.Client, token string) (string, error) {
+	if rdb == nil || !strings.HasPrefix(token, "arl_") {
+		return "", nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	name, err := rdb.Get(ctx, profileTokenPrefix+token).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return name, err
 }
 
 // --- helpers ---

@@ -408,15 +408,17 @@ services:
 
   # --- Claude Code test client ---
   claude-code-meow:
+    platform: linux/arm64
     build:
       context: ./docker
       dockerfile: Dockerfile.claude-code
     container_name: claude-code-meow
     profiles: ["test-client"]
     volumes:
-      - ./docker/settings-meow.json:/root/.claude/settings.json:ro
+      - ./docker/settings-meow.json:/root/.claude/settings.json
       - ./workspace:/workspace
     environment:
+      PROFILE_NAME: meow
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
       CLAUDE_CODE_DISABLE_ANALYTICS: 1
     networks:
@@ -425,15 +427,17 @@ services:
     tty: true
 
   claude-code-test:
+    platform: linux/arm64
     build:
       context: ./docker
       dockerfile: Dockerfile.claude-code
     container_name: claude-code-test
     profiles: ["test-client"]
     volumes:
-      - ./docker/settings-test.json:/root/.claude/settings.json:ro
+      - ./docker/settings-test.json:/root/.claude/settings.json
       - ./workspace:/workspace
     environment:
+      PROFILE_NAME: test
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
       CLAUDE_CODE_DISABLE_ANALYTICS: 1
     networks:

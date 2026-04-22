@@ -110,18 +110,30 @@ type geminiConversionResult struct {
 	Request geminiRequest
 }
 
-func anthropicToGemini(payload map[string]any, defaultModel string) geminiConversionResult {
+func anthropicToGemini(payload map[string]any, defaultModel string, m ...*metrics.Metrics) geminiConversionResult {
 	model := defaultModel
 	if m, ok := payload["model"].(string); ok {
 		model = mapModelToGemini(m)
 	}
 
 	req := geminiRequest{}
+	var met *metrics.Metrics
+	if len(m) > 0 {
+		met = m[0]
+	}
 
 	// System instruction
 	if sys, ok := payload["system"].(string); ok && sys != "" {
-		optSys, _ := tokenizer.OptimizeWhitespace(sys)
-		optSys, _ = tokenizer.DeduplicateSentences(optSys)
+		optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
+		optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
+		if met != nil {
+			if wsSaved > 0 {
+				met.RecordOptimization("whitespace", wsSaved)
+			}
+			if dedupSaved > 0 {
+				met.RecordOptimization("dedup_sentences", dedupSaved)
+			}
+		}
 		req.SystemInstruction = &geminiContent{
 			Parts: []geminiPart{{Text: optSys}},
 		}
@@ -135,8 +147,16 @@ func anthropicToGemini(payload map[string]any, defaultModel string) geminiConver
 			}
 		}
 		if sysText != "" {
-			optSys, _ := tokenizer.OptimizeWhitespace(sysText)
-			optSys, _ = tokenizer.DeduplicateSentences(optSys)
+			optSys, wsSaved := tokenizer.OptimizeWhitespace(sysText)
+			optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
+			if met != nil {
+				if wsSaved > 0 {
+					met.RecordOptimization("whitespace", wsSaved)
+				}
+				if dedupSaved > 0 {
+					met.RecordOptimization("dedup_sentences", dedupSaved)
+				}
+			}
 			req.SystemInstruction = &geminiContent{
 				Parts: []geminiPart{{Text: optSys}},
 			}
@@ -387,7 +407,7 @@ func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.R
 		return fmt.Errorf("parse payload: %w", err)
 	}
 
-	result := anthropicToGemini(payload, p.defaultModel)
+	result := anthropicToGemini(payload, p.defaultModel, p.metrics)
 
 	// Wrap in Code Assist envelope
 	caReq := codeAssistRequest{
@@ -512,6 +532,10 @@ func (p *GeminiCodeAssistProxy) nonStreamResponse(w http.ResponseWriter, resp *h
 		return fmt.Errorf("marshal anthropic response: %w", err)
 	}
 
+	if gResp.UsageMeta != nil {
+		p.metrics.RecordTokens(resp.Request.Context(), model, gResp.UsageMeta.PromptTokenCount, gResp.UsageMeta.CandidatesTokenCount)
+	}
+
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
@@ -563,8 +587,7 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
 	}
 
-	var totalTokens int
-	_ = 0
+	var inputTokens, outputTokens int
 	stopReason := "end_turn"
 
 	for scanner.Scan() {
@@ -592,8 +615,8 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 		chunk := caChunk.Response
 
 		if chunk.UsageMeta != nil {
-			_ = chunk.UsageMeta.PromptTokenCount
-			totalTokens = chunk.UsageMeta.CandidatesTokenCount
+			inputTokens = chunk.UsageMeta.PromptTokenCount
+			outputTokens = chunk.UsageMeta.CandidatesTokenCount
 		}
 
 		if len(chunk.Candidates) > 0 {
@@ -644,11 +667,15 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 			"stop_reason":   stopReason,
 			"stop_sequence": nil,
 		},
-		"usage": map[string]any{"output_tokens": totalTokens},
+		"usage": map[string]any{"output_tokens": outputTokens},
 	})
 
 	// message_stop
 	writeSSE(w, flusher, "message_stop", map[string]any{"type": "message_stop"})
+
+	if inputTokens > 0 || outputTokens > 0 {
+		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
+	}
 
 	return nil
 }

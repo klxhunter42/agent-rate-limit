@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -36,10 +37,16 @@ type Metrics struct {
 	CostTotal         *prometheus.CounterVec
 	ModelFallback     *prometheus.CounterVec
 	TTFB              *prometheus.HistogramVec
-	registry          *prometheus.Registry
+	ProfileRequests   *prometheus.CounterVec
+	ProfileTokenIn    *prometheus.CounterVec
+	ProfileTokenOut   *prometheus.CounterVec
+	ProfileCost         *prometheus.CounterVec
+	OptimizerCharsSaved *prometheus.CounterVec
+	OptimizerRuns       *prometheus.CounterVec
+	registry            *prometheus.Registry
 	queueDepthFn      func() float64
 	pricing           map[string]modelPrice
-	usageRecorder     func(model string, input, output int, cost float64)
+	usageRecorder     func(ctx context.Context, model string, input, output int, cost float64)
 }
 
 type modelPrice struct {
@@ -142,6 +149,42 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Time to first byte for streaming responses.",
 			Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 		}, []string{"model"}),
+
+		ProfileRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "profile_requests_total",
+			Help:      "Total requests per profile per model.",
+		}, []string{"profile", "model"}),
+
+		ProfileTokenIn: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "profile_token_input_total",
+			Help:      "Total input tokens consumed per profile per model.",
+		}, []string{"profile", "model"}),
+
+		ProfileTokenOut: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "profile_token_output_total",
+			Help:      "Total output tokens generated per profile per model.",
+		}, []string{"profile", "model"}),
+
+		ProfileCost: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "profile_cost_total",
+			Help:      "Estimated cost in USD per profile per model.",
+		}, []string{"profile", "model", "type"}),
+
+		OptimizerCharsSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "optimizer_chars_saved_total",
+			Help:      "Total characters saved by token optimization techniques.",
+		}, []string{"technique"}),
+
+		OptimizerRuns: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "optimizer_runs_total",
+			Help:      "Total number of optimization runs by technique.",
+		}, []string{"technique"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -165,9 +208,24 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.CostTotal,
 		m.ModelFallback,
 		m.TTFB,
+		m.ProfileRequests,
+		m.ProfileTokenIn,
+		m.ProfileTokenOut,
+		m.ProfileCost,
+		m.OptimizerCharsSaved,
+		m.OptimizerRuns,
 	)
 
 	return m
+}
+
+
+// RecordOptimization records characters saved and run count for an optimization technique.
+func (m *Metrics) RecordOptimization(technique string, charsSaved int) {
+	if charsSaved > 0 {
+		m.OptimizerCharsSaved.WithLabelValues(technique).Add(float64(charsSaved))
+	}
+	m.OptimizerRuns.WithLabelValues(technique).Inc()
 }
 
 // Handler returns an HTTP handler that serves Prometheus metrics.
@@ -238,13 +296,9 @@ func (m *Metrics) IncRateLimit(key string) {
 }
 
 // RecordTokens records input and output token usage for a model and accumulates cost.
-func (m *Metrics) RecordTokens(model string, input, output int) {
-	if input > 0 {
-		m.TokenInput.WithLabelValues(model).Add(float64(input))
-	}
-	if output > 0 {
-		m.TokenOutput.WithLabelValues(model).Add(float64(output))
-	}
+func (m *Metrics) RecordTokens(ctx context.Context, model string, input, output int) {
+	m.TokenInput.WithLabelValues(model).Add(float64(input))
+	m.TokenOutput.WithLabelValues(model).Add(float64(output))
 	var inputCost, outputCost float64
 	var cost float64
 	if p, ok := m.pricing[model]; ok {
@@ -259,13 +313,36 @@ func (m *Metrics) RecordTokens(model string, input, output int) {
 		}
 	}
 	if m.usageRecorder != nil && (input > 0 || output > 0) {
-		m.usageRecorder(model, input, output, cost)
+		m.usageRecorder(ctx, model, input, output, cost)
 	}
 }
 
 // SetUsageRecorder registers a callback invoked after every RecordTokens call.
-func (m *Metrics) SetUsageRecorder(fn func(model string, input, output int, cost float64)) {
+func (m *Metrics) SetUsageRecorder(fn func(ctx context.Context, model string, input, output int, cost float64)) {
 	m.usageRecorder = fn
+}
+
+// RecordProfileUsage records per-profile token usage and cost.
+func (m *Metrics) RecordProfileUsage(profile, model string, input, output int, cost float64) {
+	m.ProfileRequests.WithLabelValues(profile, model).Inc()
+	if input > 0 {
+		m.ProfileTokenIn.WithLabelValues(profile, model).Add(float64(input))
+	}
+	if output > 0 {
+		m.ProfileTokenOut.WithLabelValues(profile, model).Add(float64(output))
+	}
+	if cost > 0 {
+		if p, ok := m.pricing[model]; ok {
+			ic := float64(input) / 1_000_000 * p.inputPerMillion
+			oc := float64(output) / 1_000_000 * p.outputPerMillion
+			if ic > 0 {
+				m.ProfileCost.WithLabelValues(profile, model, "input").Add(ic)
+			}
+			if oc > 0 {
+				m.ProfileCost.WithLabelValues(profile, model, "output").Add(oc)
+			}
+		}
+	}
 }
 
 // IncRetry increments the upstream retry counter.

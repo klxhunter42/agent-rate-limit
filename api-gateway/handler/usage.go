@@ -59,6 +59,8 @@ func (u *UsageHandler) Routes() func(r chi.Router) {
 			r.Get("/models", u.Models)
 			r.Get("/sessions", u.Sessions)
 			r.Get("/monthly", u.Monthly)
+			r.Get("/profiles", u.ProfileUsage)
+			r.Get("/profiles/{name}", u.ProfileUsageByName)
 		})
 	}
 }
@@ -104,6 +106,182 @@ func (u *UsageHandler) RecordUsage(model string, inputTokens, outputTokens int, 
 	pipe.Exec(ctx)
 }
 
+// RecordProfileUsage increments usage counters for a profile+model.
+func (u *UsageHandler) RecordProfileUsage(profile, model string, inputTokens, outputTokens int, cost float64) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	dailyKey := "usage:profile:" + profile + ":daily:" + now.Format("2006-01-02")
+	summaryKey := "usage:profile:" + profile + ":summary"
+
+	pipe := u.rdb.Pipeline()
+
+	field := model
+	for _, key := range []string{dailyKey, summaryKey} {
+		pipe.HIncrByFloat(ctx, key, field+":cost", cost)
+		pipe.HIncrBy(ctx, key, field+":input", int64(inputTokens))
+		pipe.HIncrBy(ctx, key, field+":output", int64(outputTokens))
+		pipe.HIncrBy(ctx, key, field+":requests", 1)
+		pipe.SAdd(ctx, key+":models", model)
+	}
+
+	pipe.Expire(ctx, dailyKey, 35*24*time.Hour)
+	pipe.Expire(ctx, summaryKey, 0) // no expiry for summary
+
+	pipe.Exec(ctx)
+}
+
+// ProfileUsage returns per-profile aggregated usage across all profiles.
+func (u *UsageHandler) ProfileUsage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	keys, err := scanKeys(ctx, u.rdb, "usage:profile:*:summary")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
+		return
+	}
+
+	type modelEntry struct {
+		Model    string  `json:"model"`
+		Requests int64   `json:"requests"`
+		Input    int64   `json:"input_tokens"`
+		Output   int64   `json:"output_tokens"`
+		Cost     float64 `json:"cost"`
+	}
+
+	type profileEntry struct {
+		Name      string       `json:"name"`
+		TotalReqs int64        `json:"total_requests"`
+		TotalIn   int64        `json:"total_tokens_in"`
+		TotalOut  int64        `json:"total_tokens_out"`
+		TotalCost float64      `json:"total_cost"`
+		Models    []modelEntry `json:"models"`
+	}
+
+	result := make([]profileEntry, 0)
+
+	for _, key := range keys {
+		if strings.HasSuffix(key, ":models") {
+			continue
+		}
+		// Extract profile name: usage:profile:{name}:summary
+		parts := strings.SplitN(key, ":", 5)
+		if len(parts) < 4 {
+			continue
+		}
+		profileName := parts[2]
+
+		vals, err := u.rdb.HGetAll(ctx, key).Result()
+		if err != nil || len(vals) == 0 {
+			continue
+		}
+
+		entry := profileEntry{Name: profileName}
+		models := map[string]*modelEntry{}
+
+		for field, val := range vals {
+			fp := strings.SplitN(field, ":", 2)
+			if len(fp) != 2 {
+				continue
+			}
+			m, metric := fp[0], fp[1]
+			if models[m] == nil {
+				models[m] = &modelEntry{Model: m}
+			}
+			switch metric {
+			case "requests":
+				models[m].Requests = atoi64(val)
+				entry.TotalReqs += atoi64(val)
+			case "input":
+				models[m].Input = atoi64(val)
+				entry.TotalIn += atoi64(val)
+			case "output":
+				models[m].Output = atoi64(val)
+				entry.TotalOut += atoi64(val)
+			case "cost":
+				models[m].Cost = atof64(val)
+				entry.TotalCost += atof64(val)
+			}
+		}
+
+		for _, me := range models {
+			entry.Models = append(entry.Models, *me)
+		}
+		result = append(result, entry)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": result})
+}
+
+// ProfileUsageByName returns usage for a single profile.
+func (u *UsageHandler) ProfileUsageByName(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	ctx := r.Context()
+	key := "usage:profile:" + name + ":summary"
+	vals, err := u.rdb.HGetAll(ctx, key).Result()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
+		return
+	}
+
+	type modelEntry struct {
+		Model    string  `json:"model"`
+		Requests int64   `json:"requests"`
+		Input    int64   `json:"input_tokens"`
+		Output   int64   `json:"output_tokens"`
+		Cost     float64 `json:"cost"`
+	}
+
+	totalReqs := int64(0)
+	totalIn := int64(0)
+	totalOut := int64(0)
+	totalCost := float64(0)
+	models := map[string]*modelEntry{}
+
+	for field, val := range vals {
+		fp := strings.SplitN(field, ":", 2)
+		if len(fp) != 2 {
+			continue
+		}
+		m, metric := fp[0], fp[1]
+		if models[m] == nil {
+			models[m] = &modelEntry{Model: m}
+		}
+		switch metric {
+		case "requests":
+			models[m].Requests = atoi64(val)
+			totalReqs += atoi64(val)
+		case "input":
+			models[m].Input = atoi64(val)
+			totalIn += atoi64(val)
+		case "output":
+			models[m].Output = atoi64(val)
+			totalOut += atoi64(val)
+		case "cost":
+			models[m].Cost = atof64(val)
+			totalCost += atof64(val)
+		}
+	}
+
+	ml := make([]modelEntry, 0)
+	for _, me := range models {
+		ml = append(ml, *me)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":             name,
+		"total_requests":   totalReqs,
+		"total_tokens_in":  totalIn,
+		"total_tokens_out": totalOut,
+		"total_cost":       totalCost,
+		"models":           ml,
+	})
+}
+
 // RecordError increments the error counter for a model in the current time bucket.
 func (u *UsageHandler) RecordError(model string) {
 	ctx := context.Background()
@@ -131,38 +309,24 @@ func scanKeys(ctx context.Context, rdb *redis.Client, pattern string) ([]string,
 }
 
 // Summary returns aggregated totals for a given period.
-// Query params: period=24h|7d|30d|all (default 24h).
+// Query params: period=5m|15m|1h|6h|24h|7d|30d|all (default 24h).
 func (u *UsageHandler) Summary(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		period = "24h"
 	}
 
-	bucketPrefix, _ := periodToBucketPrefix(period)
-	if bucketPrefix == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid period, use 24h/7d/30d/all"})
+	keys, ok := u.keysForPeriod(period)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid period, use 5m/15m/1h/6h/24h/7d/30d/all"})
 		return
 	}
 
 	ctx := r.Context()
-	keys, err := scanKeys(ctx, u.rdb, bucketPrefix)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
-		return
-	}
-
-	// Filter out :models suffix keys.
-	var dataKeys []string
-	for _, k := range keys {
-		if !strings.HasSuffix(k, ":models") {
-			dataKeys = append(dataKeys, k)
-		}
-	}
-
 	summary := UsageSummary{Period: period}
 	seenModels := map[string]bool{}
 
-	for _, key := range dataKeys {
+	for _, key := range keys {
 		vals, err := u.rdb.HGetAll(ctx, key).Result()
 		if err != nil {
 			continue
@@ -237,33 +401,20 @@ func (u *UsageHandler) Monthly(w http.ResponseWriter, r *http.Request) {
 }
 
 // Models returns a per-model breakdown for a given period.
-// Query param: period=24h|7d|30d (default 24h).
+// Query param: period=5m|15m|1h|6h|24h|7d|30d (default 24h).
 func (u *UsageHandler) Models(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
 		period = "24h"
 	}
 
-	bucketPrefix, _ := periodToBucketPrefix(period)
-	if bucketPrefix == "" {
+	keys, ok := u.keysForPeriod(period)
+	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid period"})
 		return
 	}
 
 	ctx := r.Context()
-	keys, err := scanKeys(ctx, u.rdb, bucketPrefix)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
-		return
-	}
-
-	// Filter out :models suffix keys.
-	var dataKeys []string
-	for _, k := range keys {
-		if !strings.HasSuffix(k, ":models") {
-			dataKeys = append(dataKeys, k)
-		}
-	}
 
 	// Aggregate per model across all matched buckets.
 	type modelAgg struct {
@@ -277,7 +428,7 @@ func (u *UsageHandler) Models(w http.ResponseWriter, r *http.Request) {
 
 	agg := map[string]*modelAgg{}
 
-	for _, key := range dataKeys {
+	for _, key := range keys {
 		vals, err := u.rdb.HGetAll(ctx, key).Result()
 		if err != nil {
 			continue
@@ -399,20 +550,42 @@ func (u *UsageHandler) collectRecords(ctx context.Context, keyPrefix string, per
 	return results
 }
 
-// periodToBucketPrefix maps a period label to a Redis key glob pattern.
-func periodToBucketPrefix(period string) (string, int) {
+// keysForPeriod returns Redis keys for a given period label.
+func (u *UsageHandler) keysForPeriod(period string) ([]string, bool) {
+	now := time.Now().UTC()
 	switch period {
+	case "5m", "15m", "1h":
+		return []string{"usage:hourly:" + now.Format("2006-01-02T15")}, true
+	case "6h":
+		keys := make([]string, 6)
+		for i := range keys {
+			keys[i] = "usage:hourly:" + now.Add(-time.Duration(i)*time.Hour).Format("2006-01-02T15")
+		}
+		return keys, true
 	case "24h":
-		return "usage:hourly:*", 48
-	case "7d":
-		return "usage:daily:*", 35
-	case "30d":
-		return "usage:daily:*", 35
+		return u.scanAndFilter("usage:hourly:*")
+	case "7d", "30d":
+		return u.scanAndFilter("usage:daily:*")
 	case "all":
-		return "usage:*", 0
+		return u.scanAndFilter("usage:*")
 	default:
-		return "", 0
+		return nil, false
 	}
+}
+
+func (u *UsageHandler) scanAndFilter(pattern string) ([]string, bool) {
+	ctx := context.Background()
+	keys, err := scanKeys(ctx, u.rdb, pattern)
+	if err != nil {
+		return nil, false
+	}
+	var filtered []string
+	for _, k := range keys {
+		if !strings.HasSuffix(k, ":models") {
+			filtered = append(filtered, k)
+		}
+	}
+	return filtered, true
 }
 
 func atoi64(s string) int64 {

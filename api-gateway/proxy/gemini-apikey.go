@@ -141,7 +141,7 @@ func (p *GeminiAPIProxy) handleGeminiResponse(w http.ResponseWriter, resp *http.
 	}
 
 	if usage := gResp.UsageMeta; usage != nil {
-		p.metrics.RecordTokens(model, usage.PromptTokenCount, usage.CandidatesTokenCount)
+		p.metrics.RecordTokens(resp.Request.Context(), model, usage.PromptTokenCount, usage.CandidatesTokenCount)
 	}
 
 	anthropicResp := geminiToAnthropic(gResp, model, false)
@@ -267,7 +267,7 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 	}
 
 	if inputTokens > 0 || outputTokens > 0 {
-		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 	}
 	return nil
 }

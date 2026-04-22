@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import { Shield, Eye, Fingerprint, Timer, Key, Lock, Server, CreditCard, Globe } from 'lucide-react';
 import { fetchPrivacyMetrics, type PrivacyMetrics } from '@/lib/privacy-api';
+import { InfoTip } from '@/components/shared/info-tip';
+import { useTimeRange } from '@/hooks/use-time-range';
+import { TimeRangeFilter } from '@/components/shared/time-range-filter';
 
 const detectableTypes = [
   {
@@ -58,6 +61,7 @@ const detectableTypes = [
 export default function PrivacyPage() {
   const [data, setData] = useState<PrivacyMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const { range, setRange } = useTimeRange('5m');
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -114,7 +118,10 @@ export default function PrivacyPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Privacy</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold flex items-center gap-1.5">Privacy <InfoTip text="PastGuard privacy pipeline masks secrets and PII before sending requests to upstream AI providers." /></h1>
+        <TimeRangeFilter value={range} onChange={setRange} />
+      </div>
       {error && <div className="text-red-500 text-xs bg-red-50 dark:bg-red-950 p-2 rounded">Last refresh error: {error}</div>}
 
       <div className="grid gap-4 md:grid-cols-4">

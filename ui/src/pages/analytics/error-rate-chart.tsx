@@ -1,6 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useMetricsHistory } from '@/hooks/use-metrics-history';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import type { ParsedMetric } from '@/lib/api';
 import { CHART_COLORS } from '@/lib/providers';
 
@@ -19,7 +20,7 @@ export function ErrorRateChart({ metrics, maxPoints = 60 }: ErrorRateChartProps)
   if (errorHistory.length === 0) {
     return (
       <Card className="h-full">
-        <CardHeader><CardTitle className="text-base">Error Rate</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Error Rate<InfoTip text="Error rate percentage over time. Calculated from error events vs total requests." /></CardTitle></CardHeader>
         <CardContent>
           <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
             No error data

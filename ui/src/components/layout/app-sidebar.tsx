@@ -41,7 +41,7 @@ const NAV_ITEMS = [
   { path: '/model-limits', label: 'Model Limits', icon: Gauge, group: 'Monitoring' },
   { path: '/key-pool', label: 'Key Pool', icon: Key, group: 'Monitoring' },
   { path: '/analytics', label: 'Analytics', icon: BarChart3, group: 'Analytics' },
-  { path: '/metrics', label: 'Metrics', icon: BarChart3, group: 'Analytics' },
+  { path: '/prometheus', label: 'Metrics', icon: BarChart3, group: 'Analytics' },
   { path: '/controls', label: 'Controls', icon: Settings2, group: 'Management' },
   { path: '/providers', label: 'Providers', icon: Users, group: 'Management' },
   { path: '/profiles', label: 'Profiles', icon: UserCircle, group: 'Management' },

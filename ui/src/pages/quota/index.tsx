@@ -44,6 +44,9 @@ interface UsageResponse {
 }
 
 import { useDashboard } from '@/contexts/dashboard-context';
+import { InfoTip } from '@/components/shared/info-tip';
+import { useTimeRange, RANGE_PERIOD } from '@/hooks/use-time-range';
+import { TimeRangeFilter } from '@/components/shared/time-range-filter';
 
 function pctColor(pct: number): string {
   if (pct >= 95) return 'text-red-500';
@@ -72,6 +75,7 @@ function fmtCost(n: number): string {
 
 export function QuotaPage() {
   const { glmMode } = useDashboard();
+  const { range, setRange, period } = useTimeRange('24H');
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [providerResults, setProviderResults] = useState<ProviderQuotaResult[]>([]);
   const [usageMap, setUsageMap] = useState<Record<string, ModelUsage>>({});
@@ -102,7 +106,7 @@ export function QuotaPage() {
 
       // Fetch real usage data
       try {
-        const res = await fetch('/v1/usage/models?period=24h');
+        const res = await fetch(`/v1/usage/models?period=${period}`);
         if (res.ok) {
           const data: UsageResponse = await res.json();
           const map: Record<string, ModelUsage> = {};
@@ -119,7 +123,7 @@ export function QuotaPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [period]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -146,10 +150,13 @@ export function QuotaPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Quota &amp; Usage (24h)</h1>
-        <Button variant="outline" size="sm" onClick={fetchData}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Refresh
-        </Button>
+        <h1 className="text-2xl font-bold flex items-center gap-1.5">Quota &amp; Usage <InfoTip text="Per-account quota usage from upstream providers. Percentage shows how much of the daily allocation has been consumed." /></h1>
+        <div className="flex items-center gap-2">
+          <TimeRangeFilter value={range} onChange={setRange} variant="long" />
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {providerResults.map((pr) => (
@@ -165,7 +172,9 @@ export function QuotaPage() {
             {pr.accounts.map((account) => (
               <div key={account.accountId} className="mb-4 last:mb-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">{account.accountId}</span>
+                  <span className="text-sm font-medium">
+                    {accounts.find((a) => a.id === account.accountId || a.email === account.accountId)?.email || account.accountId}
+                  </span>
                   {account.error ? (
                     <Badge variant="destructive" className="text-xs">
                       <AlertTriangle className="h-3 w-3 mr-1" /> {account.error}

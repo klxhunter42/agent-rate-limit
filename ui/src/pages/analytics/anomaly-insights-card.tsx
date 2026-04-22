@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, XCircle, X } from 'lucide-react';
@@ -29,7 +30,7 @@ export function AnomalyInsightsCard({ anomalies, onDismiss }: AnomalyInsightsCar
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-base">Anomaly Insights</CardTitle>
+          <CardTitle className="text-base flex items-center gap-1.5">Anomaly Insights<InfoTip text="Automated anomaly detection highlights unusual patterns in traffic, latency, or error rates." /></CardTitle>
           {criticalCount > 0 && (
             <Badge className="bg-red-500/10 text-red-500 text-[10px] px-1.5">
               {criticalCount} critical

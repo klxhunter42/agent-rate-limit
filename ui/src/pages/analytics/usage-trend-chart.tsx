@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import type { ParsedMetric } from '@/lib/api';
 import { useMetricsHistory } from '@/hooks/use-metrics-history';
@@ -41,7 +42,7 @@ export function UsageTrendChart({ metrics }: { metrics: ParsedMetric[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">Usage Trend</CardTitle>
+        <CardTitle className="text-base flex items-center gap-1.5">Usage Trend<InfoTip text="Token usage trend over time. Shows how consumption changes across polling intervals." /></CardTitle>
         <div className="flex gap-1">
           {(['2m', '5m', '10m'] as Range[]).map((r) => (
             <button

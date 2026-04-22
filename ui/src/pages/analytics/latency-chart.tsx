@@ -1,6 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useMetricsHistory } from '@/hooks/use-metrics-history';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import type { ParsedMetric } from '@/lib/api';
 
 interface LatencyChartProps {
@@ -14,7 +15,7 @@ export function LatencyChart({ metrics, maxPoints = 60 }: LatencyChartProps) {
   if (latencyHistory.length === 0) {
     return (
       <Card className="h-full">
-        <CardHeader><CardTitle className="text-base">Latency</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Latency<InfoTip text="Request latency distribution over time. Shows average response times in milliseconds." /></CardTitle></CardHeader>
         <CardContent>
           <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
             No latency data
@@ -26,7 +27,7 @@ export function LatencyChart({ metrics, maxPoints = 60 }: LatencyChartProps) {
 
   return (
     <Card className="h-full">
-      <CardHeader><CardTitle className="text-base">Latency (avg ms)</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Latency (avg ms)<InfoTip text="Request latency distribution over time. Shows average response times in milliseconds." /></CardTitle></CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={260}>
           <AreaChart data={latencyHistory}>

@@ -36,7 +36,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	upstreamURL, apiKey string, body []byte, model string,
 	isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult,
 ) error {
-	openaiReq, err := AnthropicToOpenAI(body, model)
+	openaiReq, err := AnthropicToOpenAI(body, model, p.metrics)
 	if err != nil {
 		return fmt.Errorf("convert to openai format: %w", err)
 	}
@@ -137,7 +137,7 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	if usage, ok := openaiResp["usage"].(map[string]any); ok {
 		pt, _ := usage["prompt_tokens"].(float64)
 		ct, _ := usage["completion_tokens"].(float64)
-		p.metrics.RecordTokens(model, int(pt), int(ct))
+		p.metrics.RecordTokens(resp.Request.Context(), model, int(pt), int(ct))
 	}
 
 	anthropicResp := OpenAIToAnthropic(openaiResp, model)
@@ -180,6 +180,13 @@ func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Respon
 
 		if data == "[DONE]" {
 			if started {
+				// Flush remaining unmasker buffer before closing events.
+				if unmasker != nil {
+					if remaining := unmasker.Flush(); remaining != "" {
+						escaped, _ := json.Marshal(remaining)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+					}
+				}
 				fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
 				fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 				fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
@@ -244,18 +251,8 @@ func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Respon
 	}
 
 	// Flush remaining unmasker buffer.
-	if unmasker != nil {
-		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-	}
-
 	if inputTokens > 0 || outputTokens > 0 {
-		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 	}
 
 	return nil

@@ -111,7 +111,7 @@ func HasImageContent(payload map[string]any) bool {
 // It converts Anthropic format to OpenAI/Zhipu format and converts the response back.
 func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult) error {
 	// Convert Anthropic payload to Zhipu OpenAI format.
-	zhipuReq, err := AnthropicToOpenAI(body, model)
+	zhipuReq, err := AnthropicToOpenAI(body, model, p.metrics)
 	if err != nil {
 		return fmt.Errorf("convert to zhipu format: %w", err)
 	}
@@ -226,7 +226,7 @@ func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Reques
 // AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
 // Z.AI vision API only accepts "user" and "assistant" roles, so system prompts are prepended
 // to the first user message. Unsupported content types (server_tool_use, tool_use, etc.) are filtered.
-func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
+func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[string]any, error) {
 	var src map[string]any
 	if err := json.Unmarshal(body, &src); err != nil {
 		return nil, err
@@ -317,6 +317,10 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 		if wsSaved > 0 || dedupSaved > 0 {
 			slog.Debug("system prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved, "original_chars", len(systemText), "optimized_chars", len(dedupText))
 		}
+		if len(m) > 0 && m[0] != nil {
+			m[0].RecordOptimization("whitespace", wsSaved)
+			m[0].RecordOptimization("dedup", dedupSaved)
+		}
 		systemText = dedupText
 		first := messages[0]
 		if first["role"] == "user" {
@@ -389,6 +393,9 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 	}
 	if stream, ok := src["stream"].(bool); ok {
 		result["stream"] = stream
+		if stream {
+			result["stream_options"] = map[string]any{"include_usage": true}
+		}
 	}
 
 	return result, nil
@@ -499,7 +506,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	if usage, ok := zhipuResp["usage"].(map[string]any); ok {
 		pt, _ := usage["prompt_tokens"].(float64)
 		ct, _ := usage["completion_tokens"].(float64)
-		p.metrics.RecordTokens(model, int(pt), int(ct))
+		p.metrics.RecordTokens(resp.Request.Context(), model, int(pt), int(ct))
 		slog.Info("token usage", "model", model, "input", int(pt), "output", int(ct), "format", "zhipu")
 	}
 
@@ -551,6 +558,16 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 
 		if data == "[DONE]" {
 			if started {
+				// Flush remaining unmasker buffer before closing events.
+				if unmasker != nil {
+					if remaining := unmasker.Flush(); remaining != "" {
+						escaped, _ := json.Marshal(remaining)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+						if flusher != nil {
+							flusher.Flush()
+						}
+					}
+				}
 				// content_block_stop
 				fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
 				// message_delta with stop_reason
@@ -624,18 +641,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	}
 
 	// Flush remaining unmasker buffer.
-	if unmasker != nil {
-		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			if flusher != nil {
-				flusher.Flush()
-			}
-		}
-	}
-
 	if inputTokens > 0 || outputTokens > 0 {
-		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 		slog.Info("vision stream token usage", "model", model, "input", inputTokens, "output", outputTokens)
 	}
 
@@ -712,6 +719,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				if newBody, err := json.Marshal(bodyMap); err == nil {
 					body = newBody
 					slog.Debug("transparent prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved)
+					p.metrics.RecordOptimization("whitespace", wsSaved)
+					p.metrics.RecordOptimization("dedup", dedupSaved)
 				}
 			}
 		}
@@ -873,7 +882,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		} `json:"usage"`
 	}
 	if json.Unmarshal(body, &usage) == nil && (usage.Usage.InputTokens > 0 || usage.Usage.OutputTokens > 0) {
-		p.metrics.RecordTokens(model, usage.Usage.InputTokens, usage.Usage.OutputTokens)
+		p.metrics.RecordTokens(resp.Request.Context(), model, usage.Usage.InputTokens, usage.Usage.OutputTokens)
 		slog.Info("token usage",
 			"model", model,
 			"input", usage.Usage.InputTokens,
@@ -911,7 +920,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 				out = altUsage.CompletionTokens
 			}
 			if in > 0 || out > 0 {
-				p.metrics.RecordTokens(model, in, out)
+				p.metrics.RecordTokens(resp.Request.Context(), model, in, out)
 				slog.Info("token usage (fallback format)",
 					"model", model,
 					"input", in,
@@ -1042,7 +1051,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	}
 
 	if inputTokens > 0 || outputTokens > 0 {
-		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		p.metrics.RecordTokens(ctx, model, inputTokens, outputTokens)
 		slog.Debug("stream token usage",
 			"model", model,
 			"input", inputTokens,

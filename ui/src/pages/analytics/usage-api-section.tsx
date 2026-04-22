@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import { StatCard } from '@/components/shared/stat-card';
 import { formatNumber, formatCost } from '@/lib/format';
 import { Loader2, Activity, DollarSign, Hash, AlertTriangle } from 'lucide-react';
@@ -33,7 +34,7 @@ interface SessionUsage {
   period: string;
 }
 
-export function UsageApiSection() {
+export function UsageApiSection({ period = '24h' }: { period?: string }) {
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [daily, setDaily] = useState<DailyUsage[]>([]);
   const [sessions, setSessions] = useState<SessionUsage[]>([]);
@@ -46,7 +47,7 @@ export function UsageApiSection() {
     async function load() {
       try {
         const [summaryRes, dailyRes, sessionsRes] = await Promise.all([
-          fetch('/v1/usage/summary?period=24h'),
+          fetch(`/v1/usage/summary?period=${period}`),
           fetch('/v1/usage/daily'),
           fetch('/v1/usage/sessions'),
         ]);
@@ -79,7 +80,7 @@ export function UsageApiSection() {
 
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [period]);
 
   if (loading) {
     return (
@@ -159,7 +160,7 @@ export function UsageApiSection() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Daily Breakdown</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">Daily Breakdown<InfoTip text="Token usage and cost aggregated by day from the usage API." /></CardTitle>
           </CardHeader>
           <CardContent>
             {!hasDaily ? (
@@ -195,7 +196,7 @@ export function UsageApiSection() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Sessions</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">Sessions<InfoTip text="Active sessions tracked by the gateway. Each session represents a continuous usage window." /></CardTitle>
           </CardHeader>
           <CardContent>
             {!hasSessions ? (

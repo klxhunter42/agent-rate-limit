@@ -365,7 +365,7 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	}
 
 	if inputTokens > 0 || outputTokens > 0 {
-		p.metrics.RecordTokens(model, inputTokens, outputTokens)
+		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 	}
 
 	return nil

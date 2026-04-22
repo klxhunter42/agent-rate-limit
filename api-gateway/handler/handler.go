@@ -24,6 +24,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type profileCtxKey struct{}
+
 // ChatRequest is the payload sent by clients to enqueue an AI inference job.
 type ChatRequest struct {
 	AgentID     string            `json:"agent_id"`
@@ -117,6 +119,20 @@ type Handler struct {
 // New creates a new Handler.
 func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker) *Handler {
 	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw}
+}
+
+// ProfileNameFromContext extracts the profile name stored in the request context.
+func ProfileNameFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(profileCtxKey{}).(string)
+	return v
+}
+
+// recordProfileUsage records both Prometheus metrics and Redis usage for a profile.
+func (h *Handler) recordProfileUsage(profile, model string, input, output int, cost float64) {
+	h.metrics.RecordProfileUsage(profile, model, input, output, cost)
+	if h.usageHandler != nil {
+		h.usageHandler.RecordProfileUsage(profile, model, input, output, cost)
+	}
 }
 
 // ChatCompletions validates the request, enqueues the job, and returns a request ID.
@@ -259,9 +275,24 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Extract model early for provider resolution.
 	requestedModel, _ := payload["model"].(string)
 
-	// Profile-based routing: if X-Profile header is set, load profile and override.
+	// Profile-based routing: check X-Profile header or arl_* API token.
 	var profileOverride *Profile
-	if profileName := r.Header.Get("X-Profile"); profileName != "" && h.profileRedis != nil {
+	profileName := r.Header.Get("X-Profile")
+	if profileName == "" && h.profileRedis != nil {
+		// Check if the auth token is a profile API token.
+		authKey := r.Header.Get("x-api-key")
+		if authKey == "" {
+			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+				authKey = strings.TrimPrefix(ah, "Bearer ")
+			}
+		}
+		if strings.HasPrefix(authKey, "arl_") {
+			if resolved, err := ResolveProfileToken(h.profileRedis, authKey); err == nil && resolved != "" {
+				profileName = resolved
+			}
+		}
+	}
+	if profileName != "" && h.profileRedis != nil {
 		if p, perr := getProfile(r.Context(), h.profileRedis, profileName); perr == nil && p != nil {
 			profileOverride = p
 			if p.Model != "" {

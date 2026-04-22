@@ -112,9 +112,13 @@ func main() {
 	quotaHandler := handler.NewQuotaHandler(cfg.RedisAddr, tokenStore, cfg)
 
 	// Wire usage recording: every metrics.RecordTokens call also persists to Redis.
-	m.SetUsageRecorder(func(model string, input, output int, cost float64) {
+	m.SetUsageRecorder(func(ctx context.Context, model string, input, output int, cost float64) {
 		if usageHandler != nil {
 			usageHandler.RecordUsage(model, input, output, cost)
+		}
+		if pn := handler.ProfileNameFromContext(ctx); pn != "" {
+			usageHandler.RecordProfileUsage(pn, model, input, output, cost)
+			m.RecordProfileUsage(pn, model, input, output, cost)
 		}
 	})
 

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -28,7 +29,7 @@ func newTestMetrics(t *testing.T) *Metrics {
 func TestRecordTokens(t *testing.T) {
 	m := newTestMetrics(t)
 
-	m.RecordTokens("glm-5.1", 100, 50)
+	m.RecordTokens(context.Background(), "glm-5.1", 100, 50)
 
 	inputVal := testutil.ToFloat64(m.TokenInput.WithLabelValues("glm-5.1"))
 	outputVal := testutil.ToFloat64(m.TokenOutput.WithLabelValues("glm-5.1"))
@@ -41,7 +42,7 @@ func TestRecordTokensWithPricing(t *testing.T) {
 
 	// glm-5.1: input=$0.5/1M, output=$1.5/1M
 	// 1M input * 0.5 + 2M output * 1.5 = 0.5 + 3.0 = 3.5
-	m.RecordTokens("glm-5.1", 1_000_000, 2_000_000)
+	m.RecordTokens(context.Background(), "glm-5.1", 1_000_000, 2_000_000)
 
 	costInput := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5.1", "input"))
 	costOutput := testutil.ToFloat64(m.CostTotal.WithLabelValues("glm-5.1", "output"))
@@ -52,7 +53,7 @@ func TestRecordTokensWithPricing(t *testing.T) {
 func TestRecordTokensZeroValues(t *testing.T) {
 	m := newTestMetrics(t)
 
-	m.RecordTokens("glm-5", 0, 0)
+	m.RecordTokens(context.Background(), "glm-5", 0, 0)
 
 	inputVal := testutil.ToFloat64(m.TokenInput.WithLabelValues("glm-5"))
 	outputVal := testutil.ToFloat64(m.TokenOutput.WithLabelValues("glm-5"))
@@ -65,7 +66,7 @@ func TestRecordTokensZeroValues(t *testing.T) {
 func TestRecordTokensUnknownModelNoCost(t *testing.T) {
 	m := newTestMetrics(t)
 
-	m.RecordTokens("unknown-model", 500, 200)
+	m.RecordTokens(context.Background(), "unknown-model", 500, 200)
 
 	inputVal := testutil.ToFloat64(m.TokenInput.WithLabelValues("unknown-model"))
 	outputVal := testutil.ToFloat64(m.TokenOutput.WithLabelValues("unknown-model"))
@@ -294,7 +295,7 @@ func TestHandler(t *testing.T) {
 
 func TestHandlerPrometheusFormat(t *testing.T) {
 	m := newTestMetrics(t)
-	m.RecordTokens("glm-5.1", 100, 50)
+	m.RecordTokens(context.Background(), "glm-5.1", 100, 50)
 
 	handler := m.Handler()
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -350,8 +351,8 @@ func TestStatusWriterDefaultStatus(t *testing.T) {
 func TestRecordTokensMultipleModels(t *testing.T) {
 	m := newTestMetrics(t)
 
-	m.RecordTokens("glm-5.1", 100, 50)
-	m.RecordTokens("glm-5-turbo", 200, 100)
+	m.RecordTokens(context.Background(), "glm-5.1", 100, 50)
+	m.RecordTokens(context.Background(), "glm-5-turbo", 200, 100)
 
 	assert.Equal(t, 100.0, testutil.ToFloat64(m.TokenInput.WithLabelValues("glm-5.1")))
 	assert.Equal(t, 200.0, testutil.ToFloat64(m.TokenInput.WithLabelValues("glm-5-turbo")))
@@ -429,7 +430,7 @@ func BenchmarkRecordTokens(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m.RecordTokens("glm-5.1", 100, 50)
+		m.RecordTokens(context.Background(), "glm-5.1", 100, 50)
 	}
 }
 
