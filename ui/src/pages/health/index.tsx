@@ -3,6 +3,7 @@ import { useDashboard } from '@/contexts/dashboard-context';
 import { usePrometheusMetrics } from '@/hooks/use-prometheus-metrics';
 import { deriveHealthChecks, computeHealthSummary } from '@/lib/health-checks';
 import { formatUptime } from '@/lib/format';
+import { InfoTip } from '@/components/shared/info-tip';
 import { HealthGauge } from './health-gauge';
 import { HealthStatsBar } from './health-stats-bar';
 import { HealthChecks } from './health-checks';
@@ -41,7 +42,7 @@ export function HealthPage() {
         <CardContent className="p-6 flex items-center gap-8">
           <HealthGauge percentage={summary.percentage} status={summary.status} size="lg" />
           <div className="space-y-1">
-            <div className="text-lg font-semibold">System Health</div>
+            <div className="text-lg font-semibold flex items-center gap-1.5">System Health <InfoTip text="Overall health score computed from all subsystem checks: gateway, rate limiter, Dragonfly/Redis, key pool, and model availability." /></div>
             <div className="text-sm text-muted-foreground">
               Uptime: {formatUptime(health?.uptime_seconds ?? 0)}
             </div>

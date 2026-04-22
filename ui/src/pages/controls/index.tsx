@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { setOverride } from '@/lib/api';
 import { toast } from 'sonner';
 import { Settings2, Trash2 } from 'lucide-react';
+import { InfoTip } from '@/components/shared/info-tip';
 import { RoutingStrategy } from '@/components/routing/routing-strategy';
 
 export function ControlsPage() {
@@ -65,6 +66,7 @@ export function ControlsPage() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Settings2 className="h-4 w-4" /> Manual Override
+            <InfoTip text="Override adaptive concurrency limits per model. Changes take effect immediately." />
           </CardTitle>
           <CardDescription>Pin a model's concurrency limit to a specific value</CardDescription>
         </CardHeader>

@@ -70,7 +70,7 @@ export async function fetchHealth(): Promise<HealthStatus> {
 }
 
 export async function fetchMetrics(): Promise<string> {
-  const res = await fetch('/metrics');
+  const res = await fetch('/api/metrics');
   if (!res.ok) throw new Error(`metrics: ${res.status}`);
   return res.text();
 }
@@ -82,6 +82,23 @@ export async function setOverride(req: OverrideRequest): Promise<void> {
     body: JSON.stringify(req),
   });
   if (!res.ok) throw new Error(`override: ${res.status}`);
+}
+
+export interface ProfileUsage {
+  name: string;
+  total_requests: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  total_cost: number;
+  models: { model: string; requests: number; input_tokens: number; output_tokens: number; cost: number }[];
+}
+
+export async function fetchProfileUsage(name?: string): Promise<ProfileUsage | ProfileUsage[]> {
+  const url = name ? `/v1/usage/profiles/${encodeURIComponent(name)}` : '/v1/usage/profiles';
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`profile-usage: ${res.status}`);
+  const data = await res.json();
+  return name ? data : data.profiles;
 }
 
 export interface ParsedMetric {

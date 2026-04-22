@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import { extractModelTokens, extractModelCosts } from '@/lib/metrics-helpers';
 import { formatNumber, formatCost, formatPercent } from '@/lib/format';
 import { usePrivacy } from '@/contexts/privacy-context';
@@ -31,7 +32,7 @@ export function CostByModelCard({ metrics, onModelClick }: { metrics: ParsedMetr
   if (rows.length === 0) {
     return (
       <Card>
-        <CardHeader><CardTitle className="text-base">Cost by Model</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Cost by Model<InfoTip text="Cumulative estimated cost per model based on token usage multiplied by per-model pricing." /></CardTitle></CardHeader>
         <CardContent>
           <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No cost data</div>
         </CardContent>

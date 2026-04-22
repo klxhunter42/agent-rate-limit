@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCost } from '@/lib/format';
 import { providerName } from '@/lib/providers';
 import { Search } from 'lucide-react';
+import { InfoTip } from '@/components/shared/info-tip';
 
 interface ModelEntry {
   name: string;
@@ -57,7 +58,7 @@ export function ModelsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Model Catalog</h1>
+      <h1 className="text-2xl font-bold flex items-center gap-1.5">Model Catalog <InfoTip text="Registered AI models with per-model concurrency limits and pricing configuration." /></h1>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

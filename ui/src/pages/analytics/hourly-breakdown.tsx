@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfoTip } from '@/components/shared/info-tip';
 import { cn } from '@/lib/utils';
 import { formatNumber, formatCost } from '@/lib/format';
 import type { ParsedMetric } from '@/lib/api';
@@ -140,7 +141,7 @@ export function HourlyBreakdown({ metrics }: HourlyBreakdownProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">Hourly Breakdown</CardTitle>
+        <CardTitle className="text-base flex items-center gap-1.5">Hourly Breakdown<InfoTip text="Request and token distribution by hour of day. Helps identify peak usage patterns." /></CardTitle>
         <div className="flex gap-1">
           {(['requests', 'tokens', 'cost'] as MetricView[]).map((v) => (
             <button

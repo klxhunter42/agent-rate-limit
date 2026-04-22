@@ -7,6 +7,7 @@ import { formatPercent } from '@/lib/format';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { PRIVACY_BLUR_CLASS } from '@/lib/privacy';
 import { cn } from '@/lib/utils';
+import { InfoTip } from '@/components/shared/info-tip';
 import { PoolHealthSummary } from './pool-health-summary';
 import { KeyHealthIndicator } from './key-health-indicator';
 
@@ -54,7 +55,7 @@ export function KeyPoolPage() {
           <PoolHealthSummary keyPool={keyPool!} />
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Keys</CardTitle>
+              <CardTitle className="text-base flex items-center gap-1.5">Keys <InfoTip text="Pool of API keys for each provider. Keys are rotated automatically on 429/rate-limit responses." /></CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">

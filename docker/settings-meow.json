@@ -1,9 +1,1 @@
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
-    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
-  },
-  "headers": {
-    "X-Profile": "meow"
-  }
-}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"arl_32c70ba65035ff5d098497c0664748a8d75730692a208b3a61f747fd0b60e552"}}

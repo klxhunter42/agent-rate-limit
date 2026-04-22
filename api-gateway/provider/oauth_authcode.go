@@ -38,6 +38,7 @@ type tokenExchangeResponse struct {
 	IDToken      string `json:"id_token,omitempty"`
 	ExpiresIn    int    `json:"expires_in"`
 	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
 	Error        string `json:"error,omitempty"`
 	ErrorDesc    string `json:"error_description,omitempty"`
 }
@@ -105,6 +106,10 @@ func StartAuthCode(ctx context.Context, pc ProviderConfig, redirectBase string) 
 	if pc.ID == "gemini-oauth" {
 		params.Set("access_type", "offline")
 		params.Set("prompt", "consent")
+	}
+	// Claude OAuth requires code=true to grant inference scopes.
+	if pc.ID == "claude-oauth" {
+		params.Set("code", "true")
 	}
 
 	authURL := pc.AuthURL + "?" + params.Encode()
@@ -216,7 +221,7 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 		Provider:     pc.ID,
 		AccountID:    accountID,
 		CreatedAt:    time.Now(),
-		Scopes:       strings.Join(pc.Scopes, " "),
+		Scopes:       firstNonEmpty(tokResp.Scope, strings.Join(pc.Scopes, " ")),
 	}
 
 	slog.Info("auth code token obtained", "provider", pc.ID, "account_id", accountID, "email", email)
@@ -281,6 +286,15 @@ func extractEmailFromIDToken(idToken string) string {
 	}
 	if email, ok := claims["email"].(string); ok && email != "" {
 		return email
+	}
+	return ""
+}
+
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
 	}
 	return ""
 }

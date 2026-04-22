@@ -52,7 +52,7 @@ export default function App() {
                       <Route path="/model-limits" element={<ModelLimitsPage />} />
                       <Route path="/key-pool" element={<KeyPoolPage />} />
                       <Route path="/analytics" element={<AnalyticsPage />} />
-                      <Route path="/metrics" element={<MetricsPage />} />
+                      <Route path="/prometheus" element={<MetricsPage />} />
                       <Route path="/controls" element={<ControlsPage />} />
                       <Route path="/privacy" element={<PrivacyPage />} />
                       <Route path="/providers" element={<ProvidersPage />} />

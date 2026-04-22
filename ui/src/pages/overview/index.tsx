@@ -9,6 +9,7 @@ import { EventTimeline } from './event-timeline';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Activity, Server, Wifi, Clock } from 'lucide-react';
+import { InfoTip } from '@/components/shared/info-tip';
 import { formatUptime, formatNumber } from '@/lib/format';
 
 export function OverviewPage() {
@@ -65,7 +66,10 @@ export function OverviewPage() {
       {/* Global capacity + Model utilization */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Global Capacity</CardTitle>
+          <CardTitle className="text-base flex items-center gap-1.5">
+            Global Capacity
+            <InfoTip text="Combined concurrency across all models. Shows how many requests are being processed simultaneously vs. the maximum allowed." />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -83,7 +87,11 @@ export function OverviewPage() {
       {models.length > 0 && (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Model Utilization {!glmMode && <span className="text-xs text-muted-foreground ml-2">(live traffic)</span>}</CardTitle>
+          <CardTitle className="text-base flex items-center gap-1.5">
+            Model Utilization
+            <InfoTip text="Per-model concurrent request usage. 'pinned' means the limit was manually overridden via Controls page." />
+            {!glmMode && <span className="text-xs text-muted-foreground ml-2">(live traffic)</span>}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">

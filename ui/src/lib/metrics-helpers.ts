@@ -24,7 +24,7 @@ export function extractModelTokens(metrics: ParsedMetric[]): ModelTokens[] {
     if (m.name === 'api_gateway_token_input_total') entry.input += m.value;
     if (m.name === 'api_gateway_token_output_total') entry.output += m.value;
   }
-  return Array.from(map.values());
+  return Array.from(map.values()).filter((t) => !(t.model === 'unknown' && t.input === 0 && t.output === 0));
 }
 
 export function extractModelCosts(metrics: ParsedMetric[]): { model: string; cost: number }[] {
@@ -34,7 +34,7 @@ export function extractModelCosts(metrics: ParsedMetric[]): { model: string; cos
     const model = m.labels.model || 'unknown';
     map.set(model, (map.get(model) || 0) + m.value);
   }
-  return Array.from(map.entries()).map(([model, cost]) => ({ model, cost }));
+  return Array.from(map.entries()).filter(([model, cost]) => !(model === 'unknown' && cost === 0)).map(([model, cost]) => ({ model, cost }));
 }
 
 export function extractTotalTokens(metrics: ParsedMetric[]): { input: number; output: number; total: number } {
@@ -62,6 +62,7 @@ export function extractErrorCounts(metrics: ParsedMetric[]): Record<string, numb
     const t = m.labels.type || 'unknown';
     counts[t] = (counts[t] || 0) + m.value;
   }
+  if (counts['unknown'] === 0) delete counts['unknown'];
   return counts;
 }
 
