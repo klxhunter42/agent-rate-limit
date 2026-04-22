@@ -3,7 +3,7 @@ import { formatNumber, formatCost, formatPercent } from '@/lib/format';
 import type { ParsedMetric } from '@/lib/api';
 import type { UsageModel } from '@/hooks/use-usage-api';
 
-export function ModelCostTable({ metrics, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
+export function ModelCostTable({ metrics, period: _period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
 
   // Prefer usage API (Redis, persistent), fall back to Prometheus
   const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);

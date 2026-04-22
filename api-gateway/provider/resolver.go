@@ -3,6 +3,8 @@ package provider
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 type ProviderFormat string
@@ -27,6 +29,7 @@ type Resolver struct {
 	registry   *Registry
 	tokenStore *TokenStore
 	glmMode    bool
+	counters   sync.Map // map[string]*atomic.Uint64, keyed by providerID
 }
 
 func NewResolver(registry *Registry, tokenStore *TokenStore, glmMode bool) *Resolver {
@@ -41,9 +44,17 @@ type providerRoute struct {
 }
 
 var providerRouteTable = map[string]providerRoute{
-	"anthropic":    {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}},
-	"claude":       {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}}, // alias
+	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
+	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{
+		"anthropic-beta": "oauth-2025-04-20,claude-code-20250219",
+		"x-app":          "cli",
+		"User-Agent":     "claude-code/1.0.39",
+	}},
+	"claude": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{
+		"anthropic-beta": "oauth-2025-04-20,claude-code-20250219",
+		"x-app":          "cli",
+		"User-Agent":     "claude-code/1.0.39",
+	}}, // alias
 	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
 	"copilot":      {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
@@ -108,7 +119,12 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 	for _, rule := range modelRules {
 		if strings.HasPrefix(model, rule.prefix) {
 			for _, pid := range rule.providers {
-				decision := r.tryResolve(pid, model)
+				var decision *RoutingDecision
+				if pid == "claude-oauth" {
+					decision = r.tryResolveRoundRobin(pid, model)
+				} else {
+					decision = r.tryResolve(pid, model)
+				}
 				if decision != nil {
 					return decision
 				}
@@ -155,6 +171,31 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 		return nil
 	}
 	return r.buildDecision(providerID, model, token.AccessToken)
+}
+
+// tryResolveRoundRobin cycles through all active tokens for a provider.
+// With N accounts, each gets ~1/N of the requests, multiplying effective rate limit.
+func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
+	if r.tokenStore == nil {
+		return nil
+	}
+	tokens, err := r.tokenStore.ListByProvider(providerID)
+	if err != nil || len(tokens) == 0 {
+		return nil
+	}
+	var active []TokenInfo
+	for _, t := range tokens {
+		if !t.Paused {
+			active = append(active, t)
+		}
+	}
+	if len(active) == 0 {
+		return nil
+	}
+	val, _ := r.counters.LoadOrStore(providerID, new(atomic.Uint64))
+	counter := val.(*atomic.Uint64)
+	idx := int(counter.Add(1)-1) % len(active)
+	return r.buildDecision(providerID, model, active[idx].AccessToken)
 }
 
 func (r *Resolver) buildDecision(providerID, model, apiKey string) *RoutingDecision {

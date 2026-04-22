@@ -9,7 +9,7 @@ import { CHART_COLORS, INPUT_TOKEN_COLOR, OUTPUT_TOKEN_COLOR } from '@/lib/provi
 import type { ParsedMetric } from '@/lib/api';
 import type { UsageModel } from '@/hooks/use-usage-api';
 
-export function CostByModelCard({ metrics, onModelClick, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; onModelClick?: (model: string) => void; period?: string; usageModels?: UsageModel[] }) {
+export function CostByModelCard({ metrics, onModelClick, period: _period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; onModelClick?: (model: string) => void; period?: string; usageModels?: UsageModel[] }) {
   const { privacyMode } = usePrivacy();
 
   const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);

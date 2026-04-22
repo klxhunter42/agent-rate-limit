@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -755,6 +756,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		httpReq.Header.Set("Content-Type", "application/json")
 		if opts != nil && opts.AuthMode == "bearer" {
 			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+			httpReq.Header.Set("x-client-request-id", newRequestID())
 		} else {
 			httpReq.Header.Set("x-api-key", apiKey)
 		}
@@ -1156,6 +1158,13 @@ func isValidUTF8String(s string) bool {
 		}
 	}
 	return true
+}
+
+// newRequestID generates a random UUID-like request ID for x-client-request-id.
+func newRequestID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
 // RateLimitError returns an Anthropic-format rate limit error.

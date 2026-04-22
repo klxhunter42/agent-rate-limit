@@ -7,7 +7,7 @@ import { usePrivacy } from '@/contexts/privacy-context';
 import { PRIVACY_BLUR_CLASS } from '@/lib/privacy';
 import { cn } from '@/lib/utils';
 
-export function TokenBreakdownChart({ metrics, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
+export function TokenBreakdownChart({ metrics, period: _period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
   const { privacyMode } = usePrivacy();
 
   const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);

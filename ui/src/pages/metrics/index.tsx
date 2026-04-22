@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { CHART_COLORS } from '@/lib/providers';
 import { InfoTip } from '@/components/shared/info-tip';
-import { useTimeRange, RANGE_POINTS } from '@/hooks/use-time-range';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { TimeRangeFilter } from '@/components/shared/time-range-filter';
 
 interface TimeSeriesPoint {
