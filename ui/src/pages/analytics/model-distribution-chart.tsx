@@ -6,7 +6,7 @@ import { extractModelTokens } from '@/lib/metrics-helpers';
 import { formatNumber, formatPercent } from '@/lib/format';
 import { CHART_COLORS } from '@/lib/providers';
 
-export function ModelDistributionChart({ metrics, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
+export function ModelDistributionChart({ metrics, period: _period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
 
   const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AccountInfo } from '@/lib/auth-api';
+import type { AccountInfo, RateLimitStatus } from '@/lib/auth-api';
 import { updateAccountEmail } from '@/lib/auth-api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 interface AccountListProps {
   provider: string;
   accounts: AccountInfo[];
+  ratelimits?: RateLimitStatus[];
   onRemove: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -33,6 +34,7 @@ function blurEmail(email: string | undefined): string {
 export function AccountList({
   provider,
   accounts,
+  ratelimits,
   onPause,
   onResume,
   onSetDefault,
@@ -42,6 +44,10 @@ export function AccountList({
   const { privacyMode } = usePrivacy();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editEmail, setEditEmail] = useState('');
+
+  const rlByAccount = Object.fromEntries(
+    (ratelimits ?? []).map((r) => [r.account_id, r])
+  );
 
   const handleSaveEmail = async (id: string) => {
     if (!editEmail.includes('@')) return;
@@ -56,14 +62,18 @@ export function AccountList({
 
   return (
     <div className="space-y-2">
-      {accounts.map((acct) => (
+      {accounts.map((acct) => {
+        const rl = rlByAccount[acct.id];
+        return (
         <div
           key={acct.id}
           className={cn(
-            'flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors',
+            'flex flex-col rounded-lg border px-3 py-2 gap-1.5 transition-colors',
             acct.paused ? 'opacity-60' : 'hover:bg-muted/30',
           )}
         >
+          {/* Main row */}
+          <div className="flex items-center gap-3">
           {/* Status dot */}
           <span
             className={cn(
@@ -118,6 +128,13 @@ export function AccountList({
             </Badge>
           )}
 
+          {/* Rate limit status badge */}
+          {rl && (
+            <Badge className={cn('text-[10px] px-1.5', rl.status === 'limited' ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500')}>
+              {rl.status === 'limited' ? 'limited' : 'ok'}
+            </Badge>
+          )}
+
           {/* Default star */}
           <button
             onClick={() => onSetDefault(acct.id)}
@@ -151,8 +168,36 @@ export function AccountList({
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
+          </div>
+
+          {/* Rate limit utilization bars */}
+          {rl && (rl.util_5h > 0 || rl.util_7d > 0) && (
+            <div className="flex flex-col gap-1 pt-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground w-8 shrink-0">5h</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all', rl.util_5h >= 90 ? 'bg-red-500' : rl.util_5h >= 70 ? 'bg-amber-500' : 'bg-green-500')}
+                    style={{ width: `${Math.min(rl.util_5h, 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0">{rl.util_5h.toFixed(0)}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground w-8 shrink-0">7d</span>
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all', rl.util_7d >= 90 ? 'bg-red-500' : rl.util_7d >= 70 ? 'bg-amber-500' : 'bg-green-500')}
+                    style={{ width: `${Math.min(rl.util_7d, 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground w-8 text-right shrink-0">{rl.util_7d.toFixed(0)}%</span>
+              </div>
+            </div>
+          )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

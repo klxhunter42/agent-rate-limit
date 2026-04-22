@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { type TimeRange, ALL_RANGES } from '@/hooks/use-time-range';
+import { type TimeRange } from '@/hooks/use-time-range';
 
 const SHORT_RANGES: TimeRange[] = ['5m', '15m', '1H'];
 const LONG_RANGES: TimeRange[] = ['1H', '6H', '24H', '7D', '30D'];

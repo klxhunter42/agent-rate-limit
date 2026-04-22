@@ -583,6 +583,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		} else if h.wsBroadcast != nil {
 			h.wsBroadcast("request-completed", map[string]any{"model": selectedModel, "statusCode": statusCode, "rtt_ms": rtt.Milliseconds()})
 		}
+		// Capture Anthropic unified rate limit utilization from upstream response headers.
+		if statusCode >= 200 && statusCode < 300 && selectedTokenInfo != nil {
+			u5h := headers.Get("anthropic-ratelimit-unified-5h-utilization")
+			u7d := headers.Get("anthropic-ratelimit-unified-7d-utilization")
+			rlStatus := headers.Get("anthropic-ratelimit-unified-status")
+			fbPct := headers.Get("anthropic-ratelimit-unified-fallback-percentage")
+			if u5h != "" || u7d != "" || rlStatus != "" {
+				prov := selectedTokenInfo.Provider
+				accID := selectedTokenInfo.AccountID
+				go h.storeRateLimitStatus(prov, accID, u5h, u7d, rlStatus, fbPct)
+			}
+		}
 	}
 
 	if h.cfg.GLMMode && hasImages && (decision == nil || decision.ProviderID == "zai") {
@@ -764,6 +776,69 @@ func validateChatRequest(req *ChatRequest) string {
 		req.Provider = "glm"
 	}
 	return ""
+}
+
+const rateLimitKeyPrefix = "arl:ratelimit:"
+
+// RateLimitStatus holds cached Anthropic unified rate limit utilization for one account.
+type RateLimitStatus struct {
+	Provider    string    `json:"provider"`
+	AccountID   string    `json:"account_id"`
+	Util5h      float64   `json:"util_5h"`
+	Util7d      float64   `json:"util_7d"`
+	Status      string    `json:"status"`
+	FallbackPct float64   `json:"fallback_pct"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (h *Handler) storeRateLimitStatus(provider, accountID, u5h, u7d, status, fbPct string) {
+	if h.tokenStore == nil {
+		return
+	}
+	p5h, _ := strconv.ParseFloat(u5h, 64)
+	p7d, _ := strconv.ParseFloat(u7d, 64)
+	pfb, _ := strconv.ParseFloat(fbPct, 64)
+	data, err := json.Marshal(RateLimitStatus{
+		Provider:    provider,
+		AccountID:   accountID,
+		Util5h:      p5h,
+		Util7d:      p7d,
+		Status:      status,
+		FallbackPct: pfb,
+		UpdatedAt:   time.Now().UTC(),
+	})
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	h.tokenStore.Client().Set(ctx, rateLimitKeyPrefix+provider+":"+accountID, data, 6*time.Hour)
+}
+
+// GetRateLimits returns cached Anthropic rate limit utilization for all accounts.
+func (h *Handler) GetRateLimits(w http.ResponseWriter, r *http.Request) {
+	if h.tokenStore == nil {
+		writeJSON(w, http.StatusOK, []RateLimitStatus{})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	var results []RateLimitStatus
+	iter := h.tokenStore.Client().Scan(ctx, 0, rateLimitKeyPrefix+"*", 100).Iterator()
+	for iter.Next(ctx) {
+		data, err := h.tokenStore.Client().Get(ctx, iter.Val()).Bytes()
+		if err != nil {
+			continue
+		}
+		var s RateLimitStatus
+		if json.Unmarshal(data, &s) == nil {
+			results = append(results, s)
+		}
+	}
+	if results == nil {
+		results = []RateLimitStatus{}
+	}
+	writeJSON(w, http.StatusOK, results)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
