@@ -16,9 +16,15 @@ if [ -n "$PROFILE_NAME" ]; then
   if [ -n "$TOKEN" ]; then
     export ANTHROPIC_API_KEY="$TOKEN"
     echo "Token provisioned: ${TOKEN:0:12}..."
-    # Rewrite settings with API key injected.
+    # Preserve model and thinking settings from original settings, rewrite API key.
+    MODEL=$(python3 -c "import json; print(json.load(open('/root/.claude/settings.json')).get('model',''))" 2>/dev/null || true)
+    THINKING=$(python3 -c "import json; v=json.load(open('/root/.claude/settings.json')).get('alwaysThinkingEnabled',''); print(str(v).lower() if v!='' else '')" 2>/dev/null || true)
+    MODEL_JSON=""
+    if [ -n "$MODEL" ]; then MODEL_JSON=",\"model\":\"$MODEL\""; fi
+    THINKING_JSON=""
+    if [ -n "$THINKING" ]; then THINKING_JSON=",\"alwaysThinkingEnabled\":$THINKING"; fi
     cat > /root/.claude/settings.json <<SETTINGS
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"$TOKEN"}}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"$TOKEN","CLAUDE_CODE_USE_BEDROCK":"0","CLAUDE_CODE_USE_VERTEX":"0"}${MODEL_JSON}${THINKING_JSON}}
 SETTINGS
     echo "Settings updated"
   else

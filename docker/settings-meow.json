@@ -1,1 +1,1 @@
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"arl_399dfc402b02924a8b65190143d655303f2b67fea74aab1f99503c9774b9b258","CLAUDE_CODE_USE_BEDROCK":"0","CLAUDE_CODE_USE_VERTEX":"0"},"model":"claude-sonnet-4-6"}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"arl_f393418fe7fb48e3ca5f507e948130f74ef89a2c3938127c2be120ee171c857c","CLAUDE_CODE_USE_BEDROCK":"0","CLAUDE_CODE_USE_VERTEX":"0"},"model":"claude-haiku-4-5-20251001","alwaysThinkingEnabled":false}
