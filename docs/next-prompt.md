@@ -17,22 +17,23 @@ Fixed `token-refresh.go` ให้ใช้ JSON body สำหรับ claude-
 - gemini-oauth: ยังใช้ form-urlencoded
 Build test ผ่าน (no errors)
 
+### 2. ✅ Test Docker Claude Code container end-to-end
+- Gateway health check ✅ ผ่าน
+- Token provisioning ✅ สำเร็จ
+- meow (haiku): "I'm ready to help!" ✅
+- test (gemini): "I need more information..." ✅
+
+**Issue found & fixed:** Claude Code 2.1.117 sends adaptive thinking headers
+- Solution: `"alwaysThinkingEnabled": false` in settings
+- Updated entrypoint script ให้ preserve model + thinking settings
+- Tested both profiles successfully
+
 ## สิ่งที่ยังไม่ได้ทำ
 
-### 1. Test Claude Code CLI ผ่าน gateway ด้วย haiku
-settings-meow.json มี haiku ตั้งแล้ว แต่ยังไม่ได้ restart Claude Code session
-ต้อง restart Claude Code แล้ว verify ว่า haiku ทำงานผ่าน gateway
-
-### 2. Test Docker Claude Code container end-to-end
-docker-compose.yml มี claude-code-meow service พร้อม (profile: test-client)
-```
-DOCKER_DEFAULT_PLATFORM=linux/arm64 docker-compose --profile test-client run --rm claude-code-meow help
-```
-ต้อง verify:
-- Gateway health check ผ่าน
-- Token provisioning สำเร็จ
-- Model ที่ตั้งใน settings ทำงาน (haiku)
+### 1. Claude Code IDE session ผ่าน gateway (ตัวจริง)
+ทดสอบใน IDE session (ไม่ใช่ docker container)
+ต้อง restart Claude Code session after changing settings-local.json
 
 ### 3. Sonnet/Opus ผ่าน gateway
 ตอนนี้ติด 429 rate limit จาก Anthropic (per-account)
-ต้องรอ rate limit reset แล้วลองใหม่ หรือใช้ตอนที่ไม่มี Claude Code session อื่นใช้ sonnet อยู่
+ต้องรอ rate limit reset แล้วลองใหม่
