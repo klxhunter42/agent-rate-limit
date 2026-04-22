@@ -150,6 +150,26 @@ function mapAccount(a: any): AccountInfo {
   };
 }
 
+export interface RateLimitStatus {
+  provider: string;
+  account_id: string;
+  util_5h: number;
+  util_7d: number;
+  status: string;
+  fallback_pct: number;
+  updated_at: string;
+}
+
+export async function fetchRateLimits(): Promise<RateLimitStatus[]> {
+  try {
+    const res = await fetch('/v1/auth/accounts/ratelimits');
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
+
 export async function login(apiKey: string): Promise<{ success: boolean }> {
   const res = await fetch('/v1/auth/login', {
     method: 'POST',

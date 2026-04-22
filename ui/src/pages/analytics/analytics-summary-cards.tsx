@@ -9,7 +9,7 @@ import { PRIVACY_BLUR_CLASS } from '@/lib/privacy';
 import { cn } from '@/lib/utils';
 import { FileText, DollarSign, ArrowDownRight, ArrowUpRight, Timer } from 'lucide-react';
 
-export function AnalyticsSummaryCards({ metrics, models, period = '24h', usageSummary }: { metrics: ParsedMetric[]; models: ModelStatus[]; period?: string; usageSummary: UsageSummary | null }) {
+export function AnalyticsSummaryCards({ metrics, models: _models, period: _period = '24h', usageSummary }: { metrics: ParsedMetric[]; models: ModelStatus[]; period?: string; usageSummary: UsageSummary | null }) {
   const { privacyMode } = usePrivacy();
 
   // Prefer usage API (Redis, persistent), fall back to Prometheus

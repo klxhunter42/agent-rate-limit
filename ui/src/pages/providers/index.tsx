@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as authApi from '@/lib/auth-api';
+import type { RateLimitStatus } from '@/lib/auth-api';
 import { useAuthFlow } from '@/hooks/use-auth-flow';
 import { useDashboard } from '@/contexts/dashboard-context';
 import { AccountList } from './account-list';
@@ -154,6 +155,7 @@ const AUTH_TYPE_STYLES: Record<string, string> = {
 export default function ProvidersPage() {
   const { glmMode } = useDashboard();
   const [accountsMap, setAccountsMap] = useState<Record<string, authApi.AccountInfo[]>>({});
+  const [ratelimits, setRatelimits] = useState<RateLimitStatus[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -163,12 +165,13 @@ export default function ProvidersPage() {
 
   const loadAccounts = useCallback(async () => {
     try {
-      const all = await authApi.listAccounts();
+      const [all, rls] = await Promise.all([authApi.listAccounts(), authApi.fetchRateLimits()]);
       const map: Record<string, authApi.AccountInfo[]> = {};
       for (const acct of all) {
         (map[acct.provider] ??= []).push(acct);
       }
       setAccountsMap(map);
+      setRatelimits(rls);
     } catch {
       // accounts endpoint may not exist yet
     } finally {
@@ -308,6 +311,7 @@ export default function ProvidersPage() {
                     <AccountList
                       provider={provider.id}
                       accounts={accounts}
+                      ratelimits={ratelimits.filter((r) => r.provider === provider.id)}
                       onRemove={(id) => handleAction(id, () => authApi.removeAccount(provider.id, id))}
                       onPause={(id) => handleAction(id, () => authApi.pauseAccount(provider.id, id))}
                       onResume={(id) => handleAction(id, () => authApi.resumeAccount(provider.id, id))}

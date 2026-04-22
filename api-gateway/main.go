@@ -202,10 +202,14 @@ func main() {
 		handler.HandleWebSocket(wsHub, w, req)
 	}))
 
-	// Provider auth routes
+	// Provider auth routes (ratelimits registered first inside /v1 group to beat {provider} wildcard).
 	// To rate-limit login: wrap authHandler.DashboardLogin with middleware.NewLoginLimiter().
 	// Example: r.With(middleware.NewLoginLimiter()).Post("/v1/auth/login", authHandler.DashboardLogin)
-	r.Route("/v1", authHandler.Routes())
+	authRoutesFn := authHandler.Routes()
+	r.Route("/v1", func(sub chi.Router) {
+		sub.Get("/auth/accounts/ratelimits", h.GetRateLimits)
+		authRoutesFn(sub)
+	})
 
 	// Claude OAuth loopback callback: redirect_uri is http://localhost:port/callback
 	r.Get("/callback", authHandler.HandleClaudeCallback)

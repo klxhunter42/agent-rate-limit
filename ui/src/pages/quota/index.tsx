@@ -45,7 +45,7 @@ interface UsageResponse {
 
 import { useDashboard } from '@/contexts/dashboard-context';
 import { InfoTip } from '@/components/shared/info-tip';
-import { useTimeRange, RANGE_PERIOD } from '@/hooks/use-time-range';
+import { useTimeRange } from '@/hooks/use-time-range';
 import { TimeRangeFilter } from '@/components/shared/time-range-filter';
 
 function pctColor(pct: number): string {
