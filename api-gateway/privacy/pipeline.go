@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/extractors"
@@ -82,69 +83,86 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 	result := &MaskResult{}
 	secretsCtx := masking.NewMaskContext()
 	piiCtx := masking.NewMaskContext()
+
+	// Process spans in parallel - each span is independent.
+	type spanResult struct {
+		index        int
+		maskedText   string
+		changed      bool
+		totalSecrets int
+		totalPII     int
+	}
+
+	results := make([]spanResult, len(spans))
+	var wg sync.WaitGroup
+	wg.Add(len(spans))
+
+	for i, span := range spans {
+		go func(idx int, sp masking.TextSpan) {
+			defer wg.Done()
+			text := sp.Text
+			sr := spanResult{index: idx, maskedText: text}
+			origText := text
+
+			if p.secretDetector != nil && text != "" {
+				start := time.Now()
+				det := p.secretDetector.Detect(text)
+				if p.metrics != nil {
+					p.metrics.ObserveMaskDuration("secrets_detect", time.Since(start))
+				}
+				if det.Detected {
+					sr.totalSecrets = len(det.Matches)
+					start = time.Now()
+					maskRes := secrets.MaskSecrets(text, det.Locations, secretsCtx)
+					if p.metrics != nil {
+						p.metrics.ObserveMaskDuration("mask", time.Since(start))
+					}
+					text = maskRes.MaskedText
+				}
+				for _, m := range det.Matches {
+					if p.metrics != nil {
+						p.metrics.IncSecretsDetected(string(m.Type), m.Count)
+					}
+				}
+			}
+
+			if p.presidioClient != nil && text != "" {
+				start := time.Now()
+				piiResult := p.presidioClient.Detect(text)
+				if p.metrics != nil {
+					p.metrics.ObserveMaskDuration("pii_detect", time.Since(start))
+				}
+				if piiResult.HasPII {
+					sr.totalPII = len(piiResult.Entities)
+					start = time.Now()
+					maskRes := pii.MaskPII(text, piiResult.Entities, piiCtx)
+					if p.metrics != nil {
+						p.metrics.ObserveMaskDuration("mask", time.Since(start))
+					}
+					text = maskRes.MaskedText
+				}
+				for _, e := range piiResult.Entities {
+					if p.metrics != nil {
+						p.metrics.IncPIIDetected(e.EntityType)
+					}
+				}
+			}
+
+			sr.maskedText = text
+			sr.changed = text != origText
+			results[idx] = sr
+		}(i, span)
+	}
+	wg.Wait()
+
+	// Apply masked results back to payload.
 	totalSecrets := 0
 	totalPII := 0
-
-	for _, span := range spans {
-		text := span.Text
-
-		// Detect and mask secrets.
-		if p.secretDetector != nil && text != "" {
-			start := time.Now()
-			det := p.secretDetector.Detect(text)
-			elapsed := time.Since(start)
-			if p.metrics != nil {
-				p.metrics.ObserveMaskDuration("secrets_detect", elapsed)
-			}
-
-			if det.Detected {
-				totalSecrets += len(det.Matches)
-				start = time.Now()
-				maskRes := secrets.MaskSecrets(text, det.Locations, secretsCtx)
-				elapsed = time.Since(start)
-				if p.metrics != nil {
-					p.metrics.ObserveMaskDuration("mask", elapsed)
-				}
-				text = maskRes.MaskedText
-			}
-
-			for _, m := range det.Matches {
-				if p.metrics != nil {
-					p.metrics.IncSecretsDetected(string(m.Type), m.Count)
-				}
-			}
-		}
-
-		// Detect and mask PII on secrets-masked text.
-		if p.presidioClient != nil && text != "" {
-			start := time.Now()
-			piiResult := p.presidioClient.Detect(text)
-			elapsed := time.Since(start)
-			if p.metrics != nil {
-				p.metrics.ObserveMaskDuration("pii_detect", elapsed)
-			}
-
-			if piiResult.HasPII {
-				totalPII += len(piiResult.Entities)
-				start = time.Now()
-				maskRes := pii.MaskPII(text, piiResult.Entities, piiCtx)
-				elapsed = time.Since(start)
-				if p.metrics != nil {
-					p.metrics.ObserveMaskDuration("mask", elapsed)
-				}
-				text = maskRes.MaskedText
-			}
-
-			for _, e := range piiResult.Entities {
-				if p.metrics != nil {
-					p.metrics.IncPIIDetected(e.EntityType)
-				}
-			}
-		}
-
-		// Apply masked text back to payload.
-		if text != span.Text {
-			applyMaskedToPayload(payload, span, text)
+	for i, sr := range results {
+		totalSecrets += sr.totalSecrets
+		totalPII += sr.totalPII
+		if sr.changed {
+			applyMaskedToPayload(payload, spans[i], sr.maskedText)
 		}
 	}
 

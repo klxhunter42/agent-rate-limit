@@ -437,8 +437,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if profileOverride.BaseURL != "" {
 			profileOpts.UpstreamOverride = profileOverride.BaseURL
 		}
-		if decision == nil && profileOverride.Target != "" {
-			if d, ok := h.resolver.ResolveByProvider(profileOverride.Target); ok {
+		// When profile has a target provider, override model-based routing.
+		if profileOverride.Target != "" {
+			providerID := profileOverride.Target
+			if profileOverride.Provider != "" {
+				providerID = profileOverride.Provider
+			}
+			if d, ok := h.resolver.ResolveByProvider(providerID); ok {
 				decision = d
 			}
 		}

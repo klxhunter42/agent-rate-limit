@@ -130,8 +130,9 @@ func TestAcquireRelease_Basic(t *testing.T) {
 	if !ok {
 		t.Fatal("Acquire should succeed")
 	}
-	if model != "glm-5.1" {
-		t.Errorf("Acquire returned %q, want %q", model, "glm-5.1")
+	series5 := map[string]bool{"glm-5.1": true, "glm-5-turbo": true, "glm-5": true}
+	if !series5[model] {
+		t.Errorf("Acquire returned %q, want a series-5 model", model)
 	}
 
 	gs := al.GlobalStatus()

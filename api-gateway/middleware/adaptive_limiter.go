@@ -202,16 +202,18 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 		return "", false
 	}
 
-	// Try the requested model (non-blocking).
 	model := al.getModel(requestedModel)
-	if model.tryAcquire() {
-		return requestedModel, true
-	}
 
-	// Requested model full - try fallback candidates.
-	selected, ok := al.tryFallback(requestedModel, model)
-	if ok {
-		return selected, true
+	// Proactive distribution: round-robin across same-series models when
+	// multiple models share the same capability tier. This prevents a single
+	// model from absorbing all traffic while its peers sit idle.
+	if model.series > 0 && len(al.seriesBuckets[model.series]) > 1 {
+		selected, ok := al.tryFallback(requestedModel, model)
+		if ok {
+			return selected, true
+		}
+	} else if model.tryAcquire() {
+		return requestedModel, true
 	}
 
 	// All immediate candidates full - release global slot and retry with backoff.
@@ -274,7 +276,7 @@ func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveMod
 	// Phase 1: round-robin within same series.
 	if picked, _ := tryRR(sameSeries); picked != "" {
 		if picked != requestedModel {
-			slog.Info("model fallback (same-series round-robin)",
+			slog.Debug("proactive model distribution",
 				"requested", requestedModel,
 				"selected", picked,
 				"series", reqSeries,
@@ -304,11 +306,22 @@ func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveMod
 	return "", false
 }
 
-// acquireAnyModel polls for ANY available model slot with a timeout.
-// Prefer the requested model but accept any model that has capacity.
+// acquireAnyModel waits for ANY available model slot with a timeout.
+// Uses sync.Cond to wake immediately on Release instead of polling.
 func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel string) (string, bool) {
 	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+
+	// Create a temporary condvar for this wait.
+	var waitMu sync.Mutex
+	waitCond := sync.NewCond(&waitMu)
+
+	// Timer to broadcast on timeout so we unblock from Wait().
+	timer := time.AfterFunc(timeout, func() {
+		waitCond.Broadcast()
+	})
+	defer timer.Stop()
+
+	for {
 		// Try the requested model first.
 		model := al.getModel(requestedModel)
 		if model.tryAcquire() {
@@ -324,7 +337,7 @@ func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel
 			am := al.models[name]
 			if am.tryAcquire() {
 				if al.acquireGlobal(time.Until(deadline)) {
-					slog.Info("model fallback (blocking-poll)",
+					slog.Info("model fallback (cond-wait)",
 						"requested", requestedModel,
 						"selected", name,
 					)
@@ -335,10 +348,22 @@ func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel
 			}
 		}
 
-		// Brief sleep before retrying to avoid busy-loop.
-		time.Sleep(50 * time.Millisecond)
+		if time.Now().After(deadline) {
+			return "", false
+		}
+
+		// Wait for signal from Release() or timeout.
+		waitMu.Lock()
+		remaining := time.Until(deadline)
+		if remaining > 100*time.Millisecond {
+			waitCond.Wait()
+		} else {
+			waitMu.Unlock()
+			time.Sleep(remaining)
+			continue
+		}
+		waitMu.Unlock()
 	}
-	return "", false
 }
 
 func (al *AdaptiveLimiter) Release(model string) {

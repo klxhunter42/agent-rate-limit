@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 )
@@ -85,6 +87,7 @@ func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 
 // Middleware returns an HTTP middleware that enforces both global and per-agent
 // rate limits by calling the distributed-rate-limiter service.
+// Checks run in parallel to reduce latency.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip rate limiting for internal endpoints.
@@ -98,25 +101,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		isAnthropic := strings.HasPrefix(r.URL.Path, "/v1/messages")
 
-		// 1. Global rate-limit check.
-		if !rl.check(ctx, "global", 1) {
-			slog.Warn("global rate limit exceeded",
-				"path", r.URL.Path,
-				"method", r.Method,
-				"remote_addr", r.RemoteAddr,
-			)
-			w.Header().Set("Retry-After", "1")
-			if isAnthropic {
-				writeAnthropicRateLimitError(w)
-			} else {
-				http.Error(w, `{"error":"global rate limit exceeded","retry_after":1}`, http.StatusTooManyRequests)
-			}
-			return
-		}
-
-		// 2. Per-agent rate-limit check.
-		// For /v1/messages, use hashed x-api-key as identity.
-		// For other routes, use query param or URL param.
+		// Resolve agentID first.
 		agentID := ""
 		if isAnthropic {
 			if key := r.Header.Get("x-api-key"); key != "" {
@@ -125,7 +110,6 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 				agentID = keySuffix(strings.TrimPrefix(authHeader, "Bearer "))
 			}
 			if agentID == "" {
-				// No client key provided - let handler/resolver handle auth via provider tokens.
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -136,22 +120,45 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			}
 		}
 
-		if agentID != "" {
+		// Run global + agent checks in parallel.
+		globalAllowed := true
+		agentAllowed := true
+		agentHasCheck := agentID != ""
+
+		eg, egCtx := errgroup.WithContext(ctx)
+		eg.Go(func() error {
+			globalAllowed = rl.check(egCtx, "global", 1)
+			return nil
+		})
+		if agentHasCheck {
 			agentKey := "agent:" + agentID
-			if !rl.check(ctx, agentKey, 1) {
-				slog.Warn("agent rate limit exceeded",
-					"agent_id", agentID,
-					"path", r.URL.Path,
-					"method", r.Method,
-				)
-				w.Header().Set("Retry-After", "1")
-				if isAnthropic {
-					writeAnthropicRateLimitError(w)
-				} else {
-					http.Error(w, `{"error":"agent rate limit exceeded","retry_after":1}`, http.StatusTooManyRequests)
-				}
-				return
+			eg.Go(func() error {
+				agentAllowed = rl.check(egCtx, agentKey, 1)
+				return nil
+			})
+		}
+		_ = eg.Wait()
+
+		if !globalAllowed {
+			slog.Warn("global rate limit exceeded", "path", r.URL.Path, "method", r.Method, "remote_addr", r.RemoteAddr)
+			w.Header().Set("Retry-After", "1")
+			if isAnthropic {
+				writeAnthropicRateLimitError(w)
+			} else {
+				http.Error(w, `{"error":"global rate limit exceeded","retry_after":1}`, http.StatusTooManyRequests)
 			}
+			return
+		}
+
+		if agentHasCheck && !agentAllowed {
+			slog.Warn("agent rate limit exceeded", "agent_id", agentID, "path", r.URL.Path, "method", r.Method)
+			w.Header().Set("Retry-After", "1")
+			if isAnthropic {
+				writeAnthropicRateLimitError(w)
+			} else {
+				http.Error(w, `{"error":"agent rate limit exceeded","retry_after":1}`, http.StatusTooManyRequests)
+			}
+			return
 		}
 
 		next.ServeHTTP(w, r)

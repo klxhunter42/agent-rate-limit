@@ -1,0 +1,9 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
+  },
+  "headers": {
+    "X-Profile": "meow"
+  }
+}

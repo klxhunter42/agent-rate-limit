@@ -406,6 +406,41 @@ services:
     networks:
       - arl-network
 
+  # --- Claude Code test client ---
+  claude-code-meow:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.claude-code
+    container_name: claude-code-meow
+    profiles: ["test-client"]
+    volumes:
+      - ./docker/settings-meow.json:/root/.claude/settings.json:ro
+      - ./workspace:/workspace
+    environment:
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
+      CLAUDE_CODE_DISABLE_ANALYTICS: 1
+    networks:
+      - arl-network
+    stdin_open: true
+    tty: true
+
+  claude-code-test:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.claude-code
+    container_name: claude-code-test
+    profiles: ["test-client"]
+    volumes:
+      - ./docker/settings-test.json:/root/.claude/settings.json:ro
+      - ./workspace:/workspace
+    environment:
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
+      CLAUDE_CODE_DISABLE_ANALYTICS: 1
+    networks:
+      - arl-network
+    stdin_open: true
+    tty: true
+
 networks:
   arl-network:
     driver: bridge
