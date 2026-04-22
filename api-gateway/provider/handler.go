@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 type AuthSession struct {
@@ -23,11 +25,16 @@ type AuthSession struct {
 }
 
 type AuthHandler struct {
-	store    *TokenStore
-	registry *Registry
-	sessions map[string]*AuthSession
-	mu       sync.Mutex
-	apiKey   string
+	store        *TokenStore
+	registry     *Registry
+	sessions     map[string]*AuthSession
+	mu           sync.Mutex
+	apiKey       string
+	profileRedis *redis.Client
+}
+
+func (h *AuthHandler) SetProfileRedis(rdb *redis.Client) {
+	h.profileRedis = rdb
 }
 
 func NewAuthHandler(store *TokenStore, registry *Registry) *AuthHandler {
@@ -352,7 +359,53 @@ func (h *AuthHandler) RemoveAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Cascade: remove account from all profiles that reference it.
+	h.removeAccountFromProfiles(providerID, accountID)
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
+func (h *AuthHandler) removeAccountFromProfiles(providerID, accountID string) {
+	if h.profileRedis == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	keys, err := h.profileRedis.Keys(ctx, "profile:*").Result()
+	if err != nil {
+		return
+	}
+	for _, key := range keys {
+		val, err := h.profileRedis.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+		var p map[string]interface{}
+		if json.Unmarshal([]byte(val), &p) != nil {
+			continue
+		}
+		ids, _ := p["accountIds"].([]interface{})
+		if ids == nil {
+			continue
+		}
+		var filtered []interface{}
+		changed := false
+		for _, id := range ids {
+			s, _ := id.(string)
+			if s == accountID {
+				changed = true
+			} else {
+				filtered = append(filtered, id)
+			}
+		}
+		if changed {
+			p["accountIds"] = filtered
+			if data, err := json.Marshal(p); err == nil {
+				h.profileRedis.Set(ctx, key, data, 0)
+			}
+		}
+	}
 }
 
 func (h *AuthHandler) PauseAccount(w http.ResponseWriter, r *http.Request) {

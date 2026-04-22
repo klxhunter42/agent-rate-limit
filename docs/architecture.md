@@ -581,7 +581,7 @@ Inspired by Envoy gradient controller + Netflix concurrency limits.
 ### Key Features
 
 - **Series-based routing**: Models grouped by major version (glm-5.x = series 5, glm-4.x = series 4)
-- **Same-series round-robin**: When requested model is full, distribute within same series first
+- **Proactive same-series round-robin**: Distributes requests across same-series models immediately, not just on overflow. Prevents single-model bottlenecks.
 - **Series spillover**: Only fall to lower series under latency pressure (EWMA > 1.5x minRTT)
 - **Signal-based waiting**: `sync.Cond` replaces spin-wait for slot availability
 - **RTT EWMA tracking**: Per-model exponentially weighted moving average (alpha=0.3)
@@ -613,6 +613,28 @@ On 200:
 
 ```
 Request: { "model": "glm-5", ... }
+  |
+  +-- 1. Wait for global slot (sync.Cond signal-based)
+  |
+  +-- 2. Proactive distribution: multi-model series?
+  |     YES (series 5 has glm-5.1, glm-5-turbo, glm-5):
+  |     |   Round-robin across all series-5 models
+  |     |   Any available? -> use it (e.g., glm-5-turbo)
+  |     |
+  |     NO (single model or non-series):
+  |         Try exact model directly (non-blocking CAS)
+  |
+  +-- 3. All same-series full -> check latency pressure:
+  |     EWMA > 1.5x minRTT for majority of series 5 models? -> PRESSURE
+  |     No pressure -> no spillover (stay in series 5)
+  |
+  +-- 4. Spillover to lower series (series 4) under pressure:
+  |     glm-4.7, glm-4.6, glm-4.5 (round-robin)
+  |     Any available? -> use it
+  |
+  +-- 5. All models full -> release global slot -> signal-based block-wait (30s timeout)
+                       -> re-acquire global slot after model slot obtained
+```Request: { "model": "glm-5", ... }
   │
   ├─ 1. Wait for global slot (sync.Cond signal-based)
   │
@@ -743,19 +765,19 @@ Series grouping:
   Series 5: glm-5.1(1), glm-5-turbo(1), glm-5(2) = 4 slots
   Series 4: glm-4.7(2), glm-4.6(3), glm-4.5(10) = 15 slots
 
-Selection: Round-robin within same series, spillover to lower series under pressure
+Selection: Proactive round-robin within same series, spillover to lower series under pressure
 
-Low load example (5 requests for glm-5):
-  req 1 → glm-5 slot (limit 2)         ✅ direct
-  req 2 → glm-5 slot                    ✅ direct
-  req 3 → glm-5.1 (same-series RR)      ✅ series 5 round-robin
-  req 4 → glm-5-turbo (same-series RR)  ✅ series 5 round-robin
-  req 5 → glm-4.7 (series spillover)    ✅ series 5 full + latency pressure → series 4
+Low load example (5 requests for glm-5.1):
+  req 1 -> glm-5.1       (proactive series-5 RR)
+  req 2 -> glm-5-turbo   (proactive series-5 RR)
+  req 3 -> glm-5         (proactive series-5 RR)
+  req 4 -> glm-5.1       (proactive series-5 RR, wraps around)
+  req 5 -> glm-5-turbo   (proactive series-5 RR)
 ```
 
 ### Body Rewrite
 
-When fallback occurs, the gateway replaces the `"model"` field in the JSON body:
+When proactive distribution or fallback selects a different model, the gateway replaces the `"model"` field in the JSON body:
 
 ```go
 // Before: {"model":"glm-5.1","messages":[...],"stream":true}
@@ -769,7 +791,7 @@ This is the only modification to the request body — all other fields (tools, m
 ```json
 {"msg":"adaptive model configured","model":"glm-5.1","initial_limit":1,"max_limit":5}
 {"msg":"adaptive limiter initialized","models":["glm-5.1","glm-5-turbo","glm-5","glm-4.7","glm-4.6","glm-4.5"],"global_limit":9}
-{"msg":"model fallback (same-series round-robin)","requested":"glm-5","selected":"glm-5.1","series":5}
+{"msg":"proactive model distribution","requested":"glm-5.1","selected":"glm-5-turbo","series":5}
 {"msg":"series spillover (latency pressure)","requested":"glm-5","selected":"glm-4.7","from_series":5,"to_series":4}
 {"msg":"all models full, waiting","requested":"glm-5"}
 {"msg":"adaptive limit increased","model":"glm-5","old":2,"new":3,"successes":5}
@@ -808,7 +830,7 @@ Messages handler order (correct):
   1. Read body (with 10MB limit check)
   2. Parse JSON (validate structure)
   3. Resolve API key from pool ← only after validation
-  4. Acquire model slot (may fallback)
+  4. Acquire model slot (proactive distribution + fallback)
   5. Proxy request upstream
 ```
 
@@ -1859,7 +1881,7 @@ Worker จะ rotate key อัตโนมัติ (random selection)
 
 ### Series Grouping
 
-Models grouped by major version for intelligent fallback:
+Models grouped by major version for proactive distribution and intelligent fallback:
 
 ```
 Series 5 (preferred): glm-5.1(1), glm-5-turbo(1), glm-5(2)  = 4 slots
@@ -1891,9 +1913,9 @@ Step 5: All models full or global cap reached:
         Release global slot → signal-based block-wait on requested model (30s timeout)
         → re-acquire global slot after model slot obtained
 
-Key: Series routing keeps requests within the same quality tier when possible.
-     Spillover to lower series only happens under confirmed latency pressure.
-     Signal-based waiting eliminates CPU waste from polling.
+Key: Proactive round-robin distributes load evenly across same-series models,
+     preventing single-model bottlenecks. Spillover to lower series only happens
+     under confirmed latency pressure. Signal-based waiting eliminates CPU waste.
 
 ### Adaptive Limit Discovery
 

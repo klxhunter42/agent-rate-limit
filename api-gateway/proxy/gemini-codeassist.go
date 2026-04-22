@@ -14,6 +14,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 )
 
 // codeAssistEndpoint moved to cfg.GeminiCodeAssistEndpoint
@@ -29,15 +30,8 @@ func NewGeminiCodeAssistProxy(m *metrics.Metrics, codeAssistEndpoint, defaultMod
 	return &GeminiCodeAssistProxy{
 		endpoint:     codeAssistEndpoint,
 		defaultModel: defaultModel,
-		client: &http.Client{
-			Timeout: 0,
-			Transport: &http.Transport{
-				MaxIdleConns:        20,
-				MaxIdleConnsPerHost: 20,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
-		metrics: m,
+		client:       SharedClient(0),
+		metrics:      m,
 	}
 }
 
@@ -126,8 +120,10 @@ func anthropicToGemini(payload map[string]any, defaultModel string) geminiConver
 
 	// System instruction
 	if sys, ok := payload["system"].(string); ok && sys != "" {
+		optSys, _ := tokenizer.OptimizeWhitespace(sys)
+		optSys, _ = tokenizer.DeduplicateSentences(optSys)
 		req.SystemInstruction = &geminiContent{
-			Parts: []geminiPart{{Text: sys}},
+			Parts: []geminiPart{{Text: optSys}},
 		}
 	} else if sysArr, ok := payload["system"].([]any); ok {
 		var sysText string
@@ -139,8 +135,10 @@ func anthropicToGemini(payload map[string]any, defaultModel string) geminiConver
 			}
 		}
 		if sysText != "" {
+			optSys, _ := tokenizer.OptimizeWhitespace(sysText)
+			optSys, _ = tokenizer.DeduplicateSentences(optSys)
 			req.SystemInstruction = &geminiContent{
-				Parts: []geminiPart{{Text: sysText}},
+				Parts: []geminiPart{{Text: optSys}},
 			}
 		}
 	}
@@ -457,6 +455,13 @@ func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.R
 					}
 				}
 			}
+		}
+
+		// Unmask error body before sending to client.
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			unmasked := pipeline.UnmaskResponse([]byte(errBody), maskResult)
+			errBody = string(unmasked)
 		}
 
 		// Write error response to client instead of empty 200

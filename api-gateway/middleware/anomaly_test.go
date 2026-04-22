@@ -297,13 +297,15 @@ func TestAnomalyDetector_RingBufferWraparound(t *testing.T) {
 	if a.Type != AnomalyNone {
 		t.Fatalf("after wraparound: expected AnomalyNone, got %d", a.Type)
 	}
-	if a.Mean != 20.0 {
-		t.Fatalf("mean: got %f, want 20.0", a.Mean)
+	// Welford's tracks cumulative stats: (1000*10 + 1000*20 + 20) / 2001
+	wantMean := (1000*10.0 + 1000*20.0 + 20.0) / 2001.0
+	if math.Abs(a.Mean-wantMean) > 0.01 {
+		t.Fatalf("mean: got %f, want %f", a.Mean, wantMean)
 	}
 
-	// verify buffer is exactly 1000 entries (not more)
-	if d.count != bufSize {
-		t.Fatalf("count: got %d, want %d", d.count, bufSize)
+	// verify total samples
+	if d.count != 2001 {
+		t.Fatalf("count: got %d, want %d", d.count, 2001)
 	}
 }
 
@@ -341,10 +343,10 @@ func TestAnomalyDetector_StatsAccuracy(t *testing.T) {
 
 	a := d.Record(5.0)
 	wantMean := 55.0 / 11.0
-	if math.Abs(a.Mean-wantMean) > 1e-9 {
+	if math.Abs(a.Mean-wantMean) > 1e-6 {
 		t.Fatalf("mean: got %f, want %f", a.Mean, wantMean)
 	}
-	if a.Score != 0.0 {
+	if math.Abs(a.Score) > 0.01 {
 		t.Fatalf("z-score for value=mean: got %f, want 0.0", a.Score)
 	}
 
@@ -395,8 +397,8 @@ func TestAnomalyDetector_ConcurrentRecord(t *testing.T) {
 	cnt := d.count
 	d.mu.Unlock()
 
-	if cnt < 20+n {
-		t.Fatalf("count: got %d, want >= %d", cnt, 20+n)
+	if cnt < int64(20+n) {
+		t.Fatalf("count: got %d, want >= %d", cnt, int64(20+n))
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
 // ClaudeSessionProxy proxies requests through claude.ai's web API using browser session cookies.
@@ -24,14 +26,7 @@ type ClaudeSessionProxy struct {
 
 func NewClaudeSessionProxy(m *metrics.Metrics) *ClaudeSessionProxy {
 	return &ClaudeSessionProxy{
-		client: &http.Client{
-			Timeout: 0,
-			Transport: &http.Transport{
-				MaxIdleConns:        20,
-				MaxIdleConnsPerHost: 20,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
+		client:  SharedClient(0),
 		metrics: m,
 	}
 }
@@ -205,7 +200,7 @@ func extractModel(payload map[string]any) string {
 }
 
 // ProxySession proxies a request through claude.ai's web API using session cookies.
-func (p *ClaudeSessionProxy) ProxySession(w http.ResponseWriter, r *http.Request, cookie string, body []byte, model string, isStream bool, feedback FeedbackFunc) error {
+func (p *ClaudeSessionProxy) ProxySession(w http.ResponseWriter, r *http.Request, cookie string, body []byte, model string, isStream bool, maskResult *privacy.MaskResult, feedback FeedbackFunc) error {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("parse payload: %w", err)
@@ -276,11 +271,11 @@ func (p *ClaudeSessionProxy) ProxySession(w http.ResponseWriter, r *http.Request
 
 	// Convert claude.ai SSE to Anthropic Messages API format.
 	msgID := "msg_" + chatID
-	return p.convertSessionSSE(w, resp, msgID, model)
+	return p.convertSessionSSE(w, resp, msgID, model, maskResult)
 }
 
 // convertSessionSSE reads claude.ai SSE and converts to Anthropic Messages API SSE format.
-func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http.Response, msgID, model string) error {
+func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http.Response, msgID, model string, maskResult *privacy.MaskResult) error {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -290,6 +285,11 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	scanner := bufio.NewScanner(resp.Body)
 	const maxSSELineSize = 256 * 1024
 	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+	var unmasker *masking.StreamUnmasker
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+	}
 
 	var inputTokens, outputTokens int
 
@@ -334,10 +334,25 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 
 		outputTokens += len(completion) / 4 // rough estimate
 
+		if unmasker != nil {
+			completion = unmasker.ProcessChunk(completion)
+		}
+
 		escaped, _ := json.Marshal(completion)
 		fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 		if flusher != nil {
 			flusher.Flush()
+		}
+	}
+
+	// Flush remaining unmasker buffer.
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}
 

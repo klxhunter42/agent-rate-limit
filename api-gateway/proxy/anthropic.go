@@ -19,6 +19,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 )
 
 const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
@@ -61,42 +62,46 @@ type AnthropicProxy struct {
 // NewAnthropicProxy creates a proxy with optimized HTTP client for upstream calls.
 func NewAnthropicProxy(cfg *config.Config, m *metrics.Metrics) *AnthropicProxy {
 	return &AnthropicProxy{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout: 0, // no global timeout — controlled per-request for streaming
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 100,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
+		cfg:     cfg,
+		client:  SharedClient(0),
 		metrics: m,
 	}
 }
 
-// HasImageContent checks if payload contains any image blocks.
+// HasImageContent checks if the LAST user message contains image blocks.
+// Only checks the most recent user turn to avoid re-routing to vision model
+// when images exist in older conversation history but the current turn is text-only.
 func HasImageContent(payload map[string]any) bool {
 	msgs, ok := payload["messages"].([]any)
 	if !ok {
 		return false
 	}
-	for _, msg := range msgs {
-		m, ok := msg.(map[string]any)
+	// Find the last user message.
+	var lastUserContent any
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m, ok := msgs[i].(map[string]any)
 		if !ok {
 			continue
 		}
-		content, ok := m["content"].([]any)
+		if role, _ := m["role"].(string); role == "user" {
+			lastUserContent = m["content"]
+			break
+		}
+	}
+	if lastUserContent == nil {
+		return false
+	}
+	content, ok := lastUserContent.([]any)
+	if !ok {
+		return false
+	}
+	for _, block := range content {
+		cb, ok := block.(map[string]any)
 		if !ok {
 			continue
 		}
-		for _, block := range content {
-			cb, ok := block.(map[string]any)
-			if !ok {
-				continue
-			}
-			if t, _ := cb["type"].(string); t == "image" || t == "image_url" {
-				return true
-			}
+		if t, _ := cb["type"].(string); t == "image" || t == "image_url" {
+			return true
 		}
 	}
 	return false
@@ -116,7 +121,60 @@ func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Reques
 		return fmt.Errorf("marshal zhipu request: %w", err)
 	}
 
+	// Debug: log converted payload structure (truncate base64 data).
+	debugReq := make(map[string]any)
+	for k, v := range zhipuReq {
+		debugReq[k] = v
+	}
+	if msgs, ok := debugReq["messages"].([]map[string]any); ok {
+		debugMsgs := make([]map[string]any, len(msgs))
+		for i, m := range msgs {
+			dm := map[string]any{"role": m["role"]}
+			switch c := m["content"].(type) {
+			case string:
+				if len(c) > 200 {
+					dm["content"] = c[:200] + "...(truncated)"
+				} else {
+					dm["content"] = c
+				}
+			case []map[string]any:
+				parts := make([]map[string]any, len(c))
+				for j, p := range c {
+					dp := map[string]any{"type": p["type"]}
+					if p["type"] == "text" {
+						if t, ok := p["text"].(string); ok && len(t) > 100 {
+							dp["text"] = t[:100] + "...(truncated)"
+						} else {
+							dp["text"] = p["text"]
+						}
+					} else if p["type"] == "image_url" {
+						if iu, ok := p["image_url"].(map[string]any); ok {
+							if u, ok := iu["url"].(string); ok && len(u) > 80 {
+								dp["image_url"] = u[:80] + "...(truncated)"
+							} else {
+								dp["image_url"] = iu["url"]
+							}
+						}
+					}
+					parts[j] = dp
+				}
+				dm["content_type"] = fmt.Sprintf("[]map (%d parts)", len(c))
+				dm["content_preview"] = parts
+			default:
+				dm["content_type"] = fmt.Sprintf("%T", c)
+			}
+			debugMsgs[i] = dm
+		}
+		debugReq["messages"] = debugMsgs
+	}
+	slog.Info("vision request payload debug", "payload", debugReq)
+
 	upstreamURL := p.cfg.NativeVisionURL
+
+	// Estimate input tokens for budget tracking.
+	estInput := tokenizer.EstimateTokens(string(body))
+	modelCap := tokenizer.GetModelCapabilities(model)
+	slog.Debug("vision request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "provider", modelCap.Provider)
 
 	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
 		if attempt > 0 {
@@ -253,6 +311,13 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 
 	// Prepend system text to first user message instead of using unsupported system role.
 	if systemText != "" && len(messages) > 0 {
+		// Optimize system text: whitespace cleanup + dedup to save tokens.
+		optText, wsSaved := tokenizer.OptimizeWhitespace(systemText)
+		dedupText, dedupSaved := tokenizer.DeduplicateSentences(optText)
+		if wsSaved > 0 || dedupSaved > 0 {
+			slog.Debug("system prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved, "original_chars", len(systemText), "optimized_chars", len(dedupText))
+		}
+		systemText = dedupText
 		first := messages[0]
 		if first["role"] == "user" {
 			switch v := first["content"].(type) {
@@ -271,12 +336,56 @@ func AnthropicToOpenAI(body []byte, model string) (map[string]any, error) {
 		}
 	}
 
+	// Detect Thai in user messages and append language hint.
+	thaiRe := regexp.MustCompile(`[\x{0E00}-\x{0E7F}]`)
+	hasThai := false
+	for _, m := range messages {
+		if m["role"] != "user" {
+			continue
+		}
+		switch c := m["content"].(type) {
+		case string:
+			if thaiRe.MatchString(c) {
+				hasThai = true
+			}
+		case []map[string]any:
+			for _, p := range c {
+				if t, ok := p["text"].(string); ok && thaiRe.MatchString(t) {
+					hasThai = true
+				}
+			}
+		}
+	}
+	if hasThai && len(messages) > 0 {
+		first := messages[0]
+		hint := "IMPORTANT: You MUST respond in the same language as the user. If the user writes in Thai, respond in Thai."
+		switch v := first["content"].(type) {
+		case string:
+			first["content"] = hint + "\n\n" + v
+		case []any:
+			newParts := make([]any, 0, len(v)+1)
+			newParts = append(newParts, map[string]any{"type": "text", "text": hint})
+			for _, p := range v {
+				newParts = append(newParts, p)
+			}
+			first["content"] = newParts
+		}
+	}
+
 	result := map[string]any{
 		"model":    model,
 		"messages": messages,
 	}
+	// Cap max_tokens for Z.AI vision models (max output ~4096).
+	const maxVisionTokens = 4096
 	if mt, ok := src["max_tokens"]; ok {
-		result["max_tokens"] = mt
+		if v, ok := mt.(float64); ok && v > maxVisionTokens {
+			result["max_tokens"] = maxVisionTokens
+		} else {
+			result["max_tokens"] = mt
+		}
+	} else {
+		result["max_tokens"] = maxVisionTokens
 	}
 	if stream, ok := src["stream"].(bool); ok {
 		result["stream"] = stream
@@ -315,8 +424,7 @@ func convertImageBlock(cb map[string]any) map[string]any {
 
 // FetchImageAsBase64 downloads an image URL and converts it to a base64 data URI.
 func FetchImageAsBase64(imgURL string) string {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(imgURL)
+	resp, err := imageClient.Get(imgURL)
 	if err != nil {
 		slog.Warn("failed to fetch image URL for base64 conversion", "url", imgURL, "error", err)
 		return ""
@@ -358,9 +466,15 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			errBody = pipeline.UnmaskResponse(errBody, maskResult)
+		}
+		slog.Warn("vision upstream error", "status", resp.StatusCode, "body", string(errBody))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
-		io.Copy(w, resp.Body)
+		w.Write(errBody)
 		return nil
 	}
 
@@ -581,6 +695,26 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	upstreamURL := p.cfg.UpstreamURL + "/v1/messages"
 	if opts != nil && opts.UpstreamOverride != "" {
 		upstreamURL = opts.UpstreamOverride
+	}
+
+	// Estimate input tokens and log model capabilities.
+	estInput := tokenizer.QuickEstimateTokens(string(body))
+	modelCap := tokenizer.GetModelCapabilities(model)
+	slog.Debug("request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "max_output", modelCap.MaxOutputTokens)
+
+	// Optimize system prompt in body if present.
+	if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
+		if sys, ok := bodyMap["system"].(string); ok && sys != "" {
+			optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
+			optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
+			if wsSaved > 0 || dedupSaved > 0 {
+				bodyMap["system"] = optSys
+				if newBody, err := json.Marshal(bodyMap); err == nil {
+					body = newBody
+					slog.Debug("transparent prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved)
+				}
+			}
+		}
 	}
 
 	var lastResp *http.Response
@@ -832,17 +966,42 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		}
 		line := scanner.Text()
 
-		// Relay to client immediately.
+		// Parse SSE data lines for unmasking and token tracking.
+		if !strings.HasPrefix(line, "data: ") {
+			fmt.Fprintln(w, line)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			continue
+		}
+		data := line[6:]
+
+		// Unmask content_block_delta text before relaying.
+		if unmasker != nil && strings.Contains(data, `"content_block_delta"`) {
+			var evt struct {
+				Type  string `json:"type"`
+				Index int    `json:"index"`
+				Delta struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"delta"`
+			}
+			if json.Unmarshal([]byte(data), &evt) == nil && evt.Delta.Text != "" {
+				unmasked := unmasker.ProcessChunk(evt.Delta.Text)
+				if unmasked != evt.Delta.Text {
+					evt.Delta.Text = unmasked
+					if newData, err := json.Marshal(evt); err == nil {
+						line = "data: " + string(newData)
+					}
+				}
+			}
+		}
+
+		// Relay to client.
 		fmt.Fprintln(w, line)
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-
-		// Parse SSE data lines for token tracking.
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-		data := line[6:]
 
 		if strings.Contains(data, `"message_start"`) {
 			var msg struct {
@@ -874,7 +1033,11 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	// Flush remaining unmasker buffer.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			fmt.Fprintf(w, "data: %s\n\n", remaining)
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
 		}
 	}
 

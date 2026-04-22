@@ -6,15 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp } from 'lucide-react';
 import { fetchProviders, providerName } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
-
-interface AccountInfo {
-  accountId: string;
-  provider: string;
-  email?: string;
-  scopes?: string;
-  paused?: boolean;
-  isDefault?: boolean;
-}
+import { listAccounts } from '@/lib/auth-api';
+import type { AccountInfo } from '@/lib/auth-api';
 
 interface Profile {
   name: string;
@@ -188,14 +181,29 @@ export function ProfilesPage() {
               editing={editing === p.name}
               onEdit={() => setEditing(p.name)}
               onCancelEdit={() => setEditing(null)}
-              onSave={(name, data) => {
-                fetch(`/v1/profiles/${encodeURIComponent(name)}`, {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data),
-                }).then((r) => {
-                  if (r.ok) { setEditing(null); fetchProfiles(); }
-                });
+              onSave={async (name, data) => {
+                const newName = (data.name as string) ?? name;
+                const body = { ...data };
+                if (newName !== name) {
+                  // Rename: create new + delete old
+                  const res = await fetch('/v1/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...body, name: newName }),
+                  });
+                  if (res.ok) {
+                    await fetch(`/v1/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                    setEditing(null);
+                    fetchProfiles();
+                  }
+                } else {
+                  const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                  });
+                  if (res.ok) { setEditing(null); fetchProfiles(); }
+                }
               }}
               onDelete={() => deleteProfile(p.name)}
               onCopy={() => copyProfile(p.name)}
@@ -244,38 +252,18 @@ curl http://localhost:8080/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -d '{"model":"claude-sonnet-4-20250514","messages":[...]}'`}
           </pre>
-          <p>The proxy looks up the profile and uses its <strong>baseUrl</strong>, <strong>apiKey</strong>, <strong>model</strong>, and <strong>accountIds</strong> to route the request.</p>
+          <p>The proxy looks up the profile and uses its <strong>target</strong>, <strong>baseUrl</strong>, <strong>apiKey</strong>, <strong>model</strong>, and <strong>accountIds</strong> to route the request. The profile's <strong>target</strong> determines which provider handles the request.</p>
         </Section>
 
-        <Section id="claude-code" title="Claude Code Setup">
-          <p className="mb-2"><strong>Option A:</strong> Set <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> (simplest):</p>
-          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
-{`# ~/.claude/settings.json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8080",
-    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
-  }
-}`}
-          </pre>
-
-          <p className="mt-4 mb-2"><strong>Option B:</strong> Use <code className="bg-muted px-1 rounded text-xs">apiKeyHelper</code> (no hardcoded key):</p>
-          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
-{`# ~/.claude/settings.json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8080"
-  },
-  "apiKeyHelper": "~/.claude/get-token.sh"
-}
-
-# ~/.claude/get-token.sh
-#!/bin/bash
-echo "proxy-no-key"`}
-          </pre>
-
-          <p className="mt-4 mb-2"><strong>To use a specific profile</strong>, add the profile name via headers:</p>
-          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
+        <Section id="claude-oauth" title="Claude OAuth Profile">
+          <p>Routes through Anthropic API using Claude OAuth Bearer token. Requires OAuth account with <code className="bg-muted px-1 rounded text-xs">user:inference</code> scope.</p>
+          <p className="mt-2"><strong>Setup:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Create profile with target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code></li>
+            <li>Authenticate via Providers page to get OAuth token</li>
+            <li>Select which accounts to include in Account Pool</li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`# ~/.claude/settings.json
 {
   "env": {
@@ -283,15 +271,56 @@ echo "proxy-no-key"`}
     "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
   },
   "headers": {
-    "X-Profile": "my-profile"
+    "X-Profile": "my-claude-profile"
   }
 }`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            The gateway reads the <code className="bg-muted px-1 rounded">X-Profile</code> header.
-            Set it via the <code className="bg-muted px-1 rounded">headers</code> field in settings.json.
+            Model: any <code className="bg-muted px-1 rounded">claude-*</code> model. Gateway forwards directly to Anthropic API.
           </p>
         </Section>
+
+        <Section id="gemini-oauth" title="Gemini OAuth Profile">
+          <p>Routes through Google Gemini CodeAssist API using Google OAuth token. Gateway auto-translates Anthropic format to Gemini format, so Claude Code works seamlessly.</p>
+          <p className="mt-2"><strong>Setup:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Create profile with target <code className="bg-muted px-1 rounded text-xs">gemini-oauth</code></li>
+            <li>Authenticate via Providers page to get Google OAuth token</li>
+            <li>Select which accounts to include in Account Pool</li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
+  },
+  "headers": {
+    "X-Profile": "my-gemini-profile"
+  }
+}`}
+          </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            Model: <code className="bg-muted px-1 rounded">claude-*</code> or <code className="bg-muted px-1 rounded">gemini-*</code>. Gateway translates to Gemini CodeAssist automatically.
+          </p>
+        </Section>
+
+        <Section id="zai-mode" title="Z.AI / GLM Mode (Default)">
+          <p>When <code className="bg-muted px-1 rounded text-xs">GLM_MODE=true</code>, the default routing sends all requests to Z.AI API. No profile needed.</p>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_AUTH_TOKEN": "proxy-no-key"
+  }
+}`}
+          </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            Model: <code className="bg-muted px-1 rounded">glm-*</code>. Adaptive limiter distributes across same-series models.
+          </p>
+        </Section>
+
         <Section id="account-pool" title="Account Pool Selection">
           <p>When a profile has <strong>accountIds</strong> set, the proxy selects an account from only those IDs in the provider token pool. This is useful for:</p>
           <ul className="list-disc list-inside space-y-1">
@@ -300,15 +329,19 @@ echo "proxy-no-key"`}
             <li>Rotating through a subset of available accounts</li>
           </ul>
           <p>Leave <strong>accountIds</strong> empty to use all available accounts for the provider.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Deleting an account from Providers page automatically removes it from all profiles.
+          </p>
         </Section>
 
-        <Section id="target" title="Target Field">
-          <p>The <strong>target</strong> field determines the API compatibility mode:</p>
+        <Section id="target" title="Target / Provider Types">
+          <p>The <strong>target</strong> field determines the upstream API format:</p>
           <ul className="list-disc list-inside space-y-1">
-            <li><code className="bg-muted px-1 rounded text-xs">claude-oauth</code> - Claude via OAuth (Bearer token)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">claude-oauth</code> - Claude via OAuth (Bearer token + Anthropic API)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">gemini-oauth</code> - Gemini via OAuth (Bearer token + CodeAssist API)</li>
             <li><code className="bg-muted px-1 rounded text-xs">anthropic</code> - Anthropic API key format</li>
-            <li><code className="bg-muted px-1 rounded text-xs">droid</code> - Google Gemini API format</li>
-            <li><code className="bg-muted px-1 rounded text-xs">codex</code> - OpenAI Codex API format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">gemini</code> - Google Gemini API key format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">openai</code> - OpenAI API format</li>
           </ul>
         </Section>
       </CardContent>
@@ -342,9 +375,8 @@ function CreateProfileForm({
   useEffect(() => {
     if (!target) { setAccounts([]); return; }
     setAccountsLoading(true);
-    fetch(`/v1/auth/accounts/${encodeURIComponent(target)}`)
-      .then((r) => (r.ok ? r.json() : { accounts: [] }))
-      .then((data) => setAccounts(data.accounts ?? []))
+    listAccounts(target)
+      .then((list) => setAccounts(list))
       .catch(() => setAccounts([]))
       .finally(() => setAccountsLoading(false));
   }, [target]);
@@ -385,14 +417,14 @@ function CreateProfileForm({
           <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
             {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading accounts...</div>}
             {accounts.map((acc) => (
-              <label key={acc.accountId} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
+              <label key={acc.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={accountIds.includes(acc.accountId)}
-                  onChange={() => toggleAccount(acc.accountId)}
+                  checked={accountIds.includes(acc.id)}
+                  onChange={() => toggleAccount(acc.id)}
                   className="rounded"
                 />
-                <span className="font-mono text-xs">{acc.accountId}</span>
+                <span className="font-mono text-xs">{acc.id}</span>
                 {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
                 {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
                 {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
@@ -436,23 +468,42 @@ function ProfileCard({
   onCopy: () => void;
   onExport: () => void;
 }) {
-  const [model, setModel] = useState(profile.model ?? '');
-  const [editAccountIds, setEditAccountIds] = useState<string[]>(profile.accountIds ?? []);
+  const [editName, setEditName] = useState(profile.name);
+  const [editAccountIds, setEditAccountIds] = useState<string[]>((profile.accountIds ?? []).filter((id) => id));
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
   const resolvedProvider = profile.provider || profile.target || '';
 
   useEffect(() => {
+    if (editing) {
+      setEditName(profile.name);
+      const raw = profile.accountIds;
+      if (raw === undefined || raw === null) {
+        // Legacy: never had accountIds set — will be resolved by accounts loading effect
+      } else {
+        setEditAccountIds(raw.filter((id) => id));
+      }
+    }
+  }, [editing, profile.name, profile.accountIds]);
+
+  useEffect(() => {
     if (editing && resolvedProvider) {
       setAccountsLoading(true);
-      fetch(`/v1/auth/accounts/${encodeURIComponent(resolvedProvider)}`)
-        .then((r) => (r.ok ? r.json() : { accounts: [] }))
-        .then((data) => setAccounts(data.accounts ?? []))
+      listAccounts(resolvedProvider)
+        .then((list) => {
+          setAccounts(list);
+          const raw = profile.accountIds;
+          // Auto-check-all only for legacy profiles (never set or null)
+          // An explicit [] means user unchecked all — respect that
+          if ((raw === undefined || raw === null) && list.length > 0) {
+            setEditAccountIds(list.map((a) => a.id));
+          }
+        })
         .catch(() => setAccounts([]))
         .finally(() => setAccountsLoading(false));
     }
-  }, [editing, resolvedProvider]);
+  }, [editing, resolvedProvider, profile.accountIds]);
 
   function toggleAccount(id: string) {
     setEditAccountIds((prev) =>
@@ -464,17 +515,9 @@ function ProfileCard({
     return (
       <Card>
         <CardContent className="pt-4 space-y-3">
-          <div className="flex gap-3 items-end">
-            <div className="flex-1">
-              <label className="text-xs text-muted-foreground">Model</label>
-              <Input value={model} onChange={(e) => setModel(e.target.value)} />
-            </div>
-            <Button size="sm" onClick={() => onSave(profile.name, { ...profile, model, accountIds: editAccountIds })}>
-              <Check className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-              <X className="h-4 w-4" />
-            </Button>
+          <div>
+            <label className="text-xs text-muted-foreground">Profile Name</label>
+            <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
           </div>
           {accounts.length > 0 && (
             <div>
@@ -482,14 +525,14 @@ function ProfileCard({
               <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
                 {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading...</div>}
                 {accounts.map((acc) => (
-                  <label key={acc.accountId} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
+                  <label key={acc.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={editAccountIds.includes(acc.accountId)}
-                      onChange={() => toggleAccount(acc.accountId)}
+                      checked={editAccountIds.includes(acc.id)}
+                      onChange={() => toggleAccount(acc.id)}
                       className="rounded"
                     />
-                    <span className="font-mono text-xs">{acc.accountId}</span>
+                    <span className="font-mono text-xs">{acc.id}</span>
                     {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
                     {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
                     {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
@@ -501,6 +544,14 @@ function ProfileCard({
               )}
             </div>
           )}
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+              <X className="h-4 w-4 mr-1" /> Cancel
+            </Button>
+            <Button size="sm" disabled={!editName.trim()} onClick={() => onSave(profile.name, { ...profile, name: editName.trim(), accountIds: editAccountIds })}>
+              <Check className="h-4 w-4 mr-1" /> Save
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );

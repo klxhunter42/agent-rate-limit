@@ -25,15 +25,8 @@ type OpenAIProxy struct {
 
 func NewOpenAIProxy(cfg *config.Config, m *metrics.Metrics) *OpenAIProxy {
 	return &OpenAIProxy{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout: 0,
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 100,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		},
+		cfg:     cfg,
+		client:  SharedClient(0),
 		metrics: m,
 	}
 }
@@ -106,9 +99,14 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	defer lastResp.Body.Close()
 
 	if lastResp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(io.LimitReader(lastResp.Body, maxResponseSize))
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			errBody = pipeline.UnmaskResponse(errBody, maskResult)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(lastResp.StatusCode)
-		io.Copy(w, lastResp.Body)
+		w.Write(errBody)
 		return nil
 	}
 
@@ -242,6 +240,17 @@ func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Respon
 		fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 		if flusher != nil {
 			flusher.Flush()
+		}
+	}
+
+	// Flush remaining unmasker buffer.
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}
 

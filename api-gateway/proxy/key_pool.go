@@ -38,12 +38,13 @@ func GetStrategy() string {
 // Selection strategy:
 //  1. Weighted round-robin favoring keys with most remaining RPM budget
 //  2. Skip keys in cooldown (recently received 429)
-//  3. If all keys are in cooldown, pick the one whose cooldown expires soonest
+//  3. If all keys are in cooldown, wait for the soonest cooldown to expire
 type KeyPool struct {
 	keys     []*keyEntry
 	rpmLimit int64
 	mu       sync.Mutex
-	idx      int // round-robin cursor
+	idx      int        // round-robin cursor
+	notify   *sync.Cond // signaled when a key comes out of cooldown
 }
 
 type keyEntry struct {
@@ -64,11 +65,17 @@ func NewKeyPool(keys []string, rpmLimit int) *KeyPool {
 		entries[i] = &keyEntry{apiKey: k}
 	}
 
+	kp := &KeyPool{
+		keys:     entries,
+		rpmLimit: int64(rpmLimit),
+	}
+	kp.notify = sync.NewCond(&kp.mu)
+
 	slog.Info("key pool initialized",
 		"keys", len(keys),
 		"rpm_limit", rpmLimit,
 	)
-	return &KeyPool{keys: entries, rpmLimit: int64(rpmLimit)}
+	return kp
 }
 
 // Passthrough returns true when no keys are configured — the pool is a no-op.
@@ -78,6 +85,7 @@ func (kp *KeyPool) Passthrough() bool {
 
 // Acquire selects the best available key and returns it.
 // Returns ("", false) only if every key is exhausted and in active cooldown.
+// Uses sync.Cond to wait efficiently instead of time.Sleep.
 func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 	if kp.Passthrough() {
 		return "", true // caller uses client key
@@ -89,18 +97,63 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 	now := time.Now().UnixMilli()
 	windowStart := now - 60_000 // 1-minute sliding window
 
-	// Clean up old timestamps for all keys and find the best candidate.
+	// Try to find a key with budget.
+	if key := kp.findBest(now, windowStart); key != nil {
+		key.timestamps = append(key.timestamps, now)
+		return key.apiKey, true
+	}
+
+	// All keys in cooldown or exhausted - wait for nearest cooldown expiry.
+	for {
+		soonest := kp.soonestCooldownExpiry()
+		if soonest == 0 {
+			// No keys in cooldown but none have budget - pick the least loaded.
+			if key := kp.findLeastLoaded(); key != nil {
+				key.timestamps = append(key.timestamps, time.Now().UnixMilli())
+				return key.apiKey, true
+			}
+			return "", false
+		}
+
+		wait := time.Until(time.UnixMilli(soonest))
+		if wait <= 0 {
+			// Cooldown already expired, try again immediately.
+			if key := kp.findBest(time.Now().UnixMilli(), time.Now().UnixMilli()-60_000); key != nil {
+				key.timestamps = append(key.timestamps, time.Now().UnixMilli())
+				return key.apiKey, true
+			}
+			continue
+		}
+
+		slog.Warn("all keys in cooldown, waiting", "wait_ms", wait.Milliseconds())
+
+		// Wait with timeout using a timer + condvar broadcast.
+		timer := time.AfterFunc(wait, func() {
+			kp.notify.Broadcast()
+		})
+		kp.notify.Wait()
+		timer.Stop()
+
+		// Woke up - try again.
+		now = time.Now().UnixMilli()
+		windowStart = now - 60_000
+		if key := kp.findBest(now, windowStart); key != nil {
+			key.timestamps = append(key.timestamps, now)
+			return key.apiKey, true
+		}
+	}
+}
+
+// findBest finds the best available key with remaining budget.
+func (kp *KeyPool) findBest(now, windowStart int64) *keyEntry {
 	var best *keyEntry
 	bestBudget := int64(-1)
 
 	for _, k := range kp.keys {
 		k.trimBefore(windowStart)
-
-		// Skip keys in cooldown.
 		if k.cooldownUntil > 0 && now < k.cooldownUntil {
 			continue
 		}
-
 		budget := kp.rpmLimit - int64(len(k.timestamps))
 		if currentStrategy == strategyFillFirst {
 			if budget > bestBudget {
@@ -115,7 +168,7 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 		}
 	}
 
-	// round-robin: if no key has budget > 0 but some have budget == 0, allow them.
+	// round-robin: allow keys with budget == 0 if none have budget > 0.
 	if currentStrategy == strategyRoundRobin && best == nil {
 		for _, k := range kp.keys {
 			k.trimBefore(windowStart)
@@ -130,33 +183,39 @@ func (kp *KeyPool) Acquire() (apiKey string, ok bool) {
 		}
 	}
 
-	// All in cooldown - release mutex, wait, then retry once.
-	if best == nil {
-		soonest := int64(0)
-		for _, k := range kp.keys {
-			if k.cooldownUntil > 0 && (soonest == 0 || k.cooldownUntil < soonest) {
+	return best
+}
+
+// findLeastLoaded picks the key with fewest timestamps (least RPM used).
+func (kp *KeyPool) findLeastLoaded() *keyEntry {
+	var best *keyEntry
+	fewest := int64(1<<63 - 1)
+	for _, k := range kp.keys {
+		if int64(len(k.timestamps)) < fewest {
+			fewest = int64(len(k.timestamps))
+			best = k
+		}
+	}
+	return best
+}
+
+// soonestCooldownExpiry returns the earliest cooldownUntil among keys in cooldown.
+// Returns 0 if no keys are in cooldown.
+func (kp *KeyPool) soonestCooldownExpiry() int64 {
+	soonest := int64(0)
+	now := time.Now().UnixMilli()
+	for _, k := range kp.keys {
+		if k.cooldownUntil > 0 && now < k.cooldownUntil {
+			if soonest == 0 || k.cooldownUntil < soonest {
 				soonest = k.cooldownUntil
-				best = k
 			}
 		}
-		if best == nil {
-			return "", false
-		}
-		wait := time.Until(time.UnixMilli(best.cooldownUntil))
-		kp.mu.Unlock()
-		if wait > 0 {
-			slog.Warn("all keys in cooldown, waiting", "wait_ms", wait.Milliseconds())
-			time.Sleep(wait)
-		}
-		kp.mu.Lock()
-		best.cooldownUntil = 0
 	}
-
-	best.timestamps = append(best.timestamps, now)
-	return best.apiKey, true
+	return soonest
 }
 
 // Report429 marks a key as rate-limited, putting it in cooldown.
+// Wakes any goroutines waiting in Acquire.
 func (kp *KeyPool) Report429(apiKey string) {
 	if kp.Passthrough() {
 		return
@@ -177,7 +236,7 @@ func (kp *KeyPool) Report429(apiKey string) {
 	}
 }
 
-// ReportSuccess clears cooldown for a key (positive signal).
+// ReportSuccess clears cooldown for a key and wakes waiting goroutines.
 func (kp *KeyPool) ReportSuccess(apiKey string) {
 	if kp.Passthrough() {
 		return
@@ -188,7 +247,10 @@ func (kp *KeyPool) ReportSuccess(apiKey string) {
 
 	for _, k := range kp.keys {
 		if k.apiKey == apiKey {
-			k.cooldownUntil = 0
+			if k.cooldownUntil != 0 {
+				k.cooldownUntil = 0
+				kp.notify.Broadcast()
+			}
 			return
 		}
 	}

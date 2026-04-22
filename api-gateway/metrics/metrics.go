@@ -1,10 +1,13 @@
 package metrics
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -182,6 +185,13 @@ type statusWriter struct {
 
 func newStatusWriter(w http.ResponseWriter) *statusWriter {
 	return &statusWriter{ResponseWriter: w, status: http.StatusOK}
+}
+
+func (sw *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := sw.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, fmt.Errorf("response writer does not implement http.Hijacker")
 }
 
 func (sw *statusWriter) WriteHeader(code int) {

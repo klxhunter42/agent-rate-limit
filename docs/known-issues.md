@@ -518,6 +518,7 @@ case <-r.Context().Done():
 | 12i | CodeAssist 401 auto-refresh missing | High | **Fixed** |
 | 12j | Favorite/unfavorite toggle not working | Medium | **Fixed** |
 | 12k | Profile edit broken (missing provider field) | Medium | **Fixed** |
+| 12l | GLM mode traffic bottleneck at single model | High | **Fixed** |
 
 ---
 
@@ -545,6 +546,14 @@ case <-r.Context().Done():
 
 **Files**: `ui/src/pages/profiles/index.tsx`
 
+### GLM Mode Single-Model Bottleneck (FIXED)
+
+**Problem**: When `GLM_MODE=true`, all requests targeted at `glm-5.1` stayed on that model even though `glm-5-turbo` and `glm-5` were available in the same series. The adaptive limiter grew `glm-5.1`'s limit from 1 to 5, so overflow rarely triggered. `tryFallback()` (same-series round-robin) only ran when the exact model was full. Result: 99% of traffic hit `glm-5.1`, 1% to others.
+
+**Fix**: `Acquire()` now uses proactive same-series round-robin for multi-model series instead of always trying the exact requested model first. Requests are distributed evenly across all models in the same capability tier (e.g., series 5: glm-5.1, glm-5-turbo, glm-5). Single-model and non-series models keep the fast direct path.
+
+**Files**: `api-gateway/middleware/adaptive_limiter.go`
+
 ---
 
-*Known Issues v1.5 -- updated: CodeAssist error handling, favorite toggle, profile edit fixes*
+*Known Issues v1.6 -- updated: proactive model distribution fix*
