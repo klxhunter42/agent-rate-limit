@@ -4,13 +4,8 @@ import { InfoTip } from '@/components/shared/info-tip';
 import { StatCard } from '@/components/shared/stat-card';
 import { formatNumber, formatCost } from '@/lib/format';
 import { Loader2, Activity, DollarSign, Hash, AlertTriangle } from 'lucide-react';
-
-interface UsageSummary {
-  total_requests: number;
-  total_tokens: number;
-  total_cost: number;
-  error_rate: number;
-}
+import type { UsageSummary } from '@/hooks/use-usage-api';
+import { summaryTotalTokens, summaryErrorRate } from '@/hooks/use-usage-api';
 
 interface DailyUsage {
   date: string;
@@ -34,8 +29,7 @@ interface SessionUsage {
   period: string;
 }
 
-export function UsageApiSection({ period = '24h' }: { period?: string }) {
-  const [summary, setSummary] = useState<UsageSummary | null>(null);
+export function UsageApiSection({ period = '24h', usageSummary }: { period?: string; usageSummary: UsageSummary | null }) {
   const [daily, setDaily] = useState<DailyUsage[]>([]);
   const [sessions, setSessions] = useState<SessionUsage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,28 +40,24 @@ export function UsageApiSection({ period = '24h' }: { period?: string }) {
 
     async function load() {
       try {
-        const [summaryRes, dailyRes, sessionsRes] = await Promise.all([
-          fetch(`/v1/usage/summary?period=${period}`),
+        const [dailyRes, sessionsRes] = await Promise.all([
           fetch('/v1/usage/daily'),
           fetch('/v1/usage/sessions'),
         ]);
 
-        if (!summaryRes.ok || !dailyRes.ok || !sessionsRes.ok) {
+        if (!dailyRes.ok || !sessionsRes.ok) {
           setError('Usage API not available');
           return;
         }
 
-        const [summaryData, dailyData, sessionsData] = await Promise.all([
-          summaryRes.json(),
+        const [dailyData, sessionsData] = await Promise.all([
           dailyRes.json(),
           sessionsRes.json(),
         ]);
 
         if (!cancelled) {
-          setSummary(summaryData);
           const dailyArr = Array.isArray(dailyData) ? dailyData : [];
           const sessArr = Array.isArray(sessionsData) ? sessionsData : [];
-          // Map period -> date/session for display.
           setDaily(dailyArr.map((d: any) => ({ ...d, date: d.date || d.period || '' })));
           setSessions(sessArr.map((s: any) => ({ ...s, session: s.session || s.period || '' })));
         }
@@ -97,7 +87,7 @@ export function UsageApiSection({ period = '24h' }: { period?: string }) {
     );
   }
 
-  if (!summary) return null;
+  if (!usageSummary) return null;
 
   const hasDaily = daily.length > 0;
   const hasSessions = sessions.length > 0;
@@ -133,27 +123,27 @@ export function UsageApiSection({ period = '24h' }: { period?: string }) {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         <StatCard
           title="Total Requests"
-          value={formatNumber(summary.total_requests)}
+          value={formatNumber(usageSummary.total_requests)}
           icon={Activity}
           variant="accent"
         />
         <StatCard
           title="Total Tokens"
-          value={formatNumber(summary.total_tokens)}
+          value={formatNumber(summaryTotalTokens(usageSummary))}
           icon={Hash}
           variant="default"
         />
         <StatCard
           title="Total Cost"
-          value={formatCost(summary.total_cost)}
+          value={formatCost(usageSummary.total_cost)}
           icon={DollarSign}
           variant="success"
         />
         <StatCard
           title="Error Rate"
-          value={`${((summary.error_rate ?? 0) * 100).toFixed(1)}%`}
+          value={`${(summaryErrorRate(usageSummary) * 100).toFixed(1)}%`}
           icon={AlertTriangle}
-          variant={(summary.error_rate ?? 0) > 0.1 ? 'error' : 'warning'}
+          variant={summaryErrorRate(usageSummary) > 0.1 ? 'error' : 'warning'}
         />
       </div>
 

@@ -1,21 +1,32 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import type { ParsedMetric } from '@/lib/api';
+import type { UsageModel } from '@/hooks/use-usage-api';
 import { extractModelTokens, extractModelCosts } from '@/lib/metrics-helpers';
 import { formatNumber, formatCost, formatPercent } from '@/lib/format';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { PRIVACY_BLUR_CLASS } from '@/lib/privacy';
 import { cn } from '@/lib/utils';
 
-export function TokenBreakdownChart({ metrics }: { metrics: ParsedMetric[] }) {
-  const data = extractModelTokens(metrics);
-  const costs = extractModelCosts(metrics);
+export function TokenBreakdownChart({ metrics, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
   const { privacyMode } = usePrivacy();
 
-  if (data.length === 0) return <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No token data</div>;
+  const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);
+
+  const tokens = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, input: m.input_tokens, output: m.output_tokens }))
+    : extractModelTokens(metrics);
+
+  const costs = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, cost: m.cost }))
+    : extractModelCosts(metrics);
+
+  if (tokens.length === 0 || (tokens.length === 1 && tokens[0]!.input === 0 && tokens[0]!.output === 0)) {
+    return <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No token data</div>;
+  }
 
   const totalCost = costs.reduce((s, c) => s + c.cost, 0);
 
-  const chartData = data.map((d) => ({
+  const chartData = tokens.map((d) => ({
     name: d.model,
     input: d.input,
     output: d.output,

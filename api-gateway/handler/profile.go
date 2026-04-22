@@ -97,6 +97,7 @@ func (h *ProfileHandler) Routes() func(r chi.Router) {
 			r.Get("/", h.List)
 			r.Post("/", h.Create)
 			r.Post("/import", h.Import)
+			r.Get("/recommended-models", h.RecommendedModels)
 			r.Route("/{name}", func(r chi.Router) {
 				r.Get("/", h.Get)
 				r.Put("/", h.Update)
@@ -110,6 +111,76 @@ func (h *ProfileHandler) Routes() func(r chi.Router) {
 			})
 		})
 	}
+}
+
+// --- provider recommended models ---
+
+// providerModels maps provider ID to its available models with tier info.
+var providerModels = map[string][]map[string]string{
+	"claude-oauth": {
+		{"name": "claude-opus-4-7", "tier": "flagship", "description": "Most capable, complex tasks"},
+		{"name": "claude-sonnet-4-20250514", "tier": "standard", "description": "Balanced performance and cost"},
+		{"name": "claude-haiku-4-5-20251001", "tier": "light", "description": "Fast and affordable"},
+	},
+	"gemini-oauth": {
+		{"name": "gemini-2.5-pro", "tier": "flagship", "description": "Most capable, thinking model"},
+		{"name": "gemini-2.5-flash", "tier": "fast", "description": "Fast and versatile"},
+		{"name": "gemini-2.0-flash", "tier": "light", "description": "Fastest, most affordable"},
+	},
+	"anthropic": {
+		{"name": "claude-opus-4-7", "tier": "flagship", "description": "Most capable, complex tasks"},
+		{"name": "claude-sonnet-4-20250514", "tier": "standard", "description": "Balanced performance and cost"},
+	},
+	"openai": {
+		{"name": "o3", "tier": "flagship", "description": "Most capable reasoning"},
+		{"name": "gpt-4o", "tier": "standard", "description": "Versatile flagship"},
+		{"name": "gpt-4o-mini", "tier": "light", "description": "Fast and affordable"},
+	},
+	"gemini": {
+		{"name": "gemini-2.5-pro", "tier": "flagship", "description": "Most capable"},
+		{"name": "gemini-2.5-flash", "tier": "fast", "description": "Fast and versatile"},
+	},
+	"zai": {
+		{"name": "glm-5.1", "tier": "flagship", "description": "Most capable"},
+		{"name": "glm-4.5", "tier": "standard", "description": "Balanced performance"},
+		{"name": "glm-4.5-air", "tier": "fast", "description": "Fast and affordable"},
+	},
+	"deepseek": {
+		{"name": "deepseek-r1", "tier": "flagship", "description": "Reasoning model"},
+		{"name": "deepseek-chat", "tier": "standard", "description": "General purpose"},
+	},
+	"copilot": {
+		{"name": "claude-sonnet-4-6", "tier": "flagship", "description": "Via GitHub Copilot"},
+		{"name": "gpt-4o", "tier": "standard", "description": "Via GitHub Copilot"},
+	},
+	"openrouter": {
+		{"name": "or-anthropic/claude-sonnet-4-6", "tier": "flagship", "description": "Claude via OpenRouter"},
+		{"name": "or-openai/gpt-4o", "tier": "standard", "description": "GPT-4o via OpenRouter"},
+	},
+	"qwen": {
+		{"name": "qwen-max", "tier": "flagship", "description": "Most capable"},
+		{"name": "qwen-plus", "tier": "standard", "description": "Balanced"},
+		{"name": "qwen-turbo", "tier": "light", "description": "Fast"},
+	},
+}
+
+// RecommendedModels returns available models for a target provider.
+func (h *ProfileHandler) RecommendedModels(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Query().Get("target")
+	if target == "" {
+		all := make(map[string][]map[string]string)
+		for k, v := range providerModels {
+			all[k] = v
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"models": all})
+		return
+	}
+	models, ok := providerModels[target]
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no models for provider: " + target})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"target": target, "models": models})
 }
 
 // --- handlers ---

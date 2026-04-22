@@ -298,6 +298,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			if p.Model != "" {
 				payload["model"] = p.Model
 				requestedModel = p.Model
+			} else if p.Target != "" && !provider.ModelBelongsToProvider(requestedModel, p.Target) {
+				mapped := mapModelForTarget(requestedModel, p.Target)
+				if mapped != requestedModel {
+					slog.Info("profile model mapped", "profile", profileName, "original", requestedModel, "mapped", mapped, "target", p.Target)
+					payload["model"] = mapped
+					requestedModel = mapped
+				}
 			}
 			slog.Info("profile routing", "profile", profileName, "model", requestedModel, "baseUrl", p.BaseURL)
 		} else {
@@ -307,6 +314,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	var apiKey string
 	var decision *provider.RoutingDecision
+	var selectedTokenInfo *provider.TokenInfo
 	if h.resolver != nil {
 		decision = h.resolver.Resolve(requestedModel)
 	}
@@ -325,6 +333,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if providerID != "" {
 			if tok, err := h.tokenStore.GetFromPool(providerID, profileOverride.AccountIDs); err == nil && tok != nil {
 				apiKey = tok.AccessToken
+				selectedTokenInfo = tok
 				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
 			}
 		}
@@ -336,6 +345,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if pid != "" && h.tokenStore != nil {
 			if tok, err := h.tokenStore.GetDefault(pid); err == nil && tok != nil {
 				apiKey = tok.AccessToken
+				selectedTokenInfo = tok
 				slog.Info("profile default token selected", "profile", profileOverride.Name, "provider", pid, "account", tok.AccountID)
 			}
 		}
@@ -436,6 +446,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		applySmartMaxTokens(payload, selectedModel)
 	}
 
+	// Strip fields unsupported by all upstreams.
+	stripUnsupportedFields(payload)
+
 	// Strip content block types unsupported by upstream (only needed for Z.AI).
 	if h.cfg.GLMMode {
 		filterUnsupportedContent(payload)
@@ -508,6 +521,23 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return "", false
 	}
 	profileOpts.OnAuthError = oauthRefreshFn
+
+	// Resolve CodeAssist project ID for gemini-oauth requests.
+	codeAssistProjectID := ""
+	if (decision != nil && decision.ProviderID == "gemini-oauth") && selectedTokenInfo != nil {
+		codeAssistProjectID = selectedTokenInfo.ProjectID
+		if codeAssistProjectID == "" && h.codeAssistProxy != nil {
+			if pid, err := h.codeAssistProxy.ResolveProjectID(r.Context(), apiKey); err == nil && pid != "" {
+				codeAssistProjectID = pid
+				selectedTokenInfo.ProjectID = pid
+				if err := h.tokenStore.Store(*selectedTokenInfo); err != nil {
+					slog.Warn("failed to store resolved project ID", "error", err)
+				}
+			} else if err != nil {
+				slog.Warn("failed to resolve codeassist project", "error", err)
+			}
+		}
+	}
 
 	// Feedback callback for adaptive limiter + key pool + anomaly detection.
 	start := time.Now()
@@ -592,7 +622,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		case provider.FormatGemini:
 			if visionDecision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn); err != nil {
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
 					slog.Error("code assist vision failed", "error", err)
 					h.metrics.IncError("upstream")
 				}
@@ -623,7 +653,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		case provider.FormatGemini:
 			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn); err != nil {
+				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
 					// Don't fallback to direct Gemini API with OAuth token (requires API key).
 					slog.Error("code assist failed", "error", err)
 					h.metrics.IncError("upstream")
@@ -782,6 +812,19 @@ const fallbackMaxTokens = 4096
 // unsupportedContentTypes are Anthropic-specific block types that GLM does not handle.
 var unsupportedContentTypes = map[string]bool{
 	"server_tool_use": true,
+}
+
+// unsupportedTopLevelFields are request fields Claude Code sends that Z.AI rejects.
+var unsupportedTopLevelFields = []string{
+	"context_management",
+	"service_tier",
+}
+
+// stripUnsupportedFields removes top-level request fields that upstream APIs reject.
+func stripUnsupportedFields(payload map[string]any) {
+	for _, f := range unsupportedTopLevelFields {
+		delete(payload, f)
+	}
 }
 
 // filterUnsupportedContent removes unsupported content block types from messages
@@ -1041,6 +1084,30 @@ var knownModels = []struct {
 	{"qwen-max", "qwen", "max", "openai", 0.40, 1.20, 32768, "none", false, false, false},
 	{"qwen-plus", "qwen", "plus", "openai", 0.08, 0.24, 131072, "none", false, false, false},
 	{"qwen-turbo", "qwen", "turbo", "openai", 0.03, 0.09, 1048576, "none", true, false, false},
+}
+
+// providerDefaultModels maps each provider to its default model.
+var providerDefaultModels = map[string]string{
+	"claude-oauth": "claude-sonnet-4-20250514",
+	"claude":       "claude-sonnet-4-20250514",
+	"anthropic":    "claude-sonnet-4-20250514",
+	"gemini-oauth": "gemini-2.5-flash",
+	"gemini":       "gemini-2.5-flash",
+	"openai":       "gpt-4o",
+	"zai":          "glm-4.5",
+	"deepseek":     "deepseek-chat",
+	"copilot":      "gpt-4o",
+	"openrouter":   "or-openai/gpt-4o",
+	"qwen":         "qwen-plus",
+}
+
+// mapModelForTarget returns the default model for a target provider when the
+// requested model does not belong to that provider.
+func mapModelForTarget(model, targetProvider string) string {
+	if d, ok := providerDefaultModels[targetProvider]; ok {
+		return d
+	}
+	return model
 }
 
 func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {

@@ -24,6 +24,7 @@ type TokenInfo struct {
 	Email        string    `json:"email,omitempty"`
 	AccountID    string    `json:"account_id"`
 	Provider     string    `json:"provider"`
+	ProjectID    string    `json:"project_id,omitempty"`
 	Tier         string    `json:"tier,omitempty"`
 	Paused       bool      `json:"paused"`
 	IsDefault    bool      `json:"is_default"`

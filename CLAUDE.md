@@ -68,3 +68,8 @@
 - Go build/test commands MUST include `cd` in the same command string.
 - Example: `cd /path/to/module && go build ./...`
 - Shell does NOT persist `cd` between Bash tool calls.
+
+## Project-Specific: Token Refresh
+- Token refresh worker must call `refreshAll()` immediately on startup, before the first ticker tick.
+- Google CodeAssist returns HTTP 500 (not 401) when OAuth token is expired, so on-demand refresh via `onAuthError` does not trigger.
+- Without immediate refresh, first request after gateway restart may fail for up to 30 minutes.
