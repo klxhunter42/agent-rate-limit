@@ -7,11 +7,20 @@ import { PRIVACY_BLUR_CLASS } from '@/lib/privacy';
 import { cn } from '@/lib/utils';
 import { CHART_COLORS, INPUT_TOKEN_COLOR, OUTPUT_TOKEN_COLOR } from '@/lib/providers';
 import type { ParsedMetric } from '@/lib/api';
+import type { UsageModel } from '@/hooks/use-usage-api';
 
-export function CostByModelCard({ metrics, onModelClick }: { metrics: ParsedMetric[]; onModelClick?: (model: string) => void }) {
-  const tokens = extractModelTokens(metrics);
-  const costs = extractModelCosts(metrics);
+export function CostByModelCard({ metrics, onModelClick, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; onModelClick?: (model: string) => void; period?: string; usageModels?: UsageModel[] }) {
   const { privacyMode } = usePrivacy();
+
+  const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);
+
+  const tokens = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, input: m.input_tokens, output: m.output_tokens }))
+    : extractModelTokens(metrics);
+
+  const costs = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, cost: m.cost }))
+    : extractModelCosts(metrics);
 
   const costMap = new Map(costs.map((c) => [c.model, c.cost]));
   const totalTokens = tokens.reduce((s, t) => s + t.input + t.output, 0);
@@ -29,7 +38,7 @@ export function CostByModelCard({ metrics, onModelClick }: { metrics: ParsedMetr
       return b.cost - a.cost;
     });
 
-  if (rows.length === 0) {
+  if (rows.length === 0 || (rows.length === 1 && rows[0]!.total === 0)) {
     return (
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Cost by Model<InfoTip text="Cumulative estimated cost per model based on token usage multiplied by per-model pricing." /></CardTitle></CardHeader>

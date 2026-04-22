@@ -43,7 +43,7 @@ type providerRoute struct {
 var providerRouteTable = map[string]providerRoute{
 	"anthropic":    {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}},
-		"claude":       {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}}, // alias
+	"claude":       {FormatAnthropic, "bearer", "/v1/messages", map[string]string{"anthropic-beta": "oauth-2025-04-20"}}, // alias
 	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
 	"copilot":      {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
@@ -87,6 +87,21 @@ var modelRules = []modelRule{
 	{"huggingface/", []string{"huggingface"}},
 	{"ollama", []string{"ollama"}},
 	{"agy-", []string{"agy"}},
+}
+
+// ModelBelongsToProvider checks if a model name routes to the given provider.
+func ModelBelongsToProvider(model, providerID string) bool {
+	for _, rule := range modelRules {
+		if strings.HasPrefix(model, rule.prefix) {
+			for _, pid := range rule.providers {
+				if pid == providerID {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
 }
 
 func (r *Resolver) Resolve(model string) *RoutingDecision {

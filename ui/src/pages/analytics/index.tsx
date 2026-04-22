@@ -4,6 +4,7 @@ import { InfoTip } from '@/components/shared/info-tip';
 import { usePrometheusMetrics } from '@/hooks/use-prometheus-metrics';
 import { useDashboard } from '@/contexts/dashboard-context';
 import { useAnomalyDetection } from '@/hooks/use-anomaly-detection';
+import { useUsageModels, useUsageSummary } from '@/hooks/use-usage-api';
 import { AnalyticsSummaryCards } from './analytics-summary-cards';
 import { ModelDistributionChart } from './model-distribution-chart';
 import { TokenBreakdownChart } from './token-breakdown-chart';
@@ -27,6 +28,10 @@ export function AnalyticsPage() {
   const { range, setRange, points: rangePoints } = useTimeRange('1H');
   const anomaly = useAnomalyDetection();
 
+  const period = RANGE_PERIOD[range];
+  const usageModels = useUsageModels(period);
+  const usageSummary = useUsageSummary(period);
+
   const seenSet = new Set(seenModels);
   const filteredMetrics = glmMode ? metrics : filterByModels(metrics, seenSet);
 
@@ -45,19 +50,19 @@ export function AnalyticsPage() {
         <TimeRangeFilter value={range} onChange={setRange} variant="long" />
       </div>
 
-      <AnalyticsSummaryCards metrics={filteredMetrics} models={models} />
+      <AnalyticsSummaryCards metrics={filteredMetrics} models={models} period={period} usageSummary={usageSummary} />
 
       <UsageTrendChart metrics={filteredMetrics} />
 
       <div className="grid gap-4 lg:grid-cols-12">
         <div className="lg:col-span-4">
-          <CostByModelCard metrics={filteredMetrics} onModelClick={setSelectedModel} />
+          <CostByModelCard metrics={filteredMetrics} onModelClick={setSelectedModel} period={period} usageModels={usageModels} />
         </div>
         <div className="lg:col-span-4 h-full">
           <Card className="h-full">
             <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Model Distribution<InfoTip text="Percentage of requests handled by each AI model." /></CardTitle></CardHeader>
             <CardContent>
-              <ModelDistributionChart metrics={filteredMetrics} />
+              <ModelDistributionChart metrics={filteredMetrics} period={period} usageModels={usageModels} />
             </CardContent>
           </Card>
         </div>
@@ -65,7 +70,7 @@ export function AnalyticsPage() {
           <Card className="h-full">
             <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Token Breakdown<InfoTip text="Input vs output token ratio per model. Input = prompt tokens, Output = completion tokens." /></CardTitle></CardHeader>
             <CardContent>
-              <TokenBreakdownChart metrics={filteredMetrics} />
+              <TokenBreakdownChart metrics={filteredMetrics} period={period} usageModels={usageModels} />
             </CardContent>
           </Card>
         </div>
@@ -81,13 +86,13 @@ export function AnalyticsPage() {
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-1.5">Model Cost Breakdown<InfoTip text="Estimated cost per model based on token usage and configured pricing." /></CardTitle></CardHeader>
         <CardContent>
-          <ModelCostTable metrics={filteredMetrics} />
+          <ModelCostTable metrics={filteredMetrics} period={period} usageModels={usageModels} />
         </CardContent>
       </Card>
 
       <AnomalyInsightsCard anomalies={anomaly.anomalies} onDismiss={anomaly.dismiss} />
 
-      <UsageApiSection period={RANGE_PERIOD[range]} />
+      <UsageApiSection period={period} usageSummary={usageSummary} />
 
       {selectedModel && (
         <ModelDetailsPopover

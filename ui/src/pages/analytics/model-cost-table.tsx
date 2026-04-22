@@ -1,10 +1,20 @@
 import { extractModelTokens, extractModelCosts } from '@/lib/metrics-helpers';
 import { formatNumber, formatCost, formatPercent } from '@/lib/format';
 import type { ParsedMetric } from '@/lib/api';
+import type { UsageModel } from '@/hooks/use-usage-api';
 
-export function ModelCostTable({ metrics }: { metrics: ParsedMetric[] }) {
-  const tokens = extractModelTokens(metrics);
-  const costs = extractModelCosts(metrics);
+export function ModelCostTable({ metrics, period = '24h', usageModels = [] }: { metrics: ParsedMetric[]; period?: string; usageModels?: UsageModel[] }) {
+
+  // Prefer usage API (Redis, persistent), fall back to Prometheus
+  const hasUsageData = usageModels.length > 0 && usageModels.some((m) => m.input_tokens > 0 || m.output_tokens > 0);
+
+  const tokens = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, input: m.input_tokens, output: m.output_tokens }))
+    : extractModelTokens(metrics);
+
+  const costs = hasUsageData
+    ? usageModels.map((m) => ({ model: m.model, cost: m.cost }))
+    : extractModelCosts(metrics);
 
   const costMap = new Map(costs.map((c) => [c.model, c.cost]));
   const totalCost = costs.reduce((s, c) => s + c.cost, 0);
@@ -16,7 +26,9 @@ export function ModelCostTable({ metrics }: { metrics: ParsedMetric[] }) {
     return (b.input + b.output) - (a.input + a.output);
   });
 
-  if (tokens.length === 0) return <div className="text-sm text-muted-foreground py-8 text-center">No model data available</div>;
+  if (tokens.length === 0 || (tokens.length === 1 && tokens[0]!.input === 0 && tokens[0]!.output === 0)) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">No model data available</div>;
+  }
 
   return (
     <div className="overflow-x-auto">

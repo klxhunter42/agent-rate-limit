@@ -3,6 +3,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -300,20 +301,18 @@ func contentToParts(content any) []geminiPart {
 
 func mapModelToGemini(model string) string {
 	mappings := map[string]string{
-		"gemini-2.5-pro":        "models/gemini-2.5-pro-preview-05-06",
-		"gemini-2.5-flash":      "models/gemini-2.5-flash-preview-05-20",
-		"gemini-2.0-flash":      "models/gemini-2.0-flash",
-		"gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
-		"gemini-1.5-pro":        "models/gemini-1.5-pro",
-		"gemini-1.5-flash":      "models/gemini-1.5-flash",
+		"gemini-2.5-pro":        "gemini-2.5-pro",
+		"gemini-2.5-flash":      "gemini-2.5-flash",
+		"gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
+		"gemini-2.0-flash":      "gemini-2.5-flash",
+		"gemini-2.0-flash-lite": "gemini-2.5-flash-lite",
+		"gemini-1.5-pro":        "gemini-2.5-flash",
+		"gemini-1.5-flash":      "gemini-2.5-flash",
 	}
 	if mapped, ok := mappings[model]; ok {
 		return mapped
 	}
-	if strings.HasPrefix(model, "models/") {
-		return model
-	}
-	return "models/" + model
+	return strings.TrimPrefix(model, "models/")
 }
 
 // ---------- Gemini -> Anthropic conversion ----------
@@ -401,7 +400,41 @@ func geminiToAnthropic(gResp geminiResponse, model string, stream bool) map[stri
 
 // ---------- Proxy ----------
 
-func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.Request, accessToken string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, onAuthError func(string) (string, bool)) error {
+// ResolveProjectID calls the CodeAssist loadCodeAssist endpoint to obtain the
+// cloudaicompanion projectId for the authenticated user.
+func (p *GeminiCodeAssistProxy) ResolveProjectID(ctx context.Context, accessToken string) (string, error) {
+	endpoint := p.endpoint + ":loadCodeAssist"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return "", fmt.Errorf("build loadCodeAssist request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("loadCodeAssist request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("loadCodeAssist failed (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		ProjectID string `json:"cloudaicompanionProject"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("decode loadCodeAssist response: %w", err)
+	}
+	if result.ProjectID == "" {
+		return "", fmt.Errorf("loadCodeAssist returned empty project ID")
+	}
+	return result.ProjectID, nil
+}
+
+func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.Request, accessToken string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, onAuthError func(string) (string, bool), projectID string) error {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return fmt.Errorf("parse payload: %w", err)
@@ -412,6 +445,7 @@ func (p *GeminiCodeAssistProxy) ProxyCodeAssist(w http.ResponseWriter, r *http.R
 	// Wrap in Code Assist envelope
 	caReq := codeAssistRequest{
 		Model:   result.Model,
+		Project: projectID,
 		Request: result.Request,
 	}
 	gBody, err := json.Marshal(caReq)
