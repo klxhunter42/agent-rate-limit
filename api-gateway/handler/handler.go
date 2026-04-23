@@ -312,9 +312,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-		if profileName != "" {
-			*r = *r.WithContext(context.WithValue(r.Context(), profileCtxKey{}, profileName))
-		}
+	if profileName != "" {
+		*r = *r.WithContext(context.WithValue(r.Context(), profileCtxKey{}, profileName))
+	}
 
 	var apiKey string
 	var decision *provider.RoutingDecision
@@ -592,11 +592,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		// Capture Anthropic unified rate limit utilization from upstream response headers.
 		if statusCode >= 200 && statusCode < 300 {
-			u5h := headers.Get("anthropic-ratelimit-unified-5h-utilization")
-			u7d := headers.Get("anthropic-ratelimit-unified-7d-utilization")
-			rlStatus := headers.Get("anthropic-ratelimit-unified-status")
-			fbPct := headers.Get("anthropic-ratelimit-unified-fallback-percentage")
-			if u5h != "" || u7d != "" || rlStatus != "" {
+			hasRL := false
+			for k := range headers {
+				if strings.HasPrefix(strings.ToLower(k), "anthropic-ratelimit") {
+					hasRL = true
+					break
+				}
+			}
+			if hasRL {
 				prov := ""
 				accID := ""
 				if selectedTokenInfo != nil {
@@ -606,7 +609,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					prov = decision.ProviderID
 				}
 				if prov != "" && accID != "" {
-					go h.storeRateLimitStatus(prov, accID, u5h, u7d, rlStatus, fbPct)
+					go h.storeRateLimitStatus(prov, accID, headers)
 				}
 			}
 		}
@@ -797,22 +800,29 @@ const rateLimitKeyPrefix = "arl:ratelimit:"
 
 // RateLimitStatus holds cached Anthropic unified rate limit utilization for one account.
 type RateLimitStatus struct {
-	Provider    string    `json:"provider"`
-	AccountID   string    `json:"account_id"`
-	Util5h      float64   `json:"util_5h"`
-	Util7d      float64   `json:"util_7d"`
-	Status      string    `json:"status"`
-	FallbackPct float64   `json:"fallback_pct"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Provider     string    `json:"provider"`
+	AccountID    string    `json:"account_id"`
+	Util5h       float64   `json:"util_5h"`
+	Util7d       float64   `json:"util_7d"`
+	Status       string    `json:"status"`
+	Status5h     string    `json:"status_5h,omitempty"`
+	Status7d     string    `json:"status_7d,omitempty"`
+	FallbackPct  float64   `json:"fallback_pct"`
+	Reset5h      string    `json:"reset_5h,omitempty"`
+	Reset7d      string    `json:"reset_7d,omitempty"`
+	ResetUnified string    `json:"reset_unified,omitempty"`
+	ReqRemaining string    `json:"req_remaining,omitempty"`
+	TokRemaining string    `json:"tok_remaining,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-func (h *Handler) storeRateLimitStatus(provider, accountID, u5h, u7d, status, fbPct string) {
+func (h *Handler) storeRateLimitStatus(provider, accountID string, headers http.Header) {
 	if h.tokenStore == nil {
 		return
 	}
-	p5h, _ := strconv.ParseFloat(u5h, 64)
-	p7d, _ := strconv.ParseFloat(u7d, 64)
-	pfb, _ := strconv.ParseFloat(fbPct, 64)
+	p5h, _ := strconv.ParseFloat(headers.Get("anthropic-ratelimit-unified-5h-utilization"), 64)
+	p7d, _ := strconv.ParseFloat(headers.Get("anthropic-ratelimit-unified-7d-utilization"), 64)
+	pfb, _ := strconv.ParseFloat(headers.Get("anthropic-ratelimit-unified-fallback-percentage"), 64)
 	// Normalize: Anthropic sends utilization as percentage (0-100).
 	// If parsed value is <= 1, treat as fraction and convert to percent.
 	if p5h > 0 && p5h <= 1 {
@@ -824,15 +834,33 @@ func (h *Handler) storeRateLimitStatus(provider, accountID, u5h, u7d, status, fb
 	if pfb > 0 && pfb <= 1 {
 		pfb *= 100
 	}
-	slog.Info("ratelimit headers stored", "provider", provider, "account", accountID, "raw_5h", u5h, "raw_7d", u7d, "parsed_5h", p5h, "parsed_7d", p7d, "status", status)
+	slog.Info("ratelimit headers stored",
+		"provider", provider, "account", accountID,
+		"parsed_5h", p5h, "parsed_7d", p7d,
+		"status", headers.Get("anthropic-ratelimit-unified-status"),
+		"status_5h", headers.Get("anthropic-ratelimit-unified-5h-status"),
+		"status_7d", headers.Get("anthropic-ratelimit-unified-7d-status"),
+		"reset_5h", headers.Get("anthropic-ratelimit-unified-5h-reset"),
+		"reset_7d", headers.Get("anthropic-ratelimit-unified-7d-reset"),
+		"reset_unified", headers.Get("anthropic-ratelimit-unified-reset"),
+		"req_remaining", headers.Get("anthropic-ratelimit-requests-remaining"),
+		"tok_remaining", headers.Get("anthropic-ratelimit-tokens-remaining"),
+	)
 	rl := RateLimitStatus{
-		Provider:    provider,
-		AccountID:   accountID,
-		Util5h:      p5h,
-		Util7d:      p7d,
-		Status:      status,
-		FallbackPct: pfb,
-		UpdatedAt:   time.Now().UTC(),
+		Provider:     provider,
+		AccountID:    accountID,
+		Util5h:       p5h,
+		Util7d:       p7d,
+		Status:       headers.Get("anthropic-ratelimit-unified-status"),
+		Status5h:     headers.Get("anthropic-ratelimit-unified-5h-status"),
+		Status7d:     headers.Get("anthropic-ratelimit-unified-7d-status"),
+		FallbackPct:  pfb,
+		Reset5h:      headers.Get("anthropic-ratelimit-unified-5h-reset"),
+		Reset7d:      headers.Get("anthropic-ratelimit-unified-7d-reset"),
+		ResetUnified: headers.Get("anthropic-ratelimit-unified-reset"),
+		ReqRemaining: headers.Get("anthropic-ratelimit-requests-remaining"),
+		TokRemaining: headers.Get("anthropic-ratelimit-tokens-remaining"),
+		UpdatedAt:    time.Now().UTC(),
 	}
 	data, err := json.Marshal(rl)
 	if err != nil {
