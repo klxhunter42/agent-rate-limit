@@ -100,8 +100,8 @@ type ModelCapabilities struct {
 // KnownModels is the static model capability map.
 var KnownModels = map[string]ModelCapabilities{
 	// Anthropic
-	"claude-opus-4-7":            {ContextWindow: 200000, MaxOutputTokens: 32000, Provider: "anthropic"},
-	"claude-sonnet-4-6":          {ContextWindow: 200000, MaxOutputTokens: 16000, Provider: "anthropic"},
+	"claude-opus-4-7":            {ContextWindow: 200000, MaxOutputTokens: 163840, Provider: "anthropic"},
+	"claude-sonnet-4-6":          {ContextWindow: 200000, MaxOutputTokens: 163840, Provider: "anthropic"},
 	"claude-haiku-4-5-20251001":  {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},
 	"claude-3-5-sonnet-20241022": {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},
 	"claude-3-5-haiku-20241022":  {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},
@@ -137,6 +137,16 @@ func GetModelCapabilities(model string) ModelCapabilities {
 		}
 	}
 	return ModelCapabilities{ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "unknown"}
+}
+
+// UpdateMaxOutputTokens updates MaxOutputTokens for an existing model or adds a new entry.
+func UpdateMaxOutputTokens(model string, tokens int) {
+	if cap, ok := KnownModels[model]; ok {
+		cap.MaxOutputTokens = tokens
+		KnownModels[model] = cap
+	} else {
+		KnownModels[model] = ModelCapabilities{MaxOutputTokens: tokens}
+	}
 }
 
 // OptimizeWhitespace collapses whitespace in prose while preserving code blocks.

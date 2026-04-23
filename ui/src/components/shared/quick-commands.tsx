@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Terminal, Copy, Check } from 'lucide-react';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface Snippet {
   label: string;
@@ -28,9 +29,10 @@ export function QuickCommands({ snippets }: { snippets?: Snippet[] }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   const handleCopy = (command: string) => {
-    navigator.clipboard.writeText(command);
-    setCopied(command);
-    setTimeout(() => setCopied(null), 2000);
+    copyToClipboard(command).then(() => {
+      setCopied(command);
+      setTimeout(() => setCopied(null), 2000);
+    });
   };
 
   return (
