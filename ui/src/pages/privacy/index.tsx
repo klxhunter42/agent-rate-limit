@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import { Shield, Eye, Fingerprint, Timer, Key, Lock, Server, CreditCard, Globe } from 'lucide-react';
@@ -6,6 +6,7 @@ import { fetchPrivacyMetrics, type PrivacyMetrics } from '@/lib/privacy-api';
 import { InfoTip } from '@/components/shared/info-tip';
 import { useTimeRange } from '@/hooks/use-time-range';
 import { TimeRangeFilter } from '@/components/shared/time-range-filter';
+import { getPollingInterval } from '@/lib/polling';
 
 const detectableTypes = [
   {
@@ -63,8 +64,10 @@ export default function PrivacyPage() {
   const [loading, setLoading] = useState(true);
   const { range, setRange } = useTimeRange('5m');
   const [error, setError] = useState<string | null>(null);
+  const firstLoad = useRef(true);
 
   const load = useCallback(async () => {
+    if (firstLoad.current) setLoading(true);
     try {
       const result = await fetchPrivacyMetrics();
       setData(result);
@@ -74,14 +77,26 @@ export default function PrivacyPage() {
       console.error('[privacy] fetch failed:', msg);
       setError(msg);
     } finally {
-      setLoading(false);
+      if (firstLoad.current) {
+        firstLoad.current = false;
+        setLoading(false);
+      }
     }
   }, []);
 
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+
   useEffect(() => {
     load();
-    const id = setInterval(load, 5000);
-    return () => clearInterval(id);
+    const schedule = () => {
+      timerRef.current = setInterval(() => {
+        load();
+        clearInterval(timerRef.current!);
+        schedule();
+      }, getPollingInterval());
+    };
+    schedule();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [load]);
 
   if (loading) return <div className="text-muted-foreground">Loading...</div>;

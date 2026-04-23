@@ -52,9 +52,10 @@ export function DeviceCodeDialog({
   if (!open) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(userCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyToClipboard(userCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const minutes = Math.floor(remaining / 60);

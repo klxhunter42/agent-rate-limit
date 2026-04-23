@@ -21,6 +21,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -935,10 +936,32 @@ func injectSystemPrompt(payload map[string]any, prompt string) {
 
 // modelMaxTokens defines optimal max_tokens defaults per model.
 var modelMaxTokens = map[string]int{
-	"glm-5.1":     8192,
-	"glm-5-turbo": 4096,
-	"glm-5":       8192,
-	"glm-4.5":     4096,
+	"glm-5.1":                   8192,
+	"glm-5-turbo":               4096,
+	"glm-5":                     8192,
+	"glm-4.5":                   4096,
+	"claude-opus-4-7":           163840,
+	"claude-sonnet-4-6":         163840,
+	"claude-haiku-4-5-20251001": 8192,
+}
+
+var modelMaxTokensMu sync.RWMutex
+
+// GetModelMaxTokensDefaults returns a copy of the hardcoded defaults.
+func GetModelMaxTokensDefaults() map[string]int {
+	modelMaxTokensMu.RLock()
+	defer modelMaxTokensMu.RUnlock()
+	return copyIntMap(modelMaxTokens)
+}
+
+// ApplyMaxTokensOverrides merges overrides into the modelMaxTokens map.
+func ApplyMaxTokensOverrides(overrides map[string]int) {
+	modelMaxTokensMu.Lock()
+	defer modelMaxTokensMu.Unlock()
+	for k, v := range overrides {
+		modelMaxTokens[k] = v
+		tokenizer.UpdateMaxOutputTokens(k, v)
+	}
 }
 
 const fallbackMaxTokens = 4096
@@ -1140,7 +1163,10 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 	if _, exists := payload["max_tokens"]; exists {
 		return // Respect client's explicit setting.
 	}
-	if limit, ok := modelMaxTokens[model]; ok {
+	modelMaxTokensMu.RLock()
+	limit, ok := modelMaxTokens[model]
+	modelMaxTokensMu.RUnlock()
+	if ok {
 		payload["max_tokens"] = limit
 	} else {
 		payload["max_tokens"] = fallbackMaxTokens

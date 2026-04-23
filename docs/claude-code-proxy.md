@@ -564,20 +564,20 @@ curl -X POST http://localhost:8080/v1/profiles/meow/token
 }
 ```
 
+> รองรับทั้ง `ANTHROPIC_API_KEY` (x-api-key header) และ `ANTHROPIC_AUTH_TOKEN` (Authorization: Bearer header). Gateway อ่าน profile token จากทั้งสองช่องทางได้.
+
 **4. ใช้งาน**
 
 ```bash
-# One-shot prompt
-docker exec agent-rate-limit-claude-code-meow-run-XXX claude -p "พูดไทยได้ปะ"
-
-# Interactive mode (ต้องใช้ --bare เพื่อข้าม OAuth login)
-docker exec -it agent-rate-limit-claude-code-meow-run-XXX claude --bare
+# ใน Docker container (entrypoint set CLAUDE_CODE_SIMPLE=1 อัตโนมัติ)
+claude -p "พูดไทยได้ปะ"          # ใช้ได้เลย ไม่ต้อง --bare
+claude                           # interactive mode ก็ใช้ได้
 ```
 
-**สำคัญ:** ต้องใช้ `--bare` สำหรับ interactive mode เพราะ:
-- `claude` interactive จะเช็ค OAuth session ก่อน → ถ้าไม่มีจะขอ login
-- `--bare` ข้าม OAuth flow ทั้งหมด ใช้แค่ `ANTHROPIC_API_KEY` จาก settings.json
-- `-p` mode ไม่ต้องใช้ `--bare` เพราะมันยิงตรงด้วย API key อยู่แล้ว
+**ทำไมใช้ `CLAUDE_CODE_SIMPLE=1`:**
+- เทียบเท่า `--bare` แต่เป็น env var (สะดวกกว่า)
+- ข้าม OAuth flow, remote managed settings fetch ที่ทำให้ hang ใน Docker
+- เป็น known issue: [GitHub #27900](https://github.com/anthropics/claude-code/issues/27900)
 
 **Gateway จัดการให้อัตโนมัติสำหรับ Haiku:**
 - Strip `effort` parameter (จาก `output_config.effort` + top-level)

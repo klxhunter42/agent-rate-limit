@@ -240,6 +240,8 @@ func main() {
 	overviewHandler.Routes(r)
 	configHandler.Routes(r)
 
+	// Apply persisted max-tokens overrides from Redis.
+	configHandler.LoadAndApplyMaxTokens()
 	// Static dashboard SPA (Vite build output)
 	staticSub, _ := fs.Sub(staticFS, "static")
 	fileServer := http.FileServer(http.FS(staticSub))
