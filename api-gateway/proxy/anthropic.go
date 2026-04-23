@@ -27,14 +27,50 @@ const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
 
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
 var allowedResponseHeaders = map[string]bool{
-	"Content-Type":                           true,
-	"X-RateLimit-Limit":                      true,
-	"X-RateLimit-Remaining":                  true,
-	"X-RateLimit-Reset":                      true,
-	"Retry-After":                            true,
-	"Request-Id":                             true,
-	"Anthropic-Ratelimit-Requests-Remaining": true,
-	"Anthropic-Ratelimit-Tokens-Remaining":   true,
+	"Content-Type":                                     true,
+	"X-RateLimit-Limit":                                true,
+	"X-RateLimit-Remaining":                            true,
+	"X-RateLimit-Reset":                                true,
+	"Retry-After":                                      true,
+	"Request-Id":                                       true,
+	"Anthropic-Ratelimit-Requests-Remaining":           true,
+	"Anthropic-Ratelimit-Tokens-Remaining":             true,
+	"Anthropic-Ratelimit-Unified-Status":               true,
+	"Anthropic-Ratelimit-Unified-5h-Status":            true,
+	"Anthropic-Ratelimit-Unified-5h-Utilization":       true,
+	"Anthropic-Ratelimit-Unified-5h-Reset":             true,
+	"Anthropic-Ratelimit-Unified-7d-Status":            true,
+	"Anthropic-Ratelimit-Unified-7d-Utilization":       true,
+	"Anthropic-Ratelimit-Unified-7d-Reset":             true,
+	"Anthropic-Ratelimit-Unified-Fallback-Percentage":  true,
+	"Anthropic-Ratelimit-Unified-Fallback":             true,
+	"Anthropic-Ratelimit-Unified-Reset":                true,
+	"Anthropic-Ratelimit-Unified-Representative-Claim": true,
+}
+
+// stripUnsupportedBetas removes beta flags unsupported by the model from the anthropic-beta header.
+func stripUnsupportedBetas(h *http.Header, model string) {
+	beta := h.Get("anthropic-beta")
+	if beta == "" {
+		return
+	}
+	strip := false
+	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
+		strip = true
+	}
+	if !strip {
+		return
+	}
+	parts := strings.Split(beta, ",")
+	var kept []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if strings.HasPrefix(p, "effort-") || strings.HasPrefix(p, "interleaved-thinking-") {
+			continue
+		}
+		kept = append(kept, p)
+	}
+	h.Set("anthropic-beta", strings.Join(kept, ","))
 }
 
 // FeedbackFunc is called by the proxy after each upstream attempt.
@@ -756,17 +792,40 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		httpReq.Header.Set("Content-Type", "application/json")
 		if opts != nil && opts.AuthMode == "bearer" {
 			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-			httpReq.Header.Set("x-client-request-id", newRequestID())
+			reqID := r.Header.Get("x-client-request-id")
+			if reqID == "" {
+				reqID = newRequestID()
+			}
+			httpReq.Header.Set("x-client-request-id", reqID)
+			sessionID := r.Header.Get("X-Claude-Code-Session-Id")
+			if sessionID == "" {
+				sessionID = newRequestID()
+			}
+			httpReq.Header.Set("X-Claude-Code-Session-Id", sessionID)
 		} else {
 			httpReq.Header.Set("x-api-key", apiKey)
 		}
 		httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
 		if opts != nil {
 			for k, v := range opts.ExtraHeaders {
+				if k == "anthropic-beta" {
+					if incoming := r.Header.Get("anthropic-beta"); incoming != "" {
+						httpReq.Header.Set(k, mergeBetas(incoming, v))
+						continue
+					}
+				}
 				httpReq.Header.Set(k, v)
 			}
 		}
+		stripUnsupportedBetas(&httpReq.Header, model)
 		httpReq.ContentLength = int64(len(body))
+
+		slog.Info("upstream req", "model", model,
+			"beta", httpReq.Header.Get("anthropic-beta"),
+			"xapp", httpReq.Header.Get("x-app"),
+			"ua", httpReq.Header.Get("User-Agent"),
+			"session_id", httpReq.Header.Get("X-Claude-Code-Session-Id"),
+			"req_id", httpReq.Header.Get("x-client-request-id"))
 
 		start := time.Now()
 		resp, err := p.client.Do(httpReq)
@@ -800,6 +859,16 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				}
 				httpReq.Header.Set("Content-Type", "application/json")
 				httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+				reqID := r.Header.Get("x-client-request-id")
+				if reqID == "" {
+					reqID = newRequestID()
+				}
+				httpReq.Header.Set("x-client-request-id", reqID)
+				sessionID := r.Header.Get("X-Claude-Code-Session-Id")
+				if sessionID == "" {
+					sessionID = newRequestID()
+				}
+				httpReq.Header.Set("X-Claude-Code-Session-Id", sessionID)
 				httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
 				for k, v := range opts.ExtraHeaders {
 					httpReq.Header.Set(k, v)
@@ -855,7 +924,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
 		}
-		return p.relayStreamWithTracking(w, lastResp, model, unmasker)
+		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput)
 	}
 
 	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
@@ -955,7 +1024,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 
 const streamTimeout = 10 * time.Minute
 
-func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker) error {
+func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker, fallbackInputTokens int) error {
 	// Add timeout to prevent hanging streams
 	ctx, cancel := context.WithTimeout(resp.Request.Context(), streamTimeout)
 	defer cancel()
@@ -1050,6 +1119,11 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				f.Flush()
 			}
 		}
+	}
+
+	// Fallback: use estimated input tokens if upstream didn't report them.
+	if inputTokens == 0 && fallbackInputTokens > 0 {
+		inputTokens = fallbackInputTokens
 	}
 
 	if inputTokens > 0 || outputTokens > 0 {
@@ -1165,6 +1239,20 @@ func newRequestID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// mergeBets combines two comma-separated beta header strings, deduplicating entries.
+func mergeBetas(incoming, extra string) string {
+	seen := make(map[string]bool)
+	var result []string
+	for _, s := range strings.Split(incoming+","+extra, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] {
+			seen[s] = true
+			result = append(result, s)
+		}
+	}
+	return strings.Join(result, ",")
 }
 
 // RateLimitError returns an Anthropic-format rate limit error.

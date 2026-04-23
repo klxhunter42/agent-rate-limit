@@ -45,15 +45,39 @@ type providerRoute struct {
 
 var providerRouteTable = map[string]providerRoute{
 	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{
-		"anthropic-beta": "oauth-2025-04-20,claude-code-20250219",
+	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
+		"anthropic-beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-code/1.0.39",
+		"User-Agent":     "claude-cli/2.1.94 (external, sdk-cli)",
+		"anthropic-dangerous-direct-browser-access": "true",
+		"Accept":                      "application/json",
+		"accept-language":             "*",
+		"sec-fetch-mode":              "cors",
+		"X-Stainless-Lang":            "js",
+		"X-Stainless-Package-Version": "0.81.0",
+		"X-Stainless-OS":              "MacOS",
+		"X-Stainless-Arch":            "arm64",
+		"X-Stainless-Runtime":         "node",
+		"X-Stainless-Runtime-Version": "v25.5.0",
+		"X-Stainless-Retry-Count":     "0",
+		"X-Stainless-Timeout":         "3000",
 	}},
-	"claude": {FormatAnthropic, "bearer", "/v1/messages", map[string]string{
-		"anthropic-beta": "oauth-2025-04-20,claude-code-20250219",
+	"claude": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
+		"anthropic-beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-code/1.0.39",
+		"User-Agent":     "claude-cli/2.1.94 (external, sdk-cli)",
+		"anthropic-dangerous-direct-browser-access": "true",
+		"Accept":                      "application/json",
+		"accept-language":             "*",
+		"sec-fetch-mode":              "cors",
+		"X-Stainless-Lang":            "js",
+		"X-Stainless-Package-Version": "0.81.0",
+		"X-Stainless-OS":              "MacOS",
+		"X-Stainless-Arch":            "arm64",
+		"X-Stainless-Runtime":         "node",
+		"X-Stainless-Runtime-Version": "v25.5.0",
+		"X-Stainless-Retry-Count":     "0",
+		"X-Stainless-Timeout":         "3000",
 	}}, // alias
 	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
@@ -174,7 +198,7 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 }
 
 // tryResolveRoundRobin cycles through all active tokens for a provider.
-// With N accounts, each gets ~1/N of the requests, multiplying effective rate limit.
+// Prefers accounts with low 5h utilization; falls back to all if all are high.
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
 	if r.tokenStore == nil {
 		return nil
@@ -192,6 +216,31 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	if len(active) == 0 {
 		return nil
 	}
+
+	// If multiple accounts, try to pick one with lowest utilization.
+	if len(active) > 1 {
+		ids := make([]string, len(active))
+		for i, t := range active {
+			ids[i] = t.AccountID
+		}
+		rls := r.tokenStore.GetRateLimits(providerID, ids)
+
+		// Partition into low-util (<0.8) and high-util.
+		var low, high []TokenInfo
+		for _, t := range active {
+			if rl, ok := rls[t.AccountID]; ok && rl.Util5h >= 0.8 {
+				high = append(high, t)
+			} else {
+				low = append(low, t)
+			}
+		}
+		if len(low) > 0 {
+			active = low
+		} else if len(high) > 0 {
+			active = high
+		}
+	}
+
 	val, _ := r.counters.LoadOrStore(providerID, new(atomic.Uint64))
 	counter := val.(*atomic.Uint64)
 	idx := int(counter.Add(1)-1) % len(active)

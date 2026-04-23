@@ -346,6 +346,17 @@ func TestAllowedResponseHeaders(t *testing.T) {
 		"Request-Id",
 		"Anthropic-Ratelimit-Requests-Remaining",
 		"Anthropic-Ratelimit-Tokens-Remaining",
+		"Anthropic-Ratelimit-Unified-Status",
+		"Anthropic-Ratelimit-Unified-5h-Status",
+		"Anthropic-Ratelimit-Unified-5h-Utilization",
+		"Anthropic-Ratelimit-Unified-5h-Reset",
+		"Anthropic-Ratelimit-Unified-7d-Status",
+		"Anthropic-Ratelimit-Unified-7d-Utilization",
+		"Anthropic-Ratelimit-Unified-7d-Reset",
+		"Anthropic-Ratelimit-Unified-Fallback-Percentage",
+		"Anthropic-Ratelimit-Unified-Fallback",
+		"Anthropic-Ratelimit-Unified-Reset",
+		"Anthropic-Ratelimit-Unified-Representative-Claim",
 	}
 
 	for _, h := range required {
@@ -369,8 +380,8 @@ func TestAllowedResponseHeaders(t *testing.T) {
 	}
 
 	// Verify total count
-	if len(allowedResponseHeaders) != 8 {
-		t.Errorf("allowedResponseHeaders has %d entries, want 8", len(allowedResponseHeaders))
+	if len(allowedResponseHeaders) != 19 {
+		t.Errorf("allowedResponseHeaders has %d entries, want 19", len(allowedResponseHeaders))
 	}
 }
 

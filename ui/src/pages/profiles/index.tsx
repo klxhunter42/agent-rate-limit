@@ -352,6 +352,43 @@ ANTHROPIC_AUTH_TOKEN=arl_abc123...`}
           </pre>
         </Section>
 
+        <Section id="docker-haiku" title="Claude Code Container (Haiku)">
+          <p>Run [[PERSON_2]] Code in a Docker container, routed through a profile to use Haiku via Claude OAuth. No local install needed.</p>
+          <p className="mt-2"><strong>Setup:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Create a profile with model <code className="bg-muted px-1 rounded text-xs">claude-haiku-4-5-20251001</code> and target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code></li>
+            <li>Generate an <code className="bg-muted px-1 rounded text-xs">arl_</code> token for the profile</li>
+            <li>Create <code className="bg-muted px-1 rounded text-xs">docker/settings-meow.json</code>:</li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
+    "ANTHROPIC_API_KEY": "arl_your-generated-token"
+  }
+}`}
+          </pre>
+          <ol className="list-decimal list-inside space-y-1 ml-2" start={4}>
+            <li>Start the container:</li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`docker compose run -d --name meow claude-code-meow`}
+          </pre>
+          <ol className="list-decimal list-inside space-y-1 ml-2" start={5}>
+            <li>Use it:</li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`# One-shot prompt
+docker exec meow claude -p "พูดไทยได้ปะ"
+
+# Interactive mode (requires --bare to skip OAuth login)
+docker exec -it meow claude --bare`}
+          </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            <strong>--bare</strong> is required for interactive mode. It skips OAuth login and uses only <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> from settings. The gateway auto-strips unsupported parameters (effort, thinking) for Haiku.
+          </p>
+        </Section>
+
         <Section id="target" title="Target / Provider Types">
           <p>The <strong>target</strong> field determines the upstream API format:</p>
           <ul className="list-disc list-inside space-y-1">

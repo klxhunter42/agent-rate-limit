@@ -63,6 +63,37 @@ func NewTokenStore(redisAddr string) *TokenStore {
 	return &TokenStore{client: rdb}
 }
 
+type AcctRateLimit struct {
+	Util5h float64 `json:"util_5h"`
+	Status string  `json:"status"`
+}
+
+// GetRateLimits reads cached rate limit status for multiple accounts in one pipeline.
+func (s *TokenStore) GetRateLimits(provider string, accountIDs []string) map[string]AcctRateLimit {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	pipe := s.client.Pipeline()
+	cmds := make(map[string]*redis.StringCmd, len(accountIDs))
+	for _, id := range accountIDs {
+		cmds[id] = pipe.Get(ctx, "arl:ratelimit:"+provider+":"+id)
+	}
+	pipe.Exec(ctx)
+
+	result := make(map[string]AcctRateLimit, len(accountIDs))
+	for id, cmd := range cmds {
+		data, err := cmd.Bytes()
+		if err != nil {
+			continue
+		}
+		var rl AcctRateLimit
+		if json.Unmarshal(data, &rl) == nil && rl.Util5h > 0 {
+			result[id] = rl
+		}
+	}
+	return result
+}
+
 // MigrateProviderRenames copies tokens from old provider IDs to new ones.
 func (s *TokenStore) MigrateProviderRenames() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
