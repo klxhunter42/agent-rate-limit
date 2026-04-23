@@ -343,7 +343,7 @@ style: |
 <span class="chip">Python Worker</span>
 <span class="chip">Dragonfly</span>
 <span class="chip chip-purple">17 Providers</span>
-<span class="chip chip-purple">Adaptive Limiter</span>
+<span class="chip chip-purple">OAuth + API Key</span>
 <span class="chip chip-green">Real-time Dashboard</span>
 
 <br>
@@ -392,8 +392,8 @@ style: |
 </div>
 
 <div class="feat" style="border-left: 3px solid #4ade80;">
-<h4>Adaptive Concurrency</h4>
-<p>Envoy-inspired gradient limiter auto-discovers optimal throughput</p>
+<h4>17 Providers with OAuth</h4>
+<p>Claude OAuth, Gemini OAuth, Copilot, OpenAI, and 13 more with auto-fallback</p>
 </div>
 
 </div>
@@ -403,63 +403,75 @@ style: |
 
 ## System Architecture
 
-<div class="cols" style="align-items: flex-start;">
-<div style="flex: 1.2;">
+```
+  Clients (Claude Code, AI Agents, CI/CD, Dashboard)
+      |
+      v
++==========================================================+
+|                   API Gateway (:8080)                     |
+|                                                           |
+|  +-- SecurityHeaders -- CorrelationID -- RealIP -- IPFil  |
+|  +-- Logging -- Metrics -- RateLimiter -- LoginLimiter    |
+|                                                           |
+|  +-------------+  +-------------+  +-------------+       |
+|  | PasteGuard  |  | Token Optim |  | Quota Check |       |
+|  | Secrets+PII |  | WS+Dedup+Tr |  | >=95%: 429  |       |
+|  +-------------+  +-------------+  +-------------+       |
+|                                                           |
+|  +----------+  +-----------+  +------------------+       |
+|  | Key Pool |  | Adaptive  |  | Profile Router   |       |
+|  | Rotation |  | Limiter   |  | X-Profile Header |       |
+|  +----------+  +-----------+  +------------------+       |
++======================+=========+==========================+
+                       |                    |
+            +----------+----------+    +----+----+
+            |    Sync Proxy       |    |  Async  |
+            |  /v1/messages SSE   |    |  Queue  |
+            +----------+----------+    +----+----+
+                       |                    |
+              +--------+--------+     +----+----+
+              |  17 Providers    |     | Worker  |
+              |  4 Auth Types    |     | 50 coro |
+              +------------------+     +---------+
 
-<div class="flow-box" style="border-left: 3px solid #06b6d4;">
-<strong>Clients</strong> &mdash; Claude Code, AI Agents, CI/CD
-</div>
-<div class="flow-arrow">&darr;</div>
+  +----------+   +------------+   +-----------+   +---------+
+  | Dragonfly|   | Prometheus |   |  Grafana  |   | Presidio|
+  |  :6379   |   |   :9090    |   |   :3000   |   |  :3000  |
+  +----------+   +------------+   +-----------+   +---------+
+```
 
-<div class="flow-box" style="border-left: 3px solid #6366f1;">
-<strong>arl-gateway :8080</strong> (Go)
-<span style="font-size: 0.85em; display: block; margin-top: 4px; color: #64748b;">
-  Security &middot; Rate Limit &middot; Key Pool<br>
-  Adaptive Limiter &middot; Quota &middot; Proxy
-</span>
+<div class="cols" style="margin-top: 0.3em;">
+<div class="feat" style="border-top: 2px solid #06b6d4;">
+<p><strong>Sync</strong> - Real-time SSE streaming, transparent proxy to upstream</p>
 </div>
-
-<div class="cols" style="gap: 0.5em; margin-top: 4px;">
-<div style="flex: 1;">
-<div class="flow-arrow">&darr; sync</div>
-<div class="flow-box" style="border-left: 3px solid #4ade80; font-size: 0.78em;">
-<strong>Transparent Proxy</strong><br>
-SSE streaming to upstream
+<div class="feat" style="border-top: 2px solid #fbbf24;">
+<p><strong>Async</strong> - Queue + Worker (50 coroutines), poll GET /v1/results/{id}</p>
 </div>
+<div class="feat" style="border-top: 2px solid #8b5cf6;">
+<p><strong>17 Providers</strong> - 4 auth types, auto-fallback, per-provider RPM limiting</p>
 </div>
-<div style="flex: 1;">
-<div class="flow-arrow">&darr; async</div>
-<div class="flow-box" style="border-left: 3px solid #fbbf24; font-size: 0.78em;">
-<strong>Dragonfly Queue</strong><br>
-arl-worker (50 coroutines)
-</div>
-</div>
-</div>
-
-</div>
-<div style="flex: 0.8;">
-
-<div class="feat">
-<h4>Sync Mode</h4>
-<p><code>/v1/messages</code><br>
-Real-time SSE streaming<br>
-Transparent proxy to upstream</p>
-</div>
-
-<div class="feat">
-<h4>Async Mode</h4>
-<p><code>/v1/chat/completions</code><br>
-Queue + Worker + Cache<br>
-Poll <code>/v1/results/{id}</code></p>
-</div>
-
-<div class="feat">
-<h4>17 Providers</h4>
-<p>Auto-fallback chain<br>
-Key rotation with 60s cooldown<br>
-Per-provider RPM limiting</p>
 </div>
 
+## Sync vs Async Mode
+
+| | Sync (<code>/v1/messages</code>) | Async (<code>/v1/chat/completions</code>) |
+|---|---|---|
+| **Use case** | Claude Code (real-time) | Batch agents, CI/CD |
+| **Flow** | Gateway -> Proxy -> Upstream -> Response | Gateway -> Queue -> Worker -> Cache |
+| **Response** | Real-time SSE streaming | Request ID -> Poll <code>GET /v1/results/{id}</code> |
+| **Rate limit** | Global + Per API key | Global + Per agent_id |
+| **Timeout** | <code>STREAM_TIMEOUT</code> (300s) | Worker poll 5s |
+
+<br>
+
+<div class="cols">
+<div class="feat" style="border-left: 3px solid #4ade80;">
+<h4>Sync = Transparent Proxy</h4>
+<p>Every byte passes through unchanged. Client experience is identical to hitting upstream directly.</p>
+</div>
+<div class="feat" style="border-left: 3px solid #fbbf24;">
+<h4>Async = Queue-Based</h4>
+<p>Burst-friendly. Accept all jobs, worker paces requests. Exponential backoff + retry on failure.</p>
 </div>
 </div>
 
@@ -537,6 +549,80 @@ If it can't be done by changing just the <code>model</code> field, the gateway d
 </div>
 
 ---
+---
+
+## PasteGuard - Data Privacy
+
+<div class="cols">
+<div>
+
+### How It Works
+
+```
+Client Request
+    |
+    v
+[Extract Text Spans]
+ system prompt, messages, tool_result
+    |
+    v
+[Secret Detection] (regex, 12 types)
+ API keys, JWT, PEM, AWS, GitHub...
+    |
+    v
+[PII Detection] (Presidio NLP)
+ Person, Email, Phone (conf >= 0.7)
+    |
+    v
+[Mask] -> [[API_KEY_SK_1]], [[PERSON_2]]
+    |
+    v
+[Proxy] -> Upstream sees placeholders only
+    |
+    v
+[Unmask] -> Restore real values in response
+  Non-stream: bulk replace
+  Stream: per SSE chunk
+```
+
+</div>
+<div>
+
+### 12 Secret Entity Types
+
+| Entity | Example |
+|---|---|
+| OpenSSH Private Key | `-----BEGIN OPENSSH...` |
+| PEM Private Key | `-----BEGIN RSA...` |
+| API Key (sk-) | `sk-proj-xxxx...` |
+| AWS Access Key | `AKIAxxxxxxxxxxxxxxxx` |
+| GitHub PAT | `ghp_xxxxxxxxxxxxxxxx` |
+| GitLab Token | `glpat-xxxxxxxxxxxxxx` |
+| JWT Token | `eyJhbGciOi...` |
+| Bearer Token | `Bearer xxxxxxxx...` |
+| ENV Password | `PASSWORD=...` |
+| ENV Secret | `_SECRET=...` |
+| Connection String | `postgres://user:pass@` |
+| Thai National ID | `[1-8]xxxxxxxxxxxxx` |
+
+<br>
+
+<div class="feat" style="border-left: 3px solid #4ade80;">
+<h4>Parallel Processing</h4>
+<p>Each span runs in its own goroutine. 10 spans: ~10ms vs ~100ms sequential.</p>
+</div>
+
+<div class="feat" style="border-left: 3px solid #8b5cf6;">
+<h4>4 Prometheus Metrics</h4>
+<p><code>mask_duration_seconds</code> by phase<br>
+<code>secrets_detected_total</code> by type<br>
+<code>pii_detected_total</code> by type<br>
+<code>mask_requests_total</code> by result</p>
+</div>
+
+</div>
+</div>
+
 
 ## Claude Code Tool Loop
 
@@ -584,7 +670,7 @@ Response: <code>end_turn</code> &mdash; Loop complete, show result to user
 <div style="flex: 1.3;">
 
 ```
-Request -> arl-gateway (:8080)
+Request -> gateway (:8080)
   |
   1  SecurityHeaders
      X-Content-Type-Options: nosniff
@@ -666,42 +752,46 @@ On success (every 5th):
 
 <br>
 
-### Learnings
+### Key Properties
 
-- Gradient > 1.0 = system faster than baseline, increase
-- Gradient < 1.0 = RTT rising, increase conservatively
-- Learned ceiling decays after 5 minutes
-- 5s cooldown after any 429
+- **Lock-free hot path**: atomic CAS on per-model tryAcquire
+- **Signal-based waiting**: sync.Cond, zero CPU while blocked
+- **sync.Pool**: candidate slices reused, zero alloc on fallback
+- **Learned ceiling**: remembers peak limit before 429, decays after 5 min
 
 </div>
 <div>
 
-### Series-Based Routing
+### Limit Discovery
 
 ```
-Series 5 (preferred)
-  glm-5.1     (limit 1, priority 100)
-  glm-5-turbo (limit 1, priority  90)
-  glm-5       (limit 2, priority  80)
-  = 4 slots
+Real upstream limit = 4, initial = 1
 
-Series 4 (fallback)
-  glm-4.7 (limit 2, priority 70)
-  glm-4.6 (limit 3, priority 60)
-  glm-4.5 (limit 10, priority 50)
-  = 15 slots
+  1 -> 2 -> 3 -> 4 -> 5
+                     429! peak=5
 
-Vision (auto-routed)
-  glm-4.6v, glm-4.5v, flashx, flash
-  = 24 slots
+  5 -> 2 (halved)
+       |
+  2 -> 3 -> 4 (cap at peak-1)
+                converged
 
-Global cap: 9 concurrent
+After 5 min: ceiling decays, re-probing allowed
 ```
 
 <br>
 
+### Configuration
+
+| Env Var | Default | Description |
+|---|---|---|
+| <code>UPSTREAM_MODEL_LIMITS</code> | (per model) | Concurrent request limits |
+| <code>UPSTREAM_GLOBAL_LIMIT</code> | 9 | Total concurrent cap |
+| <code>UPSTREAM_PROBE_MULTIPLIER</code> | 5 | maxLimit = initial * this |
+
+<br>
+
 <blockquote>
-Total model capacity: <strong>19</strong> (text) + <strong>24</strong> (vision) = <strong>43 slots</strong>, capped by global limit of 9.
+Auto-discovers real upstream limit. Starts conservative, probes upward, backs off on 429.
 </blockquote>
 
 </div>
@@ -709,126 +799,115 @@ Total model capacity: <strong>19</strong> (text) + <strong>24</strong> (vision) 
 
 ---
 
-## Model Fallback Flow
-
-```
-Request: { "model": "glm-5" }
-  |
-  +-- 1. Wait for global slot
-  |     sync.Cond signal-based (zero CPU while waiting)
-  |
-  +-- 2. Try glm-5
-  |     Non-blocking atomic CAS
-  |     Available? -> use it, done
-  |
-  +-- 3. Same-series round-robin (series 5)
-  |     glm-5.1 -> glm-5-turbo -> glm-5
-  |     Pooled candidate slices (sync.Pool, zero alloc)
-  |     Any available? -> use it
-  |
-  +-- 4. Latency pressure check
-  |     EWMA RTT > 1.5x minRTT for majority of series 5?
-  |     YES -> spill to series 4 (glm-4.7, glm-4.6, glm-4.5)
-  |     NO  -> stay in series 5, wait for slot
-  |
-  +-- 5. All full
-        Release global slot (prevent starvation)
-        Block-wait on requested model (30s timeout)
-        Re-acquire global slot
-```
-
-<br>
+## Provider Registry
 
 <div class="cols">
-<div class="feat" style="border-top: 3px solid #06b6d4;">
-<h4>Lock-Free Hot Path</h4>
-<p>Per-model <code>tryAcquire</code> uses atomic CAS. Mutex only serializes limit adjustments (cold path).</p>
-</div>
-<div class="feat" style="border-top: 3px solid #8b5cf6;">
-<h4>sync.Pool</h4>
-<p>Candidate slices pooled and reused. Zero per-request heap allocation on fallback path.</p>
-</div>
-</div>
+<div>
 
----
+### API Key Auth (13 providers)
 
-## Limit Discovery Example
-
-```
-Real upstream limit = 4, initial = 1, probeMultiplier = 5
-
-  1 ---> 2 ---> 3 ---> 4 ---> 5
-  ok     ok     ok     ok     429!
-                         ^
-                         peakBefore429 = 5
-
-  5 ---> 2     (halved)
-          |
-          v
-  2 ---> 3 ---> 4 (cap at peak-1)
-  ok     ok     ok
-                  ^
-                  converged at 4
-
-After 5 min stability: ceiling decays, re-probing allowed
-```
-
-<br>
-
-| Model | Initial | Max (x5) | Priority | Series |
-|---|---|---|---|---|
-| glm-5.1 | 1 | 5 | 100 | 5 |
-| glm-5-turbo | 1 | 5 | 90 | 5 |
-| glm-5 | 2 | 10 | 80 | 5 |
-| glm-4.7 | 2 | 10 | 70 | 4 |
-| glm-4.6 | 3 | 15 | 60 | 4 |
-| glm-4.5 | 10 | 50 | 50 | 4 |
-
----
-
-<!-- _class: lead -->
-
-<h2>17 Providers</h2>
-
-<br>
-
-<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 90%; margin: 0 auto;">
-<span class="chip" style="font-size: 0.9em;">Z.AI (GLM)</span>
-<span class="chip" style="font-size: 0.9em;">Anthropic</span>
-<span class="chip" style="font-size: 0.9em;">OpenAI</span>
-<span class="chip" style="font-size: 0.9em;">Google Gemini</span>
-<span class="chip" style="font-size: 0.9em;">OpenRouter</span>
-<span class="chip chip-purple" style="font-size: 0.9em;">GitHub Copilot</span>
-<span class="chip" style="font-size: 0.9em;">DeepSeek</span>
-<span class="chip chip-purple" style="font-size: 0.9em;">Claude OAuth</span>
-<span class="chip chip-purple" style="font-size: 0.9em;">Gemini OAuth</span>
-<span class="chip chip-purple" style="font-size: 0.9em;">Qwen (Aliyun)</span>
-<span class="chip" style="font-size: 0.9em;">Kimi</span>
-<span class="chip" style="font-size: 0.9em;">Hugging Face</span>
-<span class="chip" style="font-size: 0.9em;">Ollama</span>
-<span class="chip" style="font-size: 0.9em;">AGY</span>
-<span class="chip" style="font-size: 0.9em;">Cursor</span>
-<span class="chip" style="font-size: 0.9em;">CodeBuddy</span>
-<span class="chip" style="font-size: 0.9em;">Kilo</span>
-</div>
-
-<br>
-
-| | API Key | OAuth / Device Code |
+| Provider | Upstream | Default Model |
 |---|---|---|
-| **Auth** | 13 providers | 4 providers (Claude, Gemini, Copilot, Qwen) |
-| **SDK** | Anthropic, OpenAI, Google AI, native | PKCE + device code flows |
-| **Fallback** | Automatic, key-gated | Manual via dashboard |
+| **Anthropic** | api.anthropic.com | claude-sonnet-4 |
+| **OpenAI** | api.openai.com | gpt-4o |
+| **Google Gemini** | generativelanguage.googleapis.com | gemini-2.0-flash |
+| **OpenRouter** | openrouter.ai/api/v1 | openai/gpt-4o |
+| **DeepSeek** | api.deepseek.com | deepseek-chat |
+| **Kimi** | api.moonshot.cn/v1 | moonshot-v1-8k |
+| **Hugging Face** | api-inference.huggingface.co | model repo ID |
+| **Ollama** | localhost:11434 | local model |
+| **AGY, Cursor, CodeBuddy, Kilo** | Various | Various |
+
+</div>
+<div>
+
+### OAuth / Device Code (4 providers)
+
+| Provider | Auth Type | Flow |
+|---|---|---|
+| **Claude (OAuth)** | Auth code + PKCE | platform.claude.com |
+| **Gemini (OAuth)** | Auth code | Google Code Assist |
+| **GitHub Copilot** | Device code | github.com/login/device |
+| **Qwen (Aliyun)** | Device code | dashscope.aliyuncs.com |
 
 <br>
 
-<blockquote>
-Only providers with configured keys join the fallback chain. Add a key = instant integration, zero code changes.
-</blockquote>
+<div class="feat" style="border-left: 3px solid #8b5cf6;">
+<h4>Token Store</h4>
+<p>OAuth tokens persisted in Dragonfly. Background RefreshWorker auto-refreshes expiring tokens. No manual intervention.</p>
+</div>
+
+</div>
+</div>
 
 ---
 
-## Key Rotation & Fallback
+## OAuth Flows
+
+<div class="cols">
+<div>
+
+### Claude OAuth (PKCE)
+
+```
+Dashboard -> "Connect Claude"
+  |
+  v
+Browser opens platform.claude.com
+  |-- authorize URL with PKCE code_challenge
+  |-- User logs in, grants access
+  |-- Redirect back with auth code
+  |
+  v
+Gateway exchanges code -> tokens
+  |-- access_token + refresh_token
+  |-- Store in Dragonfly
+  |-- RefreshWorker auto-refreshes
+```
+
+<br>
+
+**Scopes**: org:create_api_key, user:inference, user:sessions:claude_code, user:profile
+
+</div>
+<div>
+
+### Gemini OAuth (Code Assist)
+
+```
+Dashboard -> "Connect Gemini"
+  |
+  v
+Browser opens accounts.google.com
+  |-- Google OAuth consent
+  |-- Redirect back with code
+  |
+  v
+Gateway exchanges code -> tokens
+  |-- Upstream: cloudcode-pa.googleapis.com
+  |-- (not generativelanguage.googleapis.com)
+```
+
+<br>
+
+### GitHub Copilot (Device Code)
+
+```
+Dashboard -> "Connect Copilot"
+  |
+  v
+Show device code + verification URL
+  |-- User visits github.com/login/device
+  |-- Enters code, authorizes
+  |-- Gateway polls for token
+```
+
+</div>
+</div>
+
+---
+
+## Key Rotation & Provider Fallback
 
 <div class="cols">
 <div>
@@ -865,20 +944,20 @@ Keys: [key1, key2, key3]
 ### Provider Fallback Chain
 
 ```
-Job arrives
+Job arrives for provider X
   |
-  +-- Provider A
-  |     |-- 429 -> rotate key, retry A
+  +-- Provider X
+  |     |-- 429 -> rotate key, retry X
   |     |-- Other error -> next provider
   |
-  +-- Provider B
-  |     |-- 429 -> rotate key, retry B
+  +-- Provider Y
+  |     |-- 429 -> rotate key, retry Y
   |     |-- Other error -> next provider
   |
   +-- ... more providers
   |
   +-- All fail?
-        |-- retries < 3: exponential backoff + jitter, re-enqueue
+        |-- retries < 3: backoff + jitter, re-enqueue
         |-- retries >= 3: store error result
 ```
 
@@ -887,112 +966,154 @@ Job arrives
 **Throughput scaling:**
 
 ```
-1 GLM key              =   5 RPM
-3 GLM keys             =  15 RPM
-3 GLM + 2 OpenAI       = 135 RPM
-All providers           = 400+ RPM
+1 Anthropic key         =  50 RPM
+3 Anthropic keys        = 150 RPM
++ 2 OpenAI keys         = 270 RPM
++ Gemini free tier      =  15 RPM
 ```
 
 </div>
 </div>
 
 ---
+---
 
-## Vision Auto-Routing
+## Token Optimization
 
 <div class="cols">
 <div>
 
+### 6 Techniques (Progressive)
+
 ```
-Client sends image request
-  |
-  v
-Gateway detects image content
-  |-- analyzeImagePayload()
-  |     count images + total base64 bytes
-  |
-  |-- selectVisionModel()
-  |     score = totalKB + (count * 300)
-  |
-  |     score <= 2000 && < 3 imgs
-  |       -> glm-4.6v (10 slots)
-  |
-  |     score > 2000 || >= 3 imgs
-  |       -> glm-4.6v-flashx (3 slots)
-  |
-  |-- Format conversion
-  |     Anthropic -> Zhipu (OpenAI-compat)
-  |     image -> image_url
-  |     system -> prepend to user msg
-  |     strip unsupported types
-  |
-  |-- Send to native Zhipu endpoint
-  |-- SSE stream conversion (real-time)
-  |
-  v
-Client gets Anthropic-format response
+Request enters
+    |
+    v
+[1. Token Estimation] -- chars/ratio by content type
+    |   Code: /2.5  JSON: /2.8  MD: /3.5  Text: /4.0
+    v
+[2. Model Lookup] -- static context window map
+    |   Claude: 200K   GPT-4o: 128K   Gemini: 1M
+    v
+[3. Whitespace Opt] -- double spaces, trailing WS
+    |   ~3-5% token savings, zero cost
+    v
+[4. Deduplication] -- sentence hash + near-duplicate
+    |   3.5% reduction, code blocks preserved
+    v
+[5. Budget Check] -- % of context limit used
+    |   Green (<50%): normal
+    |   Yellow (50-75%): apply opt + dedup
+    |   Red (>75%): force truncation
+    v
+[6. Head/Tail Truncation] -- emergency only
+        40% head + 60% tail preserved
+        71.4% token reduction
 ```
 
 </div>
 <div>
 
-### Dual-Path
+### Measured Results
+
+| Technique | Before | After | Saved |
+|-----------|--------|-------|-------|
+| Whitespace | 1253 tok | 1252 tok | 0.1% |
+| Dedup | 1253 tok | 1209 tok | **3.5%** |
+| Head/Tail Trunc | 4423 tok | 1265 tok | **71.4%** |
+
+<br>
+
+### Budget Thresholds
+
+| Usage | Level | Action |
+|-------|-------|--------|
+| < 50% | GREEN | Normal operation |
+| 50-75% | YELLOW | WS opt + dedup |
+| 80% | Auto | Proactive optimization |
+| > 75% | RED | Force truncation |
+| 90% | Emergency | Aggressive truncation |
+
+<br>
 
 <div class="feat" style="border-left: 3px solid #06b6d4;">
-<h4>Text Path</h4>
-<p><code>api.z.ai/api/anthropic</code><br>
-Anthropic-compatible endpoint</p>
+<h4>Prometheus Metrics</h4>
+<p><code>optimizer_chars_saved_total{technique}</code><br>
+<code>optimizer_runs_total{technique}</code></p>
 </div>
-
-<div class="feat" style="border-left: 3px solid #8b5cf6;">
-<h4>Vision Path</h4>
-<p><code>open.bigmodel.cn/api/paas/v4</code><br>
-Native Zhipu endpoint with format conversion</p>
-</div>
-
-<br>
-
-### Supported Formats
-
-- Anthropic base64: <code>{"type":"image","source":{...}}</code>
-- Anthropic URL: <code>{"type":"image","source":{"type":"url"}}</code>
-- Auto-converted to Zhipu <code>image_url</code> format
-
-<br>
-
-<blockquote>
-Client does nothing different. Gateway handles everything transparently.
-</blockquote>
 
 </div>
 </div>
 
----
 
-## Profile & Quota
+## Profile-Based Routing & Account Pool
 
 <div class="cols">
 <div>
 
-### Profile-Based Routing
-
-<div class="flow-box" style="border-left: 3px solid #06b6d4;">
-<strong>X-Profile Header</strong>
-</div>
+### Routing Flow
 
 ```
 Request with X-Profile: meow
   |
-  Lookup profile:{name} in Redis
+  v
+Handler.Messages()
+  |-- Extract X-Profile header
+  |-- Lookup profile:{name} from Redis
+  |     |
+  |     +-- Found:
+  |     |     Override model, apiKey, baseUrl
+  |     |     Skip key pool + adaptive limiter
+  |     |     Proxy to profile.baseUrl
+  |     |
+  |     +-- Not found:
+  |           Log warning, fall through
   |
-  +-- Found:
-  |     Override model, apiKey, baseUrl
-  |     Skip key pool + model fallback
-  |     Proxy to profile.baseUrl
-  |
-  +-- Not found:
-        Fall through to normal routing
+  +-- No header:
+        Normal routing (key pool + limiter)
 ```
+
+<br>
+
+### Token Authentication
+
+```
+POST /v1/profiles/{name}/tokens
+  |-- Generate arl_<64-hex> token
+  |-- Optional TTL (expiresIn seconds)
+  |-- Reverse lookup: profile_token:<tok> -> name
+  |
+DELETE /v1/profiles/{name}/tokens/{keyName}
+  |-- Revoke token
+```
+
+</div>
+<div>
+
+### Profile CRUD + Extras
+
+| Method | Path | Description |
+|---|---|---|
+| GET | <code>/v1/profiles</code> | List all |
+| POST | <code>/v1/profiles</code> | Create |
+| GET | <code>/v1/profiles/{name}</code> | Get by name |
+| PUT | <code>/v1/profiles/{name}</code> | Update |
+| DELETE | <code>/v1/profiles/{name}</code> | Delete + revoke tokens |
+| POST | <code>/v1/profiles/{name}/copy</code> | Copy (clears API key) |
+| POST | <code>/v1/profiles/{name}/export</code> | Export bundle |
+| POST | <code>/v1/profiles/import</code> | Import from bundle |
+| GET | <code>/v1/profiles/recommended-models</code> | Per-provider list |
+
+<br>
+
+### Recommended Models per Provider
+
+| Provider | Flagship | Standard | Light |
+|---|---|---|---|
+| Claude OAuth | opus-4-7 | sonnet-4 | haiku-4 |
+| Gemini OAuth | 2.5-pro | 2.5-flash | 2.0-flash |
+| OpenAI | o3 | gpt-4o | gpt-4o-mini |
+| DeepSeek | deepseek-chat | - | - |
 
 <br>
 
@@ -1001,41 +1122,136 @@ Request with X-Profile: meow
 <span class="chip">cheap</span>
 <span class="chip">premium</span>
 
-<p style="color: #64748b; font-size: 0.8em;">Route sessions to different providers without changing client config</p>
-
-</div>
-<div>
-
-### Quota Enforcement
-
-```
-CheckQuota(provider, account, model)
-  |
-  +-- >= 95%   429 hard block
-  +-- >= 80%   WS warning (continue)
-  +-- <  80%   proceed normally
-  +--  Error   fail-open
-```
-
-<br>
-
-### Usage Buckets (Redis)
-
-| Bucket | TTL |
-|---|---|
-| Hourly | 48h |
-| Daily | 35d |
-| Monthly | 400d |
-| Session | 35d |
-
-<br>
-
-Auto-recorded via <code>metrics.RecordTokens()</code> callback on every request.
+<p style="color: #64748b; font-size: 0.78em;">Per-profile cost tracking: <code>profile_cost_total{profile, model}</code></p>
 
 </div>
 </div>
 
 ---
+
+## Quota Enforcement & Usage Tracking
+
+<div class="cols">
+<div>
+
+### Quota Enforcement
+
+```
+Messages() handler
+  |
+  Resolve model + provider
+  |
+  CheckQuota(provider, accountID, model)
+  |
+  +-- >= 95%   429 hard block
+  |             Anthropic error format
+  +-- >= 80%   WS quota-warning event
+  |             (soft warning, continue)
+  +-- <  80%   proceed normally
+  +--  Error   fail-open (log + continue)
+```
+
+<br>
+
+<blockquote>
+Fail-open: if Redis is down, quota check logs a warning and the request proceeds. Quota never blocks on infrastructure failure.
+</blockquote>
+
+</div>
+<div>
+
+### Usage Analytics (Redis)
+
+Auto-recorded via <code>metrics.RecordTokens()</code> callback on every request.
+
+| Bucket | Key Pattern | TTL |
+|---|---|---|
+| Hourly | <code>usage:hourly:YYYY-MM-DDTHH</code> | 48h |
+| Daily | <code>usage:daily:YYYY-MM-DD</code> | 35d |
+| Monthly | <code>usage:monthly:YYYY-MM</code> | 400d |
+| Session | <code>usage:sessions:YYYY-MM-DD</code> | 35d |
+
+<br>
+
+### Query Endpoints
+
+| Endpoint | Description |
+|---|---|
+| <code>/v1/usage/summary</code> | Aggregated totals |
+| <code>/v1/usage/hourly</code> | Hourly breakdown |
+| <code>/v1/usage/daily</code> | Last 30 days |
+| <code>/v1/usage/models</code> | Per-model breakdown |
+| <code>/v1/usage/sessions</code> | Session-level usage |
+
+</div>
+</div>
+
+---
+---
+
+## Cost Calculator
+
+<div class="cols">
+<div>
+
+### Per-Request Cost Engine
+
+```
+Request completes
+    |
+    v
+metrics.RecordTokens(model, input, output)
+    |
+    +-- inputCost = input / 1M * price.input
+    +-- outputCost = output / 1M * price.output
+    +-- cost = inputCost + outputCost
+    |
+    v
+Auto-record to Redis time buckets:
+  usage:hourly:YYYY-MM-DDTHH  (TTL 48h)
+  usage:daily:YYYY-MM-DD      (TTL 35d)
+  usage:monthly:YYYY-MM       (TTL 400d)
+  usage:sessions:YYYY-MM-DD   (TTL 35d)
+    |
+    v
+Per-profile tracking:
+  profile_cost_total{profile, model}
+  profile_token_input_total
+  profile_token_output_total
+```
+
+</div>
+<div>
+
+### Model Pricing (USD / 1M tokens)
+
+| Model | Input | Output |
+|-------|-------|--------|
+| claude-opus-4-7 | $15.00 | $75.00 |
+| claude-sonnet-4 | $3.00 | $15.00 |
+| claude-haiku-4 | $0.80 | $4.00 |
+| gpt-4o | $2.50 | $10.00 |
+| gemini-2.5-pro | $1.25 | $10.00 |
+| deepseek-chat | $0.27 | $1.10 |
+
+<p style="color: #64748b; font-size: 0.75em;">Configurable via <code>MODEL_PRICING</code> env var</p>
+
+<br>
+
+### Query Endpoints
+
+| Endpoint | Description |
+|---|---|
+| <code>/v1/usage/summary</code> | Aggregated totals |
+| <code>/v1/usage/hourly</code> | Per-hour breakdown |
+| <code>/v1/usage/daily</code> | Last 30 days |
+| <code>/v1/usage/monthly</code> | Last 12 months |
+| <code>/v1/usage/models</code> | Per-model breakdown |
+| <code>/v1/usage/profiles</code> | Per-profile aggregated |
+
+</div>
+</div>
+
 
 ## Observability
 
@@ -1054,6 +1270,7 @@ Auto-recorded via <code>metrics.RecordTokens()</code> callback on every request.
 | <code>model_fallback_total</code> | Counter |
 | <code>anomaly_total</code> | Counter |
 | <code>upstream_429_total</code> | Counter |
+| <code>upstream_retries_total</code> | Counter |
 | <code>go_goroutines</code> | Gauge |
 | <code>dragonfly_up</code> | Gauge |
 
@@ -1089,6 +1306,15 @@ Z-score ring buffer (1000 samples):
 <span class="chip" style="font-size: 0.75em;">config-changed</span>
 </div>
 
+<br>
+
+### Stack
+
+```
+gateway -> OTel Collector -> Prometheus -> Grafana
+               (:4317)         (:9090)      (:3000)
+```
+
 </div>
 </div>
 
@@ -1099,29 +1325,30 @@ Z-score ring buffer (1000 samples):
 <div class="cols">
 <div>
 
-<div class="feat" style="border-top: 3px solid #06b6d4;">
-<h4>Overview</h4>
-<p>Status cards, global capacity bar, model utilization, key flow monitor (live SVG), event timeline</p>
+### 10 Pages
+
+<div class="feat" style="border-top: 2px solid #06b6d4;">
+<p><strong>Overview</strong> - 4 stat cards, global capacity bar, model utilization, live SVG Key Flow Monitor, event timeline</p>
 </div>
 
-<div class="feat" style="border-top: 3px solid #8b5cf6;">
-<h4>Health</h4>
-<p>6 automated checks: dragonfly, rate-limiter, prometheus, key-pool, upstream, memory</p>
+<div class="feat" style="border-top: 2px solid #8b5cf6;">
+<p><strong>Health</strong> - Circular gauge, 6 auto checks (dragonfly, rate-limiter, prometheus, key-pool, upstream, memory)</p>
 </div>
 
-<div class="feat" style="border-top: 3px solid #4ade80;">
-<h4>Providers</h4>
-<p>OAuth flows, API key management, account CRUD, key status</p>
+<div class="feat" style="border-top: 2px solid #4ade80;">
+<p><strong>Model Limits</strong> - Per-model: in-flight, limit, ceiling, RTT (min + EWMA), 429s, adaptive/pinned</p>
 </div>
 
-<div class="feat" style="border-top: 3px solid #fbbf24;">
-<h4>Usage & Quota</h4>
-<p>Time-bucket analytics, per-model breakdown, per-account quota tracking</p>
+<div class="feat" style="border-top: 2px solid #fbbf24;">
+<p><strong>Key Pool</strong> - RPM, success/error, error rate, status (active/cooldown/error), passthrough mode</p>
 </div>
 
-<div class="feat" style="border-top: 3px solid #f472b6;">
-<h4>Limiter & Config</h4>
-<p>Adaptive limit override, thinking budget, global env, live config editing</p>
+<div class="feat" style="border-top: 2px solid #f472b6;">
+<p><strong>Analytics</strong> - Tokens, cost, dual-axis trend, cost-by-model bars, donut distribution, 24h breakdown</p>
+</div>
+
+<div class="feat" style="border-top: 2px solid #06b6d4;">
+<p><strong>Privacy</strong> - Masked requests, secrets/PII by type, mask duration p95 bar/line charts</p>
 </div>
 
 </div>
@@ -1138,15 +1365,15 @@ Z-score ring buffer (1000 samples):
 
 <br>
 
-### Key Flow Monitor
+### Key Flow Monitor (Live SVG)
 
 ```
-  API Keys        AI Gateway          Models
-+---------+      +=============+    +---------+
-| key-1   | ---> |             | -> | glm-5.1 |
-| key-2   | ---> |  gateway    | -> | glm-5   |
-| key-3   | ---> |  :8080      | -> | glm-4.7 |
-+---------+      +=============+    +---------+
+  API Keys         Gateway           Models
++---------+     +============+    +-----------+
+| Claude  | --> |            | -> | sonnet-4  |
+| OpenAI  | --> |  gateway   | -> | gpt-4o    |
+| Gemini  | --> |  :8080     | -> | gemini-2.0|
++---------+     +============+    +-----------+
 
   Hover key   -> highlight all model paths
   Hover model -> highlight all key paths
@@ -1155,11 +1382,22 @@ Z-score ring buffer (1000 samples):
 
 <br>
 
-<p style="color: #64748b; font-size: 0.8em;">Embedded Vite build served at <code>/admin</code>. Optional cookie-based auth via <code>DASHBOARD_API_KEY</code>.</p>
+### UX Features
+
+| Feature | Shortcut |
+|---|---|
+| Privacy Mode (blur sensitive) | <code>Cmd+P</code> |
+| Command Palette (fuzzy) | <code>Cmd+K</code> |
+| Navigate pages 1-9 | <code>1-9</code> keys |
+| Toggle sidebar | <code>Cmd+B</code> |
+| Refresh data | <code>Cmd+R</code> |
+
+<br>
+
+<p style="color: #64748b; font-size: 0.78em;">i18n: EN + TH (90+ keys) &middot; Polling: 5/10/30/60s &middot; WebSocket: 6 real-time events &middot; Dark/Light/System theme</p>
 
 </div>
 </div>
-
 ---
 
 ## Claude Code Compatibility
@@ -1186,7 +1424,7 @@ Z-score ring buffer (1000 samples):
 </div>
 <div>
 
-### Setup
+### Setup (Direct)
 
 ```json
 // ~/.claude/settings.json
@@ -1198,12 +1436,12 @@ Z-score ring buffer (1000 samples):
 }
 ```
 
-### Profile-Based (Docker)
+### Setup (Profile-based / Docker)
 
 ```json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
+    "ANTHROPIC_BASE_URL": "http://gateway:8080",
     "ANTHROPIC_API_KEY": "<profile-token>"
   }
 }
@@ -1226,69 +1464,25 @@ Gateway   -> pass-through only
 
 ---
 
-## Load Test Results
+## API Routes Summary
 
-<div class="cols">
-<div>
-
-### Test Config
-
-- **1 GLM API key**, 5 RPM limit
-- **19 model slots**, global cap 9
-- **50 worker coroutines**
-- Endpoint: <code>/v1/chat/completions</code>
-
-<br>
-
-### Results
-
-| Agents | Reqs | OK | Time | Key |
-|---|---|---|---|---|
-| 3 | 3 | 100% | 19s | Safe |
-| 5 | 5 | 100% | 33s | Safe |
-| 5x2 | 10 | 100% | 15s | Burst |
-| 10 | 10 | 100% | 32s | Burst |
-
-<br>
-
-<blockquote>
-<strong>Zero 429 errors</strong> across all tests. Key auto-recovers after 60s cooldown.
-</blockquote>
-
-</div>
-<div>
-
-### Model Distribution (10 agents)
-
-```
-glm-5.1      x3  (proactive round-robin)
-glm-5-turbo  x1  (same-series)
-glm-4.7      x2  (spillover)
-glm-4.6      x3  (spillover)
-glm-4.5      x1  (overflow)
-
-10/10 OK, 0 errors
-```
-
-### Bottleneck Hierarchy
-
-```
-1. Provider RPM   5 req/min  (1 key)
-2. Global cap     9 concurrent
-3. Model slots    19 total
-4. Workers        50 coroutines
-```
-
-### How to Scale
-
-| Add | Effect |
-|---|---|
-| GLM keys | +5 RPM each |
-| OpenAI | +120 RPM fallback |
-| Anthropic | +50 RPM fallback |
-
-</div>
-</div>
+| Method | Path | Description |
+|---|---|---|
+| POST | <code>/v1/messages</code> | Sync transparent proxy |
+| POST | <code>/v1/chat/completions</code> | Async enqueue |
+| GET | <code>/v1/results/{id}</code> | Poll async result |
+| GET | <code>/v1/profiles</code> | Profile CRUD |
+| GET | <code>/v1/usage/*</code> | Usage analytics (5 endpoints) |
+| GET | <code>/quota/{provider}</code> | Per-account quota |
+| GET | <code>/v1/overview</code> | Dashboard summary |
+| GET | <code>/v1/health/detailed</code> | 6 health checks |
+| GET/PUT | <code>/v1/config</code> | Server config management |
+| GET/PUT | <code>/v1/thinking</code> | Thinking budget config |
+| GET | <code>/v1/limiter-status</code> | Adaptive limiter state |
+| POST | <code>/v1/limiter-override</code> | Pin/clear model limit |
+| GET | <code>/ws</code> | WebSocket (6 event types) |
+| POST | <code>/v1/auth/*</code> | OAuth + API key auth flows |
+| GET | <code>/admin/*</code> | Dashboard SPA |
 
 ---
 
@@ -1299,7 +1493,7 @@ glm-4.5      x1  (overflow)
 
 ### Service Limits
 
-| Service | Mem | CPU |
+| Service | Memory | CPU |
 |---|---|---|
 | gateway | 512M | 1.0 |
 | rate-limiter | 768M | 1.0 |
@@ -1314,13 +1508,13 @@ glm-4.5      x1  (overflow)
 
 ### Ports
 
-| Port | Service |
-|---|---|
-| **8080** | API Gateway (external) |
-| 6379 | Dragonfly (internal) |
-| 9090 | Worker / Prometheus |
-| 3000 | Grafana (external) |
-| 4317/4318 | OTel Collector |
+| Port | Service | Access |
+|---|---|---|
+| **8080** | API Gateway | External |
+| **3000** | Grafana | External |
+| 6379 | Dragonfly | Internal |
+| 9090 | Worker / Prometheus | Internal |
+| 4317/4318 | OTel Collector | Internal |
 
 <br>
 
@@ -1342,43 +1536,51 @@ glm-4.5      x1  (overflow)
 
 <br>
 
-<h2>Performance Highlights</h2>
+<h2>Highlights</h2>
 
 <br>
 
-<div style="display: flex; gap: 1.2em; justify-content: center; margin-top: 0.8em;">
-<div class="stat-card" style="flex: 1; max-width: 180px;">
-  <div class="num">100%</div>
-  <div class="lbl">Success Rate</div>
-</div>
-<div class="stat-card" style="flex: 1; max-width: 180px;">
-  <div class="num">0</div>
-  <div class="lbl">429 Errors</div>
-</div>
-<div class="stat-card" style="flex: 1; max-width: 180px;">
+<div style="display: flex; gap: 1em; justify-content: center; margin-top: 0.8em;">
+<div class="stat-card" style="flex: 1; max-width: 160px;">
   <div class="num">17</div>
   <div class="lbl">Providers</div>
 </div>
-<div class="stat-card" style="flex: 1; max-width: 180px;">
+<div class="stat-card" style="flex: 1; max-width: 160px;">
+  <div class="num">12</div>
+  <div class="lbl">Secret Types</div>
+</div>
+<div class="stat-card" style="flex: 1; max-width: 160px;">
   <div class="num">21</div>
   <div class="lbl">Metrics</div>
+</div>
+<div class="stat-card" style="flex: 1; max-width: 160px;">
+  <div class="num">6</div>
+  <div class="lbl">Token Opt</div>
+</div>
+<div class="stat-card" style="flex: 1; max-width: 160px;">
+  <div class="num">10</div>
+  <div class="lbl">Dash Pages</div>
 </div>
 </div>
 
 <br>
 
-<div style="display: flex; gap: 1.2em; justify-content: center;">
-<div class="stat-card" style="flex: 1; max-width: 200px;">
-  <div class="num" style="font-size: 1.6em;">Lock-free</div>
+<div style="display: flex; gap: 1em; justify-content: center;">
+<div class="stat-card" style="flex: 1; max-width: 180px;">
+  <div class="num" style="font-size: 1.5em;">Lock-free</div>
   <div class="lbl">Hot Path (atomic CAS)</div>
 </div>
-<div class="stat-card" style="flex: 1; max-width: 200px;">
-  <div class="num" style="font-size: 1.6em;">Signal-based</div>
-  <div class="lbl">Waiting (sync.Cond)</div>
+<div class="stat-card" style="flex: 1; max-width: 180px;">
+  <div class="num" style="font-size: 1.5em;">Fail-open</div>
+  <div class="lbl">Rate Limiter SPOF-safe</div>
 </div>
-<div class="stat-card" style="flex: 1; max-width: 200px;">
-  <div class="num" style="font-size: 1.6em;">Zero</div>
+<div class="stat-card" style="flex: 1; max-width: 180px;">
+  <div class="num" style="font-size: 1.5em;">Zero</div>
   <div class="lbl">Body Modification</div>
+</div>
+<div class="stat-card" style="flex: 1; max-width: 180px;">
+  <div class="num" style="font-size: 1.5em;">71.4%</div>
+  <div class="lbl">Token Savings (truncation)</div>
 </div>
 </div>
 
@@ -1391,7 +1593,7 @@ glm-4.5      x1  (overflow)
 
 <h1 style="font-size: 2.8em;">Thank You</h1>
 
-<hr class="divider">
+<hr class="divider"><hr class="divider">
 
 <p class="subtitle" style="font-size: 1.3em;">AI Gateway</p>
 

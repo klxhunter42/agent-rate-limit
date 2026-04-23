@@ -128,6 +128,10 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 
 	var openaiResp map[string]any
 	if err := json.Unmarshal(body, &openaiResp); err != nil {
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			body = pipeline.UnmaskResponse(body, maskResult)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		w.Write(body)

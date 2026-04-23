@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getPollingInterval } from '@/lib/polling';
 
 interface ErrorLog {
   time: string;
@@ -16,8 +17,10 @@ interface ErrorLog {
 export function LogsPage() {
   const [logs, setLogs] = useState<ErrorLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const firstLoad = useRef(true);
 
   const fetchLogs = useCallback(async () => {
+    if (firstLoad.current) setLoading(true);
     try {
       const res = await fetch('/v1/logs/errors');
       if (!res.ok) throw new Error(`${res.status}`);
@@ -26,14 +29,26 @@ export function LogsPage() {
     } catch {
       setLogs([]);
     } finally {
-      setLoading(false);
+      if (firstLoad.current) {
+        firstLoad.current = false;
+        setLoading(false);
+      }
     }
   }, []);
 
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+
   useEffect(() => {
     fetchLogs();
-    const id = setInterval(fetchLogs, 5_000);
-    return () => clearInterval(id);
+    const schedule = () => {
+      timerRef.current = setInterval(() => {
+        fetchLogs();
+        clearInterval(timerRef.current!);
+        schedule();
+      }, getPollingInterval());
+    };
+    schedule();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [fetchLogs]);
 
   const count4xx = logs.filter((l) => l.status >= 400 && l.status < 500).length;

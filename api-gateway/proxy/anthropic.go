@@ -533,6 +533,10 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 
 	var zhipuResp map[string]any
 	if err := json.Unmarshal(body, &zhipuResp); err != nil {
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			body = pipeline.UnmaskResponse(body, maskResult)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		w.Write(body)
@@ -1056,22 +1060,33 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		}
 		data := line[6:]
 
-		// Unmask content_block_delta text before relaying.
+		// Unmask content_block_delta text/thinking before relaying.
 		if unmasker != nil && strings.Contains(data, `"content_block_delta"`) {
 			var evt struct {
 				Type  string `json:"type"`
 				Index int    `json:"index"`
 				Delta struct {
-					Type string `json:"type"`
-					Text string `json:"text"`
+					Type     string `json:"type"`
+					Text     string `json:"text"`
+					Thinking string `json:"thinking"`
 				} `json:"delta"`
 			}
-			if json.Unmarshal([]byte(data), &evt) == nil && evt.Delta.Text != "" {
-				unmasked := unmasker.ProcessChunk(evt.Delta.Text)
-				if unmasked != evt.Delta.Text {
-					evt.Delta.Text = unmasked
-					if newData, err := json.Marshal(evt); err == nil {
-						line = "data: " + string(newData)
+			if json.Unmarshal([]byte(data), &evt) == nil {
+				if evt.Delta.Text != "" {
+					unmasked := unmasker.ProcessChunk(evt.Delta.Text)
+					if unmasked != evt.Delta.Text {
+						evt.Delta.Text = unmasked
+						if newData, err := json.Marshal(evt); err == nil {
+							line = "data: " + string(newData)
+						}
+					}
+				} else if evt.Delta.Thinking != "" {
+					unmasked := unmasker.ProcessChunk(evt.Delta.Thinking)
+					if unmasked != evt.Delta.Thinking {
+						evt.Delta.Thinking = unmasked
+						if newData, err := json.Marshal(evt); err == nil {
+							line = "data: " + string(newData)
+						}
 					}
 				}
 			}

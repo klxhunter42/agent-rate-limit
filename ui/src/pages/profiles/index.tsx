@@ -368,6 +368,9 @@ ANTHROPIC_AUTH_TOKEN=arl_abc123...`}
   }
 }`}
           </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            Works with both <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> (x-api-key header) and <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> (Authorization: Bearer header). The gateway reads profile tokens from either.
+          </p>
           <ol className="list-decimal list-inside space-y-1 ml-2" start={4}>
             <li>Start the container:</li>
           </ol>
@@ -378,14 +381,14 @@ ANTHROPIC_AUTH_TOKEN=arl_abc123...`}
             <li>Use it:</li>
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# One-shot prompt
-docker exec meow claude -p "พูดไทยได้ปะ"
+{`# One-shot prompt (no --bare needed)
+docker exec meow claude -p "say hello"
 
-# Interactive mode (requires --bare to skip OAuth login)
+# Interactive mode (--bare skips OAuth login)
 docker exec -it meow claude --bare`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            <strong>--bare</strong> is required for interactive mode. It skips OAuth login and uses only <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> from settings. The gateway auto-strips unsupported parameters (effort, thinking) for Haiku.
+            <strong>--bare</strong> is required for interactive mode because Claude Code tries OAuth login first (<a href="https://github.com/anthropics/claude-code/issues/27900" className="underline" target="_blank" rel="noopener">known issue</a>). <code className="bg-muted px-1 rounded text-xs">-p</code> mode uses the API key directly. The gateway auto-strips unsupported parameters (effort, thinking) for Haiku.
           </p>
         </Section>
 

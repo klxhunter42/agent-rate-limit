@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { listAccounts, type AccountInfo } from '@/lib/auth-api';
 import { fetchMetrics, parsePrometheusText, type ParsedMetric } from '@/lib/api';
 import { providerName } from '@/lib/providers';
+import { getPollingInterval } from '@/lib/polling';
 import { LivePulse } from './live-pulse';
 import { ProviderCard, type ProviderStats, getSuccessRate } from './provider-card';
 import { Activity, CheckCircle2, XCircle, Radio, Pause } from 'lucide-react';
@@ -74,8 +75,10 @@ export function LiveAuthMonitor() {
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState(Date.now());
   const [timeLabel, setTimeLabel] = useState('just now');
+  const firstLoad = useRef(true);
 
   const refresh = useCallback(async () => {
+    if (firstLoad.current) setLoading(true);
     try {
       const [accs, text] = await Promise.all([listAccounts(), fetchMetrics()]);
       setAccounts(accs);
@@ -84,15 +87,27 @@ export function LiveAuthMonitor() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'fetch failed');
     } finally {
-      setLoading(false);
+      if (firstLoad.current) {
+        firstLoad.current = false;
+        setLoading(false);
+      }
       setLastFetch(Date.now());
     }
   }, []);
 
+  const authTimerRef = useRef<ReturnType<typeof setInterval>>();
+
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
-    return () => clearInterval(id);
+    const schedule = () => {
+      authTimerRef.current = setInterval(() => {
+        refresh();
+        clearInterval(authTimerRef.current!);
+        schedule();
+      }, getPollingInterval());
+    };
+    schedule();
+    return () => { if (authTimerRef.current) clearInterval(authTimerRef.current); };
   }, [refresh]);
 
   // Update time label every second

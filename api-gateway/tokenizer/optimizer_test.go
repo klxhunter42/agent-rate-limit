@@ -68,13 +68,13 @@ func TestGetModelCapabilities(t *testing.T) {
 		wantOutput   int
 		wantProvider string
 	}{
-		{"claude-opus-4-7", 200000, 32000, "anthropic"},
-		{"claude-sonnet-4-6", 200000, 16000, "anthropic"},
+		{"claude-opus-4-7", 200000, 163840, "anthropic"},
+		{"claude-sonnet-4-6", 200000, 163840, "anthropic"},
 		{"gpt-4o", 128000, 16384, "openai"},
 		{"gemini-2.5-pro", 1048576, 65536, "google"},
 		{"glm-4-plus", 128000, 4096, "zai"},
 		{"unknown-model-xyz", 128000, 4096, "unknown"},
-		{"claude-opus-4-7-20250514", 200000, 32000, "anthropic"}, // prefix match
+		{"claude-opus-4-7-20250514", 200000, 163840, "anthropic"}, // prefix match
 	}
 
 	for _, tt := range tests {

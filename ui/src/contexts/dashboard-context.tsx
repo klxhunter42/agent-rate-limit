@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useContext, type ReactNode } from 'react';
 import { fetchLimiterStatus, fetchHealth, type ModelStatus, type HealthStatus, type GlobalStatus, type KeyPoolStatus } from '@/lib/api';
+import { getPollingInterval } from '@/lib/polling';
 
 interface DashboardData {
   models: ModelStatus[];
@@ -37,9 +38,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const firstLoad = useRef(true);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    if (firstLoad.current) setLoading(true);
     setError(null);
     try {
       const [limiterRes, healthRes] = await Promise.allSettled([fetchLimiterStatus(), fetchHealth()]);
@@ -62,14 +64,26 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       if (healthRes.status === 'fulfilled') setHealth(healthRes.value);
       setLastRefresh(new Date());
     } finally {
-      setLoading(false);
+      if (firstLoad.current) {
+        firstLoad.current = false;
+        setLoading(false);
+      }
     }
   }, []);
 
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 5000);
-    return () => clearInterval(id);
+    const schedule = () => {
+      timerRef.current = setInterval(() => {
+        refresh();
+        clearInterval(timerRef.current!);
+        schedule();
+      }, getPollingInterval());
+    };
+    schedule();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [refresh]);
 
   return (

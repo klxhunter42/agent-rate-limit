@@ -19,6 +19,7 @@ const (
 	configOverridesKey  = "config:overrides"
 	thinkingConfigKey   = "config:thinking"
 	globalEnvKey        = "config:global-env"
+	maxTokensConfigKey  = "config:max-tokens"
 	redactedPlaceholder = "[redacted]"
 )
 
@@ -54,6 +55,11 @@ type GlobalEnv struct {
 	Env     map[string]string `json:"env"`
 }
 
+// MaxTokensConfig holds per-model max_tokens overrides.
+type MaxTokensConfig struct {
+	Models map[string]int `json:"models"`
+}
+
 // ConfigHandler provides config/settings API endpoints.
 type ConfigHandler struct {
 	cfg   *config.Config
@@ -84,6 +90,8 @@ func (ch *ConfigHandler) Routes(r chi.Router) {
 	r.Put("/v1/thinking", ch.UpdateThinking)
 	r.Get("/v1/global-env", ch.GetGlobalEnv)
 	r.Put("/v1/global-env", ch.UpdateGlobalEnv)
+	r.Get("/v1/max-tokens", ch.GetMaxTokens)
+	r.Put("/v1/max-tokens", ch.UpdateMaxTokens)
 }
 
 // GetConfig returns the current config with secrets redacted.
@@ -317,6 +325,77 @@ func isSensitiveKey(k string) bool {
 		strings.Contains(lower, "secret") ||
 		strings.Contains(lower, "token") ||
 		strings.Contains(lower, "password")
+}
+
+// GetMaxTokens returns hardcoded defaults, stored overrides, and effective values.
+func (ch *ConfigHandler) GetMaxTokens(w http.ResponseWriter, r *http.Request) {
+	defaults := copyIntMap(GetModelMaxTokensDefaults())
+	overrides := ch.loadMaxTokensConfig()
+
+	effective := copyIntMap(defaults)
+	for k, v := range overrides.Models {
+		effective[k] = v
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"defaults":  defaults,
+		"overrides": overrides.Models,
+		"effective": effective,
+	})
+}
+
+// UpdateMaxTokens stores per-model max_tokens overrides and applies them immediately.
+func (ch *ConfigHandler) UpdateMaxTokens(w http.ResponseWriter, r *http.Request) {
+	if ch.redis == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "redis not available"})
+		return
+	}
+
+	var tc MaxTokensConfig
+	if err := json.NewDecoder(r.Body).Decode(&tc); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if tc.Models == nil {
+		tc.Models = make(map[string]int)
+	}
+
+	data, _ := json.Marshal(tc)
+	if err := ch.redis.Set(r.Context(), maxTokensConfigKey, data, 0).Err(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save: " + err.Error()})
+		return
+	}
+
+	ApplyMaxTokensOverrides(tc.Models)
+	writeJSON(w, http.StatusOK, map[string]any{"applied": tc.Models})
+}
+
+// LoadAndApplyMaxTokens loads overrides from Redis and applies them. Call at startup.
+func (ch *ConfigHandler) LoadAndApplyMaxTokens() {
+	tc := ch.loadMaxTokensConfig()
+	if len(tc.Models) > 0 {
+		ApplyMaxTokensOverrides(tc.Models)
+	}
+}
+
+func (ch *ConfigHandler) loadMaxTokensConfig() MaxTokensConfig {
+	if ch.redis == nil {
+		return MaxTokensConfig{Models: make(map[string]int)}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	data, err := ch.redis.Get(ctx, maxTokensConfigKey).Bytes()
+	if err != nil {
+		return MaxTokensConfig{Models: make(map[string]int)}
+	}
+	var tc MaxTokensConfig
+	if err := json.Unmarshal(data, &tc); err != nil {
+		return MaxTokensConfig{Models: make(map[string]int)}
+	}
+	if tc.Models == nil {
+		tc.Models = make(map[string]int)
+	}
+	return tc
 }
 
 func copyIntMap(m map[string]int) map[string]int {

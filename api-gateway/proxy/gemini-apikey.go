@@ -134,6 +134,10 @@ func (p *GeminiAPIProxy) handleGeminiResponse(w http.ResponseWriter, resp *http.
 
 	var gResp geminiResponse
 	if err := json.Unmarshal(body, &gResp); err != nil {
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+			body = pipeline.UnmaskResponse(body, maskResult)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(body)
