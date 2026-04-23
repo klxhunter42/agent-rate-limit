@@ -61,7 +61,7 @@ type HealthResponse struct {
 
 // ErrorLogEntry stores a single error record.
 type ErrorLogEntry struct {
-	Timestamp  string `json:"timestamp"`
+	Timestamp  string `json:"time"`
 	Method     string `json:"method"`
 	Path       string `json:"path"`
 	Status     int    `json:"status"`
@@ -312,6 +312,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+		if profileName != "" {
+			*r = *r.WithContext(context.WithValue(r.Context(), profileCtxKey{}, profileName))
+		}
+
 	var apiKey string
 	var decision *provider.RoutingDecision
 	var selectedTokenInfo *provider.TokenInfo
@@ -446,8 +450,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		applySmartMaxTokens(payload, selectedModel)
 	}
 
-	// Strip fields unsupported by all upstreams.
-	stripUnsupportedFields(payload)
+	// Strip fields unsupported by non-Anthropic upstreams.
+	// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
+	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
+	stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
+	slog.Info("strip debug", "model", selectedModel, "has_effort", payload["effort"] != nil, "has_thinking", payload["thinking"] != nil, "has_budget", payload["budget_tokens"] != nil)
 
 	// Strip content block types unsupported by upstream (only needed for Z.AI).
 	if h.cfg.GLMMode {
@@ -584,15 +591,23 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			h.wsBroadcast("request-completed", map[string]any{"model": selectedModel, "statusCode": statusCode, "rtt_ms": rtt.Milliseconds()})
 		}
 		// Capture Anthropic unified rate limit utilization from upstream response headers.
-		if statusCode >= 200 && statusCode < 300 && selectedTokenInfo != nil {
+		if statusCode >= 200 && statusCode < 300 {
 			u5h := headers.Get("anthropic-ratelimit-unified-5h-utilization")
 			u7d := headers.Get("anthropic-ratelimit-unified-7d-utilization")
 			rlStatus := headers.Get("anthropic-ratelimit-unified-status")
 			fbPct := headers.Get("anthropic-ratelimit-unified-fallback-percentage")
 			if u5h != "" || u7d != "" || rlStatus != "" {
-				prov := selectedTokenInfo.Provider
-				accID := selectedTokenInfo.AccountID
-				go h.storeRateLimitStatus(prov, accID, u5h, u7d, rlStatus, fbPct)
+				prov := ""
+				accID := ""
+				if selectedTokenInfo != nil {
+					prov = selectedTokenInfo.Provider
+					accID = selectedTokenInfo.AccountID
+				} else if decision != nil {
+					prov = decision.ProviderID
+				}
+				if prov != "" && accID != "" {
+					go h.storeRateLimitStatus(prov, accID, u5h, u7d, rlStatus, fbPct)
+				}
 			}
 		}
 	}
@@ -798,7 +813,19 @@ func (h *Handler) storeRateLimitStatus(provider, accountID, u5h, u7d, status, fb
 	p5h, _ := strconv.ParseFloat(u5h, 64)
 	p7d, _ := strconv.ParseFloat(u7d, 64)
 	pfb, _ := strconv.ParseFloat(fbPct, 64)
-	data, err := json.Marshal(RateLimitStatus{
+	// Normalize: Anthropic sends utilization as percentage (0-100).
+	// If parsed value is <= 1, treat as fraction and convert to percent.
+	if p5h > 0 && p5h <= 1 {
+		p5h *= 100
+	}
+	if p7d > 0 && p7d <= 1 {
+		p7d *= 100
+	}
+	if pfb > 0 && pfb <= 1 {
+		pfb *= 100
+	}
+	slog.Info("ratelimit headers stored", "provider", provider, "account", accountID, "raw_5h", u5h, "raw_7d", u7d, "parsed_5h", p5h, "parsed_7d", p7d, "status", status)
+	rl := RateLimitStatus{
 		Provider:    provider,
 		AccountID:   accountID,
 		Util5h:      p5h,
@@ -806,13 +833,17 @@ func (h *Handler) storeRateLimitStatus(provider, accountID, u5h, u7d, status, fb
 		Status:      status,
 		FallbackPct: pfb,
 		UpdatedAt:   time.Now().UTC(),
-	})
+	}
+	data, err := json.Marshal(rl)
 	if err != nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	h.tokenStore.Client().Set(ctx, rateLimitKeyPrefix+provider+":"+accountID, data, 6*time.Hour)
+	if h.wsBroadcast != nil {
+		h.wsBroadcast("ratelimit-updated", rl)
+	}
 }
 
 // GetRateLimits returns cached Anthropic rate limit utilization for all accounts.
@@ -889,16 +920,49 @@ var unsupportedContentTypes = map[string]bool{
 	"server_tool_use": true,
 }
 
-// unsupportedTopLevelFields are request fields Claude Code sends that Z.AI rejects.
+// unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
 var unsupportedTopLevelFields = []string{
 	"context_management",
 	"service_tier",
 }
 
 // stripUnsupportedFields removes top-level request fields that upstream APIs reject.
-func stripUnsupportedFields(payload map[string]any) {
+// nativeAnthropic: if true, keep context_management (Anthropic supports it natively).
+func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model string) {
 	for _, f := range unsupportedTopLevelFields {
+		if f == "context_management" && nativeAnthropic {
+			continue
+		}
 		delete(payload, f)
+	}
+	// Strip thinking params for models that don't support extended thinking.
+	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
+		delete(payload, "thinking")
+		delete(payload, "budget_tokens")
+		delete(payload, "effort")
+		// Strip effort from nested output_config.
+		if oc, ok := payload["output_config"].(map[string]any); ok {
+			delete(oc, "effort")
+		}
+		// Strip context_management edits that require thinking.
+		if cm, ok := payload["context_management"].(map[string]any); ok {
+			if edits, ok := cm["edits"].([]any); ok {
+				var kept []any
+				for _, e := range edits {
+					if m, ok := e.(map[string]any); ok {
+						if t, _ := m["type"].(string); strings.Contains(t, "thinking") {
+							continue
+						}
+					}
+					kept = append(kept, e)
+				}
+				if len(kept) == 0 {
+					delete(payload, "context_management")
+				} else {
+					cm["edits"] = kept
+				}
+			}
+		}
 	}
 }
 
