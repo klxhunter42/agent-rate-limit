@@ -152,6 +152,8 @@ const AUTH_TYPE_STYLES: Record<string, string> = {
   'Session Cookie': 'bg-purple-500/10 text-purple-500',
 };
 
+import { useWSRefresh } from '@/hooks/use-ws-refresh';
+
 export default function ProvidersPage() {
   const { glmMode } = useDashboard();
   const [accountsMap, setAccountsMap] = useState<Record<string, authApi.AccountInfo[]>>({});
@@ -179,8 +181,12 @@ export default function ProvidersPage() {
     }
   }, []);
 
+  useWSRefresh('ratelimit-updated', loadAccounts);
+
   useEffect(() => {
     loadAccounts();
+    const timer = setInterval(loadAccounts, 30_000);
+    return () => clearInterval(timer);
   }, [loadAccounts]);
 
   useEffect(() => {

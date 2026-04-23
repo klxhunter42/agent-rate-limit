@@ -525,3 +525,62 @@ curl -X POST http://localhost:8080/v1/messages \
 ---
 
 *Transparent Proxy v2.7 -- profile-based routing, quota enforcement, usage recording integration, 6 WebSocket event types, Z.AI pricing update (19 models), UPSTREAM_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*
+
+### Claude Code + Profile (Docker container with Haiku)
+
+สำหรับกรณีใช้ profile routing ผ่าน gateway (เช่น meow profile → Haiku):
+
+**1. สร้าง profile ใน Redis**
+
+```bash
+# ผ่าน API
+curl -X POST http://localhost:8080/v1/profiles \
+  -H "content-type: application/json" \
+  -d '{
+    "name": "meow",
+    "model": "claude-haiku-4-5-20251001",
+    "target": "claude-oauth",
+    "provider": "claude-oauth",
+    "accountIds": ["claude-oauth_NDg-0p95EgAA"]
+  }'
+```
+
+**2. สร้าง profile API token**
+
+```bash
+# ได้ arl_* token กลับมา
+curl -X POST http://localhost:8080/v1/profiles/meow/token
+```
+
+**3. สร้าง settings.json ใน container**
+
+```json
+// ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
+    "ANTHROPIC_API_KEY": "arl_<token-from-step-2>"
+  }
+}
+```
+
+**4. ใช้งาน**
+
+```bash
+# One-shot prompt
+docker exec agent-rate-limit-claude-code-meow-run-XXX claude -p "พูดไทยได้ปะ"
+
+# Interactive mode (ต้องใช้ --bare เพื่อข้าม OAuth login)
+docker exec -it agent-rate-limit-claude-code-meow-run-XXX claude --bare
+```
+
+**สำคัญ:** ต้องใช้ `--bare` สำหรับ interactive mode เพราะ:
+- `claude` interactive จะเช็ค OAuth session ก่อน → ถ้าไม่มีจะขอ login
+- `--bare` ข้าม OAuth flow ทั้งหมด ใช้แค่ `ANTHROPIC_API_KEY` จาก settings.json
+- `-p` mode ไม่ต้องใช้ `--bare` เพราะมันยิงตรงด้วย API key อยู่แล้ว
+
+**Gateway จัดการให้อัตโนมัติสำหรับ Haiku:**
+- Strip `effort` parameter (จาก `output_config.effort` + top-level)
+- Strip `thinking`, `budget_tokens` parameters
+- Strip `clear_thinking_*` edits จาก `context_management`
+- Strip `effort-*` และ `interleaved-thinking-*` beta flags จาก `anthropic-beta` header
