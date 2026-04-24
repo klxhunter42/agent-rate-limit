@@ -25,8 +25,9 @@ http://:{$PROXY_PORT:9000} {
 		reverse_proxy arl-gateway:8080
 	}
 
-	# Grafana (preserve /grafana/ prefix for sub-path mode)
-	handle /grafana/* {
+	# Grafana
+	@grafana path /grafana /grafana/*
+	handle @grafana {
 		reverse_proxy arl-grafana:3000
 	}
 
