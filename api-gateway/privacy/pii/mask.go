@@ -27,22 +27,15 @@ func MaskPII(text string, entities []masking.PIIEntity, ctx *masking.MaskContext
 		}
 	}
 
-	masked := masking.ReplaceWithPlaceholdersScored(text, scored, func(_ int, original string) string {
+	masked := masking.ReplaceWithPlaceholdersScored(text, scored, func(_ int, original string, entityType string) string {
 		if ph, ok := ctx.ReverseMap[original]; ok {
 			return ph
 		}
-		ph := ctx.NextPlaceholder(entityType(entities))
+		ph := ctx.NextPlaceholder(entityType)
 		ctx.Mapping[ph] = original
 		ctx.ReverseMap[original] = ph
 		return ph
 	})
 
 	return MaskResult{MaskedText: masked, Context: ctx}
-}
-
-func entityType(entities []masking.PIIEntity) string {
-	if len(entities) > 0 {
-		return entities[0].EntityType
-	}
-	return "PII"
 }

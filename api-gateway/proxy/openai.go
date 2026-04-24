@@ -254,7 +254,16 @@ func (p *OpenAIProxy) relayOpenAIStream(w http.ResponseWriter, resp *http.Respon
 		}
 	}
 
-	// Flush remaining unmasker buffer.
+	// Flush remaining unmasker buffer if stream ended without [DONE].
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			if started {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			}
+		}
+	}
+
 	if inputTokens > 0 || outputTokens > 0 {
 		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 	}

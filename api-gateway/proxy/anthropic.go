@@ -681,7 +681,19 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		}
 	}
 
-	// Flush remaining unmasker buffer.
+	// Flush remaining unmasker buffer if stream ended without [DONE].
+	if unmasker != nil {
+		if remaining := unmasker.Flush(); remaining != "" {
+			if started {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+		}
+	}
+
 	if inputTokens > 0 || outputTokens > 0 {
 		p.metrics.RecordTokens(resp.Request.Context(), model, inputTokens, outputTokens)
 		slog.Info("vision stream token usage", "model", model, "input", inputTokens, "output", outputTokens)
@@ -752,17 +764,20 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	slog.Debug("request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "max_output", modelCap.MaxOutputTokens)
 
 	// Optimize system prompt in body if present.
-	if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
-		if sys, ok := bodyMap["system"].(string); ok && sys != "" {
-			optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
-			optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
-			if wsSaved > 0 || dedupSaved > 0 {
-				bodyMap["system"] = optSys
-				if newBody, err := json.Marshal(bodyMap); err == nil {
-					body = newBody
-					slog.Debug("transparent prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved)
-					p.metrics.RecordOptimization("whitespace", wsSaved)
-					p.metrics.RecordOptimization("dedup", dedupSaved)
+	// Skip when masking is active to avoid corrupting placeholders.
+	if maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII) {
+		if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
+			if sys, ok := bodyMap["system"].(string); ok && sys != "" {
+				optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
+				optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
+				if wsSaved > 0 || dedupSaved > 0 {
+					bodyMap["system"] = optSys
+					if newBody, err := json.Marshal(bodyMap); err == nil {
+						body = newBody
+						slog.Debug("transparent prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved)
+						p.metrics.RecordOptimization("whitespace", wsSaved)
+						p.metrics.RecordOptimization("dedup", dedupSaved)
+					}
 				}
 			}
 		}
@@ -1016,17 +1031,17 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		)
 	}
 
-	// Trim verbose patterns if enabled.
+	// Unmask secrets/PII placeholders before trimming so placeholders stay intact.
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		body = pipeline.UnmaskResponse(body, maskResult)
+	}
+
+	// Trim verbose patterns after unmasking.
 	if p.cfg.EnableResponseTrim {
 		if trimmed := trimResponse(body); trimmed != nil {
 			body = trimmed
 		}
-	}
-
-	// Unmask secrets/PII placeholders before sending to client.
-	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
-		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-		body = pipeline.UnmaskResponse(body, maskResult)
 	}
 
 	_, err = w.Write(body)
