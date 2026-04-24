@@ -1,0 +1,42 @@
+http://:{$PROXY_PORT:9000} {
+	# API Gateway (streaming)
+	handle /v1/* {
+		reverse_proxy arl-gateway:8080 {
+			flush_interval -1
+		}
+	}
+	handle /health {
+		reverse_proxy arl-gateway:8080
+	}
+	handle /api/* {
+		reverse_proxy arl-gateway:8080 {
+			flush_interval -1
+		}
+	}
+	handle /metrics {
+		reverse_proxy arl-gateway:8080
+	}
+	handle /callback {
+		reverse_proxy arl-gateway:8080
+	}
+
+	# WebSocket
+	handle /ws {
+		reverse_proxy arl-gateway:8080
+	}
+
+	# Grafana (preserve /grafana/ prefix for sub-path mode)
+	handle /grafana/* {
+		reverse_proxy arl-grafana:3000
+	}
+
+	# Rate Limiter Dashboard (strip /rl prefix)
+	handle_path /rl/* {
+		reverse_proxy arl-rl-dashboard:8080
+	}
+
+	# Main Dashboard (catch-all)
+	handle {
+		reverse_proxy arl-dashboard:5173
+	}
+}

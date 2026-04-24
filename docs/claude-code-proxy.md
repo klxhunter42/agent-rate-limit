@@ -375,29 +375,48 @@ Supported image formats:
 - Anthropic base64: `{"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}`
 - Anthropic URL: `{"type":"image","source":{"type":"url","url":"https://..."}}`
 
-### Claude Code → Gateway
+### Claude Code -> Gateway
 
 ```json
 // ~/.claude/settings.json
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:8080",
-    "ANTHROPIC_AUTH_TOKEN": "your-api-key"
+    "ANTHROPIC_API_KEY": "arl_<profile-token>"
   }
 }
 ```
 
-### Claude Code → Gateway (Docker container)
+### Claude Code -> Gateway (Docker container)
 
 ```json
 // ~/.claude/settings.json (ใน container)
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://192.168.5.62:8080",
-    "ANTHROPIC_AUTH_TOKEN": "your-api-key"
+    "ANTHROPIC_BASE_URL": "http://arl-proxy:9000",
+    "ANTHROPIC_API_KEY": "placeholder"
   }
 }
 ```
+
+> Entrypoint auto-provisions token และเขียนค่าจริงทับ placeholder
+
+### ทำไมใช้ `ANTHROPIC_API_KEY` ไม่ใช่ `ANTHROPIC_AUTH_TOKEN`
+
+Gateway รองรับทั้งสองช่องทาง (x-api-key + Authorization: Bearer) แต่ควรใช้ `ANTHROPIC_API_KEY`:
+
+| | `ANTHROPIC_API_KEY` | `ANTHROPIC_AUTH_TOKEN` |
+|---|---|---|
+| Header ที่ส่ง | `x-api-key: arl_xxx` | `Authorization: Bearer arl_xxx` |
+| OAuth header เพิ่มเติม | ไม่มี | `anthropic-beta: oauth-2025-04-20` |
+| Token refresh behavior | ไม่พยายาม refresh | Claude Code พยายาม refresh เมื่อ 401 |
+| Gateway profile resolve | ทำงานปกติ | ทำงานปกติ (เช็คเมื่อ x-api-key ว่าง) |
+| Upstream confusion risk | ไม่มี | Anthropic เห็น oauth beta header แต่ได้ profile token = อาจ reject |
+
+**เหตุผลหลัก:**
+1. `ANTHROPIC_AUTH_TOKEN` ทำให้ Claude Code ส่ง `anthropic-beta: oauth-2025-04-20` header ไปด้วย -> gateway forward ต่อไป upstream -> Anthropic ตีความว่าเป็น OAuth token จริง แต่ได้ `arl_xxx` = invalid
+2. Claude Code จะพยายาม refresh token เมื่อโดน 401 (OAuth flow) ซึ่งไม่ต้องการเพราะ `arl_` token ไม่ใช่ OAuth token
+3. `ANTHROPIC_API_KEY` ส่ง `x-api-key` header เฉยๆ ไม่มี side effect -> gateway จับ profile token ได้สะอาด
 
 ### Gateway → Upstream
 
@@ -558,13 +577,13 @@ curl -X POST http://localhost:8080/v1/profiles/meow/token
 // ~/.claude/settings.json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
+    "ANTHROPIC_BASE_URL": "http://arl-proxy:9000",
     "ANTHROPIC_API_KEY": "arl_<token-from-step-2>"
   }
 }
 ```
 
-> รองรับทั้ง `ANTHROPIC_API_KEY` (x-api-key header) และ `ANTHROPIC_AUTH_TOKEN` (Authorization: Bearer header). Gateway อ่าน profile token จากทั้งสองช่องทางได้.
+> ใช้ `ANTHROPIC_API_KEY` ไม่ใช่ `ANTHROPIC_AUTH_TOKEN` (ดูเหตุผลด้านบน)
 
 **4. ใช้งาน**
 

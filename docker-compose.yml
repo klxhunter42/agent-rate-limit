@@ -2,8 +2,8 @@
 # Multi-Agent AI Rate-Limited System - Production Docker Compose
 # Architecture: Client -> API Gateway (Go) -> Rate Limiter -> Dragonfly -> Python Workers -> AI Provider
 #
-# External ports:  arl-gateway (8080), arl-grafana (3000), arl-rl-dashboard (8081), arl-dashboard (8082)
-# Internal only:   arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
+# External ports:  arl-proxy (9000)
+# Internal only:   arl-gateway, arl-grafana, arl-rl-dashboard, arl-dashboard, arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
 # =============================================================================
 
 version: "3.9"
@@ -23,13 +23,11 @@ services:
       dockerfile: Dockerfile
     container_name: arl-gateway
     restart: always
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
     environment:
       <<: *common-env
       SERVER_PORT: ":8080"
-      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:8082}
-      OAUTH_CALLBACK_BASE: ${OAUTH_CALLBACK_BASE:-http://127.0.0.1:8080}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:9000}
+      OAUTH_CALLBACK_BASE: ${OAUTH_CALLBACK_BASE:-http://127.0.0.1:9000}
       GLOBAL_RATE_LIMIT: ${GLOBAL_RATE_LIMIT:-100}
       AGENT_RATE_LIMIT: ${AGENT_RATE_LIMIT:-5}
       WORKER_POOL_SIZE: ${WORKER_POOL_SIZE:-100}
@@ -263,12 +261,12 @@ services:
     image: grafana/grafana:11.3.0
     container_name: arl-grafana
     restart: always
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_LOG_LEVEL: "warn"
+      GF_SERVER_ROOT_URL: ${PROXY_SCHEME:-http}://${EXTERNAL_HOST:-localhost}:${PROXY_PORT:-9000}/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - arl-grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -323,8 +321,6 @@ services:
       dockerfile: Dockerfile
     container_name: arl-rl-dashboard
     restart: always
-    ports:
-      - "8081:8080"
     depends_on:
       arl-rate-limiter:
         condition: service_healthy
@@ -351,8 +347,6 @@ services:
       dockerfile: Dockerfile.dev
     container_name: arl-dashboard
     restart: always
-    ports:
-      - "${DASHBOARD_PORT:-8082}:5173"
     volumes:
       - ./ui/src:/app/src:ro
       - ./ui/public:/app/public:ro
@@ -444,6 +438,43 @@ services:
       - arl-network
     stdin_open: true
     tty: true
+
+  # --- Central Proxy (Caddy) ---
+  arl-proxy:
+    image: caddy:2-alpine
+    container_name: arl-proxy
+    restart: always
+    ports:
+      - "${PROXY_PORT:-9000}:${PROXY_PORT:-9000}"
+    volumes:
+      - ./docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      PROXY_HOST: "0.0.0.0"
+      PROXY_PORT: "${PROXY_PORT:-9000}"
+    depends_on:
+      arl-gateway:
+        condition: service_healthy
+      arl-dashboard:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PROXY_PORT:-9000}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+        reservations:
+          memory: 32M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - arl-network
 
 networks:
   arl-network:

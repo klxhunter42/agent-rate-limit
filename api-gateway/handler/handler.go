@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -422,19 +423,29 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	h.modelLimiter.RecordSeenModel(selectedModel)
 
 	if selectedModel != requestedModel {
-		payload["model"] = selectedModel
-		h.metrics.RecordFallback(requestedModel, selectedModel)
-		slog.Info("model fallback",
-			"requested", requestedModel,
-			"selected", selectedModel,
-		)
-		// Re-resolve provider for the fallback model.
-		if h.resolver != nil {
-			if fb := h.resolver.Resolve(selectedModel); fb != nil {
-				decision = fb
-				if profileOverride == nil || profileOverride.APIKey == "" {
-					if fb.APIKey != "" {
-						apiKey = fb.APIKey
+		// Prevent cross-provider fallback (e.g. claude -> glm or glm -> claude).
+		reqIsGLM := strings.HasPrefix(requestedModel, "glm-")
+		selIsGLM := strings.HasPrefix(selectedModel, "glm-")
+		if reqIsGLM != selIsGLM {
+			slog.Warn("cross-provider fallback prevented",
+				"requested", requestedModel,
+				"fallback_was", selectedModel,
+			)
+		} else {
+			payload["model"] = selectedModel
+			h.metrics.RecordFallback(requestedModel, selectedModel)
+			slog.Info("model fallback",
+				"requested", requestedModel,
+				"selected", selectedModel,
+			)
+			// Re-resolve provider for the fallback model.
+			if h.resolver != nil {
+				if fb := h.resolver.Resolve(selectedModel); fb != nil {
+					decision = fb
+					if profileOverride == nil || profileOverride.APIKey == "" {
+						if fb.APIKey != "" {
+							apiKey = fb.APIKey
+						}
 					}
 				}
 			}
@@ -530,6 +541,47 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	profileOpts.OnAuthError = oauthRefreshFn
 
+	// Account rotation callback: on 429, pick a different account from the pool.
+	rotateAccountFn := func(oldKey string) (string, bool) {
+		pid := ""
+		var accountIDs []string
+		if profileOverride != nil {
+			pid = profileOverride.Provider
+			if pid == "" {
+				pid = profileOverride.Target
+			}
+			accountIDs = profileOverride.AccountIDs
+		} else if decision != nil {
+			pid = decision.ProviderID
+		}
+		if pid == "" || h.tokenStore == nil {
+			return "", false
+		}
+		if len(accountIDs) == 0 {
+			tokens, err := h.tokenStore.ListByProvider(pid)
+			if err != nil || len(tokens) <= 1 {
+				return "", false
+			}
+			for _, t := range tokens {
+				if !t.Paused && t.AccessToken != oldKey {
+					slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
+					return t.AccessToken, true
+				}
+			}
+			return "", false
+		}
+		if len(accountIDs) <= 1 {
+			return "", false
+		}
+		tok, err := h.tokenStore.GetFromPool(pid, accountIDs)
+		if err != nil || tok == nil || tok.AccessToken == oldKey {
+			return "", false
+		}
+		slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID)
+		return tok.AccessToken, true
+	}
+	profileOpts.OnRateLimitError = rotateAccountFn
+
 	// Resolve CodeAssist project ID for gemini-oauth requests.
 	codeAssistProjectID := ""
 	if (decision != nil && decision.ProviderID == "gemini-oauth") && selectedTokenInfo != nil {
@@ -592,7 +644,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			h.wsBroadcast("request-completed", map[string]any{"model": selectedModel, "statusCode": statusCode, "rtt_ms": rtt.Milliseconds()})
 		}
 		// Capture Anthropic unified rate limit utilization from upstream response headers.
-		if statusCode >= 200 && statusCode < 300 {
+		// On 2xx: store fresh rate limit data. On 429: expire stale cache to prevent stuck 100%.
+		{
 			hasRL := false
 			for k := range headers {
 				if strings.HasPrefix(strings.ToLower(k), "anthropic-ratelimit") {
@@ -600,17 +653,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			if hasRL {
-				prov := ""
-				accID := ""
-				if selectedTokenInfo != nil {
-					prov = selectedTokenInfo.Provider
-					accID = selectedTokenInfo.AccountID
-				} else if decision != nil {
-					prov = decision.ProviderID
-				}
-				if prov != "" && accID != "" {
+			prov := ""
+			accID := ""
+			if selectedTokenInfo != nil {
+				prov = selectedTokenInfo.Provider
+				accID = selectedTokenInfo.AccountID
+			} else if decision != nil {
+				prov = decision.ProviderID
+			}
+			if prov != "" && accID != "" {
+				if hasRL && statusCode >= 200 && statusCode < 300 {
 					go h.storeRateLimitStatus(prov, accID, headers)
+				} else if statusCode == 429 {
+					go h.expireStaleRateLimit(prov, accID)
 				}
 			}
 		}
@@ -669,6 +724,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				UpstreamOverride: visionDecision.UpstreamURL,
 				ExtraHeaders:     visionDecision.ExtraHeaders,
 				OnAuthError:      oauthRefreshFn,
+				OnRateLimitError: rotateAccountFn,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("vision proxy error", "error", err)
@@ -701,6 +757,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				UpstreamOverride: decision.UpstreamURL,
 				ExtraHeaders:     decision.ExtraHeaders,
 				OnAuthError:      oauthRefreshFn,
+				OnRateLimitError: rotateAccountFn,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("proxy error", "error", err)
@@ -873,6 +930,19 @@ func (h *Handler) storeRateLimitStatus(provider, accountID string, headers http.
 	if h.wsBroadcast != nil {
 		h.wsBroadcast("ratelimit-updated", rl)
 	}
+}
+
+// expireStaleRateLimit deletes cached rate limit data when a 429 is received.
+// This prevents the cache from being stuck at 100% utilization when no 2xx
+// responses arrive to refresh it.
+func (h *Handler) expireStaleRateLimit(provider, accountID string) {
+	if h.tokenStore == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	h.tokenStore.Client().Del(ctx, rateLimitKeyPrefix+provider+":"+accountID)
+	slog.Info("ratelimit cache expired on 429", "provider", provider, "account", accountID)
 }
 
 // GetRateLimits returns cached Anthropic rate limit utilization for all accounts.
@@ -1303,6 +1373,60 @@ func mapModelForTarget(model, targetProvider string) string {
 	return model
 }
 
+func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, h.cfg.MaxRequestBody))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "invalid_request_error", Message: "failed to read request body"},
+		})
+		return
+	}
+
+	apiKey, ok := h.keyPool.Acquire()
+	if !ok {
+		writeJSON(w, http.StatusServiceUnavailable, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "authentication_error", Message: "no upstream API keys available"},
+		})
+		return
+	}
+
+	upstreamURL := h.cfg.UpstreamURL + "/v1/messages/count_tokens"
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, upstreamURL, bytes.NewReader(body))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "api_error", Message: "failed to create upstream request"},
+		})
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-api-key", apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "api_error", Message: "upstream request failed"},
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
+
 func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {
 	type modelEntry struct {
 		Name             string  `json:"name"`
@@ -1344,6 +1468,86 @@ func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
+// claudeModelsResponse is the Anthropic-native format returned by GET /v1/models
+// when the client User-Agent indicates Claude Code CLI.
+type claudeModelsResponse struct {
+	Data    []claudeModelEntry `json:"data"`
+	HasMore bool               `json:"has_more"`
+	FirstID string             `json:"first_id"`
+	LastID  string             `json:"last_id"`
+}
+
+type claudeModelEntry struct {
+	ID        string `json:"id"`
+	Object    string `json:"object"`
+	Created   int64  `json:"created"`
+	OwnedBy   string `json:"owned_by"`
+	MaxTokens int    `json:"max_tokens"`
+}
+
+func isClaudeCLI(ua string) bool {
+	return strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli")
+}
+
+func (h *Handler) GetModelsAnthropic(w http.ResponseWriter, r *http.Request) {
+	type modelEntry struct {
+		Name             string
+		Provider         string
+		Limit            int
+		InputPerMillion  float64
+		OutputPerMillion float64
+		ContextWindow    int
+		ThinkingSupport  string
+		Deprecated       bool
+	}
+
+	entries := make([]modelEntry, 0, len(knownModels))
+	for _, km := range knownModels {
+		if !h.cfg.GLMMode && km.Provider == "zai" {
+			continue
+		}
+		if km.Deprecated {
+			continue
+		}
+		limit := h.cfg.DefaultLimit
+		if l, ok := h.cfg.ModelLimits[km.Name]; ok {
+			limit = l
+		}
+		entries = append(entries, modelEntry{
+			Name:             km.Name,
+			Provider:         km.Provider,
+			Limit:            limit,
+			InputPerMillion:  km.InputPerMillion,
+			OutputPerMillion: km.OutputPerMillion,
+			ContextWindow:    km.ContextWindow,
+			ThinkingSupport:  km.ThinkingSupport,
+			Deprecated:       km.Deprecated,
+		})
+	}
+
+	data := make([]claudeModelEntry, 0, len(entries))
+	for _, e := range entries {
+		owner := e.Provider
+		if e.Provider == "claude-oauth" {
+			owner = "anthropic"
+		}
+		data = append(data, claudeModelEntry{
+			ID:        e.Name,
+			Object:    "model",
+			Created:   1700000000,
+			OwnedBy:   owner,
+			MaxTokens: e.ContextWindow,
+		})
+	}
+
+	firstID, lastID := "", ""
+	if len(data) > 0 {
+		firstID = data[0].ID
+		lastID = data[len(data)-1].ID
+	}
+	writeJSON(w, http.StatusOK, claudeModelsResponse{Data: data, HasMore: false, FirstID: firstID, LastID: lastID})
 }
 
 func extractSeries(model string) string {
