@@ -19,29 +19,27 @@ func MaskSecrets(text string, locations []masking.SecretLocation, ctx *masking.M
 		return MaskResult{MaskedText: text, Context: ctx}
 	}
 
+	// Build original text → type lookup for use after overlap resolution.
+	textTypes := make(map[string]string, len(locations))
 	spans := make([]masking.Span, len(locations))
 	for i, loc := range locations {
 		spans[i] = masking.Span{Start: loc.Start, End: loc.End}
+		textTypes[text[loc.Start:loc.End]] = loc.Type
 	}
 
-	masked := masking.ReplaceWithPlaceholders(text, spans, func(i int, original string) string {
+	masked := masking.ReplaceWithPlaceholders(text, spans, func(_ int, original string) string {
 		if ph, ok := ctx.ReverseMap[original]; ok {
 			return ph
 		}
-		ph := ctx.NextPlaceholder(locations[i].Type)
+		typ := textTypes[original]
+		if typ == "" {
+			typ = "SECRET"
+		}
+		ph := ctx.NextPlaceholder(typ)
 		ctx.Mapping[ph] = original
 		ctx.ReverseMap[original] = ph
 		return ph
 	})
 
 	return MaskResult{MaskedText: masked, Context: ctx}
-}
-
-func locType(locations []masking.SecretLocation, original string) string {
-	for _, loc := range locations {
-		if loc.Type != "" {
-			return loc.Type
-		}
-	}
-	return "SECRET"
 }

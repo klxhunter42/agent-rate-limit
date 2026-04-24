@@ -683,8 +683,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				"imageCount", imgCount,
 			)
 			selectedModel = visionModel
-			payload["model"] = selectedModel
-			body, _ = json.Marshal(payload)
+			var bodyMap map[string]any
+			if json.Unmarshal(body, &bodyMap) == nil {
+				bodyMap["model"] = selectedModel
+				body, _ = json.Marshal(bodyMap)
+			}
 		}
 		slog.Info("routing to native vision endpoint", "model", selectedModel)
 		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {

@@ -65,6 +65,11 @@ func ExtractTextSpans(payload map[string]any) []masking.TextSpan {
 							}
 						}
 					}
+				case "tool_use":
+					input, _ := b["input"].(map[string]any)
+					if len(input) > 0 {
+						extractInputStrings(input, path+".input", i, j, role, &spans)
+					}
 				}
 			}
 		}
@@ -176,4 +181,30 @@ func applyToValue(v any, lookup map[string]string, msgIdx int) any {
 		return val
 	}
 	return v
+}
+
+// extractInputStrings recursively extracts leaf string values from a tool_use input object.
+func extractInputStrings(obj map[string]any, basePath string, msgIdx, partIdx int, role string, spans *[]masking.TextSpan) {
+	for key, val := range obj {
+		switch v := val.(type) {
+		case string:
+			*spans = append(*spans, masking.TextSpan{
+				Text: v, Path: basePath + "." + key,
+				MessageIndex: msgIdx, PartIndex: partIdx, NestedIndex: -2, Role: role,
+			})
+		case map[string]any:
+			extractInputStrings(v, basePath+"."+key, msgIdx, partIdx, role, spans)
+		case []any:
+			for k, elem := range v {
+				if s, ok := elem.(string); ok {
+					*spans = append(*spans, masking.TextSpan{
+						Text: s, Path: fmt.Sprintf("%s.%s[%d]", basePath, key, k),
+						MessageIndex: msgIdx, PartIndex: partIdx, NestedIndex: -2, Role: role,
+					})
+				} else if m, ok := elem.(map[string]any); ok {
+					extractInputStrings(m, fmt.Sprintf("%s.%s[%d]", basePath, key, k), msgIdx, partIdx, role, spans)
+				}
+			}
+		}
+	}
 }
