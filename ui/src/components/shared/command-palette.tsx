@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { cn } from '@/lib/utils';
+import { copyToClipboard } from '@/lib/clipboard';
 import {
   LayoutDashboard,
   Activity,
@@ -48,8 +49,8 @@ function useCommands(): CommandItem[] {
     { id: 'act-theme', label: 'Toggle Theme', group: 'Actions', icon: Moon, shortcut: '', action: () => window.dispatchEvent(new CustomEvent('arl:toggle-theme')) },
     { id: 'act-refresh', label: 'Refresh Data', group: 'Actions', icon: RefreshCw, shortcut: '\u2318R', action: () => window.location.reload() },
     // Quick
-    { id: 'quick-limiter', label: 'Copy Limiter Status URL', group: 'Quick', icon: Link, action: () => navigator.clipboard.writeText(`${window.location.origin}/v1/limiter-status`) },
-    { id: 'quick-health', label: 'Copy Health URL', group: 'Quick', icon: Copy, action: () => navigator.clipboard.writeText(`${window.location.origin}/health`) },
+    { id: 'quick-limiter', label: 'Copy Limiter Status URL', group: 'Quick', icon: Link, action: () => copyToClipboard(`${window.location.origin}/v1/limiter-status`) },
+    { id: 'quick-health', label: 'Copy Health URL', group: 'Quick', icon: Copy, action: () => copyToClipboard(`${window.location.origin}/health`) },
   ];
 }
 

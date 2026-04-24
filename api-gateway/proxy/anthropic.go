@@ -736,6 +736,7 @@ type ProxyOptions struct {
 	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
 	ExtraHeaders     map[string]string                            // additional headers to set
 	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
+	OnRateLimitError func(oldKey string) (newKey string, ok bool) // called on 429 to rotate account
 }
 
 // It tracks token usage via Prometheus and optionally trims verbose responses.
@@ -848,6 +849,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if resp.StatusCode == 429 && attempt < p.cfg.UpstreamMaxRetries {
 			resp.Body.Close()
 			p.metrics.Inc429()
+			if opts != nil && opts.OnRateLimitError != nil {
+				if newKey, ok := opts.OnRateLimitError(apiKey); ok {
+					apiKey = newKey
+					slog.Info("429: rotating to different account", "attempt", attempt, "model", model)
+				}
+			}
 			continue
 		}
 

@@ -43,11 +43,11 @@ export default defineConfig({
       interval: 1000,
     },
     proxy: {
-      '/v1': 'http://arl-gateway:8080',
-      '/health': 'http://arl-gateway:8080',
-      '/api/metrics': 'http://arl-gateway:8080',
-      '/metrics': 'http://arl-gateway:8080',
-      '/ws': { target: 'http://arl-gateway:8080', ws: true },
+      '/v1': process.env.VITE_PROXY_TARGET || 'http://arl-gateway:8080',
+      '/health': process.env.VITE_PROXY_TARGET || 'http://arl-gateway:8080',
+      '/api/metrics': process.env.VITE_PROXY_TARGET || 'http://arl-gateway:8080',
+      '/metrics': process.env.VITE_PROXY_TARGET || 'http://arl-gateway:8080',
+      '/ws': { target: process.env.VITE_PROXY_TARGET || 'http://arl-gateway:8080', ws: true },
     },
   },
 });

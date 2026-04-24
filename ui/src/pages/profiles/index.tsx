@@ -12,6 +12,7 @@ import type { AccountInfo } from '@/lib/auth-api';
 import { fetchProfileUsage } from '@/lib/api';
 import type { ProfileUsage } from '@/lib/api';
 import { InfoTip } from '@/components/shared/info-tip';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface Profile {
   name: string;
@@ -36,6 +37,8 @@ export function ProfilesPage() {
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchProfiles = useCallback(() => {
     fetch('/v1/profiles')
@@ -75,8 +78,21 @@ export function ProfilesPage() {
   }
 
   async function deleteProfile(name: string) {
-    const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    if (res.ok) fetchProfiles();
+    setDeleting(true);
+    try {
+      const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchProfiles();
+      } else {
+        const text = await res.text().catch(() => '');
+        alert(`Failed to delete profile "${name}": ${res.status} ${res.statusText}${text ? '\n' + text : ''}`);
+      }
+    } catch (e) {
+      alert(`Failed to delete profile "${name}": ${e instanceof Error ? e.message : 'network error'}`);
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(null);
+    }
   }
 
   async function copyProfile(name: string) {
@@ -210,13 +226,30 @@ export function ProfilesPage() {
                   if (res.ok) { setEditing(null); fetchProfiles(); }
                 }
               }}
-              onDelete={() => deleteProfile(p.name)}
+              onDelete={() => setDeleteConfirm(p.name)}
               onCopy={() => copyProfile(p.name)}
               onExport={() => exportProfile(p.name)}
             />
           ))}
         </div>
       )}
+      <Dialog open={deleteConfirm !== null} onOpenChange={(open) => { if (!open) setDeleteConfirm(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Profile</DialogTitle>
+            <DialogDescription>
+              Delete profile <span className="font-mono font-medium">{deleteConfirm}</span>? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button size="sm" variant="destructive" onClick={() => deleteConfirm && deleteProfile(deleteConfirm)} disabled={deleting}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -252,7 +285,7 @@ function SetupGuideCard() {
           <p>Profiles let you route requests through specific provider configurations. Send the <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header with your request:</p>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
 {`# With curl
-curl http://localhost:8080/v1/chat/completions \\
+curl http://localhost:9000/v1/chat/completions \\
   -H "X-Profile: my-profile" \\
   -H "Content-Type: application/json" \\
   -d '{"model":"claude-sonnet-4-20250514","messages":[...]}'`}
@@ -273,7 +306,7 @@ curl http://localhost:8080/v1/chat/completions \\
 {`# ~/.claude/settings.json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
     "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
@@ -295,7 +328,7 @@ curl http://localhost:8080/v1/chat/completions \\
 {`# ~/.claude/settings.json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
     "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
@@ -311,7 +344,7 @@ curl http://localhost:8080/v1/chat/completions \\
 {`# ~/.claude/settings.json
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
     "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
@@ -344,7 +377,7 @@ curl http://localhost:8080/v1/chat/completions \\
           </ul>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`# Example: generate and use
-curl -X POST http://localhost:8080/v1/profiles/meow/token
+curl -X POST http://localhost:9000/v1/profiles/meow/token
 # => {"token":"arl_abc123...","profile":"meow"}
 
 # Then set in Claude Code settings:
@@ -727,9 +760,10 @@ function ProfileCardView({
   }
 
   function copyToken(token: string, keyName: string) {
-    navigator.clipboard.writeText(token);
-    setCopiedKey(keyName);
-    setTimeout(() => setCopiedKey(null), 2000);
+    copyToClipboard(token).then(() => {
+      setCopiedKey(keyName);
+      setTimeout(() => setCopiedKey(null), 2000);
+    });
   }
 
   return (

@@ -1,1 +1,1 @@
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"arl_7a43a84bec6b23cab6047da47aed052bc839291d8e4faff04ab5cfdac6f6ed92"}}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-proxy:9000","ANTHROPIC_AUTH_TOKEN":"arl_f429a24c5abecba1bb26b8822b663a44ab27dd67c0da6305cf57cd4672342057"}}

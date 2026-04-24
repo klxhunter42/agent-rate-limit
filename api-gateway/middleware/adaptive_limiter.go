@@ -207,8 +207,15 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 	// Proactive distribution: round-robin across same-series models when
 	// multiple models share the same capability tier. This prevents a single
 	// model from absorbing all traffic while its peers sit idle.
+	// Under high load (same-series near capacity or recent 429s), also
+	// consider lower-series models for cross-series distribution.
 	if model.series > 0 && len(al.seriesBuckets[model.series]) > 1 {
 		selected, ok := al.tryFallback(requestedModel, model)
+		if ok {
+			return selected, true
+		}
+	} else if model.series > 0 && al.shouldDistributeToLower(model.series) {
+		selected, ok := al.tryCrossSeries(requestedModel, model)
 		if ok {
 			return selected, true
 		}
@@ -285,12 +292,16 @@ func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveMod
 		return picked, true
 	}
 
-	// Phase 2: spill to lower series when same-series is full or under latency pressure.
+	// Phase 2: spill to lower series when same-series is full, under latency pressure,
+	// or recently hit 429 on this series (immediate spill reduces cascading retries).
 	sameSeriesFull := len(*sameSeries) == 0
-	if (sameSeriesFull || al.seriesLatencyPressure(reqSeries)) && len(*lowerSeries) > 0 {
+	recent429 := al.seriesRecent429(reqSeries)
+	if (sameSeriesFull || recent429 || al.seriesLatencyPressure(reqSeries)) && len(*lowerSeries) > 0 {
 		if picked, _ := tryRR(lowerSeries); picked != "" {
 			reason := "same-series full"
-			if !sameSeriesFull {
+			if recent429 {
+				reason = "recent-429 spill"
+			} else if !sameSeriesFull {
 				reason = "latency pressure"
 			}
 			slog.Info("series spillover ("+reason+")",
@@ -629,7 +640,7 @@ func modelSeries(name string) int {
 }
 
 // seriesLatencyPressure returns true when a majority of models in the given
-// series show elevated latency (EWMA RTT > 1.5x minRTT).
+// series show elevated latency (EWMA RTT > 1.2x minRTT).
 func (al *AdaptiveLimiter) seriesLatencyPressure(series int) bool {
 	var checked, pressured int
 	for _, e := range al.seriesBuckets[series] {
@@ -639,11 +650,72 @@ func (al *AdaptiveLimiter) seriesLatencyPressure(series int) bool {
 			continue
 		}
 		checked++
-		if ewma > minRTT*3/2 {
+		if ewma > minRTT*12/10 {
 			pressured++
 		}
 	}
 	return checked > 0 && pressured >= (checked+1)/2
+}
+
+// seriesRecent429 returns true if any model in the series was rate-limited
+// within the last 30 seconds, indicating upstream congestion.
+func (al *AdaptiveLimiter) seriesRecent429(series int) bool {
+	now := time.Now().UnixNano()
+	for _, e := range al.seriesBuckets[series] {
+		last := e.am.last429Nano.Load()
+		if last > 0 && now-last < int64(30*time.Second) {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldDistributeToLower returns true when same-series models are near capacity
+// (>= 80% utilization) and a lower series has available headroom.
+func (al *AdaptiveLimiter) shouldDistributeToLower(series int) bool {
+	var totalLimit, totalInFlight int64
+	for _, e := range al.seriesBuckets[series] {
+		totalLimit += e.am.limit.Load()
+		totalInFlight += e.am.inFlight.Load()
+	}
+	if totalLimit == 0 || totalInFlight < totalLimit*8/10 {
+		return false
+	}
+	lower := al.seriesBuckets[series-1]
+	for _, e := range lower {
+		if e.am.limit.Load()-e.am.inFlight.Load() > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// tryCrossSeries routes a portion of traffic to a lower series when the
+// current series is near capacity. Uses round-robin epoch to distribute
+// roughly 1 in 5 requests to the lower series.
+func (al *AdaptiveLimiter) tryCrossSeries(requestedModel string, model *adaptiveModel) (string, bool) {
+	offset := al.rrEpoch.Add(1)
+	if offset%5 != 0 {
+		return "", false
+	}
+	lower := al.getCandidates(al.seriesBuckets[model.series-1])
+	defer al.putCandidates(lower)
+	if len(*lower) == 0 {
+		return "", false
+	}
+	for i := range *lower {
+		c := (*lower)[(int(offset)+i)%len(*lower)]
+		if c.am.tryAcquire() {
+			slog.Info("cross-series proactive distribution",
+				"requested", requestedModel,
+				"selected", c.name,
+				"from_series", model.series,
+				"to_series", c.am.series,
+			)
+			return c.name, true
+		}
+	}
+	return "", false
 }
 
 func (al *AdaptiveLimiter) getModel(name string) *adaptiveModel {

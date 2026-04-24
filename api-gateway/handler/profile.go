@@ -688,6 +688,9 @@ func validateProfile(p *Profile) string {
 	if p.Name == "" {
 		return "name is required"
 	}
+	if strings.ContainsAny(p.Name, "/%\\") {
+		return "name must not contain /, %, or \\"
+	}
 	if p.Target == "" {
 		p.Target = "claude-oauth"
 	}

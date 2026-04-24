@@ -7,7 +7,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 function getSSHTunnelCommand(): string {
   const host = window.location.hostname || 'localhost';
-  const gwPort = '8080';
+  const gwPort = '9000';
   const dashPort = '8082';
   const grafanaPort = '3000';
   return `ssh -L ${gwPort}:localhost:${gwPort} -L ${dashPort}:localhost:${dashPort} -L ${grafanaPort}:localhost:${grafanaPort} user@${host}`;

@@ -351,6 +351,7 @@ func (s *TokenStore) updateField(provider, accountID string, fn func(*TokenInfo)
 
 // GetFromPool returns a non-paused token from the given account IDs for a provider.
 // Falls back to GetDefault if accountIDs is empty.
+// Prefers accounts with lowest 5h utilization when multiple are available.
 func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenInfo, error) {
 	if len(accountIDs) == 0 {
 		return s.GetDefault(provider)
@@ -387,15 +388,25 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 		return nil, nil
 	}
 
-	// Prefer default account if it's in the pool.
-	for _, t := range candidates {
-		if t.IsDefault {
-			tCopy := t
-			return &tCopy, nil
-		}
+	if len(candidates) == 1 {
+		tCopy := candidates[0]
+		return &tCopy, nil
 	}
 
-	// Round-robin: return first available.
-	tCopy := candidates[0]
+	// Multiple accounts: pick the one with lowest 5h utilization.
+	rls := s.GetRateLimits(provider, accountIDs)
+	best := candidates[0]
+	bestUtil := 200.0
+	for _, t := range candidates {
+		util := 200.0
+		if rl, ok := rls[t.AccountID]; ok && rl.Util5h > 0 {
+			util = rl.Util5h
+		}
+		if util < bestUtil {
+			bestUtil = util
+			best = t
+		}
+	}
+	tCopy := best
 	return &tCopy, nil
 }

@@ -231,7 +231,15 @@ func main() {
 	r.Put("/v1/routing/strategy", h.SetRoutingStrategy)
 	r.Get("/v1/logs/errors", h.GetErrorLogs)
 	r.Get("/v1/logs/errors/count", h.GetErrorLogCount)
-	r.Get("/v1/models", h.GetModels)
+	r.Get("/v1/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ua := r.UserAgent()
+		if strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli") {
+			h.GetModelsAnthropic(w, r)
+			return
+		}
+		h.GetModels(w, r)
+	}))
+	r.Post("/v1/messages/count_tokens", h.CountTokens)
 
 	// New handler routes
 	profileHandler.Routes()(r)

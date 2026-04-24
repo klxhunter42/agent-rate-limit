@@ -103,7 +103,7 @@ func (h *AuthHandler) startAuthCode(w http.ResponseWriter, r *http.Request, pc P
 		return
 	}
 	// redirect_uri for OAuth: must use 127.0.0.1 for Google installed-app OAuth.
-	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:8080")
+	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:9000")
 	resp, err := StartAuthCode(r.Context(), pc, callbackBase)
 	if err != nil {
 		slog.Error("start auth code failed", "provider", pc.ID, "error", err)
@@ -163,7 +163,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:8080")
+	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:9000")
 	dashboardURL := envOr("DASHBOARD_URL", "http://localhost:8082")
 	token, err := HandleCallbackWithPKCE(r.Context(), pc, code, state, callbackBase, session.PKCEVerifier)
 	if err != nil {
@@ -207,7 +207,7 @@ func (h *AuthHandler) HandleClaudeCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:8080")
+	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:9000")
 	dashboardURL := envOr("DASHBOARD_URL", "http://localhost:8082")
 	pc, ok := h.registry.Get("claude-oauth")
 	if !ok {
@@ -619,7 +619,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/accounts/{provider}/{accountId}/pause", h.PauseAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/resume", h.ResumeAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/default", h.SetDefaultAccount)
-			r.Post("/auth/accounts/{provider}/{accountId}/email", h.UpdateAccountEmail)
+		r.Post("/auth/accounts/{provider}/{accountId}/email", h.UpdateAccountEmail)
 		r.Post("/auth/login", h.DashboardLogin)
 		r.Post("/auth/logout", h.DashboardLogout)
 		r.Get("/auth/check", h.CheckAuth)
