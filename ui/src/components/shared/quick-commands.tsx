@@ -12,8 +12,8 @@ interface Snippet {
 function useSnippets(): Snippet[] {
   return useMemo(() => {
     const base = typeof window !== 'undefined'
-      ? `${window.location.hostname}:8080`
-      : 'localhost:8080';
+      ? `${window.location.hostname}:9000`
+      : 'localhost:9000';
       return [
       { label: 'Limiter Status', command: `curl ${base}/v1/limiter-status`, description: 'Check all model limits' },
       { label: 'Health Check', command: `curl ${base}/health`, description: 'System health status' },

@@ -34,7 +34,7 @@ with open('/root/.claude.json','w') as f: json.dump(d,f)
     THINKING_JSON=""
     if [ -n "$THINKING" ]; then THINKING_JSON=",\"alwaysThinkingEnabled\":$THINKING"; fi
     cat > /root/.claude/settings.json <<SETTINGS
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-gateway:8080","ANTHROPIC_API_KEY":"$TOKEN"}${MODEL_JSON}${THINKING_JSON}}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-proxy:9000","ANTHROPIC_API_KEY":"$TOKEN"}${MODEL_JSON}${THINKING_JSON}}
 SETTINGS
     echo "Settings updated"
   else
