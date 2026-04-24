@@ -45,7 +45,7 @@ func TestReplaceWithPlaceholdersScored(t *testing.T) {
 		entities := []ScoredSpan{
 			{Span: Span{0, 5}, EntityType: "PERSON", Score: 0.9},
 		}
-		result := ReplaceWithPlaceholdersScored("Alice is here", entities, func(i int, orig string) string {
+		result := ReplaceWithPlaceholdersScored("Alice is here", entities, func(i int, orig string, entityType string) string {
 			return "[[PERSON_1]]"
 		})
 		assert.Equal(t, "[[PERSON_1]] is here", result)
@@ -56,7 +56,7 @@ func TestReplaceWithPlaceholdersScored(t *testing.T) {
 			{Span: Span{0, 10}, EntityType: "PERSON", Score: 0.7},
 			{Span: Span{2, 8}, EntityType: "EMAIL", Score: 0.95},
 		}
-		result := ReplaceWithPlaceholdersScored("0123456789 end", entities, func(i int, orig string) string {
+		result := ReplaceWithPlaceholdersScored("0123456789 end", entities, func(i int, orig string, entityType string) string {
 			return "[[WIN_1]]"
 		})
 		// EMAIL wins (higher score), replaces 2-8, keeping 0-1 and 8-9
@@ -68,7 +68,7 @@ func TestReplaceWithPlaceholdersScored(t *testing.T) {
 			{Span: Span{0, 5}, EntityType: "PERSON", Score: 0.9},
 			{Span: Span{10, 15}, EntityType: "EMAIL", Score: 0.8},
 		}
-		result := ReplaceWithPlaceholdersScored("01234 567 89012 end", entities, func(i int, orig string) string {
+		result := ReplaceWithPlaceholdersScored("01234 567 89012 end", entities, func(i int, orig string, entityType string) string {
 			return []string{"[[A]]", "[[B]]"}[i]
 		})
 		assert.Equal(t, "[[A]] 567 [[B]] end", result)

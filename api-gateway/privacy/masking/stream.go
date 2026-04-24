@@ -22,14 +22,14 @@ func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
 func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	processed := chunk
 
-	// Unmask PII first.
-	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
-		processed, u.piiBuffer = processStreamChunk(u.piiBuffer, processed, u.piiCtx)
-	}
-
-	// Then unmask secrets on the PII-unmasked result.
+	// Unmask secrets first (innermost), then PII (outermost).
 	if u.secretsCtx != nil && len(u.secretsCtx.Mapping) > 0 {
 		processed, u.secretsBuffer = processStreamChunk(u.secretsBuffer, processed, u.secretsCtx)
+	}
+
+	// Then unmask PII on the secrets-unmasked result.
+	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
+		processed, u.piiBuffer = processStreamChunk(u.piiBuffer, processed, u.piiCtx)
 	}
 
 	return processed

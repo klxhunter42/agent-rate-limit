@@ -2,7 +2,9 @@ package privacy
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -83,6 +85,7 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 	result := &MaskResult{}
 	secretsCtx := masking.NewMaskContext()
 	piiCtx := masking.NewMaskContext()
+	var ctxMu sync.Mutex
 
 	// Process spans in parallel - each span is independent.
 	type spanResult struct {
@@ -113,7 +116,9 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 				if det.Detected {
 					sr.totalSecrets = len(det.Matches)
 					start = time.Now()
+					ctxMu.Lock()
 					maskRes := secrets.MaskSecrets(text, det.Locations, secretsCtx)
+					ctxMu.Unlock()
 					if p.metrics != nil {
 						p.metrics.ObserveMaskDuration("mask", time.Since(start))
 					}
@@ -135,7 +140,9 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 				if piiResult.HasPII {
 					sr.totalPII = len(piiResult.Entities)
 					start = time.Now()
+					ctxMu.Lock()
 					maskRes := pii.MaskPII(text, piiResult.Entities, piiCtx)
+					ctxMu.Unlock()
 					if p.metrics != nil {
 						p.metrics.ObserveMaskDuration("mask", time.Since(start))
 					}
@@ -195,19 +202,20 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 
 	text := string(body)
 
-	// Unmask PII first (longest placeholders first).
-	if result.HasPII && result.PIICtx != nil {
+	// Unmask secrets first (innermost), then PII (outermost).
+	// This matches the mask order: secrets masked first, then PII applied on top.
+	if result.HasSecrets && result.SecretsCtx != nil {
 		start := time.Now()
-		text = result.PIICtx.RestorePlaceholders(text)
+		text = result.SecretsCtx.RestorePlaceholders(text)
 		if p.metrics != nil {
 			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
 		}
 	}
 
-	// Then unmask secrets.
-	if result.HasSecrets && result.SecretsCtx != nil {
+	// Then unmask PII.
+	if result.HasPII && result.PIICtx != nil {
 		start := time.Now()
-		text = result.SecretsCtx.RestorePlaceholders(text)
+		text = result.PIICtx.RestorePlaceholders(text)
 		if p.metrics != nil {
 			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
 		}
@@ -280,7 +288,53 @@ func applyMaskedToPayload(payload map[string]any, span masking.TextSpan, maskedT
 					b["content"] = maskedText
 				}
 			}
+		case "tool_use":
+			if span.NestedIndex == -2 {
+				input, _ := b["input"].(map[string]any)
+				prefix := fmt.Sprintf("messages[%d].content[%d].input.", span.MessageIndex, span.PartIndex)
+				if input != nil && strings.HasPrefix(span.Path, prefix) {
+					keyPath := span.Path[len(prefix):]
+					setInputLeaf(input, keyPath, maskedText)
+				}
+			}
 		}
+	}
+}
+
+// setInputLeaf navigates a nested map by dot-separated keyPath and sets the leaf value.
+// Supports "key", "key.sub", and "key[0]" notation.
+func setInputLeaf(obj map[string]any, keyPath string, value string) {
+	parts := strings.SplitN(keyPath, ".", 2)
+	key := parts[0]
+
+	// Handle array index: key[idx]
+	if idxStart := strings.Index(key, "["); idxStart >= 0 {
+		baseKey := key[:idxStart]
+		idxStr := key[idxStart+1 : len(key)-1]
+		idx, err := strconv.Atoi(idxStr)
+		if err != nil {
+			return
+		}
+		arr, ok := obj[baseKey].([]any)
+		if !ok || idx >= len(arr) {
+			return
+		}
+		if len(parts) == 1 {
+			arr[idx] = value
+		} else {
+			if nested, ok := arr[idx].(map[string]any); ok {
+				setInputLeaf(nested, parts[1], value)
+			}
+		}
+		return
+	}
+
+	if len(parts) == 1 {
+		obj[key] = value
+		return
+	}
+	if nested, ok := obj[key].(map[string]any); ok {
+		setInputLeaf(nested, parts[1], value)
 	}
 }
 

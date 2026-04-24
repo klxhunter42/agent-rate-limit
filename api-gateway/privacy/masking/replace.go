@@ -39,7 +39,8 @@ func ReplaceWithPlaceholders(text string, spans []Span, assignFn func(i int, ori
 }
 
 // ReplaceWithPlaceholdersScored replaces scored spans (PII) in text.
-func ReplaceWithPlaceholdersScored(text string, entities []ScoredSpan, assignFn func(i int, original string) string) string {
+// assignFn receives the resolved span's entity type.
+func ReplaceWithPlaceholdersScored(text string, entities []ScoredSpan, assignFn func(i int, original string, entityType string) string) string {
 	if len(entities) == 0 {
 		return text
 	}
@@ -54,7 +55,7 @@ func ReplaceWithPlaceholdersScored(text string, entities []ScoredSpan, assignFn 
 	placeholders := make([]string, len(resolved))
 	for i, sp := range resolved {
 		original := text[sp.Start:sp.End]
-		placeholders[i] = assignFn(i, original)
+		placeholders[i] = assignFn(i, original, sp.EntityType)
 	}
 
 	sorted := make([]scoredSpanPlaceholder, len(resolved))
