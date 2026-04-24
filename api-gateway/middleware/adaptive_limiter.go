@@ -204,18 +204,10 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 
 	model := al.getModel(requestedModel)
 
-	// Proactive distribution: round-robin across same-series models when
-	// multiple models share the same capability tier. This prevents a single
-	// model from absorbing all traffic while its peers sit idle.
-	// Under high load (same-series near capacity or recent 429s), also
-	// consider lower-series models for cross-series distribution.
-	if model.series > 0 && len(al.seriesBuckets[model.series]) > 1 {
-		selected, ok := al.tryFallback(requestedModel, model)
-		if ok {
-			return selected, true
-		}
-	} else if model.series > 0 && al.shouldDistributeToLower(model.series) {
-		selected, ok := al.tryCrossSeries(requestedModel, model)
+	// Proactive distribution: round-robin across all available series.
+	// Lower series gets ~20% of traffic to keep it warm and avoid idle capacity.
+	if model.series > 0 {
+		selected, ok := al.tryFallbackAllSeries(requestedModel, model)
 		if ok {
 			return selected, true
 		}
@@ -258,6 +250,85 @@ func (al *AdaptiveLimiter) acquireGlobal(timeout time.Duration) bool {
 }
 
 // tryFallback attempts same-series round-robin then lower-series spillover.
+// tryFallbackAllSeries distributes requests across same-series and lower-series
+// models using a weighted round-robin. Cross-series distribution (20% to lower)
+// only happens when same-series utilization >= 70%.
+func (al *AdaptiveLimiter) tryFallbackAllSeries(requestedModel string, model *adaptiveModel) (string, bool) {
+	reqSeries := model.series
+	sameSeries := al.getCandidates(al.seriesBuckets[reqSeries])
+	defer al.putCandidates(sameSeries)
+
+	tryRR := func(candidates *[]seriesEntry) (string, *adaptiveModel) {
+		if len(*candidates) == 0 {
+			return "", nil
+		}
+		offset := al.rrEpoch.Add(1)
+		for i := range *candidates {
+			c := (*candidates)[(int(offset)+i)%len(*candidates)]
+			if c.am.tryAcquire() {
+				return c.name, c.am
+			}
+		}
+		return "", nil
+	}
+
+	// Try same-series first (handles both multi-model and single-model cases).
+	if picked, _ := tryRR(sameSeries); picked != "" {
+		// Only consider cross-series if same-series utilization >= 70%.
+		if al.seriesUtilization(reqSeries) >= 70 {
+			offset := al.rrEpoch.Load()
+			if offset%5 == 0 {
+				lowerSeries := al.getCandidates(al.seriesBuckets[reqSeries-1])
+				defer al.putCandidates(lowerSeries)
+				if picked2, _ := tryRR(lowerSeries); picked2 != "" {
+					// Release the same-series slot we just took.
+					al.models[picked].inFlight.Add(-1)
+					slog.Info("cross-series proactive distribution (70% load)",
+						"requested", requestedModel,
+						"selected", picked2,
+						"from_series", reqSeries,
+						"to_series", al.models[picked2].series,
+					)
+					return picked2, true
+				}
+			}
+		}
+		if picked != requestedModel {
+			slog.Debug("proactive model distribution",
+				"requested", requestedModel,
+				"selected", picked,
+				"series", reqSeries,
+			)
+		}
+		return picked, true
+	}
+
+	// Same-series full - try lower series (spillover).
+	lowerSeries := al.getCandidates(al.seriesBuckets[reqSeries-1])
+	defer al.putCandidates(lowerSeries)
+	recent429 := al.seriesRecent429(reqSeries)
+	if len(*lowerSeries) > 0 {
+		if picked, _ := tryRR(lowerSeries); picked != "" {
+			reason := "same-series full"
+			if recent429 {
+				reason = "recent-429 spill"
+			} else if al.seriesLatencyPressure(reqSeries) {
+				reason = "latency pressure"
+			}
+			slog.Info("series spillover ("+reason+")",
+				"requested", requestedModel,
+				"selected", picked,
+				"from_series", reqSeries,
+				"to_series", al.models[picked].series,
+			)
+			return picked, true
+		}
+	}
+
+	return "", false
+}
+
+// tryFallback is the legacy same-series fallback (kept for fallback chains without lower series).
 func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveModel) (string, bool) {
 	reqSeries := model.series
 
@@ -670,52 +741,18 @@ func (al *AdaptiveLimiter) seriesRecent429(series int) bool {
 	return false
 }
 
-// shouldDistributeToLower returns true when same-series models are near capacity
-// (>= 80% utilization) and a lower series has available headroom.
-func (al *AdaptiveLimiter) shouldDistributeToLower(series int) bool {
+// seriesUtilization returns the percentage (0-100) of in-flight requests
+// relative to the limit for all models in the given series.
+func (al *AdaptiveLimiter) seriesUtilization(series int) int64 {
 	var totalLimit, totalInFlight int64
 	for _, e := range al.seriesBuckets[series] {
 		totalLimit += e.am.limit.Load()
 		totalInFlight += e.am.inFlight.Load()
 	}
-	if totalLimit == 0 || totalInFlight < totalLimit*8/10 {
-		return false
+	if totalLimit == 0 {
+		return 0
 	}
-	lower := al.seriesBuckets[series-1]
-	for _, e := range lower {
-		if e.am.limit.Load()-e.am.inFlight.Load() > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// tryCrossSeries routes a portion of traffic to a lower series when the
-// current series is near capacity. Uses round-robin epoch to distribute
-// roughly 1 in 5 requests to the lower series.
-func (al *AdaptiveLimiter) tryCrossSeries(requestedModel string, model *adaptiveModel) (string, bool) {
-	offset := al.rrEpoch.Add(1)
-	if offset%5 != 0 {
-		return "", false
-	}
-	lower := al.getCandidates(al.seriesBuckets[model.series-1])
-	defer al.putCandidates(lower)
-	if len(*lower) == 0 {
-		return "", false
-	}
-	for i := range *lower {
-		c := (*lower)[(int(offset)+i)%len(*lower)]
-		if c.am.tryAcquire() {
-			slog.Info("cross-series proactive distribution",
-				"requested", requestedModel,
-				"selected", c.name,
-				"from_series", model.series,
-				"to_series", c.am.series,
-			)
-			return c.name, true
-		}
-	}
-	return "", false
+	return totalInFlight * 100 / totalLimit
 }
 
 func (al *AdaptiveLimiter) getModel(name string) *adaptiveModel {
