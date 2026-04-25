@@ -15,6 +15,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 )
 
 type OpenAIProxy struct {
@@ -45,6 +46,11 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	if err != nil {
 		return fmt.Errorf("marshal openai request: %w", err)
 	}
+
+	// Estimate input tokens and log model capabilities.
+	estInput := tokenizer.QuickEstimateTokens(string(body))
+	modelCap := tokenizer.GetModelCapabilities(model)
+	slog.Debug("request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "max_output", modelCap.MaxOutputTokens)
 
 	var lastResp *http.Response
 
@@ -150,6 +156,12 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
+	if p.cfg.EnableResponseTrim {
+		if trimmed := trimResponse(respBody); trimmed != nil {
+			respBody = trimmed
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
