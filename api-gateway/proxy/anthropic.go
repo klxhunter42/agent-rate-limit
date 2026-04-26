@@ -723,8 +723,12 @@ func OpenAIToAnthropic(zhipu map[string]any, model string) map[string]any {
 
 	var inputTokens, outputTokens int
 	if usage, ok := zhipu["usage"].(map[string]any); ok {
-		inputTokens = int(usage["prompt_tokens"].(float64))
-		outputTokens = int(usage["completion_tokens"].(float64))
+		if v, ok := usage["prompt_tokens"].(float64); ok {
+			inputTokens = int(v)
+		}
+		if v, ok := usage["completion_tokens"].(float64); ok {
+			outputTokens = int(v)
+		}
 	}
 
 	return map[string]any{
