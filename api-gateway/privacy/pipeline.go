@@ -206,7 +206,7 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 	// This matches the mask order: secrets masked first, then PII applied on top.
 	if result.HasSecrets && result.SecretsCtx != nil {
 		start := time.Now()
-		text = result.SecretsCtx.RestorePlaceholders(text)
+		text = result.SecretsCtx.RestorePlaceholdersJSON(text)
 		if p.metrics != nil {
 			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
 		}
@@ -215,7 +215,7 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 	// Then unmask PII.
 	if result.HasPII && result.PIICtx != nil {
 		start := time.Now()
-		text = result.PIICtx.RestorePlaceholders(text)
+		text = result.PIICtx.RestorePlaceholdersJSON(text)
 		if p.metrics != nil {
 			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
 		}
