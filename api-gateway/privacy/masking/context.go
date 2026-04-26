@@ -1,6 +1,9 @@
 package masking
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	PlaceholderStart = "[["
@@ -31,10 +34,16 @@ func (ctx *MaskContext) NextPlaceholder(entityType string) string {
 }
 
 func (ctx *MaskContext) RestorePlaceholders(text string) string {
-	return restoreSorted(text, ctx.Mapping)
+	return restoreSorted(text, ctx.Mapping, false)
 }
 
-func restoreSorted(text string, mapping map[string]string) string {
+// RestorePlaceholdersJSON replaces placeholders with JSON-escaped originals.
+// Use when unmasking raw JSON response bodies to preserve JSON structure.
+func (ctx *MaskContext) RestorePlaceholdersJSON(text string) string {
+	return restoreSorted(text, ctx.Mapping, true)
+}
+
+func restoreSorted(text string, mapping map[string]string, jsonSafe bool) string {
 	if len(mapping) == 0 {
 		return text
 	}
@@ -42,15 +51,39 @@ func restoreSorted(text string, mapping map[string]string) string {
 	for p := range mapping {
 		placeholders = append(placeholders, p)
 	}
-	// Sort longest first to prevent partial matches ([[PERSON_10]] before [[PERSON_1]]).
 	sortByLenDesc(placeholders)
 
 	result := text
 	for _, p := range placeholders {
 		orig := mapping[p]
+		if jsonSafe {
+			orig = jsonEscape(orig)
+		}
 		result = replaceAll(result, p, orig)
 	}
 	return result
+}
+
+func jsonEscape(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
 func replaceAll(s, old, new string) string {
