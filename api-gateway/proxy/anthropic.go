@@ -1037,8 +1037,18 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 
 	// Unmask secrets/PII placeholders before trimming so placeholders stay intact.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		slog.Info("unmask debug",
+			"has_secrets", maskResult.HasSecrets,
+			"has_pii", maskResult.HasPII,
+			"secrets_mapping_count", len(maskResult.SecretsCtx.Mapping),
+			"pii_mapping_count", len(maskResult.PIICtx.Mapping),
+			"body_preview", string(body[:min(300, len(body))]),
+		)
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		body = pipeline.UnmaskResponse(body, maskResult)
+		slog.Info("unmask result", "body_preview", string(body[:min(300, len(body))]))
+	} else {
+		slog.Info("unmask skipped", "maskResult_nil", maskResult == nil)
 	}
 
 	// Trim verbose patterns after unmasking.
