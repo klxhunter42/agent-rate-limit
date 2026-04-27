@@ -954,7 +954,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
 		}
-		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput)
+		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput, maskResult)
 	}
 
 	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
@@ -1064,7 +1064,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 
 const streamTimeout = 10 * time.Minute
 
-func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker, fallbackInputTokens int) error {
+func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker, fallbackInputTokens int, maskResult *privacy.MaskResult) error {
 	// Add timeout to prevent hanging streams
 	ctx, cancel := context.WithTimeout(resp.Request.Context(), streamTimeout)
 	defer cancel()
@@ -1074,6 +1074,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		slog.Info("stream unmasker active", "has_secrets", maskResult.HasSecrets, "has_pii", maskResult.HasPII,
+			"secrets_map", len(maskResult.SecretsCtx.Mapping), "pii_map", len(maskResult.PIICtx.Mapping),
+			"unmasker_has_ctx", unmasker != nil && unmasker.HasContexts())
+	}
 
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
