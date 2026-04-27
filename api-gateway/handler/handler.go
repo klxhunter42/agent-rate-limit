@@ -489,6 +489,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		maskResult, _ = h.privacy.MaskRequest(body)
 		if maskResult != nil {
 			body = maskResult.MaskedBody
+			slog.Info("privacy mask applied",
+				"has_secrets", maskResult.HasSecrets,
+				"has_pii", maskResult.HasPII,
+				"secrets_count", len(maskResult.SecretsCtx.Mapping),
+				"pii_count", len(maskResult.PIICtx.Mapping),
+			)
+		} else {
+			slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
 		}
 	}
 

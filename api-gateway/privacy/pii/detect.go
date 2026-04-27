@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -79,14 +80,34 @@ func (c *PresidioClient) Detect(text string) DetectResult {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		slog.Warn("presidio analyze failed",
+			"status", resp.StatusCode,
+			"response", string(bodyBytes),
+			"request_text_len", len(text),
+		)
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
 		return DetectResult{ScanMs: elapsed}
 	}
 
 	var result presidioResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		slog.Warn("presidio decode error", "error", err)
 		return DetectResult{ScanMs: elapsed}
 	}
+
+	slog.Info("presidio detect",
+		"text_len", len(text),
+		"text_preview", func() string {
+			if len(text) > 100 {
+				return text[:100]
+			}
+			return text
+		}(),
+		"entities_found", len(result),
+		"score_threshold", c.scoreThreshold,
+		"filter_entities", c.entities,
+	)
 
 	entities := make([]masking.PIIEntity, 0, len(result))
 	for _, e := range result {
