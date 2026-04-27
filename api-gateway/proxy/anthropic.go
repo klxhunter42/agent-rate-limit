@@ -1080,6 +1080,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			"secrets_map", len(maskResult.SecretsCtx.Mapping), "pii_map", len(maskResult.PIICtx.Mapping),
 			"unmasker_has_ctx", unmasker != nil && unmasker.HasContexts())
 	}
+	// Count how many chunks get unmasked for debugging.
+	var unmaskHits int
+	defer func() {
+		if unmaskHits > 0 {
+			slog.Info("stream unmask hits", "count", unmaskHits)
+		}
+	}()
 
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
@@ -1117,6 +1124,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				if evt.Delta.Text != "" {
 					unmasked := unmasker.ProcessChunk(evt.Delta.Text)
 					if unmasked != evt.Delta.Text {
+						unmaskHits++
 						evt.Delta.Text = unmasked
 						if newData, err := json.Marshal(evt); err == nil {
 							line = "data: " + string(newData)
@@ -1125,6 +1133,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				} else if evt.Delta.Thinking != "" {
 					unmasked := unmasker.ProcessChunk(evt.Delta.Thinking)
 					if unmasked != evt.Delta.Thinking {
+						unmaskHits++
 						evt.Delta.Thinking = unmasked
 						if newData, err := json.Marshal(evt); err == nil {
 							line = "data: " + string(newData)
