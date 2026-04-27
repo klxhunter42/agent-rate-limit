@@ -1378,6 +1378,9 @@ var knownModels = []struct {
 	// Claude OAuth
 	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
 	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-20250514", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-haiku-4-5-20251001", "claude-oauth", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
 	// OpenAI
 	{"gpt-4o", "openai", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
 	{"gpt-4o-mini", "openai", "gpt-4", "openai", 0.15, 0.60, 128000, "none", false, false, false},
