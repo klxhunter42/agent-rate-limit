@@ -15,7 +15,6 @@ if [ -n "$PROFILE_NAME" ]; then
   TOKEN=$(echo "$RESP" | grep -o 'arl_[a-f0-9]*' | head -1)
   if [ -n "$TOKEN" ]; then
     export ANTHROPIC_API_KEY="$TOKEN"
-    export CLAUDE_CODE_OAUTH_TOKEN="$TOKEN"
     echo "Token provisioned: ${TOKEN:0:12}..."
     if [ ! -f /root/.claude.json ]; then
       echo '{"hasCompletedOnboarding":true}' > /root/.claude.json
@@ -33,8 +32,28 @@ with open('/root/.claude.json','w') as f: json.dump(d,f)
     if [ -n "$MODEL" ]; then MODEL_JSON=",\"model\":\"$MODEL\""; fi
     THINKING_JSON=""
     if [ -n "$THINKING" ]; then THINKING_JSON=",\"alwaysThinkingEnabled\":$THINKING"; fi
+    AUTH_TOKEN_JSON=""
+    USER_OAUTH=""
+    if [ -n "$CLAUDE_OAUTH_TOKEN" ]; then
+      USER_OAUTH="$CLAUDE_OAUTH_TOKEN"
+    elif [ -f /root/.claude/credentials.json ]; then
+      USER_OAUTH=$(python3 -c "
+import json
+try:
+    d = json.load(open('/root/.claude/credentials.json'))
+    for k in ('oauthToken','accessToken','token'):
+        if d.get(k): print(d[k]); break
+except: pass
+" 2>/dev/null || true)
+    fi
+    if [ -n "$USER_OAUTH" ] && [ "${USER_OAUTH:0:4}" != "arl_" ]; then
+      AUTH_TOKEN_JSON=",\"ANTHROPIC_AUTH_TOKEN\":\"$USER_OAUTH\""
+      export CLAUDE_CODE_OAUTH_TOKEN="$USER_OAUTH"
+      echo "User OAuth token mounted for passthrough auth"
+    fi
+    mkdir -p /root/.claude
     cat > /root/.claude/settings.json <<SETTINGS
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-proxy:9000","ANTHROPIC_API_KEY":"$TOKEN"}${MODEL_JSON}${THINKING_JSON}}
+{"env":{"ANTHROPIC_BASE_URL":"http://arl-proxy:9000","ANTHROPIC_API_KEY":"$TOKEN"${AUTH_TOKEN_JSON}}${MODEL_JSON}${THINKING_JSON}}
 SETTINGS
     echo "Settings updated"
   else
@@ -42,8 +61,17 @@ SETTINGS
   fi
 fi
 
-# Non-bare mode hangs in Docker (Claude Code bug #27900).
-# CLAUDE_CODE_SIMPLE=1 is equivalent to --bare but via env var - works in all modes.
-export CLAUDE_CODE_SIMPLE=1
+# Detect TTY: use full interactive mode only when TTY is attached.
+if [ ! -t 0 ] && [ "${CLAUDE_CODE_SIMPLE:-}" != "0" ]; then
+  export CLAUDE_CODE_SIMPLE=1
+fi
 
-exec claude "$@"
+# If first arg is a command other than claude flags, run it directly.
+case "$1" in
+  claude|-*|"")
+    exec claude "$@"
+    ;;
+  *)
+    exec "$@"
+    ;;
+esac

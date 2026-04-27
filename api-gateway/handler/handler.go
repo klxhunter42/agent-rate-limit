@@ -344,15 +344,32 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else if profileOverride != nil {
-		pid := profileOverride.Provider
-		if pid == "" {
-			pid = profileOverride.Target
-		}
-		if pid != "" && h.tokenStore != nil {
-			if tok, err := h.tokenStore.GetDefault(pid); err == nil && tok != nil {
-				apiKey = tok.AccessToken
-				selectedTokenInfo = tok
-				slog.Info("profile default token selected", "profile", profileOverride.Name, "provider", pid, "account", tok.AccountID)
+		if profileOverride.PassthroughAuth {
+			// Passthrough: use client's own Bearer token from Authorization header.
+			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+				apiKey = strings.TrimPrefix(ah, "Bearer ")
+			}
+			if apiKey == "" {
+				apiKey = r.Header.Get("x-api-key")
+			}
+			// Strip arl_ prefix if present (client sent same key for profile lookup).
+			if strings.HasPrefix(apiKey, "arl_") {
+				apiKey = ""
+			}
+			if apiKey != "" {
+				slog.Info("profile passthrough auth", "profile", profileOverride.Name)
+			}
+		} else {
+			pid := profileOverride.Provider
+			if pid == "" {
+				pid = profileOverride.Target
+			}
+			if pid != "" && h.tokenStore != nil {
+				if tok, err := h.tokenStore.GetDefault(pid); err == nil && tok != nil {
+					apiKey = tok.AccessToken
+					selectedTokenInfo = tok
+					slog.Info("profile default token selected", "profile", profileOverride.Name, "provider", pid, "account", tok.AccountID)
+				}
 			}
 		}
 	} else if decision != nil && decision.APIKey != "" {
@@ -518,10 +535,31 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				decision = d
 			}
 		}
+		// Passthrough auth: force bearer mode so client's token is sent as Authorization.
+		if profileOverride.PassthroughAuth {
+			profileOpts.AuthMode = "bearer"
+			// Get ExtraHeaders from provider route table for anthropic-beta etc.
+			if profileOverride.Provider != "" || profileOverride.Target != "" {
+				pid := profileOverride.Provider
+				if pid == "" {
+					pid = profileOverride.Target
+				}
+				if d, ok := h.resolver.ResolveByProvider(pid); ok && d != nil {
+					profileOpts.ExtraHeaders = d.ExtraHeaders
+					if profileOpts.UpstreamOverride == "" {
+						profileOpts.UpstreamOverride = d.UpstreamURL
+					}
+				}
+			}
+		}
 	}
 
 	// OAuth token refresh callback: on 401, refresh the token and retry once.
+	// Skip for passthrough auth - client manages their own token lifecycle.
 	oauthRefreshFn := func(oldKey string) (string, bool) {
+		if profileOverride != nil && profileOverride.PassthroughAuth {
+			return "", false
+		}
 		pid := ""
 		if profileOverride != nil && profileOverride.Provider != "" {
 			pid = profileOverride.Provider
@@ -550,7 +588,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	profileOpts.OnAuthError = oauthRefreshFn
 
 	// Account rotation callback: on 429, pick a different account from the pool.
+	// Skip for passthrough auth - client manages their own token lifecycle.
 	rotateAccountFn := func(oldKey string) (string, bool) {
+		if profileOverride != nil && profileOverride.PassthroughAuth {
+			return "", false
+		}
 		pid := ""
 		var accountIDs []string
 		if profileOverride != nil {
@@ -613,6 +655,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		h.modelLimiter.Feedback(selectedModel, statusCode, rtt, headers)
 		if statusCode == 429 || statusCode == 503 {
 			h.keyPool.Report429(apiKey)
+			if decision != nil && h.resolver != nil {
+				h.resolver.MarkCooldown(decision.ProviderID, 2*time.Minute)
+				slog.Info("provider cooldown activated", "provider", decision.ProviderID, "duration", "2m")
+			}
 		} else if statusCode >= 200 && statusCode < 300 {
 			h.keyPool.ReportSuccess(apiKey)
 		}

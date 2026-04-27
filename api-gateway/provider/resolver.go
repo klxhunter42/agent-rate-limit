@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type ProviderFormat string
@@ -30,10 +31,23 @@ type Resolver struct {
 	tokenStore *TokenStore
 	glmMode    bool
 	counters   sync.Map // map[string]*atomic.Uint64, keyed by providerID
+	cooldowns  sync.Map // map[string]time.Time, providerID -> cooldown until
 }
 
 func NewResolver(registry *Registry, tokenStore *TokenStore, glmMode bool) *Resolver {
 	return &Resolver{registry: registry, tokenStore: tokenStore, glmMode: glmMode}
+}
+
+// MarkCooldown marks a provider as rate-limited so subsequent requests skip it.
+func (r *Resolver) MarkCooldown(providerID string, d time.Duration) {
+	r.cooldowns.Store(providerID, time.Now().Add(d))
+}
+
+func (r *Resolver) isCoolingDown(providerID string) bool {
+	if v, ok := r.cooldowns.Load(providerID); ok {
+		return time.Now().Before(v.(time.Time))
+	}
+	return false
 }
 
 type providerRoute struct {
@@ -46,9 +60,9 @@ type providerRoute struct {
 var providerRouteTable = map[string]providerRoute{
 	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
-		"anthropic-beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-cli/2.1.94 (external, sdk-cli)",
+		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
 		"accept-language":             "*",
@@ -58,14 +72,14 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-		"X-Stainless-Runtime-Version": "v25.5.0",
+		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}},
 	"claude": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
-		"anthropic-beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-cli/2.1.94 (external, sdk-cli)",
+		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
 		"accept-language":             "*",
@@ -75,7 +89,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-		"X-Stainless-Runtime-Version": "v25.5.0",
+		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}}, // alias
@@ -139,6 +153,34 @@ func ModelBelongsToProvider(model, providerID string) bool {
 	return false
 }
 
+// ResolveFallback returns the next routing decision for a model, skipping providers in exclude.
+func (r *Resolver) ResolveFallback(model string, exclude []string) *RoutingDecision {
+	excludeMap := make(map[string]bool, len(exclude))
+	for _, p := range exclude {
+		excludeMap[p] = true
+	}
+	for _, rule := range modelRules {
+		if strings.HasPrefix(model, rule.prefix) {
+			for _, pid := range rule.providers {
+				if excludeMap[pid] {
+					continue
+				}
+				var decision *RoutingDecision
+				if pid == "claude-oauth" {
+					decision = r.tryResolveRoundRobin(pid, model)
+				} else {
+					decision = r.tryResolve(pid, model)
+				}
+				if decision != nil {
+					return decision
+				}
+			}
+			break
+		}
+	}
+	return nil
+}
+
 func (r *Resolver) Resolve(model string) *RoutingDecision {
 	for _, rule := range modelRules {
 		if strings.HasPrefix(model, rule.prefix) {
@@ -184,6 +226,9 @@ func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool)
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
+	if r.isCoolingDown(providerID) {
+		return nil
+	}
 	if r.tokenStore == nil {
 		return nil
 	}
@@ -200,6 +245,9 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 // tryResolveRoundRobin cycles through all active tokens for a provider.
 // Prefers accounts with low 5h utilization; falls back to all if all are high.
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
+	if r.isCoolingDown(providerID) {
+		return nil
+	}
 	if r.tokenStore == nil {
 		return nil
 	}
