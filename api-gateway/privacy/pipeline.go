@@ -201,6 +201,30 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 	}
 
 	text := string(body)
+	origLen := len(text)
+
+	// Check if any placeholder actually exists in the response.
+	found := 0
+	if result.HasSecrets && result.SecretsCtx != nil {
+		for ph := range result.SecretsCtx.Mapping {
+			if strings.Contains(text, ph) {
+				found++
+			}
+		}
+	}
+	if result.HasPII && result.PIICtx != nil {
+		for ph := range result.PIICtx.Mapping {
+			if strings.Contains(text, ph) {
+				found++
+			}
+		}
+	}
+	slog.Info("unmask check",
+		"body_len", origLen,
+		"placeholders_in_body", found,
+		"secrets_mapping", len(result.SecretsCtx.Mapping),
+		"pii_mapping", len(result.PIICtx.Mapping),
+	)
 
 	// Unmask secrets first (innermost), then PII (outermost).
 	// This matches the mask order: secrets masked first, then PII applied on top.
@@ -220,6 +244,12 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
 		}
 	}
+
+	slog.Info("unmask done",
+		"orig_len", origLen,
+		"new_len", len(text),
+		"changed", origLen != len(text),
+	)
 
 	return []byte(text)
 }

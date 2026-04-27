@@ -23,18 +23,19 @@ const profileTokensPrefix = "profile_tokens:"
 
 // Profile represents a configuration for connecting to an AI provider.
 type Profile struct {
-	Name        string   `json:"name"`
-	BaseURL     string   `json:"baseUrl"`
-	APIKey      string   `json:"apiKey"`
-	Model       string   `json:"model"`
-	OpusModel   string   `json:"opusModel,omitempty"`
-	SonnetModel string   `json:"sonnetModel,omitempty"`
-	HaikuModel  string   `json:"haikuModel,omitempty"`
-	Target      string   `json:"target"`
-	Provider    string   `json:"provider,omitempty"`
-	AccountIDs  []string `json:"accountIds"`
-	CreatedAt   string   `json:"createdAt"`
-	UpdatedAt   string   `json:"updatedAt"`
+	Name            string   `json:"name"`
+	BaseURL         string   `json:"baseUrl"`
+	APIKey          string   `json:"apiKey"`
+	Model           string   `json:"model"`
+	OpusModel       string   `json:"opusModel,omitempty"`
+	SonnetModel     string   `json:"sonnetModel,omitempty"`
+	HaikuModel      string   `json:"haikuModel,omitempty"`
+	Target          string   `json:"target"`
+	Provider        string   `json:"provider,omitempty"`
+	AccountIDs      []string `json:"accountIds"`
+	PassthroughAuth bool     `json:"passthroughAuth,omitempty"`
+	CreatedAt       string   `json:"createdAt"`
+	UpdatedAt       string   `json:"updatedAt"`
 }
 
 // ProfileToken represents a named API token tied to a profile.

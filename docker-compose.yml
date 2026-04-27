@@ -409,7 +409,6 @@ services:
     container_name: claude-code-meow
     profiles: ["test-client"]
     volumes:
-      - ./docker/settings-meow.json:/root/.claude/settings.json
       - ./workspace:/workspace
     environment:
       PROFILE_NAME: meow
@@ -428,7 +427,6 @@ services:
     container_name: claude-code-test
     profiles: ["test-client"]
     volumes:
-      - ./docker/settings-test.json:/root/.claude/settings.json
       - ./workspace:/workspace
     environment:
       PROFILE_NAME: test

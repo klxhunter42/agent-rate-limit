@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -394,10 +395,12 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 	}
 
 	// Multiple accounts: pick the one with lowest 5h utilization.
+	// Among accounts with same utilization (or all unknown), pick randomly.
 	rls := s.GetRateLimits(provider, accountIDs)
 	best := candidates[0]
 	bestUtil := 200.0
-	for _, t := range candidates {
+	ties := []TokenInfo{candidates[0]}
+	for _, t := range candidates[1:] {
 		util := 200.0
 		if rl, ok := rls[t.AccountID]; ok && rl.Util5h > 0 {
 			util = rl.Util5h
@@ -405,7 +408,13 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 		if util < bestUtil {
 			bestUtil = util
 			best = t
+			ties = []TokenInfo{t}
+		} else if util == bestUtil {
+			ties = append(ties, t)
 		}
+	}
+	if len(ties) > 1 {
+		best = ties[rand.Intn(len(ties))]
 	}
 	tCopy := best
 	return &tCopy, nil
