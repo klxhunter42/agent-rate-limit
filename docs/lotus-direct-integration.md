@@ -17,7 +17,7 @@ Lotus LLM endpoint (`api-cpxis.lotuss.com/llm`) provides an internal LLM service
 | Base URL | `https://api-cpxis.lotuss.com/llm` |
 | Anthropic format | `/v1/messages` |
 | OpenAI format | `/v1/chat/completions` |
-| Auth | `Authorization: Bearer devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s` |
+| Auth | `Authorization: Bearer REDACTED` |
 | Model name | `default` (NOT `glm-4.5` or `glm-5.1` - returns 404) |
 | Context limit | ~40K tokens total (system prompt ~26K, output ~14K max) |
 | Streaming | Supported (SSE) |
@@ -32,7 +32,7 @@ Lotus LLM endpoint (`api-cpxis.lotuss.com/llm`) provides an internal LLM service
 {
   "env": {
     "ANTHROPIC_BASE_URL": "https://api-cpxis.lotuss.com/llm",
-    "ANTHROPIC_API_KEY": "devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s",
+    "ANTHROPIC_API_KEY": "REDACTED",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "default",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "default",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "default",
@@ -61,7 +61,7 @@ echo "say ok" | claude -p
 # Direct curl test
 curl -s -X POST https://api-cpxis.lotuss.com/llm/v1/messages \
   -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s" \
+  -H "Authorization: Bearer REDACTED" \
   -H 'anthropic-version: 2023-06-01' \
   -d '{"model":"default","max_tokens":64,"messages":[{"role":"user","content":"say hi"}]}'
 ```
@@ -217,7 +217,7 @@ if mt, ok := payload["max_tokens"].(float64); ok && mt > lotusMaxTokens {
   "name": "lotus",
   "type": "anthropic-compat",
   "baseUrl": "https://api-cpxis.lotuss.com/llm",
-  "apiKey": "devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s",
+  "apiKey": "REDACTED",
   "models": ["default"],
   "maxTokens": 14000,
   "streamPatch": true

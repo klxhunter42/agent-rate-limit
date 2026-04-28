@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 UPSTREAM_URL = "api-cpxis.lotuss.com"
 UPSTREAM_PATH = "/llm/v1/chat/completions"
-API_KEY = "devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s"
+API_KEY = "REDACTED"
 DEFAULT_MODEL = "default"
 LISTEN_PORT = 8999
 

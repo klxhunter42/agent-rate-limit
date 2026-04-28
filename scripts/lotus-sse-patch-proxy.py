@@ -14,7 +14,7 @@ from http.client import HTTPSConnection
 
 UPSTREAM_HOST = "api-cpxis.lotuss.com"
 UPSTREAM_PATH_PREFIX = "/llm"
-API_KEY = "devops.lotuss.Db90t8pjZE2kdn0uI8os9jldmLoH9s"
+API_KEY = "REDACTED"
 LISTEN_PORT = 8999
 
 
