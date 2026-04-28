@@ -1,0 +1,18 @@
+{{- if .Values.rateLimiter.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "rate-limiter") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "rate-limiter") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.rateLimiter.service.port }}
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "rate-limiter") | nindent 4 }}
+{{- end }}

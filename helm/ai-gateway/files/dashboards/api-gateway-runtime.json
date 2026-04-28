@@ -1,0 +1,71 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Goroutines",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "api_gateway_go_goroutines", "legendFormat": "goroutines", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Memory",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "api_gateway_go_heap_alloc_bytes", "legendFormat": "heap_alloc", "refId": "A" },
+        { "expr": "api_gateway_go_stack_inuse_bytes", "legendFormat": "stack_inuse", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "title": "GC Pause",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "api_gateway_go_gc_pause_ns", "legendFormat": "gc_pause", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ns" } }
+    },
+    {
+      "title": "Heap Objects",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "api_gateway_go_heap_objects", "legendFormat": "heap_objects", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "title": "Dragonfly Health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "api_gateway_dragonfly_up", "legendFormat": "Dragonfly", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "mappings": [{ "type": "value", "options": { "0": { "text": "Down", "color": "red" }, "1": { "text": "Healthy", "color": "green" } } }]
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center" }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["agent-rate-limit", "api-gateway"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "60s",
+  "title": "Gateway - Runtime & Health",
+  "uid": "arl-gw-runtime",
+  "version": 1
+}

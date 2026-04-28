@@ -1,0 +1,102 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "worker") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "worker") | nindent 8 }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          ports:
+            - containerPort: 9090
+              name: metrics
+            - containerPort: 9091
+              name: internal
+          securityContext:
+            {{- include "ai-gateway.securityContext" . | nindent 12 }}
+          env:
+            - name: REDIS_URL
+              value: "redis://{{ .Release.Name }}-dragonfly:6379"
+            - name: GLM_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: glm-api-keys
+                  optional: true
+            - name: OPENAI_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: openai-api-keys
+                  optional: true
+            - name: ANTHROPIC_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: anthropic-api-keys
+                  optional: true
+            - name: GEMINI_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: gemini-api-keys
+                  optional: true
+            - name: OPENROUTER_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: openrouter-api-keys
+                  optional: true
+            {{- include "ai-gateway.envVars" .Values.worker.env | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /metrics-internal
+              port: 9091
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /metrics-internal
+              port: 9091
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "worker") | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+{{- end }}
