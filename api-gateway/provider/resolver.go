@@ -38,13 +38,21 @@ func NewResolver(registry *Registry, tokenStore *TokenStore, glmMode bool) *Reso
 	return &Resolver{registry: registry, tokenStore: tokenStore, glmMode: glmMode}
 }
 
-// MarkCooldown marks a provider as rate-limited so subsequent requests skip it.
-func (r *Resolver) MarkCooldown(providerID string, d time.Duration) {
-	r.cooldowns.Store(providerID, time.Now().Add(d))
+// MarkCooldown marks a provider+model as rate-limited so subsequent requests skip it.
+func (r *Resolver) MarkCooldown(providerID string, d time.Duration, model ...string) {
+	key := providerID
+	if len(model) > 0 && model[0] != "" {
+		key = providerID + ":" + model[0]
+	}
+	r.cooldowns.Store(key, time.Now().Add(d))
 }
 
-func (r *Resolver) isCoolingDown(providerID string) bool {
-	if v, ok := r.cooldowns.Load(providerID); ok {
+func (r *Resolver) isCoolingDown(providerID string, model ...string) bool {
+	key := providerID
+	if len(model) > 0 && model[0] != "" {
+		key = providerID + ":" + model[0]
+	}
+	if v, ok := r.cooldowns.Load(key); ok {
 		return time.Now().Before(v.(time.Time))
 	}
 	return false
@@ -65,8 +73,6 @@ var providerRouteTable = map[string]providerRoute{
 		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
-		"accept-language":             "*",
-		"sec-fetch-mode":              "cors",
 		"X-Stainless-Lang":            "js",
 		"X-Stainless-Package-Version": "0.81.0",
 		"X-Stainless-OS":              "MacOS",
@@ -82,8 +88,6 @@ var providerRouteTable = map[string]providerRoute{
 		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
-		"accept-language":             "*",
-		"sec-fetch-mode":              "cors",
 		"X-Stainless-Lang":            "js",
 		"X-Stainless-Package-Version": "0.81.0",
 		"X-Stainless-OS":              "MacOS",
@@ -226,7 +230,7 @@ func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool)
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
-	if r.isCoolingDown(providerID) {
+	if r.isCoolingDown(providerID, model) {
 		return nil
 	}
 	if r.tokenStore == nil {
@@ -245,7 +249,7 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 // tryResolveRoundRobin cycles through all active tokens for a provider.
 // Prefers accounts with low 5h utilization; falls back to all if all are high.
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
-	if r.isCoolingDown(providerID) {
+	if r.isCoolingDown(providerID, model) {
 		return nil
 	}
 	if r.tokenStore == nil {

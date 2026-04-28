@@ -1,8 +1,5 @@
 package masking
 
-// StreamUnmasker handles chunk-by-chunk unmasking of SSE streaming responses.
-// It maintains separate buffers for PII and secrets to handle partial placeholders
-// that span chunk boundaries.
 type StreamUnmasker struct {
 	piiBuffer     string
 	secretsBuffer string
@@ -17,25 +14,47 @@ func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
 	}
 }
 
-// ProcessChunk unmask a single SSE text chunk.
-// PII placeholders are unmasked first, then secrets on the result.
+// ProcessChunk unmasks a single SSE text chunk with buffering for partial placeholders.
+// Only use for text/thinking deltas within the same content block.
 func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	processed := chunk
-
-	// Unmask secrets first (innermost), then PII (outermost).
 	if u.secretsCtx != nil && len(u.secretsCtx.Mapping) > 0 {
 		processed, u.secretsBuffer = processStreamChunk(u.secretsBuffer, processed, u.secretsCtx)
 	}
-
-	// Then unmask PII on the secrets-unmasked result.
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		processed, u.piiBuffer = processStreamChunk(u.piiBuffer, processed, u.piiCtx)
 	}
-
 	return processed
 }
 
-// Flush returns any remaining buffered content (call at stream end).
+// ReplaceDirect does unbuffered replacement on a standalone string.
+// Use for partial_json and other independent SSE data to avoid
+// cross-block buffer contamination.
+func (u *StreamUnmasker) ReplaceDirect(text string) string {
+	result := text
+	if u.secretsCtx != nil && len(u.secretsCtx.Mapping) > 0 {
+		result = u.secretsCtx.RestorePlaceholders(result)
+	}
+	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
+		result = u.piiCtx.RestorePlaceholders(result)
+	}
+	return result
+}
+
+// ReplaceDirectJSON does unbuffered JSON-safe replacement.
+// Use for partial_json and raw SSE data lines where the replaced
+// values must survive JSON string encoding.
+func (u *StreamUnmasker) ReplaceDirectJSON(text string) string {
+	result := text
+	if u.secretsCtx != nil && len(u.secretsCtx.Mapping) > 0 {
+		result = u.secretsCtx.RestorePlaceholdersJSON(result)
+	}
+	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
+		result = u.piiCtx.RestorePlaceholdersJSON(result)
+	}
+	return result
+}
+
 func (u *StreamUnmasker) Flush() string {
 	result := ""
 	if u.piiCtx != nil && u.piiBuffer != "" {
@@ -49,7 +68,6 @@ func (u *StreamUnmasker) Flush() string {
 	return result
 }
 
-// HasContexts returns true if there are any placeholders to unmask.
 func (u *StreamUnmasker) HasContexts() bool {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		return true
@@ -62,12 +80,10 @@ func (u *StreamUnmasker) HasContexts() bool {
 
 func processStreamChunk(buffer, chunk string, ctx *MaskContext) (output, remaining string) {
 	combined := buffer + chunk
-
 	partialStart := FindPartialPlaceholderStart(combined)
 	if partialStart < 0 {
 		return ctx.RestorePlaceholders(combined), ""
 	}
-
 	safeToProcess := combined[:partialStart]
 	toBuffer := combined[partialStart:]
 	return ctx.RestorePlaceholders(safeToProcess), toBuffer
