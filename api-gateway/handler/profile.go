@@ -98,6 +98,7 @@ func (h *ProfileHandler) Routes() func(r chi.Router) {
 			r.Get("/", h.List)
 			r.Post("/", h.Create)
 			r.Post("/import", h.Import)
+			r.Post("/delete", h.DeleteByName)
 			r.Get("/recommended-models", h.RecommendedModels)
 			r.Route("/{name}", func(r chi.Router) {
 				r.Get("/", h.Get)
@@ -359,6 +360,42 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
+}
+
+// DeleteByName removes a profile by name in JSON body. Works around URL path
+// issues with special characters like brackets in profile names.
+func (h *ProfileHandler) DeleteByName(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required in JSON body"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	tokens, _ := h.redis.HGetAll(ctx, profileTokensPrefix+req.Name).Result()
+	for _, val := range tokens {
+		var pt ProfileToken
+		if json.Unmarshal([]byte(val), &pt) == nil {
+			h.redis.Del(ctx, profileTokenPrefix+pt.Token)
+		}
+	}
+	h.redis.Del(ctx, profileTokensPrefix+req.Name)
+
+	deleted, err := h.redis.Del(ctx, profilePrefix+req.Name).Result()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete profile"})
+		return
+	}
+	if deleted == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "profile not found: " + req.Name})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": req.Name})
 }
 
 // Copy duplicates a profile under a new name. Body: {"destination": "new-name"}.
