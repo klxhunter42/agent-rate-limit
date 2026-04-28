@@ -602,11 +602,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 				// Flush remaining unmasker buffer before closing events.
 				if unmasker != nil {
 					if remaining := unmasker.Flush(); remaining != "" {
-						escaped, _ := json.Marshal(remaining)
-						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-						if flusher != nil {
-							flusher.Flush()
-						}
+						slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
 					}
 				}
 				// content_block_stop
@@ -681,16 +677,10 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		}
 	}
 
-	// Flush remaining unmasker buffer if stream ended without [DONE].
+	// Log any remaining unmasker buffer.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			if started {
-				escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-				if flusher != nil {
-					flusher.Flush()
-				}
-			}
+			slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
 		}
 	}
 
@@ -1117,9 +1107,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					Index int    `json:"index"`
 					Delta struct {
 						Type        string `json:"type"`
-						Text        string `json:"text"`
-						Thinking    string `json:"thinking"`
-						PartialJSON string `json:"partial_json"`
+						Text        string `json:"text,omitempty"`
+						Thinking    string `json:"thinking,omitempty"`
+						PartialJSON string `json:"partial_json,omitempty"`
 					} `json:"delta"`
 				}
 				if json.Unmarshal([]byte(data), &evt) == nil {
