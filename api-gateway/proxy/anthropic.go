@@ -1116,34 +1116,35 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					Type  string `json:"type"`
 					Index int    `json:"index"`
 					Delta struct {
-						Type     string `json:"type"`
-						Text     string `json:"text"`
-						Thinking string `json:"thinking"`
+						Type        string `json:"type"`
+						Text        string `json:"text"`
+						Thinking    string `json:"thinking"`
+						PartialJSON string `json:"partial_json"`
 					} `json:"delta"`
 				}
 				if json.Unmarshal([]byte(data), &evt) == nil {
+					var changed bool
 					if evt.Delta.Text != "" {
-						unmasked := unmasker.ProcessChunk(evt.Delta.Text)
-						if unmasked != evt.Delta.Text {
-							unmaskHits++
-							evt.Delta.Text = unmasked
-							if newData, err := json.Marshal(evt); err == nil {
-								line = "data: " + string(newData)
-							}
-						}
+						before := evt.Delta.Text
+						evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
+						changed = evt.Delta.Text != before
 					} else if evt.Delta.Thinking != "" {
-						unmasked := unmasker.ProcessChunk(evt.Delta.Thinking)
-						if unmasked != evt.Delta.Thinking {
-							unmaskHits++
-							evt.Delta.Thinking = unmasked
-							if newData, err := json.Marshal(evt); err == nil {
-								line = "data: " + string(newData)
-							}
+						before := evt.Delta.Thinking
+						evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
+						changed = evt.Delta.Thinking != before
+					} else if evt.Delta.PartialJSON != "" {
+						before := evt.Delta.PartialJSON
+						evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
+						changed = evt.Delta.PartialJSON != before
+					}
+					if changed {
+						unmaskHits++
+						if newData, err := json.Marshal(evt); err == nil {
+							line = "data: " + string(newData)
 						}
 					}
 				}
 			} else {
-				// Raw replacement for all other SSE events.
 				unmasked := unmasker.ProcessChunk(data)
 				if unmasked != data {
 					unmaskHits++
