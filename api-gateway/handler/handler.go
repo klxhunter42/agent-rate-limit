@@ -277,6 +277,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Extract model early for provider resolution.
 	requestedModel, _ := payload["model"].(string)
 
+	// Rewrite sonnet/opus requests to haiku (org-level rate limit workaround).
+	if strings.Contains(requestedModel, "sonnet") || strings.Contains(requestedModel, "opus") {
+		requestedModel = "claude-haiku-4-5-20251001"
+		payload["model"] = requestedModel
+	}
+	// Clamp max_tokens to upstream model's hard limit.
+	clampMaxTokens(payload, requestedModel)
+
 	// Profile-based routing: check X-Profile header or arl_* API token.
 	var profileOverride *Profile
 	profileName := r.Header.Get("X-Profile")
@@ -656,8 +664,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if statusCode == 429 || statusCode == 503 {
 			h.keyPool.Report429(apiKey)
 			if decision != nil && h.resolver != nil {
-				h.resolver.MarkCooldown(decision.ProviderID, 2*time.Minute)
-				slog.Info("provider cooldown activated", "provider", decision.ProviderID, "duration", "2m")
+				h.resolver.MarkCooldown(decision.ProviderID, 2*time.Minute, selectedModel)
+				slog.Info("provider cooldown activated", "provider", decision.ProviderID, "model", selectedModel, "duration", "2m")
 			}
 		} else if statusCode >= 200 && statusCode < 300 {
 			h.keyPool.ReportSuccess(apiKey)
@@ -1067,9 +1075,9 @@ var modelMaxTokens = map[string]int{
 	"glm-5-turbo":               4096,
 	"glm-5":                     8192,
 	"glm-4.5":                   4096,
-	"claude-opus-4-7":           163840,
-	"claude-sonnet-4-6":         163840,
-	"claude-haiku-4-5-20251001": 8192,
+	"claude-opus-4-7":           200000,
+	"claude-sonnet-4-6":         200000,
+	"claude-haiku-4-5-20251001": 200000,
 }
 
 var modelMaxTokensMu sync.RWMutex
@@ -1300,6 +1308,26 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 	}
 }
 
+
+// anthropicModelMaxTokens are hard limits enforced by Anthropic's API.
+var anthropicModelMaxTokens = map[string]int{
+	"claude-haiku-4-5-20251001": 64000,
+	"claude-opus-4-7":           200000,
+	"claude-sonnet-4-20250514":   200000,
+	"claude-sonnet-4-6":          200000,
+}
+
+// clampMaxTokens ensures max_tokens does not exceed the upstream model's limit.
+func clampMaxTokens(payload map[string]any, model string) {
+	mt, ok := payload["max_tokens"].(float64)
+	if !ok {
+		return
+	}
+	if limit, found := anthropicModelMaxTokens[model]; found && mt > float64(limit) {
+		payload["max_tokens"] = limit
+	}
+}
+
 func (h *Handler) GetRoutingStrategy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"strategy": proxy.GetStrategy()})
 }
@@ -1411,8 +1439,8 @@ var knownModels = []struct {
 
 // providerDefaultModels maps each provider to its default model.
 var providerDefaultModels = map[string]string{
-	"claude-oauth": "claude-sonnet-4-20250514",
-	"claude":       "claude-sonnet-4-20250514",
+	"claude-oauth": "claude-haiku-4-5-20251001",
+	"claude":       "claude-haiku-4-5-20251001",
 	"anthropic":    "claude-sonnet-4-20250514",
 	"gemini-oauth": "gemini-2.5-flash",
 	"gemini":       "gemini-2.5-flash",

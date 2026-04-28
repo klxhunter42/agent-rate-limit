@@ -1134,7 +1134,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						changed = evt.Delta.Thinking != before
 					} else if evt.Delta.PartialJSON != "" {
 						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
 						changed = evt.Delta.PartialJSON != before
 					}
 					if changed {
@@ -1145,7 +1145,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					}
 				}
 			} else {
-				unmasked := unmasker.ProcessChunk(data)
+				unmasked := unmasker.ReplaceDirectJSON(data)
 				if unmasked != data {
 					unmaskHits++
 					line = "data: " + unmasked
@@ -1186,14 +1186,10 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		return fmt.Errorf("stream read error: %w", err)
 	}
 
-	// Flush remaining unmasker buffer.
+	// Log any remaining unmasker buffer (should not happen with correct streaming).
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
+			slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
 		}
 	}
 
