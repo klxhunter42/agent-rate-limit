@@ -80,7 +80,11 @@ export function ProfilesPage() {
   async function deleteProfile(name: string) {
     setDeleting(true);
     try {
-      const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const res = await fetch(`/v1/profiles/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
       if (res.ok) {
         fetchProfiles();
       } else {
