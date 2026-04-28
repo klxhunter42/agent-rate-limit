@@ -1,0 +1,18 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.grafana.service.port }}
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+{{- end }}

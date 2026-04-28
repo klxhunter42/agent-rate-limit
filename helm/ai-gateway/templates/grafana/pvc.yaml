@@ -1,0 +1,18 @@
+{{- if and .Values.grafana.enabled .Values.grafana.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.grafana.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.grafana.persistence.storageClassName }}
+  storageClassName: {{ .Values.grafana.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.grafana.persistence.size }}
+{{- end }}

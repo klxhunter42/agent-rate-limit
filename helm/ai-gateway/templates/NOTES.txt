@@ -1,0 +1,19 @@
+AI Gateway deployed!
+
+Services:
+  Gateway:      {{ .Release.Name }}-gateway:8080
+  Worker:       {{ .Release.Name }}-worker:9090
+  Rate Limiter: {{ .Release.Name }}-rate-limiter:8080
+  Dragonfly:    {{ .Release.Name }}-dragonfly:6379
+
+{{- if .Values.istio.enabled }}
+Istio VirtualService: {{ .Release.Name }}-vs
+Gateway: {{ .Values.istio.gateway }}
+{{- end }}
+
+{{- if .Values.grafana.enabled }}
+Grafana: {{ .Release.Name }}-grafana:3000 (/grafana)
+{{- end }}
+
+Get gateway health:
+  kubectl exec -n {{ .Values.global.namespace }} deploy/{{ .Release.Name }}-gateway -- curl -sf http://localhost:8080/health

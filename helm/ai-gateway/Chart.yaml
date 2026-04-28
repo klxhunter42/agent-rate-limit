@@ -1,0 +1,14 @@
+apiVersion: v2
+name: ai-gateway
+description: Full-stack AI Gateway with rate limiting, multi-provider proxy, and monitoring
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - ai-gateway
+  - rate-limiter
+  - proxy
+  - claude
+home: https://github.com/klxhunter/agent-rate-limit
+maintainers:
+  - name: klxhunter

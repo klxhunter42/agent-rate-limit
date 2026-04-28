@@ -1,0 +1,42 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "otel-collector") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "otel-collector") | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 200
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        namespace: "agent_rate_limit"
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: []
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+{{- end }}

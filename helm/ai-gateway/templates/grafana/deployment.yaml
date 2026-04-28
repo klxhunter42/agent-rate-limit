@@ -1,0 +1,72 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+spec:
+  replicas: {{ .Values.grafana.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+        fsGroup: 472
+      containers:
+        - name: grafana
+          image: "{{ .Values.grafana.image.repository }}:{{ .Values.grafana.image.tag }}"
+          imagePullPolicy: {{ .Values.grafana.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.grafana.adminPassword.secret }}
+                  key: {{ .Values.grafana.adminPassword.key }}
+            - name: GF_SERVER_ROOT_URL
+              value: "%(protocol)s://%(domain)s/grafana"
+            {{- include "ai-gateway.envVars" .Values.grafana.env | nindent 12 }}
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning
+            - name: data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: provisioning
+          configMap:
+            name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-provisioning
+        {{- if .Values.grafana.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+{{- end }}

@@ -1,0 +1,69 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "prometheus") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "prometheus") | nindent 4 }}
+spec:
+  replicas: {{ .Values.prometheus.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "prometheus") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "prometheus") | nindent 8 }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: "{{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}"
+          imagePullPolicy: {{ .Values.prometheus.image.pullPolicy }}
+          ports:
+            - containerPort: 9090
+              name: http
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.retention.time={{ .Values.prometheus.retention.time }}"
+            - "--storage.tsdb.retention.size={{ .Values.prometheus.retention.size }}"
+            - "--storage.tsdb.wal-compression"
+            - "--web.enable-lifecycle"
+          resources:
+            {{- toYaml .Values.prometheus.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "prometheus") }}
+        {{- if .Values.prometheus.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "prometheus") }}
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+{{- end }}

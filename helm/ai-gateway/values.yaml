@@ -1,0 +1,296 @@
+global:
+  namespace: ai-gateway
+  imagePullSecrets: []
+  securityContext:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+
+istio:
+  enabled: true
+  gateway: "ai-gateway-gateway"
+  hosts:
+    - "*"
+
+gateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: earth4242/ai-gateway
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "2"
+  env:
+    SERVER_PORT: ":8080"
+    GLOBAL_RATE_LIMIT: "100"
+    AGENT_RATE_LIMIT: "5"
+    WORKER_POOL_SIZE: "100"
+    REDIS_POOL_SIZE: "50"
+    REDIS_MIN_IDLE_CONNS: "10"
+    UPSTREAM_URL: "https://api.z.ai/api/anthropic"
+    STREAM_TIMEOUT: "300s"
+    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
+    UPSTREAM_DEFAULT_LIMIT: "2"
+    UPSTREAM_GLOBAL_LIMIT: "15"
+    UPSTREAM_MAX_RETRIES: "3"
+    UPSTREAM_RETRY_BACKOFF: "500ms"
+    ENABLE_PROMPT_INJECTION: "true"
+    ENABLE_RESPONSE_TRIM: "true"
+    ENABLE_SMART_MAX_TOKENS: "true"
+    UPSTREAM_RPM_LIMIT: "40"
+    UPSTREAM_PROBE_MULTIPLIER: "5"
+    MODEL_PRICING: "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-5v-turbo:1.2:4.0,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8,glm-ocr:0.03:0.03"
+    PASTEGUARD_ENABLED: "true"
+    PASTEGUARD_SECRETS_ENABLED: "true"
+    PASTEGUARD_MAX_SCAN_CHARS: "200000"
+    PASTEGUARD_PII_ENABLED: "true"
+    PASTEGUARD_PII_SCORE_THRESHOLD: "0.7"
+    PASTEGUARD_PII_LANGUAGE: "en"
+    GLM_MODE: "false"
+    ANTHROPIC_API_VERSION: "2023-06-01"
+    MODEL_PRIORITY: "glm-5.1:100,glm-5-turbo:90,glm-5:80,glm-4.7:70,glm-4.6:60,glm-4.5:50"
+    PROVIDER_MODEL_PREFIXES: "zai:glm-;anthropic:claude-;claude:claude-;openai:gpt-,o3,o4-;gemini:gemini-;gemini-oauth:gemini-;openrouter:or-;qwen:qwen-"
+  hpa:
+    enabled: false
+
+worker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: earth4242/ai-worker
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    metricsPort: 9090
+    internalPort: 9091
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2"
+  env:
+    WORKER_CONCURRENCY: "50"
+    MAX_RETRIES: "3"
+    BASE_BACKOFF: "1.0"
+    RESULT_TTL: "600"
+    METRICS_PORT: "9090"
+    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
+    UPSTREAM_DEFAULT_LIMIT: "2"
+    UPSTREAM_GLOBAL_LIMIT: "15"
+    PROVIDER_RPM_LIMITS: "glm:5"
+
+rateLimiter:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: earth4242/distributed-rate-limiter
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1536Mi"
+      cpu: "2"
+  env:
+    SPRING_PROFILES_ACTIVE: "docker"
+    SERVER_PORT: "8080"
+    JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat"
+    RATE_LIMITER_CAPACITY: "1000"
+    RATE_LIMITER_REFILL_RATE: "100"
+    RATE_LIMITER_REFILL_PERIOD_SECONDS: "1"
+    RATE_LIMITER_ADAPTIVE_ENABLED: "true"
+
+dragonfly:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/dragonflydb/dragonfly
+    tag: "v1.37.2"
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "8Gi"
+      cpu: "2"
+  persistence:
+    enabled: true
+    storageClassName: ""
+    size: 20Gi
+  args:
+    maxMemory: "4gb"
+    proactorThreads: 4
+    cacheMode: true
+    tcpKeepalive: 60
+    pipelineSquash: 10
+
+prometheus:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: prom/prometheus
+    tag: "v2.54.1"
+    pullPolicy: IfNotPresent
+  service:
+    port: 9090
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2"
+  persistence:
+    enabled: true
+    storageClassName: ""
+    size: 50Gi
+  retention:
+    time: "30d"
+    size: "10GB"
+
+grafana:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: grafana/grafana
+    tag: "11.3.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "2"
+  persistence:
+    enabled: true
+    storageClassName: ""
+    size: 10Gi
+  env:
+    GF_LOG_LEVEL: "warn"
+    GF_AUTH_ANONYMOUS_ENABLED: "false"
+    GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+  adminPassword:
+    secret: ai-gateway-secrets
+    key: grafana-admin-password
+
+otelCollector:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.112.0"
+    pullPolicy: IfNotPresent
+  service:
+    grpcPort: 4317
+    httpPort: 4318
+    metricsPort: 8889
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "1"
+
+presidio:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: mcr.microsoft.com/presidio-analyzer
+    tag: "2.2.362"
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "2"
+
+dashboard:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: earth4242/ai-dashboard
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+rlDashboard:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: earth4242/ai-rl-dashboard
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 8080
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+proxy:
+  enabled: false
+  replicaCount: 2
+  image:
+    repository: caddy
+    tag: "2-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 9000
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "500m"
+
+secrets:
+  create: true
+  upstreamApiKeys: ""
+  glmApiKeys: ""
+  openaiApiKeys: ""
+  anthropicApiKeys: ""
+  geminiApiKeys: ""
+  openrouterApiKeys: ""
+  geminiOAuthClientId: ""
+  geminiOAuthClientSecret: ""
+  grafanaAdminPassword: "devopscore"
+  dashboardApiKey: ""

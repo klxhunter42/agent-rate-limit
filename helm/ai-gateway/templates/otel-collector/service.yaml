@@ -1,0 +1,26 @@
+{{- if .Values.otelCollector.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "otel-collector") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "otel-collector") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.otelCollector.service.grpcPort }}
+      targetPort: 4317
+      protocol: TCP
+      name: grpc
+    - port: {{ .Values.otelCollector.service.httpPort }}
+      targetPort: 4318
+      protocol: TCP
+      name: http
+    - port: {{ .Values.otelCollector.service.metricsPort }}
+      targetPort: 8889
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "otel-collector") | nindent 4 }}
+{{- end }}
