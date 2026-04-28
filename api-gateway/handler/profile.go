@@ -94,11 +94,11 @@ func (h *ProfileHandler) Close() error {
 // Routes registers all profile endpoints on a chi router.
 func (h *ProfileHandler) Routes() func(r chi.Router) {
 	return func(r chi.Router) {
+		r.Post("/v1/profiles/delete", h.DeleteByName)
 		r.Route("/v1/profiles", func(r chi.Router) {
 			r.Get("/", h.List)
 			r.Post("/", h.Create)
 			r.Post("/import", h.Import)
-			r.Post("/delete", h.DeleteByName)
 			r.Get("/recommended-models", h.RecommendedModels)
 			r.Route("/{name}", func(r chi.Router) {
 				r.Get("/", h.Get)
