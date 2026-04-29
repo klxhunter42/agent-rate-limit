@@ -459,6 +459,183 @@ func (u *UsageHandler) ProfileUsageByName(w http.ResponseWriter, r *http.Request
 	})
 }
 
+
+// RecordAccountUsage increments usage counters for an account+model.
+func (u *UsageHandler) RecordAccountUsage(accountID, model string, inputTokens, outputTokens int, cost float64) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	dailyKey := "usage:account:" + accountID + ":daily:" + now.Format("2006-01-02")
+	summaryKey := "usage:account:" + accountID + ":summary"
+
+	pipe := u.rdb.Pipeline()
+
+	field := model
+	for _, key := range []string{dailyKey, summaryKey} {
+		pipe.HIncrByFloat(ctx, key, field+":cost", cost)
+		pipe.HIncrBy(ctx, key, field+":input", int64(inputTokens))
+		pipe.HIncrBy(ctx, key, field+":output", int64(outputTokens))
+		pipe.HIncrBy(ctx, key, field+":requests", 1)
+		pipe.SAdd(ctx, key+":models", model)
+	}
+
+	pipe.Expire(ctx, dailyKey, 35*24*time.Hour)
+	pipe.Expire(ctx, summaryKey, 0)
+
+	pipe.Exec(ctx)
+}
+
+// AccountUsage returns per-account aggregated usage across all accounts.
+func (u *UsageHandler) AccountUsage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	keys, err := scanKeys(ctx, u.rdb, "usage:account:*:summary")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
+		return
+	}
+
+	type modelEntry struct {
+		Model    string  `json:"model"`
+		Requests int64   `json:"requests"`
+		Input    int64   `json:"input_tokens"`
+		Output   int64   `json:"output_tokens"`
+		Cost     float64 `json:"cost"`
+	}
+
+	type accountEntry struct {
+		AccountID string       `json:"accountId"`
+		TotalReqs int64        `json:"total_requests"`
+		TotalIn   int64        `json:"total_tokens_in"`
+		TotalOut  int64        `json:"total_tokens_out"`
+		TotalCost float64      `json:"total_cost"`
+		Models    []modelEntry `json:"models"`
+	}
+
+	result := make([]accountEntry, 0)
+
+	for _, key := range keys {
+		if strings.HasSuffix(key, ":models") {
+			continue
+		}
+		// Extract account ID: usage:account:{accountId}:summary
+		parts := strings.SplitN(key, ":", 5)
+		if len(parts) < 4 {
+			continue
+		}
+		accountID := parts[2]
+
+		vals, err := u.rdb.HGetAll(ctx, key).Result()
+		if err != nil || len(vals) == 0 {
+			continue
+		}
+
+		entry := accountEntry{AccountID: accountID}
+		models := map[string]*modelEntry{}
+
+		for field, val := range vals {
+			fp := strings.SplitN(field, ":", 2)
+			if len(fp) != 2 {
+				continue
+			}
+			m, metric := fp[0], fp[1]
+			if models[m] == nil {
+				models[m] = &modelEntry{Model: m}
+			}
+			switch metric {
+			case "requests":
+				models[m].Requests = atoi64(val)
+				entry.TotalReqs += atoi64(val)
+			case "input":
+				models[m].Input = atoi64(val)
+				entry.TotalIn += atoi64(val)
+			case "output":
+				models[m].Output = atoi64(val)
+				entry.TotalOut += atoi64(val)
+			case "cost":
+				models[m].Cost = atof64(val)
+				entry.TotalCost += atof64(val)
+			}
+		}
+
+		for _, me := range models {
+			entry.Models = append(entry.Models, *me)
+		}
+		result = append(result, entry)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"accounts": result})
+}
+
+// AccountUsageByID returns usage for a single account.
+func (u *UsageHandler) AccountUsageByID(w http.ResponseWriter, r *http.Request) {
+	accountID := chi.URLParam(r, "accountId")
+	if accountID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "accountId is required"})
+		return
+	}
+
+	ctx := r.Context()
+	key := "usage:account:" + accountID + ":summary"
+	vals, err := u.rdb.HGetAll(ctx, key).Result()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
+		return
+	}
+
+	type modelEntry struct {
+		Model    string  `json:"model"`
+		Requests int64   `json:"requests"`
+		Input    int64   `json:"input_tokens"`
+		Output   int64   `json:"output_tokens"`
+		Cost     float64 `json:"cost"`
+	}
+
+	totalReqs := int64(0)
+	totalIn := int64(0)
+	totalOut := int64(0)
+	totalCost := float64(0)
+	models := map[string]*modelEntry{}
+
+	for field, val := range vals {
+		fp := strings.SplitN(field, ":", 2)
+		if len(fp) != 2 {
+			continue
+		}
+		m, metric := fp[0], fp[1]
+		if models[m] == nil {
+			models[m] = &modelEntry{Model: m}
+		}
+		switch metric {
+		case "requests":
+			models[m].Requests = atoi64(val)
+			totalReqs += atoi64(val)
+		case "input":
+			models[m].Input = atoi64(val)
+			totalIn += atoi64(val)
+		case "output":
+			models[m].Output = atoi64(val)
+			totalOut += atoi64(val)
+		case "cost":
+			models[m].Cost = atof64(val)
+			totalCost += atof64(val)
+		}
+	}
+
+	ml := make([]modelEntry, 0)
+	for _, me := range models {
+		ml = append(ml, *me)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accountId":       accountID,
+		"total_requests":  totalReqs,
+		"total_tokens_in": totalIn,
+		"total_tokens_out": totalOut,
+		"total_cost":      totalCost,
+		"models":          ml,
+	})
+}
+
 // RecordError increments the error counter for a model in the current time bucket.
 func (u *UsageHandler) RecordError(model string) {
 	ctx := context.Background()
