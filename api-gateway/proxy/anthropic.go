@@ -46,12 +46,12 @@ var allowedResponseHeaders = map[string]bool{
 	"Anthropic-Ratelimit-Unified-Fallback":             true,
 	"Anthropic-Ratelimit-Unified-Reset":                true,
 	"Anthropic-Ratelimit-Unified-Representative-Claim": true,
-		"X-Ratelimit-Limit-Requests":     true,
-		"X-Ratelimit-Limit-Tokens":       true,
-		"X-Ratelimit-Remaining-Requests": true,
-		"X-Ratelimit-Remaining-Tokens":   true,
-		"X-Ratelimit-Reset-Requests":     true,
-		"X-Ratelimit-Reset-Tokens":       true,
+	"X-Ratelimit-Limit-Requests":                       true,
+	"X-Ratelimit-Limit-Tokens":                         true,
+	"X-Ratelimit-Remaining-Requests":                   true,
+	"X-Ratelimit-Remaining-Tokens":                     true,
+	"X-Ratelimit-Reset-Requests":                       true,
+	"X-Ratelimit-Reset-Tokens":                         true,
 }
 
 // stripUnsupportedBetas removes beta flags unsupported by the model from the anthropic-beta header.
@@ -747,6 +747,7 @@ type ProxyOptions struct {
 	AuthMode         string                                       // "api_key" (default) or "bearer"
 	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
 	ExtraHeaders     map[string]string                            // additional headers to set
+	Transparent      bool                                         // skip all body/header modifications (claude-oauth passthrough)
 	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
 	OnRateLimitError func(oldKey string) (newKey string, ok bool) // called on 429 to rotate account
 }
@@ -765,7 +766,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 
 	// Optimize system prompt in body if present.
 	// Skip when masking is active to avoid corrupting placeholders.
-	if maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII) {
+	// Skip in transparent mode to preserve exact CLI payload.
+	if (maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII)) && (opts == nil || !opts.Transparent) {
 		if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
 			if sys, ok := bodyMap["system"].(string); ok && sys != "" {
 				optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
@@ -820,44 +822,56 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return fmt.Errorf("create upstream request: %w", err)
 		}
-		httpReq.Header.Set("Content-Type", "application/json")
-		if opts != nil && opts.AuthMode == "bearer" {
-			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-			reqID := r.Header.Get("x-client-request-id")
-			if reqID == "" {
-				reqID = newRequestID()
+		if opts != nil && opts.Transparent {
+			// Transparent passthrough: forward ALL client headers as-is.
+			// Preserves exact CLI fingerprint including X-Stainless-*, User-Agent, etc.
+			for k, vv := range r.Header {
+				httpReq.Header[k] = vv
 			}
-			httpReq.Header.Set("x-client-request-id", reqID)
-			sessionID := r.Header.Get("X-Claude-Code-Session-Id")
-			if sessionID == "" {
-				sessionID = newRequestID()
-			}
-			httpReq.Header.Set("X-Claude-Code-Session-Id", sessionID)
-			if bh := r.Header.Get("x-anthropic-billing-header"); bh != "" {
-				httpReq.Header.Set("x-anthropic-billing-header", bh)
-			}
-			if mcpSid := r.Header.Get("x-mcp-client-session-id"); mcpSid != "" {
-			httpReq.Header.Set("x-mcp-client-session-id", mcpSid)
+			// Remove hop-by-hop and host headers that must not be forwarded.
+			for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
+				httpReq.Header.Del(h)
 			}
 		} else {
-			httpReq.Header.Set("x-api-key", apiKey)
-		}
-		httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
-		if opts != nil {
-			for k, v := range opts.ExtraHeaders {
-				if k == "anthropic-beta" {
-					if incoming := r.Header.Get("anthropic-beta"); incoming != "" {
-						httpReq.Header.Set(k, mergeBetas(incoming, v))
+			httpReq.Header.Set("Content-Type", "application/json")
+			if opts != nil && opts.AuthMode == "bearer" {
+				httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+				reqID := r.Header.Get("x-client-request-id")
+				if reqID == "" {
+					reqID = newRequestID()
+				}
+				httpReq.Header.Set("x-client-request-id", reqID)
+				sessionID := r.Header.Get("X-Claude-Code-Session-Id")
+				if sessionID == "" {
+					sessionID = newRequestID()
+				}
+				httpReq.Header.Set("X-Claude-Code-Session-Id", sessionID)
+				if bh := r.Header.Get("x-anthropic-billing-header"); bh != "" {
+					httpReq.Header.Set("x-anthropic-billing-header", bh)
+				}
+				if mcpSid := r.Header.Get("x-mcp-client-session-id"); mcpSid != "" {
+					httpReq.Header.Set("x-mcp-client-session-id", mcpSid)
+				}
+			} else {
+				httpReq.Header.Set("x-api-key", apiKey)
+			}
+			httpReq.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
+			if opts != nil {
+				for k, v := range opts.ExtraHeaders {
+					if k == "anthropic-beta" {
+						if incoming := r.Header.Get("anthropic-beta"); incoming != "" {
+							httpReq.Header.Set(k, mergeBetas(incoming, v))
+							continue
+						}
+					}
+					if k == "Accept" && isStream {
 						continue
 					}
+					httpReq.Header.Set(k, v)
 				}
-				if k == "Accept" && isStream {
-					continue
-				}
-				httpReq.Header.Set(k, v)
 			}
+			stripUnsupportedBetas(&httpReq.Header, model)
 		}
-		stripUnsupportedBetas(&httpReq.Header, model)
 		httpReq.ContentLength = int64(len(body))
 
 		slog.Info("upstream req", "model", model,
@@ -1102,12 +1116,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			transientAttempts++
 			p.metrics.IncTransientRetry(resp.StatusCode, model)
 			slog.Warn("upstream retry transient error",
-					"status", resp.StatusCode,
-					"model", model,
-					"retry", transientAttempts,
-					"max_transient", maxTransient,
-					"response", string(errBody[:min(200, len(errBody))]),
-				)
+				"status", resp.StatusCode,
+				"model", model,
+				"retry", transientAttempts,
+				"max_transient", maxTransient,
+				"response", string(errBody[:min(200, len(errBody))]),
+			)
 			lastErrBody = nil
 			continue
 		}
@@ -1126,11 +1140,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return nil
 		}
 		slog.Error("upstream all retries exhausted",
-				"model", model,
-				"max_attempts", maxAttempts,
-				"last_status", lastErrStatus,
-				"last_error", string(lastErrBody[:min(200, len(lastErrBody))]),
-			)
+			"model", model,
+			"max_attempts", maxAttempts,
+			"last_status", lastErrStatus,
+			"last_error", string(lastErrBody[:min(200, len(lastErrBody))]),
+		)
 		return fmt.Errorf("upstream returned no response after %d retries", maxAttempts)
 	}
 	defer lastResp.Body.Close()
