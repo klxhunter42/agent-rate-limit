@@ -71,7 +71,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
     refresh();

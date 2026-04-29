@@ -95,7 +95,7 @@ export function LiveAuthMonitor() {
     }
   }, []);
 
-  const authTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const authTimerRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
     refresh();
