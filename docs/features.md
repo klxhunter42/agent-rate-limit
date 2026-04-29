@@ -77,18 +77,74 @@ Routes AI requests across 17+ providers with automatic format conversion.
 
 ---
 
-## 2. Error Recovery
+## 2. Error Recovery & Retry
 
 Auto-recovers from upstream errors without surfacing them to clients.
+All retry paths emit structured log entries for observability.
+
+### Retry Flow
+
+```
+Request
+   |
+   v
+Attempt 0 (fresh request)
+   |
+   +-- 200 OK --> return response
+   |
+   +-- 429 Rate Limited --> backoff (exponential, cap 5min)
+   |       +-- rotate API key (if pool has alternatives)
+   |       +-- increment upstream_429_total metric
+   |       +-- log: "upstream retry" reason=429 rate limited
+   |       +-- retry (up to UPSTREAM_MAX_RETRIES)
+   |
+   +-- 401 Auth Error --> refresh OAuth token
+   |       +-- retry once with new token
+   |       +-- log: "upstream retry with refreshed token"
+   |       +-- if refresh fails --> return 401 to client
+   |
+   +-- 500/502/503/529 Transient --> backoff
+   |       +-- log: "upstream retry transient error" + response snippet
+   |       +-- increment transient_retry_total metric
+   |       +-- retry (up to TRANSIENT_RETRY_MAX)
+   |
+   +-- 400/413/422 Context Overflow --> auto-truncate
+   |       +-- drop oldest messages, keep system prompt + recent
+   |       +-- log: "upstream retry after auto-truncation"
+   |       +-- increment context_truncation_total metric
+   |       +-- retry once
+   |
+   +-- Other error --> return error to client
+   |
+   v
+All retries exhausted --> log: "upstream all retries exhausted" + last_status
+```
 
 ### Recovery Actions
 
-| Error | Trigger | Recovery |
-|---|---|---|
-| Context window overflow | 400/413/422 + "context window", "too long", "token count exceeds", etc. | Truncate oldest messages, retry once |
-| Transient server error | 500/502/503/529 | Retry with backoff up to `TRANSIENT_RETRY_MAX` |
-| Rate limit (429) | 429 | Rotate API key, retry with exponential backoff |
-| Auth expired (401) | 401 | Auto-refresh OAuth token, retry |
+| Error | Trigger | Recovery | Log Message | Metric |
+|---|---|---|---|---|
+| Rate limit | 429 | Rotate key, exponential backoff (cap 5min) | `upstream retry` | `upstream_retries_total`, `upstream_429_total` |
+| Auth expired | 401 (OAuth) | Refresh token, retry once | `upstream retry with refreshed token` | - |
+| Transient | 500/502/503/529 | Backoff, retry up to N times | `upstream retry transient error` | `transient_retry_total` |
+| Context overflow | 400/413/422 + keywords | Truncate oldest, retry once | `upstream retry after auto-truncation` | `context_truncation_total` |
+| Success after retry | 200 after >0 attempts | Return response | `upstream retry success` | - |
+| Exhausted | All retries failed | Return error to client | `upstream all retries exhausted` | - |
+
+### Backoff Formula
+
+```
+backoff = UPSTREAM_RETRY_BASE_BACKOFF * attempt^2
+cap at 5 minutes
+```
+
+Example with default 500ms base:
+| Attempt | Backoff |
+|---|---|
+| 1 | 500ms |
+| 2 | 2s |
+| 3 | 4.5s |
+| 4+ | 5min (capped) |
 
 ### Context Truncation
 
@@ -98,10 +154,27 @@ Auto-recovers from upstream errors without surfacing them to clients.
 - Max 1 truncation attempt per request
 - Appends note: `[Note: older conversation messages were truncated to fit context window limits.]`
 
+### Structured Log Fields
+
+All retry log entries include:
+
+| Field | Description |
+|---|---|
+| `attempt` | Current attempt number (1-based) |
+| `backoff` | Wait duration before this attempt |
+| `model` | Target model name |
+| `reason` | Why the retry happened (e.g. "429 rate limited") |
+| `max_attempts` | Total attempts allowed |
+| `status` | HTTP status that triggered retry (where applicable) |
+| `response` | First 200 chars of error response body (transient only) |
+| `rtt` | Round-trip time of successful attempt (success log only) |
+
 ### Key Env Vars
 
 | Variable | Default | Description |
 |---|---|---|
+| `UPSTREAM_MAX_RETRIES` | `3` | Max 429 retry attempts |
+| `UPSTREAM_RETRY_BASE_BACKOFF` | `500ms` | Base backoff for exponential retry |
 | `ENABLE_AUTO_TRUNCATE` | `true` | Enable context window recovery |
 | `TRANSIENT_RETRY_MAX` | `2` | Max transient error retries |
 
@@ -183,19 +256,19 @@ System Prompt
 |---|---|---|
 | Semantic Dedup | always on | threshold 0.7 |
 | Whitespace | `ENABLE_RESPONSE_TRIM` | `true` |
-| Chunker | `CHUNKER_ENABLED`, `CHUNKER_MIN_CHUNK`, `CHUNKER_MAX_CHUNK` | `false`, 128, 4096 |
-| Delta | `DELTA_ENABLED`, `DELTA_MIN_SAVINGS_PCT` | `false`, 10% |
-| Sketch | `SKETCH_ENABLED`, `SKETCH_DIMENSIONS`, `SKETCH_THRESHOLD` | `false`, 128, 0.85 |
-| Summarizer | `SUMMARIZER_ENABLED`, `SUMMARIZER_MAX_RATIO` | `false`, 0.3 |
-| Packer | `PACKER_ENABLED`, `PACKER_MIN_UTILITY` | `false`, 0.1 |
-| Disclosure | `DISCLOSURE_ENABLED` | `false` |
-| Intent Filter | `FILTER_ENABLED` | `false` |
-| Caveman | `CAVEMAN_ENABLED`, `CAVEMAN_AUTO_DETECT` | `false`, true |
-| Warmstart | `WARMSTART_ENABLED` | `false` |
-| Prefetcher | `PREFETCHER_ENABLED` | `false` |
-| Bandit | `BANDIT_ENABLED` | `false` |
-| Cache Eviction | `CACHE_EVICTION_ENABLED` | `false` |
-| Waste Detection | `WASTE_ENABLED` | `false` |
+| Chunker | `CHUNKER_ENABLED`, `CHUNKER_MIN_CHUNK`, `CHUNKER_MAX_CHUNK` | `true`, 128, 4096 |
+| Delta | `DELTA_ENABLED`, `DELTA_MIN_SAVINGS_PCT` | `true`, 10% |
+| Sketch | `SKETCH_ENABLED`, `SKETCH_DIMENSIONS`, `SKETCH_THRESHOLD` | `true`, 128, 0.85 |
+| Summarizer | `SUMMARIZER_ENABLED`, `SUMMARIZER_MAX_RATIO` | `true`, 0.3 |
+| Packer | `PACKER_ENABLED`, `PACKER_MIN_UTILITY` | `true`, 0.1 |
+| Disclosure | `DISCLOSURE_ENABLED` | `true` |
+| Intent Filter | `FILTER_ENABLED` | `true` |
+| Caveman | `CAVEMAN_ENABLED`, `CAVEMAN_AUTO_DETECT` | `true`, true |
+| Warmstart | `WARMSTART_ENABLED` | `true` |
+| Prefetcher | `PREFETCHER_ENABLED` | `true` |
+| Bandit | `BANDIT_ENABLED` | `true` |
+| Cache Eviction | `CACHE_EVICTION_ENABLED` | `true` |
+| Waste Detection | `WASTE_ENABLED` | `true` |
 
 ### Model Capabilities
 
@@ -395,6 +468,18 @@ All metrics under namespace `api_gateway`.
 |---|---|---|
 | `context_truncation_total` | counter | model |
 | `transient_retry_total` | counter | status, model |
+
+### Retry Log Messages
+
+| Log Level | Message | When |
+|---|---|---|
+| WARN | `upstream retry` | 429 received, about to backoff and retry |
+| INFO | `upstream retry key rotation` | 429 triggered key rotation in pool |
+| WARN | `upstream retry with refreshed token` | 401 triggered OAuth token refresh |
+| WARN | `upstream retry transient error` | 500/502/503/529, retrying |
+| WARN | `upstream retry after auto-truncation` | Context overflow, truncated messages |
+| INFO | `upstream retry success` | Request succeeded after retry (attempt > 0) |
+| ERROR | `upstream all retries exhausted` | All retry attempts failed |
 
 ### Budget Metrics
 
