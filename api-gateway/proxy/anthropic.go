@@ -46,6 +46,12 @@ var allowedResponseHeaders = map[string]bool{
 	"Anthropic-Ratelimit-Unified-Fallback":             true,
 	"Anthropic-Ratelimit-Unified-Reset":                true,
 	"Anthropic-Ratelimit-Unified-Representative-Claim": true,
+		"X-Ratelimit-Limit-Requests":     true,
+		"X-Ratelimit-Limit-Tokens":       true,
+		"X-Ratelimit-Remaining-Requests": true,
+		"X-Ratelimit-Remaining-Tokens":   true,
+		"X-Ratelimit-Reset-Requests":     true,
+		"X-Ratelimit-Reset-Tokens":       true,
 }
 
 // stripUnsupportedBetas removes beta flags unsupported by the model from the anthropic-beta header.
@@ -795,10 +801,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}
-			slog.Warn("upstream 429, retrying",
+			slog.Warn("upstream retry",
 				"attempt", attempt,
 				"backoff", backoff,
 				"model", model,
+				"reason", "429 rate limited",
+				"max_attempts", maxAttempts,
 			)
 			p.metrics.IncRetry()
 			select {
@@ -825,6 +833,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				sessionID = newRequestID()
 			}
 			httpReq.Header.Set("X-Claude-Code-Session-Id", sessionID)
+			if bh := r.Header.Get("x-anthropic-billing-header"); bh != "" {
+				httpReq.Header.Set("x-anthropic-billing-header", bh)
+			}
+			if mcpSid := r.Header.Get("x-mcp-client-session-id"); mcpSid != "" {
+			httpReq.Header.Set("x-mcp-client-session-id", mcpSid)
+			}
 		} else {
 			httpReq.Header.Set("x-api-key", apiKey)
 		}
@@ -836,6 +850,9 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 						httpReq.Header.Set(k, mergeBetas(incoming, v))
 						continue
 					}
+				}
+				if k == "Accept" && isStream {
+					continue
 				}
 				httpReq.Header.Set(k, v)
 			}
@@ -870,7 +887,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			if opts != nil && opts.OnRateLimitError != nil {
 				if newKey, ok := opts.OnRateLimitError(apiKey); ok {
 					apiKey = newKey
-					slog.Info("429: rotating to different account", "attempt", attempt, "model", model)
+					slog.Info("upstream retry key rotation", "attempt", attempt+1, "model", model, "max_retries", p.cfg.UpstreamMaxRetries)
 				}
 			}
 			continue
@@ -880,7 +897,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if resp.StatusCode == 401 && opts != nil && opts.AuthMode == "bearer" && opts.OnAuthError != nil {
 			resp.Body.Close()
 			if newKey, ok := opts.OnAuthError(apiKey); ok {
-				slog.Info("retrying with refreshed token", "model", model)
+				slog.Warn("upstream retry with refreshed token", "model", model, "status", resp.StatusCode)
 				apiKey = newKey
 				httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
 				if err != nil {
@@ -968,8 +985,13 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			}
 			transientAttempts++
 			p.metrics.IncTransientRetry(resp.StatusCode, model)
-			slog.Warn("transient server error, retrying", "status", resp.StatusCode,
-				"model", model, "attempt", transientAttempts)
+			slog.Warn("upstream retry transient error",
+					"status", resp.StatusCode,
+					"model", model,
+					"retry", transientAttempts,
+					"max_transient", maxTransient,
+					"response", string(errBody[:min(200, len(errBody))]),
+				)
 			lastErrBody = nil
 			continue
 		}
@@ -987,6 +1009,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			w.Write(lastErrBody)
 			return nil
 		}
+		slog.Error("upstream all retries exhausted",
+				"model", model,
+				"max_attempts", maxAttempts,
+				"last_status", lastErrStatus,
+				"last_error", string(lastErrBody[:min(200, len(lastErrBody))]),
+			)
 		return fmt.Errorf("upstream returned no response after %d retries", maxAttempts)
 	}
 	defer lastResp.Body.Close()

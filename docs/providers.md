@@ -177,6 +177,22 @@ Usage recording (sync path): Token counts automatically populate Redis hourly/da
 | Plus | glm-4.7, glm-4.6, glm-4.5 | Older generation |
 | Vision | glm-4.6v, glm-4.5v, glm-4.6v-flashx | Image analysis |
 
+### Z.AI Anthropic-Compatible Model Mapping
+
+When `UPSTREAM_URL` points to `https://api.z.ai/api/anthropic`, Z.AI accepts Anthropic model names and routes them to GLM equivalents:
+
+| Sent Model Name | Z.AI Maps To | Tier |
+|---|---|---|
+| `claude-opus-4-7`, `claude-opus-4-5`, `claude-opus-4` | `glm-4.7` | Opus-tier |
+| `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-sonnet-4` | `glm-4.7` | Sonnet-tier |
+| `claude-3-opus`, `claude-3-sonnet`, `claude-3-5-sonnet` | `glm-4.7` | Sonnet-tier |
+| `claude-3-5-sonnet-20241022` | `glm-4.7` | Sonnet-tier |
+| `claude-haiku-4-5`, `claude-haiku-4-5-20251001` | `glm-4.5-air` | Haiku-tier |
+| `claude-3-haiku`, `claude-3-5-haiku`, `claude-3-haiku-20240307` | `glm-4.5-air` | Haiku-tier |
+| `gpt-4o`, `o3-mini`, `claude-instant`, `claude-2` | Unknown Model (rejected) | - |
+
+All requests run on GLM infrastructure. The Anthropic format is a compatibility layer only.
+
 ### Vision Models (Native Zhipu Endpoint)
 
 GLM vision models ใช้ native Zhipu API endpoint แยกจาก z.ai Anthropic-compatible endpoint:
