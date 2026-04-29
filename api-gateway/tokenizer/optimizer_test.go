@@ -257,29 +257,29 @@ func TestTokenBudgetUnknownModel(t *testing.T) {
 
 func TestSplitCodeBlocks(t *testing.T) {
 	input := "prose line 1\nprose line 2\n```\ncode line 1\ncode line 2\n```\nmore prose"
-	segments := splitCodeBlocks(input)
+	segments := SplitCodeBlocks(input)
 
 	if len(segments) != 3 {
 		t.Fatalf("expected 3 segments, got %d", len(segments))
 	}
-	if segments[0].isCode {
+	if segments[0].IsCode {
 		t.Error("first segment should not be code")
 	}
-	if !segments[1].isCode {
+	if !segments[1].IsCode {
 		t.Error("second segment should be code")
 	}
-	if segments[2].isCode {
+	if segments[2].IsCode {
 		t.Error("third segment should not be code")
 	}
 }
 
 func TestSplitCodeBlocksUnclosed(t *testing.T) {
 	input := "some prose\n```\ncode without closing"
-	segments := splitCodeBlocks(input)
+	segments := SplitCodeBlocks(input)
 	if len(segments) != 2 {
 		t.Fatalf("expected 2 segments for unclosed code, got %d", len(segments))
 	}
-	if !segments[1].isCode {
+	if !segments[1].IsCode {
 		t.Error("unclosed code segment should be marked as code")
 	}
 }

@@ -23,30 +23,36 @@ const namespace = "api_gateway"
 
 // Metrics holds all Prometheus instruments for the API gateway.
 type Metrics struct {
-	RequestLatency    *prometheus.HistogramVec
-	QueueDepth        prometheus.GaugeFunc
-	ErrorRate         *prometheus.CounterVec
-	RateLimitHits     *prometheus.CounterVec
-	ActiveConnections prometheus.Gauge
-	TokenInput        *prometheus.CounterVec
-	TokenOutput       *prometheus.CounterVec
-	UpstreamRetries   prometheus.Counter
-	Upstream429       prometheus.Counter
-	AdaptiveLimit     *prometheus.GaugeVec
-	AdaptiveInFlight  *prometheus.GaugeVec
-	CostTotal         *prometheus.CounterVec
-	ModelFallback     *prometheus.CounterVec
-	TTFB              *prometheus.HistogramVec
-	ProfileRequests   *prometheus.CounterVec
-	ProfileTokenIn    *prometheus.CounterVec
-	ProfileTokenOut   *prometheus.CounterVec
-	ProfileCost         *prometheus.CounterVec
-	OptimizerCharsSaved *prometheus.CounterVec
-	OptimizerRuns       *prometheus.CounterVec
-	registry            *prometheus.Registry
-	queueDepthFn      func() float64
-	pricing           map[string]modelPrice
-	usageRecorder     func(ctx context.Context, model string, input, output int, cost float64)
+	RequestLatency       *prometheus.HistogramVec
+	QueueDepth           prometheus.GaugeFunc
+	ErrorRate            *prometheus.CounterVec
+	RateLimitHits        *prometheus.CounterVec
+	ActiveConnections    prometheus.Gauge
+	TokenInput           *prometheus.CounterVec
+	TokenOutput          *prometheus.CounterVec
+	UpstreamRetries      prometheus.Counter
+	Upstream429          prometheus.Counter
+	AdaptiveLimit        *prometheus.GaugeVec
+	AdaptiveInFlight     *prometheus.GaugeVec
+	CostTotal            *prometheus.CounterVec
+	ModelFallback        *prometheus.CounterVec
+	TTFB                 *prometheus.HistogramVec
+	ProfileRequests      *prometheus.CounterVec
+	ProfileTokenIn       *prometheus.CounterVec
+	ProfileTokenOut      *prometheus.CounterVec
+	ProfileCost          *prometheus.CounterVec
+	OptimizerCharsSaved  *prometheus.CounterVec
+	OptimizerRuns        *prometheus.CounterVec
+	OptimizerDuration    *prometheus.HistogramVec
+	OptimizerTokensSaved prometheus.Counter
+	BudgetLevel          *prometheus.GaugeVec
+	CostSavings          prometheus.Counter
+	ContextTruncations   *prometheus.CounterVec
+	TransientRetries     *prometheus.CounterVec
+	registry             *prometheus.Registry
+	queueDepthFn         func() float64
+	pricing              map[string]modelPrice
+	usageRecorder        func(ctx context.Context, model string, input, output int, cost float64)
 }
 
 type modelPrice struct {
@@ -185,6 +191,43 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "optimizer_runs_total",
 			Help:      "Total number of optimization runs by technique.",
 		}, []string{"technique"}),
+
+		ContextTruncations: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "context_truncation_total",
+			Help:      "Total number of auto-truncation recovery attempts by model.",
+		}, []string{"model"}),
+
+		TransientRetries: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "transient_retry_total",
+			Help:      "Total number of transient error retries by status code and model.",
+		}, []string{"status", "model"}),
+
+			OptimizerDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: namespace,
+				Name:      "optimizer_duration_seconds",
+				Help:      "Duration of optimization technique execution.",
+				Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+			}, []string{"technique"}),
+
+			OptimizerTokensSaved: prometheus.NewCounter(prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "optimizer_tokens_saved_total",
+				Help:      "Total estimated tokens saved by optimization.",
+			}),
+
+			BudgetLevel: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "budget_level",
+				Help:      "Current budget utilization level per model (0=green, 1=yellow, 2=red).",
+			}, []string{"model"}),
+
+			CostSavings: prometheus.NewCounter(prometheus.CounterOpts{
+				Namespace: namespace,
+				Name:      "cost_savings_total",
+				Help:      "Total estimated cost savings from optimization in USD.",
+			}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -214,11 +257,16 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.ProfileCost,
 		m.OptimizerCharsSaved,
 		m.OptimizerRuns,
+		m.ContextTruncations,
+		m.TransientRetries,
+			m.OptimizerDuration,
+			m.OptimizerTokensSaved,
+			m.BudgetLevel,
+			m.CostSavings,
 	)
 
 	return m
 }
-
 
 // RecordOptimization records characters saved and run count for an optimization technique.
 func (m *Metrics) RecordOptimization(technique string, charsSaved int) {
@@ -226,6 +274,30 @@ func (m *Metrics) RecordOptimization(technique string, charsSaved int) {
 		m.OptimizerCharsSaved.WithLabelValues(technique).Add(float64(charsSaved))
 	}
 	m.OptimizerRuns.WithLabelValues(technique).Inc()
+}
+
+// RecordOptimizationDuration records the execution time of an optimization technique.
+func (m *Metrics) RecordOptimizationDuration(technique string, seconds float64) {
+	m.OptimizerDuration.WithLabelValues(technique).Observe(seconds)
+}
+
+// RecordTokensSaved records total estimated tokens saved.
+func (m *Metrics) RecordTokensSaved(tokens int) {
+	if tokens > 0 {
+		m.OptimizerTokensSaved.Add(float64(tokens))
+	}
+}
+
+// SetBudgetLevel sets the current budget utilization level for a model.
+func (m *Metrics) SetBudgetLevel(model string, level int) {
+	m.BudgetLevel.WithLabelValues(model).Set(float64(level))
+}
+
+// RecordCostSavings records estimated cost savings from optimization.
+func (m *Metrics) RecordCostSavings(usd float64) {
+	if usd > 0 {
+		m.CostSavings.Add(usd)
+	}
 }
 
 // Handler returns an HTTP handler that serves Prometheus metrics.
@@ -353,6 +425,16 @@ func (m *Metrics) IncRetry() {
 // Inc429 increments the upstream 429 counter.
 func (m *Metrics) Inc429() {
 	m.Upstream429.Inc()
+}
+
+// IncContextTruncation increments the auto-truncation counter for a model.
+func (m *Metrics) IncContextTruncation(model string) {
+	m.ContextTruncations.WithLabelValues(model).Inc()
+}
+
+// IncTransientRetry increments the transient retry counter for a status code and model.
+func (m *Metrics) IncTransientRetry(statusCode int, model string) {
+	m.TransientRetries.WithLabelValues(strconv.Itoa(statusCode), model).Inc()
 }
 
 // RecordFallback records a model fallback event.

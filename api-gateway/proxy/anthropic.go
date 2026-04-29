@@ -778,8 +778,17 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	}
 
 	var lastResp *http.Response
+	var lastErrBody []byte
+	var lastErrStatus int
+	truncationAttempts := 0
+	transientAttempts := 0
+	maxTransient := p.cfg.TransientRetryMax
+	if maxTransient <= 0 {
+		maxTransient = 2
+	}
+	maxAttempts := p.cfg.UpstreamMaxRetries + 1 + maxTransient
 
-	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
+	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
 			// Cap backoff at 5 minutes to prevent excessive waits
@@ -848,7 +857,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return fmt.Errorf("upstream call failed: %w", err)
 		}
 
-		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
+		isLastAttempt := attempt >= maxAttempts-1
 		// Report feedback for adaptive limiter only on final attempt
 		// to prevent hammering the limit down on retries.
 		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
@@ -919,12 +928,66 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return fmt.Errorf("upstream 401: token refresh failed")
 		}
 
-		lastResp = resp
+		if resp.StatusCode == http.StatusOK {
+			lastResp = resp
+			lastErrBody = nil
+			break
+		}
+
+		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+		resp.Body.Close()
+		if readErr != nil {
+			lastErrBody = []byte(readErr.Error())
+			lastErrStatus = resp.StatusCode
+			break
+		}
+		lastErrBody = errBody
+		lastErrStatus = resp.StatusCode
+
+		action := ClassifyError(resp.StatusCode, errBody)
+		switch action {
+		case ActionTruncateAndRetry:
+			if truncationAttempts >= 1 || !p.cfg.EnableAutoTruncate {
+				break
+			}
+			result := TruncateMessages(body, model)
+			if result == nil {
+				break
+			}
+			truncationAttempts++
+			body = result.Body
+			p.metrics.IncContextTruncation(model)
+			slog.Info("auto-truncated conversation", "model", model,
+				"dropped_messages", result.DroppedMsgs, "orig_tokens", result.OrigTokens,
+				"new_tokens", result.NewTokens)
+			lastErrBody = nil
+			continue
+		case ActionRetryTransient:
+			if transientAttempts >= maxTransient {
+				break
+			}
+			transientAttempts++
+			p.metrics.IncTransientRetry(resp.StatusCode, model)
+			slog.Warn("transient server error, retrying", "status", resp.StatusCode,
+				"model", model, "attempt", transientAttempts)
+			lastErrBody = nil
+			continue
+		}
 		break
 	}
 
 	if lastResp == nil {
-		return fmt.Errorf("upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
+		if len(lastErrBody) > 0 {
+			if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+				lastErrBody = pipeline.UnmaskResponse(lastErrBody, maskResult)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(lastErrStatus)
+			w.Write(lastErrBody)
+			return nil
+		}
+		return fmt.Errorf("upstream returned no response after %d retries", maxAttempts)
 	}
 	defer lastResp.Body.Close()
 

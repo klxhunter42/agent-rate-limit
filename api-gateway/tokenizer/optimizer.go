@@ -152,27 +152,27 @@ func UpdateMaxOutputTokens(model string, tokens int) {
 // OptimizeWhitespace collapses whitespace in prose while preserving code blocks.
 func OptimizeWhitespace(text string) (string, int) {
 	origTokens := QuickEstimateTokens(text)
-	segments := splitCodeBlocks(text)
+	segments := SplitCodeBlocks(text)
 	var b strings.Builder
 	for _, seg := range segments {
-		if seg.isCode {
-			b.WriteString(seg.text)
+		if seg.IsCode {
+			b.WriteString(seg.Text)
 			continue
 		}
-		b.WriteString(optimizeProseWhitespace(seg.text))
+		b.WriteString(optimizeProseWhitespace(seg.Text))
 	}
 	result := b.String()
 	saved := origTokens - QuickEstimateTokens(result)
 	return result, saved
 }
 
-type textSegment struct {
-	text   string
-	isCode bool
+type TextSegment struct {
+	Text   string
+	IsCode bool
 }
 
-func splitCodeBlocks(text string) []textSegment {
-	var segments []textSegment
+func SplitCodeBlocks(text string) []TextSegment {
+	var segments []TextSegment
 	inCode := false
 	var b strings.Builder
 	lines := strings.Split(text, "\n")
@@ -181,7 +181,7 @@ func splitCodeBlocks(text string) []textSegment {
 		trimmed := strings.TrimSpace(line)
 		if !inCode && strings.HasPrefix(trimmed, fencePrefix) {
 			if b.Len() > 0 {
-				segments = append(segments, textSegment{text: b.String(), isCode: false})
+				segments = append(segments, TextSegment{Text: b.String(), IsCode: false})
 				b.Reset()
 			}
 			inCode = true
@@ -193,7 +193,7 @@ func splitCodeBlocks(text string) []textSegment {
 			b.WriteString(line)
 			b.WriteByte('\n')
 			if strings.HasPrefix(trimmed, fencePrefix) {
-				segments = append(segments, textSegment{text: b.String(), isCode: true})
+				segments = append(segments, TextSegment{Text: b.String(), IsCode: true})
 				b.Reset()
 				inCode = false
 			}
@@ -204,7 +204,7 @@ func splitCodeBlocks(text string) []textSegment {
 	}
 
 	if b.Len() > 0 {
-		segments = append(segments, textSegment{text: b.String(), isCode: inCode})
+		segments = append(segments, TextSegment{Text: b.String(), IsCode: inCode})
 	}
 	return segments
 }
@@ -251,15 +251,15 @@ func DeduplicateSentences(text string) (string, int) {
 		return text, 0
 	}
 	origTokens := QuickEstimateTokens(text)
-	segments := splitCodeBlocks(text)
+	segments := SplitCodeBlocks(text)
 	var b strings.Builder
 	for _, seg := range segments {
-		if seg.isCode {
-			b.WriteString(seg.text)
+		if seg.IsCode {
+			b.WriteString(seg.Text)
 			b.WriteByte('\n')
 			continue
 		}
-		b.WriteString(dedupProse(seg.text))
+		b.WriteString(dedupProse(seg.Text))
 		b.WriteByte('\n')
 	}
 	result := strings.TrimSpace(b.String())
