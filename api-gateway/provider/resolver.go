@@ -24,6 +24,7 @@ type RoutingDecision struct {
 	AuthMode     string // "api_key", "bearer"
 	ExtraHeaders map[string]string
 	APIKey       string
+	AccountID    string
 }
 
 type Resolver struct {
@@ -68,9 +69,9 @@ type providerRoute struct {
 var providerRouteTable = map[string]providerRoute{
 	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
 	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
-		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
+		"User-Agent":     "claude-cli/2.1.123 (external, cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
 		"X-Stainless-Lang":            "js",
@@ -78,14 +79,14 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-		"X-Stainless-Runtime-Version": "v24.3.0",
+			"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}},
 	"claude": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
-		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24",
+		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
-		"User-Agent":     "claude-cli/2.1.118 (external, sdk-cli)",
+		"User-Agent":     "claude-cli/2.1.123 (external, cli)",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"Accept":                      "application/json",
 		"X-Stainless-Lang":            "js",
@@ -93,7 +94,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-		"X-Stainless-Runtime-Version": "v24.3.0",
+			"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}}, // alias
@@ -209,7 +210,7 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 		if decision != nil {
 			return decision
 		}
-		return r.buildDecision("zai", model, "")
+		return r.buildDecision("zai", model, "", "")
 	}
 	return nil
 }
@@ -226,7 +227,7 @@ func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool)
 			apiKey = tok.AccessToken
 		}
 	}
-	return r.buildDecision(providerID, "", apiKey), true
+	return r.buildDecision(providerID, "", apiKey, ""), true
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
@@ -243,7 +244,11 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 	if token == nil {
 		return nil
 	}
-	return r.buildDecision(providerID, model, token.AccessToken)
+	// Skip expired tokens so fallback to next provider can trigger.
+	if !token.ExpiryDate.IsZero() && token.ExpiryDate.Before(time.Now()) {
+		return nil
+	}
+	return r.buildDecision(providerID, model, token.AccessToken, token.AccountID)
 }
 
 // tryResolveRoundRobin cycles through all active tokens for a provider.
@@ -262,6 +267,10 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	var active []TokenInfo
 	for _, t := range tokens {
 		if !t.Paused {
+			// Skip expired tokens so fallback to next provider can trigger.
+			if !t.ExpiryDate.IsZero() && t.ExpiryDate.Before(time.Now()) {
+				continue
+			}
 			active = append(active, t)
 		}
 	}
@@ -296,10 +305,10 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	val, _ := r.counters.LoadOrStore(providerID, new(atomic.Uint64))
 	counter := val.(*atomic.Uint64)
 	idx := int(counter.Add(1)-1) % len(active)
-	return r.buildDecision(providerID, model, active[idx].AccessToken)
+	return r.buildDecision(providerID, model, active[idx].AccessToken, active[idx].AccountID)
 }
 
-func (r *Resolver) buildDecision(providerID, model, apiKey string) *RoutingDecision {
+func (r *Resolver) buildDecision(providerID, model, apiKey, accountID string) *RoutingDecision {
 	cfg, ok := r.registry.Get(providerID)
 	if !ok {
 		return nil
@@ -325,5 +334,6 @@ func (r *Resolver) buildDecision(providerID, model, apiKey string) *RoutingDecis
 		AuthMode:     route.authMode,
 		ExtraHeaders: route.extraHeaders,
 		APIKey:       apiKey,
+		AccountID:    accountID,
 	}
 }

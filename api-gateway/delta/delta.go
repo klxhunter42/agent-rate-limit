@@ -53,7 +53,7 @@ func envFloatOr(key string, fallback float64) float64 {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:       envBoolOr("DELTA_ENABLED", false),
+		Enabled:       envBoolOr("DELTA_ENABLED", true),
 		MinSavingsPct: envFloatOr("DELTA_MIN_SAVINGS_PCT", 10.0),
 	}
 }

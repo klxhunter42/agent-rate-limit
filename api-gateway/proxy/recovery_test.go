@@ -42,7 +42,7 @@ func TestClassifyError(t *testing.T) {
 func TestEstimateMessageTokens(t *testing.T) {
 	t.Run("string content", func(t *testing.T) {
 		msg := map[string]any{"role": "user", "content": "hello world"}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got <= 0 {
 			t.Errorf("expected positive token estimate, got %d", got)
 		}
@@ -55,7 +55,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 				map[string]any{"type": "text", "text": "some text here"},
 			},
 		}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got <= 0 {
 			t.Errorf("expected positive token estimate, got %d", got)
 		}
@@ -68,7 +68,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 				map[string]any{"type": "image", "source": map[string]any{"type": "base64", "data": "abc"}},
 			},
 		}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got != 1000 {
 			t.Errorf("image block should estimate ~1000 tokens, got %d", got)
 		}
@@ -81,7 +81,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 				map[string]any{"type": "tool_use", "id": "t1", "name": "read_file", "input": map[string]any{"path": "/tmp/test.go"}},
 			},
 		}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got <= 0 {
 			t.Errorf("expected positive token estimate for tool_use, got %d", got)
 		}
@@ -94,7 +94,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 				map[string]any{"type": "tool_result", "tool_use_id": "t1", "content": "file contents here"},
 			},
 		}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got <= 0 {
 			t.Errorf("expected positive token estimate for tool_result, got %d", got)
 		}
@@ -102,7 +102,7 @@ func TestEstimateMessageTokens(t *testing.T) {
 
 	t.Run("nil content", func(t *testing.T) {
 		msg := map[string]any{"role": "user", "content": nil}
-		got := estimateMessageTokens(msg)
+		got := EstimateMessageTokens(msg)
 		if got <= 0 {
 			t.Errorf("expected positive token estimate for nil content, got %d", got)
 		}

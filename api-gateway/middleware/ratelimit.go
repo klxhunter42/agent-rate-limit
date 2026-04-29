@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 )
 
@@ -33,14 +34,16 @@ type rateLimitResponse struct {
 // distributed-rate-limiter service.
 type RateLimiter struct {
 	cfg      *config.Config
+	metrics  *metrics.Metrics
 	client   *http.Client
 	checkURL string
 }
 
 // NewRateLimiter creates a new rate-limiting middleware helper.
-func NewRateLimiter(cfg *config.Config) *RateLimiter {
+func NewRateLimiter(cfg *config.Config, m *metrics.Metrics) *RateLimiter {
 	return &RateLimiter{
-		cfg: cfg,
+		cfg:     cfg,
+		metrics: m,
 		client: &http.Client{
 			Timeout: 2 * time.Second,
 		},
@@ -141,6 +144,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		if !globalAllowed {
 			slog.Warn("global rate limit exceeded", "path", r.URL.Path, "method", r.Method, "remote_addr", r.RemoteAddr)
+			rl.metrics.IncRateLimit("global")
 			w.Header().Set("Retry-After", "1")
 			if isAnthropic {
 				writeAnthropicRateLimitError(w)
@@ -152,6 +156,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		if agentHasCheck && !agentAllowed {
 			slog.Warn("agent rate limit exceeded", "agent_id", agentID, "path", r.URL.Path, "method", r.Method)
+			rl.metrics.IncRateLimit("agent:" + agentID)
 			w.Header().Set("Retry-After", "1")
 			if isAnthropic {
 				writeAnthropicRateLimitError(w)

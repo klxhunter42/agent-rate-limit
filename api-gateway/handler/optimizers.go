@@ -138,6 +138,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	if totalSaved > 0 {
 		tokensSaved := tokenizer.QuickEstimateTokens(text) * budgetLevel / 4
 		m.RecordTokensSaved(tokensSaved)
+		// Rough cost estimate: $3/M input tokens average across providers.
+		costSavings := float64(tokensSaved) * 3.0 / 1_000_000
+		m.RecordCostSavings(costSavings)
 	}
 
 	return text

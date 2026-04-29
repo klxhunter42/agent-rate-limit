@@ -47,7 +47,7 @@ func envIntOr(key string, fallback int) int {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:    envBoolOr("CAVEMAN_ENABLED", false),
+		Enabled:    envBoolOr("CAVEMAN_ENABLED", true),
 		AutoDetect: envBoolOr("CAVEMAN_AUTO_DETECT", true),
 		MinSize:    envIntOr("CAVEMAN_MIN_SIZE", 500),
 	}

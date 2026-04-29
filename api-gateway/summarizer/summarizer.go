@@ -39,7 +39,7 @@ func envFloatOr(key string, fallback float64) float64 {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:  envBoolOr("SUMMARIZER_ENABLED", false),
+		Enabled:  envBoolOr("SUMMARIZER_ENABLED", true),
 		Model:    envOr("SUMMARIZER_MODEL", "glm-4.7-flashx"),
 		MaxRatio: envFloatOr("SUMMARIZER_MAX_RATIO", 0.3),
 	}

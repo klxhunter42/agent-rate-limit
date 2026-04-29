@@ -87,7 +87,7 @@ func TruncateMessages(body []byte, model string) *TruncationResult {
 	}
 	msgInfos := make([]msgInfo, len(msgsRaw))
 	for i, m := range msgsRaw {
-		msgInfos[i].tokens = estimateMessageTokens(m)
+		msgInfos[i].tokens = EstimateMessageTokens(m)
 	}
 
 	origTotal := systemTokens
@@ -227,7 +227,7 @@ func estimateSystemTokens(sys any) int {
 	return tokenizer.QuickEstimateTokens(jsonStr(sys))
 }
 
-func estimateMessageTokens(msg any) int {
+func EstimateMessageTokens(msg any) int {
 	m, ok := msg.(map[string]any)
 	if !ok {
 		return 0

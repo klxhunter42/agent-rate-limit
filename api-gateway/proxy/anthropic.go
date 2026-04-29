@@ -946,9 +946,125 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		}
 
 		if resp.StatusCode == http.StatusOK {
-			lastResp = resp
-			lastErrBody = nil
-			break
+			// Validate response is not empty/malformed before treating as success
+			if !isStream {
+				// For non-streaming, peek at the body to verify it's valid JSON
+				peekBuf := make([]byte, 1024)
+				n, _ := io.ReadFull(resp.Body, peekBuf)
+				if n == 0 {
+					// Empty response - treat as transient error
+					resp.Body.Close()
+					p.metrics.IncTransientRetry(200, model)
+					slog.Warn("upstream returned empty response (HTTP 200), retrying",
+						"model", model,
+						"attempt", attempt,
+						"max_attempts", maxAttempts,
+					)
+					if transientAttempts >= maxTransient {
+						lastErrBody = []byte("empty response body")
+						lastErrStatus = 200
+						break
+					}
+					transientAttempts++
+					lastErrBody = []byte("empty response body")
+					lastErrStatus = 200
+					continue
+				}
+				// Check if the peeked data looks like valid JSON start
+				peeked := strings.TrimSpace(string(peekBuf[:n]))
+				if len(peeked) == 0 || (peeked[0] != '{' && peeked[0] != '[') {
+					// Not valid JSON start - treat as transient error
+					resp.Body.Close()
+					p.metrics.IncTransientRetry(200, model)
+					slog.Warn("upstream returned malformed response (HTTP 200), retrying",
+						"model", model,
+						"attempt", attempt,
+						"peek_preview", peeked[:min(200, len(peeked))],
+						"max_attempts", maxAttempts,
+					)
+					if transientAttempts >= maxTransient {
+						lastErrBody = peekBuf[:n]
+						lastErrStatus = 200
+						break
+					}
+					transientAttempts++
+					lastErrBody = peekBuf[:n]
+					lastErrStatus = 200
+					continue
+				}
+				// Valid response - recreate body reader with full content
+				lastResp = resp
+				lastResp.Body = struct {
+					io.Reader
+					io.Closer
+				}{
+					Reader: io.MultiReader(bytes.NewReader(peekBuf[:n]), resp.Body),
+					Closer: resp.Body,
+				}
+				lastErrBody = nil
+				break
+			} else {
+				// For streaming, peek at first SSE chunk to verify stream is alive
+				peekBuf := make([]byte, 1024)
+				n, _ := io.ReadFull(resp.Body, peekBuf)
+				if n == 0 {
+					resp.Body.Close()
+					p.metrics.IncTransientRetry(200, model)
+					slog.Warn("upstream returned empty stream (HTTP 200), retrying",
+						"model", model,
+						"attempt", attempt,
+						"max_attempts", maxAttempts,
+					)
+					if transientAttempts >= maxTransient {
+						lastErrBody = []byte("empty stream")
+						lastErrStatus = 200
+						break
+					}
+					transientAttempts++
+					lastErrBody = []byte("empty stream")
+					lastErrStatus = 200
+					continue
+				}
+				// Check if we got at least one valid SSE line
+				peeked := string(peekBuf[:n])
+				hasValidSSE := false
+				for _, line := range strings.Split(peeked, "\n") {
+					if strings.HasPrefix(line, "data: ") || strings.HasPrefix(line, "event: ") {
+						hasValidSSE = true
+						break
+					}
+				}
+				if !hasValidSSE {
+					resp.Body.Close()
+					p.metrics.IncTransientRetry(200, model)
+					slog.Warn("upstream returned malformed stream (HTTP 200), retrying",
+						"model", model,
+						"attempt", attempt,
+						"peek_preview", peeked[:min(200, len(peeked))],
+						"max_attempts", maxAttempts,
+					)
+					if transientAttempts >= maxTransient {
+						lastErrBody = peekBuf[:n]
+						lastErrStatus = 200
+						break
+					}
+					transientAttempts++
+					lastErrBody = peekBuf[:n]
+					lastErrStatus = 200
+					continue
+				}
+				// Valid stream - recreate body reader with peeked data
+				lastResp = resp
+				lastResp.Body = struct {
+					io.Reader
+					io.Closer
+				}{
+					Reader: io.MultiReader(bytes.NewReader(peekBuf[:n]), resp.Body),
+					Closer: resp.Body,
+				}
+				lastErrBody = nil
+				break
+			}
 		}
 
 		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))

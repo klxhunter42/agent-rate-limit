@@ -22,6 +22,16 @@ const profilePrefix = "profile:"
 const profileTokensPrefix = "profile_tokens:"
 
 // Profile represents a configuration for connecting to an AI provider.
+// ProfileTarget represents a single target in a multi-target profile.
+type ProfileTarget struct {
+	ID         string   `json:"id,omitempty"`
+	Target     string   `json:"target"`
+	BaseURL    string   `json:"baseUrl,omitempty"`
+	APIKey     string   `json:"apiKey,omitempty"`
+	AccountIDs []string `json:"accountIds,omitempty"`
+	PassthroughAuth bool `json:"passthroughAuth,omitempty"`
+}
+
 type Profile struct {
 	Name            string   `json:"name"`
 	BaseURL         string   `json:"baseUrl"`
@@ -33,6 +43,7 @@ type Profile struct {
 	Target          string   `json:"target"`
 	Provider        string   `json:"provider,omitempty"`
 	AccountIDs      []string `json:"accountIds"`
+	Targets        []ProfileTarget `json:"targets,omitempty"`
 	PassthroughAuth bool     `json:"passthroughAuth,omitempty"`
 	CreatedAt       string   `json:"createdAt"`
 	UpdatedAt       string   `json:"updatedAt"`

@@ -44,7 +44,7 @@ func envIntOr(key string, fallback int) int {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:  envBoolOr("PREFETCHER_ENABLED", false),
+		Enabled:  envBoolOr("PREFETCHER_ENABLED", true),
 		MaxOrder: envIntOr("PREFETCHER_MAX_ORDER", 5),
 		TopK:     envIntOr("PREFETCHER_TOP_K", 3),
 	}

@@ -62,7 +62,7 @@ func envIntOr(key string, fallback int) int {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:      envBoolOr("WASTE_ENABLED", false),
+		Enabled:      envBoolOr("WASTE_ENABLED", true),
 		ScanInterval: 60 * time.Second,
 		MinRequests:  envIntOr("WASTE_MIN_REQUESTS", 10),
 	}

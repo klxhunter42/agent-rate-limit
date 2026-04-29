@@ -59,7 +59,7 @@ func envBoolOr(key string, fallback bool) bool {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled: envBoolOr("FILTER_ENABLED", false),
+		Enabled: envBoolOr("FILTER_ENABLED", true),
 	}
 }
 

@@ -37,7 +37,7 @@ func envFloatOr(key string, fallback float64) float64 {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:     envBoolOr("CACHE_EVICTION_ENABLED", false),
+		Enabled:     envBoolOr("CACHE_EVICTION_ENABLED", true),
 		EvictPct:    envFloatOr("CACHE_EVICTION_PCT", 10.0),
 		EvictPeriod: 5 * time.Minute,
 	}

@@ -47,7 +47,7 @@ func envIntOr(key string, fallback int) int {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:    envBoolOr("SKETCH_ENABLED", false),
+		Enabled:    envBoolOr("SKETCH_ENABLED", true),
 		Dimensions: envIntOr("SKETCH_DIMENSIONS", 128),
 		Threshold:  envFloatOr("SKETCH_THRESHOLD", 0.85),
 	}
