@@ -284,6 +284,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Extract model early for provider resolution.
 	requestedModel, _ := payload["model"].(string)
+	// Transparent passthrough for claude-oauth: preserve exact CLI payload.
+	transparent := false
+	if h.resolver != nil {
+		d := h.resolver.Resolve(requestedModel)
+		if d != nil && d.ProviderID == "claude-oauth" {
+			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+				if tok := strings.TrimPrefix(ah, "Bearer "); tok != "" && !strings.HasPrefix(tok, "arl_") {
+					transparent = true
+				}
+			}
+		}
+	}
+	rawBody := body
 
 	// Rewrite sonnet/opus requests to haiku (org-level rate limit workaround).
 	// Disabled: testing direct sonnet routing via claude-oauth.
@@ -292,7 +305,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// 	payload["model"] = requestedModel
 	// }
 	// Clamp max_tokens to upstream model's hard limit.
-	clampMaxTokens(payload, requestedModel)
+	if !transparent {
+		clampMaxTokens(payload, requestedModel)
+	}
 
 	// Profile-based routing: check X-Profile header or arl_* API token.
 	var profileOverride *Profile
@@ -503,105 +518,113 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Inject system prompt for token efficiency.
-	if h.cfg.EnablePromptInjection {
-		injectSystemPrompt(payload, h.cfg.PromptInjectionText)
-	}
+	var maskResult *privacy.MaskResult
+	hasImages := false
 
-	// Run token optimization pipeline on system prompt.
-	if h.optimizers != nil {
-		budgetLevel := 0
-		if sys, ok := payload["system"]; ok {
-			var sysText string
-			switch v := sys.(type) {
-			case string:
-				sysText = v
-			case []any:
-				parts := make([]string, 0, len(v))
-				for _, item := range v {
-					if m, ok := item.(map[string]any); ok {
-						if t, ok := m["text"].(string); ok {
-							parts = append(parts, t)
+	if !transparent {
+		// Inject system prompt for token efficiency.
+		if h.cfg.EnablePromptInjection {
+			injectSystemPrompt(payload, h.cfg.PromptInjectionText)
+		}
+
+		// Run token optimization pipeline on system prompt.
+		if h.optimizers != nil {
+			budgetLevel := 0
+			if sys, ok := payload["system"]; ok {
+				var sysText string
+				switch v := sys.(type) {
+				case string:
+					sysText = v
+				case []any:
+					parts := make([]string, 0, len(v))
+					for _, item := range v {
+						if m, ok := item.(map[string]any); ok {
+							if t, ok := m["text"].(string); ok {
+								parts = append(parts, t)
+							}
 						}
 					}
+					sysText = strings.Join(parts, "\n\n")
 				}
-				sysText = strings.Join(parts, "\n\n")
-			}
-			if sysText != "" {
-				cap := tokenizer.GetModelCapabilities(selectedModel)
-				sysTokens := tokenizer.QuickEstimateTokens(sysText)
-				msgTokens := 0
-				if msgs, ok := payload["messages"].([]any); ok {
-					for _, msg := range msgs {
-						msgTokens += proxy.EstimateMessageTokens(msg)
+				if sysText != "" {
+					cap := tokenizer.GetModelCapabilities(selectedModel)
+					sysTokens := tokenizer.QuickEstimateTokens(sysText)
+					msgTokens := 0
+					if msgs, ok := payload["messages"].([]any); ok {
+						for _, msg := range msgs {
+							msgTokens += proxy.EstimateMessageTokens(msg)
+						}
+					}
+					totalTokens := sysTokens + msgTokens
+					pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
+					if pctUsed >= 0.8 {
+						budgetLevel = 2
+						h.metrics.SetBudgetLevel(selectedModel, 2)
+					} else if pctUsed >= 0.6 {
+						budgetLevel = 1
+						h.metrics.SetBudgetLevel(selectedModel, 1)
+					} else {
+						h.metrics.SetBudgetLevel(selectedModel, 0)
+					}
+					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
+					if optimized != sysText {
+						payload["system"] = optimized
 					}
 				}
-				totalTokens := sysTokens + msgTokens
-				pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
-				if pctUsed >= 0.8 {
-					budgetLevel = 2
-					h.metrics.SetBudgetLevel(selectedModel, 2)
-				} else if pctUsed >= 0.6 {
-					budgetLevel = 1
-					h.metrics.SetBudgetLevel(selectedModel, 1)
-				} else {
-					h.metrics.SetBudgetLevel(selectedModel, 0)
-				}
-				optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
-				if optimized != sysText {
-					payload["system"] = optimized
-				}
 			}
 		}
-	}
 
-	// Smart max_tokens auto-adjustment.
-	if h.cfg.EnableSmartMaxTokens {
-		applySmartMaxTokens(payload, selectedModel)
-	}
-
-	// Strip fields unsupported by non-Anthropic upstreams.
-	// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
-	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
-	stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
-	slog.Info("strip debug", "model", selectedModel, "has_effort", payload["effort"] != nil, "has_thinking", payload["thinking"] != nil, "has_budget", payload["budget_tokens"] != nil)
-
-	// Strip content block types unsupported by upstream (only needed for Z.AI).
-	if h.cfg.GLMMode {
-		filterUnsupportedContent(payload)
-	}
-
-	// Detect if request contains images for native vision routing.
-	hasImages := proxy.HasImageContent(payload)
-
-	// Re-encode modified payload.
-	body, err = json.Marshal(payload)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-		return
-	}
-
-	// Privacy masking: detect and mask secrets/PII before proxying.
-	var maskResult *privacy.MaskResult
-	if h.privacy != nil {
-		maskResult, _ = h.privacy.MaskRequest(body)
-		if maskResult != nil {
-			body = maskResult.MaskedBody
-			slog.Info("privacy mask applied",
-				"has_secrets", maskResult.HasSecrets,
-				"has_pii", maskResult.HasPII,
-				"secrets_count", len(maskResult.SecretsCtx.Mapping),
-				"pii_count", len(maskResult.PIICtx.Mapping),
-			)
-		} else {
-			slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+		// Smart max_tokens auto-adjustment.
+		if h.cfg.EnableSmartMaxTokens {
+			applySmartMaxTokens(payload, selectedModel)
 		}
+
+		// Strip fields unsupported by non-Anthropic upstreams.
+		// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
+		isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
+		stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
+		slog.Info("strip debug", "model", selectedModel, "has_effort", payload["effort"] != nil, "has_thinking", payload["thinking"] != nil, "has_budget", payload["budget_tokens"] != nil)
+
+		// Strip content block types unsupported by upstream (only needed for Z.AI).
+		if h.cfg.GLMMode {
+			filterUnsupportedContent(payload)
+		}
+
+		// Detect if request contains images for native vision routing.
+		hasImages = proxy.HasImageContent(payload)
+
+		// Re-encode modified payload.
+		body, err = json.Marshal(payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+			return
+		}
+
+		// Privacy masking: detect and mask secrets/PII before proxying.
+		var maskResult *privacy.MaskResult
+		if h.privacy != nil {
+			maskResult, _ = h.privacy.MaskRequest(body)
+			if maskResult != nil {
+				body = maskResult.MaskedBody
+				slog.Info("privacy mask applied",
+					"has_secrets", maskResult.HasSecrets,
+					"has_pii", maskResult.HasPII,
+					"secrets_count", len(maskResult.SecretsCtx.Mapping),
+					"pii_count", len(maskResult.PIICtx.Mapping),
+				)
+			} else {
+				slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+			}
+		}
+	} else {
+		body = rawBody
 	}
 
 	isStream, _ := payload["stream"].(bool)
 
 	// Build profile proxy options if profile override is active.
 	profileOpts := &proxy.ProxyOptions{}
+	profileOpts.Transparent = transparent
 	if profileOverride != nil {
 		if profileOverride.BaseURL != "" {
 			profileOpts.UpstreamOverride = profileOverride.BaseURL
@@ -868,6 +891,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				ExtraHeaders:     visionDecision.ExtraHeaders,
 				OnAuthError:      oauthRefreshFn,
 				OnRateLimitError: rotateAccountFn,
+				Transparent:      transparent,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("vision proxy error", "error", err)
@@ -901,6 +925,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				ExtraHeaders:     decision.ExtraHeaders,
 				OnAuthError:      oauthRefreshFn,
 				OnRateLimitError: rotateAccountFn,
+				Transparent:      transparent,
 			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
 				slog.Error("proxy error", "error", err)
