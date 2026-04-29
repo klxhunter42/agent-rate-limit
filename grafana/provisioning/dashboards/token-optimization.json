@@ -33,7 +33,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Cost Savings (USD)",
@@ -50,7 +50,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Optimizer Runs",
@@ -67,7 +67,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Avg Optimizer Duration",
@@ -84,7 +84,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Tokens Saved Over Time",
@@ -99,7 +99,7 @@
           "custom": { "fillOpacity": 30, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Cost Savings Over Time",
@@ -114,7 +114,7 @@
           "custom": { "fillOpacity": 30, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Per-Technique",
@@ -135,7 +135,7 @@
           "custom": { "fillOpacity": 10, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Runs by Technique",
@@ -150,7 +150,7 @@
           "custom": { "fillOpacity": 10, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "P95 Optimizer Duration by Technique",
@@ -165,7 +165,7 @@
           "custom": { "fillOpacity": 10, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Chars Saved by Technique (Bar)",
@@ -181,7 +181,7 @@
         }
       },
       "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "groupWidth": 0.7 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Cache & Context",
@@ -202,7 +202,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Delta Chars Saved",
@@ -217,7 +217,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Sketch Dedup Chars Saved",
@@ -232,7 +232,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Disclosure Runs",
@@ -249,7 +249,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Cache Hit Rate",
@@ -272,7 +272,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Total Context Chars Saved",
@@ -289,7 +289,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Learning",
@@ -310,7 +310,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Prefetcher Runs",
@@ -325,7 +325,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Summarizer Chars Saved",
@@ -340,7 +340,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Bandit Total Runs",
@@ -356,7 +356,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Prefetcher Total Runs",
@@ -372,7 +372,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Summarizer Total Chars Saved",
@@ -388,7 +388,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Dedup",
@@ -409,7 +409,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Sketch Dedup Chars Saved",
@@ -424,7 +424,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Delta Runs",
@@ -439,7 +439,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Dedup Comparison (Bar)",
@@ -455,7 +455,7 @@
         }
       },
       "options": { "orientation": "horizontal", "groupWidth": 0.7 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Dedup Total Runs",
@@ -471,7 +471,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Cross-Session & Waste",
@@ -492,7 +492,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Waste Findings by Severity",
@@ -507,7 +507,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Tokens Wasted by Detector",
@@ -522,7 +522,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Waste Findings Table",
@@ -540,7 +540,7 @@
         ]
       },
       "options": { "showHeader": true },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Waste by Detector (Bar)",
@@ -556,7 +556,7 @@
         }
       },
       "options": { "orientation": "horizontal", "groupWidth": 0.7 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Budget",
@@ -587,7 +587,7 @@
         }
       },
       "options": { "showThresholdLabels": true, "showThresholdMarkers": true },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Tokens Saved Over Time (Stacked)",
@@ -606,7 +606,7 @@
           }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Budget Status Summary",
@@ -630,7 +630,7 @@
         ]
       },
       "options": { "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Total Tokens Saved (Budget Row)",
@@ -647,7 +647,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Budget Level Detail",
@@ -669,7 +669,7 @@
         }
       },
       "options": { "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman",
@@ -690,7 +690,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman Chars Saved",
@@ -705,7 +705,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman Duration P95",
@@ -720,7 +720,7 @@
           "custom": { "fillOpacity": 20, "lineWidth": 2 }
         }
       },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman Total Runs",
@@ -736,7 +736,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman Total Chars Saved",
@@ -752,7 +752,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "title": "Caveman Avg Duration",
@@ -769,7 +769,7 @@
         }
       },
       "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
   "templating": {
