@@ -36,7 +36,7 @@ export function LogsPage() {
     }
   }, []);
 
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
     fetchLogs();

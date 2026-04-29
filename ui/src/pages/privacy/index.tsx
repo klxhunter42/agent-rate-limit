@@ -84,7 +84,7 @@ export default function PrivacyPage() {
     }
   }, []);
 
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
     load();
