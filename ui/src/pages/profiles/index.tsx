@@ -14,6 +14,8 @@ import type { ProfileUsage, AccountUsage } from '@/lib/api';
 import { InfoTip } from '@/components/shared/info-tip';
 import { copyToClipboard } from '@/lib/clipboard';
 
+const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
 interface ProfileTarget {
   id: string;
   target: string;
@@ -465,7 +467,7 @@ function CreateProfileForm({
 }) {
   const [name, setName] = useState('');
   const [targets, setTargets] = useState<ProfileTarget[]>([
-    { id: crypto.randomUUID(), target: '', accountIds: [] },
+    { id: uid(), target: '', accountIds: [] },
   ]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [accountsMap, setAccountsMap] = useState<Map<string, AccountInfo[]>>(new Map());
@@ -498,7 +500,7 @@ function CreateProfileForm({
     const firstProvider = providers[0]?.id ?? '';
     setTargets((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), target: firstProvider, accountIds: [] },
+      { id: uid(), target: firstProvider, accountIds: [] },
     ]);
   }
 
@@ -660,11 +662,11 @@ function ProfileCard({
     if (editing) {
       setEditName(profile.name);
       if (profile.targets && profile.targets.length > 0) {
-        setEditTargets(profile.targets.map((t) => ({ ...t, id: t.id || crypto.randomUUID() })));
+        setEditTargets(profile.targets.map((t) => ({ ...t, id: t.id || uid() })));
       } else {
         setEditTargets([
           {
-            id: crypto.randomUUID(),
+            id: uid(),
             target: resolvedProvider,
             accountIds: (profile.accountIds ?? []).filter(Boolean),
             apiKey: profile.apiKey,
@@ -692,7 +694,7 @@ function ProfileCard({
     const firstProvider = providers[0]?.id ?? '';
     setEditTargets((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), target: firstProvider, accountIds: [] },
+      { id: uid(), target: firstProvider, accountIds: [] },
     ]);
   }
 

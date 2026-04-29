@@ -274,6 +274,24 @@ System Prompt
 
 Token estimation aware of 15 models with different context windows and max output tokens.
 
+### Request-Path Integration
+
+The optimization pipeline runs inline on every `/v1/messages` request, after system prompt injection and before proxy forwarding (`handler/handler.go:511`).
+
+Budget level is computed from context utilization and controls optimization intensity:
+
+| Budget Level | Condition | Effect |
+|---|---|---|
+| 0 (green) | < 60% context used | Dedup, chunker, delta, sketch, filter, caveman |
+| 1 (yellow) | 60-80% context used | All above + scaled token savings |
+| 2 (red) | > 80% context used | All above + summarizer + max compression |
+
+Budget level is exported as `api_gateway_budget_level{model}` (gauge: 0/1/2).
+
+When chars are saved, two additional metrics are recorded:
+- `api_gateway_optimizer_tokens_saved_total` = `QuickEstimateTokens(text) * budgetLevel / 4`
+- `api_gateway_cost_savings_total` = `tokensSaved * $3 / 1M` (rough $3/M input estimate)
+
 ---
 
 ## 5. Privacy Pipeline
@@ -330,7 +348,7 @@ Detects and masks secrets and PII in requests, restores in streaming responses.
 | Correlation ID | Propagate or generate UUID | always on |
 | Real IP | CF-Connecting-IP > X-Real-IP > X-Forwarded-For | always on |
 | IP Filter | Whitelist/blacklist with CIDR support | `IP_WHITELIST`, `IP_BLACKLIST` |
-| Rate Limit | Distributed via external rate-limiter service | `RATE_LIMITER_ADDR`, `GLOBAL_RATE_LIMIT`, `AGENT_RATE_LIMIT` |
+| Rate Limit | Distributed via external rate-limiter service; blocks recorded in `api_gateway_rate_limit_hits_total{key}` | `RATE_LIMITER_ADDR`, `GLOBAL_RATE_LIMIT`, `AGENT_RATE_LIMIT` |
 | Adaptive Concurrency | Gradient-based per-model concurrency control | `UPSTREAM_MODEL_LIMITS`, `DEFAULT_LIMIT`, `GLOBAL_LIMIT` |
 | Anomaly Detection | Welford's Z-score on latency, spike/drop/sustained | `ANOMALY_COOLDOWN_SEC`, `ANOMALY_Z_THRESHOLD` |
 | Structured Logging | JSON: method, path, status, duration_ms, agent_id | always on |
@@ -577,3 +595,92 @@ Bidirectional conversion between API formats:
 - Redis caching (30s TTL)
 - Fail-open on errors
 - Env: `QUOTA_DAILY_BUDGET` (57600), `QUOTA_BLOCK_PCT` (95)
+
+---
+
+## 14. Waste Detection
+
+Background scanner that identifies wasteful token usage patterns. Runs every 60 seconds via `waste.WasteDetector.StartBackgroundScanner()`.
+
+### Detectors
+
+| Detector | Trigger | Token Waste Estimate |
+|---|---|---|
+| `empty_response` | >10% of requests have zero output tokens | `totalTokens * emptyCount` |
+| `retry_churn` | Consecutive identical-input requests with zero output, >5000 tokens wasted | Raw `wastedTokens` |
+| `loop_detection` | Repeating input pattern (size >= 2) across records | Pattern tokens |
+| `oversized_context` | Total excess tokens (input > 100K) across requests exceeds 100K | Excess tokens |
+| `budget_exceeded` | Session used more than 3 different models | 0 (signal only) |
+| `redundant_tool_call` | Consecutive identical request-response pairs | Pair token cost |
+| `low_value_response` | >= 3 requests with >5K input but <50 output tokens | Input tokens |
+
+### Requirements
+
+- Minimum 10 requests per session before detection runs (`WASTE_MIN_REQUESTS`)
+- Session data populated via `PostProxyFeedback()` after each proxied request
+- Findings available via `GET /v1/waste/findings`
+
+### Metrics
+
+- `api_gateway_waste_findings_total{detector, severity}`
+- `api_gateway_waste_tokens_wasted_total{detector}`
+
+---
+
+## 15. Grafana Dashboards
+
+7 pre-built dashboards in `grafana/provisioning/dashboards/`:
+
+| Dashboard | UID | Panels | Content |
+|---|---|---|---|
+| System Overview | `arl-overview` | 20+ | Request rate, latency, error rate, connections, model distribution |
+| Gateway Overview | `arl-gw-overview` | 15+ | Token throughput, cost, upstream health, TTFB, rate limits |
+| Runtime & Health | `arl-gw-runtime` | 12+ | Go runtime (goroutines, heap, GC, stack), Dragonfly health |
+| Cost Calculator | `arl-cost` | 10+ | Cost by model, cost savings, budget level, cost trends |
+| PasteGuard | `arl-pasteguard` | 8+ | Secrets/PII detection, mask duration, mask request stats |
+| Token Optimization | `token-optimization` | 10+ | Per-technique chars saved, runs, duration, tokens saved, waste findings |
+| AI Worker | `arl-worker` | 10+ | Worker metrics, proxy stats |
+
+### Metrics Wiring Status
+
+All registered metrics are wired to production code paths:
+
+| Metric | Wired In | Trigger Condition |
+|---|---|---|
+| `request_latency_seconds` | middleware | Every request |
+| `error_total` | handler | Error responses |
+| `rate_limit_hits_total` | middleware/ratelimit.go | Request blocked by rate limiter (global or per-agent) |
+| `active_connections` | middleware | Concurrent connection tracking |
+| `queue_depth` | queue | Dragonfly queue depth |
+| `token_input/output_total` | handler | Successful proxy response with token counts |
+| `upstream_retries_total` | proxy | Any upstream retry |
+| `upstream_429_total` | proxy | Upstream returns 429 |
+| `adaptive_limit/in_flight` | middleware | Adaptive concurrency control |
+| `cost_total` | handler | Successful response with cost calculation |
+| `model_fallback_total` | handler | Model fallback triggered |
+| `ttfb_seconds` | proxy | Streaming request (time to first byte) |
+| `go_*` | runtime | 10s collection cycle |
+| `dragonfly_up` | runtime | Dragonfly health check |
+| `anomaly_total` | middleware | Z-score anomaly detected |
+| `mask_duration_seconds` | privacy | Request masked (secrets or PII) |
+| `secrets_detected_total` | privacy | Secret pattern match |
+| `pii_detected_total` | privacy | Presidio PII match |
+| `mask_requests_total` | privacy | Request processed through privacy pipeline |
+| `profile_*` | handler | Profile-routed request |
+| `optimizer_*` | handler | System prompt optimization ran |
+| `cost_savings_total` | handler/optimizers.go | Optimization saved tokens (cost estimate) |
+| `budget_level` | handler/handler.go | Every request with system prompt |
+| `context_truncation_total` | proxy/recovery.go | Context overflow error from upstream |
+| `transient_retry_total` | proxy/recovery.go | 500/502/503/529 from upstream |
+| `waste_findings_total` | waste | Waste pattern detected in session |
+| `waste_tokens_wasted_total` | waste | Waste pattern detected in session |
+
+### Dashboard Test Suite
+
+`api-gateway/metrics/dashboard_test.go` validates:
+- All dashboard JSON files are valid Grafana format (panels + title)
+- Every `api_gateway_*` metric in PromQL expressions is registered in `metrics.go`
+- Label keys in PromQL selectors match registered labels per metric
+- Every registered metric appears in at least one dashboard panel (excludes internal diagnostics)
+
+Run: `cd api-gateway && go test ./metrics/ -run TestDashboard`

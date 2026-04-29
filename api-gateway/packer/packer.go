@@ -20,7 +20,7 @@ type Config struct {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:    envBoolOr("PACKER_ENABLED", false),
+		Enabled:    envBoolOr("PACKER_ENABLED", true),
 		MinUtility: envFloatOr("PACKER_MIN_UTILITY", 0.1),
 	}
 }

@@ -21,7 +21,7 @@ type Config struct {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:         envBoolOr("CHUNKER_ENABLED", false),
+		Enabled:         envBoolOr("CHUNKER_ENABLED", true),
 		MinChunk:        envIntOr("CHUNKER_MIN_CHUNK", 128),
 		MaxChunk:        envIntOr("CHUNKER_MAX_CHUNK", 4096),
 		WindowSize:      envIntOr("CHUNKER_WINDOW_SIZE", 48),

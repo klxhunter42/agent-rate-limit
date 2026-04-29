@@ -262,7 +262,7 @@ func main() {
 	r.Use(m.Middleware)
 
 	// Rate limiting
-	rl := middleware.NewRateLimiter(cfg)
+	rl := middleware.NewRateLimiter(cfg, m)
 	r.Use(rl.Middleware)
 
 	// WebSocket endpoint - rate limiter skips /ws internally to avoid upgrade failures
@@ -309,6 +309,11 @@ func main() {
 	}))
 	r.Post("/v1/messages/count_tokens", h.CountTokens)
 	r.Get("/v1/waste/findings", h.GetWasteFindings)
+
+	// Claude Code CLI passthrough routes (proxy to Anthropic API)
+	r.HandleFunc("/api/claude_code/policy_limits", h.AnthropicPassthrough)
+	r.HandleFunc("/api/claude_code/settings", h.AnthropicPassthrough)
+	r.HandleFunc("/v1/mcp_servers", h.AnthropicPassthrough)
 
 	// New handler routes
 	profileHandler.Routes()(r)

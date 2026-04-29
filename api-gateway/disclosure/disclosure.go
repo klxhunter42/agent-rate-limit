@@ -27,7 +27,7 @@ type Config struct {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:  envBoolOr("DISCLOSURE_ENABLED", false),
+		Enabled:  envBoolOr("DISCLOSURE_ENABLED", true),
 		L1Tokens: envIntOr("DISCLOSURE_L1_TOKENS", 15),
 		L2Tokens: envIntOr("DISCLOSURE_L2_TOKENS", 60),
 	}

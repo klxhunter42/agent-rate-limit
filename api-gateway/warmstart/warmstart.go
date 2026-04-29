@@ -50,7 +50,7 @@ func envFloatOr(key string, fallback float64) float64 {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled:    envBoolOr("WARMSTART_ENABLED", false),
+		Enabled:    envBoolOr("WARMSTART_ENABLED", true),
 		TopK:       envIntOr("WARMSTART_TOP_K", 3),
 		MinSimilar: envFloatOr("WARMSTART_MIN_SIMILARITY", 0.5),
 	}

@@ -52,7 +52,7 @@ func envFloatOr(key string, fallback float64) float64 {
 
 func LoadConfig() Config {
 	return Config{
-		Enabled: envBoolOr("BANDIT_ENABLED", false),
+		Enabled: envBoolOr("BANDIT_ENABLED", true),
 		Alpha:   envFloatOr("BANDIT_ALPHA", 1.0),
 		Decay:   envFloatOr("BANDIT_DECAY", 0.99),
 	}

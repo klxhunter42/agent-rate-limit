@@ -28,8 +28,6 @@ import (
 
 type profileCtxKey struct{}
 
-
-
 type accountCtxKey struct{}
 
 func AccountIDFromContext(ctx context.Context) string {
@@ -288,10 +286,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	requestedModel, _ := payload["model"].(string)
 
 	// Rewrite sonnet/opus requests to haiku (org-level rate limit workaround).
-	if strings.Contains(requestedModel, "sonnet") || strings.Contains(requestedModel, "opus") {
-		requestedModel = "claude-haiku-4-5-20251001"
-		payload["model"] = requestedModel
-	}
+	// Disabled: testing direct sonnet routing via claude-oauth.
+	// if strings.Contains(requestedModel, "sonnet") || strings.Contains(requestedModel, "opus") {
+	// 	requestedModel = "claude-haiku-4-5-20251001"
+	// 	payload["model"] = requestedModel
+	// }
 	// Clamp max_tokens to upstream model's hard limit.
 	clampMaxTokens(payload, requestedModel)
 
@@ -392,6 +391,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if decision != nil && decision.APIKey != "" {
 		apiKey = decision.APIKey
+		// claude-oauth passthrough: prefer client's Bearer token when available,
+		// since stored tokens may be stale/expired. Claude Code CLI has its own valid session.
+		if decision.ProviderID == "claude-oauth" {
+			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+				if tok := strings.TrimPrefix(ah, "Bearer "); tok != "" && !strings.HasPrefix(tok, "arl_") {
+					slog.Info("claude-oauth passthrough activated", "token_prefix", tok[:min(20, len(tok))]+"...")
+					apiKey = tok
+				}
+			}
+		}
 	} else if !h.keyPool.Passthrough() {
 		poolKey, ok := h.keyPool.Acquire()
 		if !ok {
@@ -420,11 +429,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store account ID in context for usage tracking.
-		if selectedTokenInfo != nil {
-			*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
-		}
+	if selectedTokenInfo != nil {
+		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
+	} else if decision != nil && decision.AccountID != "" {
+		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, decision.AccountID))
+	}
 
-		// Quota enforcement: check before acquiring slot (fail-open on errors).
+	// Quota enforcement: check before acquiring slot (fail-open on errors).
 	if h.quotaHandler != nil {
 		providerID := "default"
 		accountID := "default"
@@ -495,6 +506,53 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Inject system prompt for token efficiency.
 	if h.cfg.EnablePromptInjection {
 		injectSystemPrompt(payload, h.cfg.PromptInjectionText)
+	}
+
+	// Run token optimization pipeline on system prompt.
+	if h.optimizers != nil {
+		budgetLevel := 0
+		if sys, ok := payload["system"]; ok {
+			var sysText string
+			switch v := sys.(type) {
+			case string:
+				sysText = v
+			case []any:
+				parts := make([]string, 0, len(v))
+				for _, item := range v {
+					if m, ok := item.(map[string]any); ok {
+						if t, ok := m["text"].(string); ok {
+							parts = append(parts, t)
+						}
+					}
+				}
+				sysText = strings.Join(parts, "\n\n")
+			}
+			if sysText != "" {
+				cap := tokenizer.GetModelCapabilities(selectedModel)
+				sysTokens := tokenizer.QuickEstimateTokens(sysText)
+				msgTokens := 0
+				if msgs, ok := payload["messages"].([]any); ok {
+					for _, msg := range msgs {
+						msgTokens += proxy.EstimateMessageTokens(msg)
+					}
+				}
+				totalTokens := sysTokens + msgTokens
+				pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
+				if pctUsed >= 0.8 {
+					budgetLevel = 2
+					h.metrics.SetBudgetLevel(selectedModel, 2)
+				} else if pctUsed >= 0.6 {
+					budgetLevel = 1
+					h.metrics.SetBudgetLevel(selectedModel, 1)
+				} else {
+					h.metrics.SetBudgetLevel(selectedModel, 0)
+				}
+				optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
+				if optimized != sysText {
+					payload["system"] = optimized
+				}
+			}
+		}
 	}
 
 	// Smart max_tokens auto-adjustment.
@@ -1328,13 +1386,12 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 	}
 }
 
-
 // anthropicModelMaxTokens are hard limits enforced by Anthropic's API.
 var anthropicModelMaxTokens = map[string]int{
 	"claude-haiku-4-5-20251001": 64000,
 	"claude-opus-4-7":           200000,
-	"claude-sonnet-4-20250514":   200000,
-	"claude-sonnet-4-6":          200000,
+	"claude-sonnet-4-20250514":  200000,
+	"claude-sonnet-4-6":         200000,
 }
 
 // clampMaxTokens ensures max_tokens does not exceed the upstream model's limit.
@@ -1515,6 +1572,9 @@ func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("x-api-key", apiKey)
 	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	if beta := r.Header.Get("anthropic-beta"); beta != "" {
+		httpReq.Header.Set("anthropic-beta", beta)
+	}
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
@@ -1676,4 +1736,72 @@ func (h *Handler) GetWasteFindings(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(h.optimizers.GetWasteFindings()))
+}
+
+// AnthropicPassthrough proxies requests to the upstream Anthropic API.
+// Used for Claude Code CLI endpoints like /api/claude_code/* and /v1/mcp_servers.
+func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	bearerToken := ""
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		bearerToken = strings.TrimPrefix(authHeader, "Bearer ")
+	}
+
+	upstreamURL := "https://api.anthropic.com" + r.URL.RequestURI()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	var body []byte
+	if r.Body != nil {
+		var err error
+		body, err = io.ReadAll(io.LimitReader(r.Body, h.cfg.MaxRequestBody))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, proxy.ErrorResponse{
+				Type:  "error",
+				Error: proxy.ErrorDetail{Type: "invalid_request_error", Message: "failed to read request body"},
+			})
+			return
+		}
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, r.Method, upstreamURL, bytes.NewReader(body))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "api_error", Message: "failed to create upstream request"},
+		})
+		return
+	}
+
+	// Forward headers from original request
+	httpReq.Header.Set("Content-Type", "application/json")
+	if bearerToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+	if beta := r.Header.Get("anthropic-beta"); beta != "" {
+		httpReq.Header.Set("anthropic-beta", beta)
+	}
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	if ua := r.Header.Get("User-Agent"); ua != "" {
+		httpReq.Header.Set("User-Agent", ua)
+	}
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, proxy.ErrorResponse{
+			Type:  "error",
+			Error: proxy.ErrorDetail{Type: "api_error", Message: "upstream request failed"},
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	for k, vv := range resp.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
