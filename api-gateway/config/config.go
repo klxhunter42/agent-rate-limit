@@ -43,6 +43,10 @@ type Config struct {
 	EnableSmartMaxTokens  bool
 	PromptInjectionText   string
 
+	// Auto-recovery features.
+	EnableAutoTruncate bool
+	TransientRetryMax  int
+
 	// Multi-key rotation pool.
 	UpstreamAPIKeys  []string
 	UpstreamRPMLimit int // per-key requests-per-minute budget
@@ -131,6 +135,8 @@ func Load() *Config {
 		EnableResponseTrim:       envBoolOr("ENABLE_RESPONSE_TRIM", true),
 		EnableSmartMaxTokens:     envBoolOr("ENABLE_SMART_MAX_TOKENS", true),
 		PromptInjectionText:      envOr("PROMPT_INJECTION_TEXT", defaultPromptInjection),
+		EnableAutoTruncate:       envBoolOr("ENABLE_AUTO_TRUNCATE", true),
+		TransientRetryMax:        envIntOr("TRANSIENT_RETRY_MAX", 2),
 		UpstreamAPIKeys:          parseAPIKeys(envOr("UPSTREAM_API_KEYS", "")),
 		UpstreamRPMLimit:         envIntOr("UPSTREAM_RPM_LIMIT", 40),
 		ProbeMultiplier:          envIntOr("UPSTREAM_PROBE_MULTIPLIER", 5),

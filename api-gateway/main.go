@@ -19,14 +19,27 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	_ "go.uber.org/automaxprocs"
 
+	"github.com/klxhunter/agent-rate-limit/api-gateway/bandit"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/cache"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/caveman"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/chunker"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/delta"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/disclosure"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/filter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/handler"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/middleware"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/packer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
 )
 
 //go:embed all:static
@@ -111,7 +124,45 @@ func main() {
 	usageHandler := handler.NewUsageHandler(cfg.RedisAddr)
 	quotaHandler := handler.NewQuotaHandler(cfg.RedisAddr, tokenStore, cfg)
 
-	// Wire usage recording: every metrics.RecordTokens call also persists to Redis.
+	// --- Token Optimizers (13 packages, all off by default) ---
+	// Shared Redis client for optimizer packages.
+	optRdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+
+	optChunker := chunker.New(m.Registry(), optRdb)
+	optPacker := packer.New(m.Registry())
+	optDisclosure := disclosure.New(m.Registry(), optRdb)
+	optPrefetcher := prefetcher.New(m.Registry(), optRdb)
+	optBandit := bandit.New(m.Registry(), optRdb, nil)
+	optSummarizer := summarizer.New(m.Registry(), optRdb)
+	optDelta := delta.New(m.Registry(), optRdb)
+	optSketch := sketch.New(m.Registry(), optRdb)
+	optWaste := waste.New(m.Registry())
+	optFilter := filter.New(m.Registry())
+	optCache := cache.New(m.Registry(), optRdb)
+	optWarmStart := warmstart.New(m.Registry(), optRdb)
+	optCaveman := caveman.New(m.Registry())
+
+	optimizers := &handler.Optimizers{
+		Chunker:    optChunker,
+		Packer:     optPacker,
+		Disclosure: optDisclosure,
+		Prefetcher: optPrefetcher,
+		Bandit:     optBandit,
+		Summarizer: optSummarizer,
+		Delta:      optDelta,
+		Sketch:     optSketch,
+		Waste:      optWaste,
+		Filter:     optFilter,
+		Cache:      optCache,
+		WarmStart:  optWarmStart,
+		Caveman:    optCaveman,
+	}
+
+	// Background optimizer goroutines.
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	defer cancelBg()
+
+	// Wire usage recording: every metrics.RecordTokens call also persists to Redis + optimizer feedback.
 	m.SetUsageRecorder(func(ctx context.Context, model string, input, output int, cost float64) {
 		if usageHandler != nil {
 			usageHandler.RecordUsage(model, input, output, cost)
@@ -119,6 +170,16 @@ func main() {
 		if pn := handler.ProfileNameFromContext(ctx); pn != "" {
 			usageHandler.RecordProfileUsage(pn, model, input, output, cost)
 			m.RecordProfileUsage(pn, model, input, output, cost)
+		}
+		if aid := handler.AccountIDFromContext(ctx); aid != "" {
+			usageHandler.RecordAccountUsage(aid, model, input, output, cost)
+		}
+		sessionID := "default"
+		if pn := handler.ProfileNameFromContext(ctx); pn != "" {
+			sessionID = pn
+		}
+		if optimizers != nil {
+			optimizers.PostProxyFeedback(sessionID, model, input, output)
 		}
 	})
 
@@ -128,7 +189,14 @@ func main() {
 		profileRdb = profileHandler.Redis()
 	}
 
-	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker)
+	if optWaste != nil {
+		optWaste.StartBackgroundScanner(bgCtx, 60*time.Second)
+	}
+	if optCache != nil {
+		optCache.StartEvictionLoop(bgCtx)
+	}
+
+	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers)
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)
@@ -240,6 +308,7 @@ func main() {
 		h.GetModels(w, r)
 	}))
 	r.Post("/v1/messages/count_tokens", h.CountTokens)
+	r.Get("/v1/waste/findings", h.GetWasteFindings)
 
 	// New handler routes
 	profileHandler.Routes()(r)

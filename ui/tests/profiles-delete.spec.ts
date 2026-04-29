@@ -1,21 +1,19 @@
 import { test, expect } from '@playwright/test';
 
-const GATEWAY = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
-const API = process.env.PLAYWRIGHT_API_URL || 'http://localhost:8080';
-
 test.describe('Delete Profile', () => {
   test('delete profile via UI', async ({ page, request }) => {
+    const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
     const name = 'test-delete-' + Date.now();
 
     await test.step('create profile via API', async () => {
-      const resp = await request.post(`${API}/v1/profiles`, {
+      const resp = await request.post(`${baseURL}/v1/profiles`, {
         data: { name, target: 'claude-oauth' },
       });
       expect(resp.status()).toBe(201);
     });
 
     await test.step('open profiles page', async () => {
-      await page.goto(GATEWAY + '/profiles');
+      await page.goto(baseURL + '/profiles');
       await page.waitForResponse('**/v1/profiles', { timeout: 10000 });
       await page.waitForTimeout(1000);
     });

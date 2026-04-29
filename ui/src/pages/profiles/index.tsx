@@ -3,16 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp, Key, Eye, EyeOff, Activity, Loader2 } from 'lucide-react';
+import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp, Key, Eye, EyeOff, Activity, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { fetchProviders, providerName } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
 import { listAccounts } from '@/lib/auth-api';
 import type { AccountInfo } from '@/lib/auth-api';
-import { fetchProfileUsage } from '@/lib/api';
-import type { ProfileUsage } from '@/lib/api';
+import { fetchProfileUsage, fetchAccountUsage } from '@/lib/api';
+import type { ProfileUsage, AccountUsage } from '@/lib/api';
 import { InfoTip } from '@/components/shared/info-tip';
 import { copyToClipboard } from '@/lib/clipboard';
+
+interface ProfileTarget {
+  id: string;
+  target: string;
+  baseUrl?: string;
+  apiKey?: string;
+  accountIds?: string[];
+  passthroughAuth?: boolean;
+}
 
 interface Profile {
   name: string;
@@ -20,11 +29,14 @@ interface Profile {
   model?: string;
   target?: string;
   accountIds?: string[];
+  targets?: ProfileTarget[];
   maxTokens?: number;
   temperature?: number;
   createdAt?: string;
   updatedAt?: string;
   apiKey?: string;
+  passthroughAuth?: boolean;
+  baseUrl?: string;
   [key: string]: unknown;
 }
 
@@ -63,13 +75,13 @@ export function ProfilesPage() {
 
   async function createProfile(data: {
     name: string;
-    target: string;
-    accountIds: string[];
+    targets: ProfileTarget[];
   }) {
+    const provider = data.targets[0]?.target ?? '';
     const res = await fetch('/v1/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, provider: data.target }),
+      body: JSON.stringify({ ...data, target: provider, provider }),
     });
     if (res.ok) {
       setShowCreate(false);
@@ -448,95 +460,164 @@ function CreateProfileForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (data: { name: string; target: string; accountIds: string[] }) => void;
+  onSubmit: (data: { name: string; targets: ProfileTarget[] }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
-
-  const [target, setTarget] = useState('');
-  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [targets, setTargets] = useState<ProfileTarget[]>([
+    { id: crypto.randomUUID(), target: '', accountIds: [] },
+  ]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const canSubmit = name.trim() && target;
+  const [accountsMap, setAccountsMap] = useState<Map<string, AccountInfo[]>>(new Map());
+  const [accountsLoading, setAccountsLoading] = useState<Set<string>>(new Set());
+  const canSubmit = name.trim() && targets.some((t) => t.target);
 
   useEffect(() => {
     fetchProviders().then((list) => {
       setProviders(list);
-      if (list.length > 0 && !target) setTarget(list[0]!.id);
+      if (list.length > 0 && targets[0] && !targets[0].target) {
+        setTargets((prev) =>
+          prev.map((t, i) => (i === 0 ? { ...t, target: list[0]!.id } : t))
+        );
+      }
     });
   }, []);
 
   useEffect(() => {
-    if (!target) { setAccounts([]); return; }
-    setAccountsLoading(true);
-    listAccounts(target)
-      .then((list) => setAccounts(list))
-      .catch(() => setAccounts([]))
-      .finally(() => setAccountsLoading(false));
-  }, [target]);
+    for (const t of targets) {
+      if (!t.target || accountsMap.has(t.target)) continue;
+      setAccountsLoading((prev) => new Set(prev).add(t.target!));
+      listAccounts(t.target)
+        .then((list) => setAccountsMap((prev) => new Map(prev).set(t.target!, list)))
+        .catch(() => setAccountsMap((prev) => new Map(prev).set(t.target!, [])))
+        .finally(() => setAccountsLoading((prev) => { const n = new Set(prev); n.delete(t.target!); return n; }));
+    }
+  }, [targets.map((t) => t.target).join(','), accountsMap]);
 
-  function toggleAccount(id: string) {
-    setAccountIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  function addTarget() {
+    const firstProvider = providers[0]?.id ?? '';
+    setTargets((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), target: firstProvider, accountIds: [] },
+    ]);
+  }
+
+  function removeTarget(id: string) {
+    setTargets((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  function updateTarget(id: string, field: keyof ProfileTarget, value: unknown) {
+    setTargets((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const updated = { ...t, [field]: value };
+        if (field === 'target') updated.accountIds = [];
+        return updated;
+      })
     );
+  }
+
+  function toggleAccount(targetId: string, accountId: string) {
+    setTargets((prev) =>
+      prev.map((t) => {
+        if (t.id !== targetId) return t;
+        const ids = t.accountIds ?? [];
+        return {
+          ...t,
+          accountIds: ids.includes(accountId)
+            ? ids.filter((x) => x !== accountId)
+            : [...ids, accountId],
+        };
+      })
+    );
+  }
+
+  function moveTarget(id: string, dir: -1 | 1) {
+    setTargets((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx < 0) return prev;
+      const swap = idx + dir;
+      if (swap < 0 || swap >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swap]] = [next[swap]!, next[idx]!];
+      return next;
+    });
   }
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground">Name *</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-profile" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Target</label>
-          <select
-            className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-            value={target}
-            onChange={(e) => { setTarget(e.target.value); setAccountIds([]); }}
-          >
-            {providers.length === 0 && <option value="">Loading...</option>}
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>{providerName(p.id)}</option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className="text-xs text-muted-foreground">Name *</label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-profile" />
       </div>
 
-
-
-      {accounts.length > 0 && (
-        <div>
-          <label className="text-xs text-muted-foreground">Account Pool (select accounts to use, leave empty for all)</label>
-          <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
-            {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading accounts...</div>}
-            {accounts.map((acc) => (
-              <label key={acc.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={accountIds.includes(acc.id)}
-                  onChange={() => toggleAccount(acc.id)}
-                  className="rounded"
-                />
-                <span className="font-mono text-xs">{acc.id}</span>
-                {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
-                {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
-                {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
-              </label>
-            ))}
-          </div>
-          {accountIds.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">{accountIds.length} account(s) selected</p>
-          )}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs text-muted-foreground">Targets (priority order)</label>
+          <Button size="sm" variant="outline" className="h-6 text-xs" onClick={addTarget}>
+            <Plus className="h-3 w-3 mr-1" /> Add Target
+          </Button>
         </div>
-      )}
+        <div className="space-y-2">
+          {targets.map((t, idx) => (
+            <div key={t.id} className="rounded-md border p-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-muted-foreground w-5">#{idx + 1}</span>
+                <select
+                  className="flex-1 h-8 rounded-md border bg-background px-2 text-sm"
+                  value={t.target}
+                  onChange={(e) => updateTarget(t.id, 'target', e.target.value)}
+                >
+                  {providers.length === 0 && <option value="">Loading...</option>}
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id}>{providerName(p.id)}</option>
+                  ))}
+                </select>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, -1)} disabled={idx === 0} title="Move up">
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, 1)} disabled={idx === targets.length - 1} title="Move down">
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                {targets.length > 1 && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeTarget(t.id)} title="Remove">
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              {(() => {
+                const accs = accountsMap.get(t.target);
+                if (!accs || accs.length === 0) return null;
+                return (
+                  <div className="ml-5">
+                    <div className="max-h-32 overflow-y-auto rounded-md border p-1.5 space-y-0.5">
+                      {accountsLoading.has(t.target) && <div className="text-xs text-muted-foreground px-2">Loading...</div>}
+                      {accs.map((acc) => (
+                        <label key={acc.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-muted/50 rounded text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={(t.accountIds ?? []).includes(acc.id)}
+                            onChange={() => toggleAccount(t.id, acc.id)}
+                            className="rounded"
+                          />
+                          <span className="font-mono text-xs">{acc.id}</span>
+                          {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="flex gap-2 justify-end">
         <Button size="sm" variant="ghost" onClick={onCancel}>
           <X className="h-4 w-4 mr-1" /> Cancel
         </Button>
-        <Button size="sm" onClick={() => onSubmit({ name, target, accountIds })} disabled={!canSubmit}>
+        <Button size="sm" onClick={() => onSubmit({ name, targets })} disabled={!canSubmit}>
           <Check className="h-4 w-4 mr-1" /> Create
         </Button>
       </div>
@@ -564,44 +645,97 @@ function ProfileCard({
   onExport: () => void;
 }) {
   const [editName, setEditName] = useState(profile.name);
-  const [editAccountIds, setEditAccountIds] = useState<string[]>((profile.accountIds ?? []).filter((id) => id));
-  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
-  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [editTargets, setEditTargets] = useState<ProfileTarget[]>([]);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [accountsMap, setAccountsMap] = useState<Map<string, AccountInfo[]>>(new Map());
+  const [accountsLoading, setAccountsLoading] = useState<Set<string>>(new Set());
 
   const resolvedProvider = profile.provider || profile.target || '';
 
   useEffect(() => {
-    if (editing) {
-      setEditName(profile.name);
-      const raw = profile.accountIds;
-      if (raw === undefined || raw === null) {
-        // Legacy: never had accountIds set
-      } else {
-        setEditAccountIds(raw.filter((id) => id));
-      }
-    }
-  }, [editing, profile.name, profile.accountIds]);
+    fetchProviders().then(setProviders);
+  }, []);
 
   useEffect(() => {
-    if (editing && resolvedProvider) {
-      setAccountsLoading(true);
-      listAccounts(resolvedProvider)
-        .then((list) => {
-          setAccounts(list);
-          const raw = profile.accountIds;
-          if ((raw === undefined || raw === null) && list.length > 0) {
-            setEditAccountIds(list.map((a) => a.id));
-          }
-        })
-        .catch(() => setAccounts([]))
-        .finally(() => setAccountsLoading(false));
+    if (editing) {
+      setEditName(profile.name);
+      if (profile.targets && profile.targets.length > 0) {
+        setEditTargets(profile.targets.map((t) => ({ ...t, id: t.id || crypto.randomUUID() })));
+      } else {
+        setEditTargets([
+          {
+            id: crypto.randomUUID(),
+            target: resolvedProvider,
+            accountIds: (profile.accountIds ?? []).filter(Boolean),
+            apiKey: profile.apiKey,
+            baseUrl: profile.baseUrl,
+            passthroughAuth: profile.passthroughAuth,
+          },
+        ]);
+      }
     }
-  }, [editing, resolvedProvider, profile.accountIds]);
+  }, [editing, profile.name, profile.targets, profile.accountIds, profile.apiKey, profile.baseUrl, profile.passthroughAuth, resolvedProvider]);
 
-  function toggleAccount(id: string) {
-    setEditAccountIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  useEffect(() => {
+    if (!editing) return;
+    for (const t of editTargets) {
+      if (!t.target || accountsMap.has(t.target)) continue;
+      setAccountsLoading((prev) => new Set(prev).add(t.target!));
+      listAccounts(t.target)
+        .then((list) => setAccountsMap((prev) => new Map(prev).set(t.target!, list)))
+        .catch(() => setAccountsMap((prev) => new Map(prev).set(t.target!, [])))
+        .finally(() => setAccountsLoading((prev) => { const n = new Set(prev); n.delete(t.target!); return n; }));
+    }
+  }, [editing, editTargets]);
+
+  function addTarget() {
+    const firstProvider = providers[0]?.id ?? '';
+    setEditTargets((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), target: firstProvider, accountIds: [] },
+    ]);
+  }
+
+  function removeTarget(id: string) {
+    setEditTargets((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  function updateTarget(id: string, field: keyof ProfileTarget, value: unknown) {
+    setEditTargets((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const updated = { ...t, [field]: value };
+        if (field === 'target') updated.accountIds = [];
+        return updated;
+      })
     );
+  }
+
+  function toggleAccount(targetId: string, accountId: string) {
+    setEditTargets((prev) =>
+      prev.map((t) => {
+        if (t.id !== targetId) return t;
+        const ids = t.accountIds ?? [];
+        return {
+          ...t,
+          accountIds: ids.includes(accountId)
+            ? ids.filter((x) => x !== accountId)
+            : [...ids, accountId],
+        };
+      })
+    );
+  }
+
+  function moveTarget(id: string, dir: -1 | 1) {
+    setEditTargets((prev) => {
+      const idx = prev.findIndex((t) => t.id === id);
+      if (idx < 0) return prev;
+      const swap = idx + dir;
+      if (swap < 0 || swap >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swap]] = [next[swap]!, next[idx]!];
+      return next;
+    });
   }
 
   if (editing) {
@@ -612,36 +746,84 @@ function ProfileCard({
             <label className="text-xs text-muted-foreground">Profile Name</label>
             <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
           </div>
-          {accounts.length > 0 && (
-            <div>
-              <label className="text-xs text-muted-foreground">Account Pool</label>
-              <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
-                {accountsLoading && <div className="text-xs text-muted-foreground px-2">Loading...</div>}
-                {accounts.map((acc) => (
-                  <label key={acc.id} className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50 rounded text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editAccountIds.includes(acc.id)}
-                      onChange={() => toggleAccount(acc.id)}
-                      className="rounded"
-                    />
-                    <span className="font-mono text-xs">{acc.id}</span>
-                    {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
-                    {acc.isDefault && <Badge variant="secondary" className="text-[10px] h-4">default</Badge>}
-                    {acc.paused && <Badge variant="destructive" className="text-[10px] h-4">paused</Badge>}
-                  </label>
-                ))}
-              </div>
-              {editAccountIds.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">{editAccountIds.length} account(s) selected</p>
-              )}
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-muted-foreground">Targets (priority order)</label>
+              <Button size="sm" variant="outline" className="h-6 text-xs" onClick={addTarget}>
+                <Plus className="h-3 w-3 mr-1" /> Add Target
+              </Button>
             </div>
-          )}
+            <div className="space-y-2">
+              {editTargets.map((t, idx) => (
+                <div key={t.id} className="rounded-md border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground w-5">#{idx + 1}</span>
+                    <select
+                      className="flex-1 h-8 rounded-md border bg-background px-2 text-sm"
+                      value={t.target}
+                      onChange={(e) => updateTarget(t.id, 'target', e.target.value)}
+                    >
+                      {providers.map((p) => (
+                        <option key={p.id} value={p.id}>{providerName(p.id)}</option>
+                      ))}
+                    </select>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, -1)} disabled={idx === 0}>
+                      <ArrowUp className="h-3 w-3" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, 1)} disabled={idx === editTargets.length - 1}>
+                      <ArrowDown className="h-3 w-3" />
+                    </Button>
+                    {editTargets.length > 1 && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeTarget(t.id)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  {(() => {
+                    const accs = accountsMap.get(t.target);
+                    if (!accs || accs.length === 0) return null;
+                    return (
+                      <div className="ml-5">
+                        <div className="max-h-32 overflow-y-auto rounded-md border p-1.5 space-y-0.5">
+                          {accountsLoading.has(t.target) && <div className="text-xs text-muted-foreground px-2">Loading...</div>}
+                          {accs.map((acc) => (
+                            <label key={acc.id} className="flex items-center gap-2 px-2 py-0.5 hover:bg-muted/50 rounded text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={(t.accountIds ?? []).includes(acc.id)}
+                                onChange={() => toggleAccount(t.id, acc.id)}
+                                className="rounded"
+                              />
+                              <span className="font-mono text-xs">{acc.id}</span>
+                              {acc.email && <span className="text-xs text-muted-foreground">({acc.email})</span>}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="ghost" onClick={onCancelEdit}>
               <X className="h-4 w-4 mr-1" /> Cancel
             </Button>
-            <Button size="sm" disabled={!editName.trim()} onClick={() => onSave(profile.name, { ...profile, name: editName.trim(), accountIds: editAccountIds })}>
+            <Button size="sm" disabled={!editName.trim()} onClick={() => {
+              const primaryTarget = editTargets[0]?.target ?? '';
+              const primaryAccountIds = editTargets[0]?.accountIds ?? [];
+              onSave(profile.name, {
+                ...profile,
+                name: editName.trim(),
+                target: primaryTarget,
+                provider: primaryTarget,
+                accountIds: primaryAccountIds,
+                targets: editTargets,
+              });
+            }}>
               <Check className="h-4 w-4 mr-1" /> Save
             </Button>
           </div>
@@ -686,6 +868,7 @@ function ProfileCardView({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [accountMap, setAccountMap] = useState<Map<string, string>>(new Map());
   const [usage, setUsage] = useState<ProfileUsage | null>(null);
+  const [accountUsage, setAccountUsage] = useState<AccountUsage[]>([]);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokeConfirm, setRevokeConfirm] = useState<string | null>(null);
 
@@ -707,6 +890,19 @@ function ProfileCardView({
       .then((data) => setUsage(data as ProfileUsage))
       .catch(() => {});
   }, [profile.name]);
+
+  useEffect(() => {
+    fetchAccountUsage()
+      .then((data) => {
+        const ids = new Set(profile.accountIds ?? []);
+        const allTargets = profile.targets ?? [];
+        for (const t of allTargets) {
+          for (const a of t.accountIds ?? []) ids.add(a);
+        }
+        setAccountUsage(ids.size > 0 ? data.filter((a) => ids.has(a.accountId)) : data);
+      })
+      .catch(() => {});
+  }, [profile.name, profile.accountIds, profile.targets]);
 
   const fetchTokens = useCallback(() => {
     fetch(`/v1/profiles/${encodeURIComponent(profile.name)}/tokens`)
@@ -776,7 +972,18 @@ function ProfileCardView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm font-semibold">{profile.name}</span>
-            <Badge variant="outline">{providerName(resolvedProvider)}</Badge>
+            {profile.targets && profile.targets.length > 0 ? (
+              <div className="flex items-center gap-1">
+                {profile.targets.map((t, idx) => (
+                  <Badge key={t.id || idx} variant="outline" className="text-[10px] h-5 gap-0.5">
+                    <span className="text-muted-foreground">#{idx + 1}</span>
+                    {providerName(t.target)}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <Badge variant="outline">{providerName(resolvedProvider)}</Badge>
+            )}
             {profile.model && <span className="text-xs text-muted-foreground">{profile.model}</span>}
             {profile.accountIds && profile.accountIds.length > 0 && (
               <Badge variant="secondary" className="text-[10px] h-4">
@@ -946,6 +1153,54 @@ function ProfileCardView({
                 ))}
               </div>
             )}
+          </div>
+        )}
+        {accountUsage.length > 0 && (
+          <div className="mt-3 border-t pt-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium">Account Usage</span>
+              <Badge variant="secondary" className="text-[10px] h-4">{accountUsage.length}</Badge>
+            </div>
+            <div className="space-y-1.5">
+              {accountUsage.map((a) => {
+                const pct = usage && usage.total_cost > 0 ? (a.total_cost / usage.total_cost * 100) : 0;
+                return (
+                  <div key={a.accountId} className="rounded-md border p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[11px] truncate">{accountMap.get(a.accountId) || a.accountId}</span>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>{a.total_requests} req</span>
+                        <span>${a.total_cost.toFixed(4)}</span>
+                        {pct > 0 && (
+                          <span className="font-medium text-foreground">{pct.toFixed(1)}%</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{(a.total_tokens_in / 1000).toFixed(1)}k in</span>
+                      <span>{(a.total_tokens_out / 1000).toFixed(1)}k out</span>
+                    </div>
+                    {pct > 0 && (
+                      <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                      </div>
+                    )}
+                    {a.models && a.models.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {a.models.map((m) => (
+                          <div key={m.model} className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                            <span className="font-mono">{m.model}</span>
+                            <span>{m.requests}req</span>
+                            <span>${m.cost.toFixed(4)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </CardContent>

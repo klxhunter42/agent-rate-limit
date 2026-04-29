@@ -101,6 +101,22 @@ export async function fetchProfileUsage(name?: string): Promise<ProfileUsage | P
   return name ? data : data.profiles;
 }
 
+export interface AccountUsage {
+  accountId: string;
+  total_requests: number;
+  total_tokens_in: number;
+  total_tokens_out: number;
+  total_cost: number;
+  models: { model: string; requests: number; input_tokens: number; output_tokens: number; cost: number }[];
+}
+
+export async function fetchAccountUsage(): Promise<AccountUsage[]> {
+  const res = await fetch('/v1/usage/accounts');
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.accounts ?? [];
+}
+
 export interface ParsedMetric {
   name: string;
   labels: Record<string, string>;

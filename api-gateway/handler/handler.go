@@ -28,6 +28,13 @@ import (
 
 type profileCtxKey struct{}
 
+type accountCtxKey struct{}
+
+func AccountIDFromContext(ctx context.Context) string {
+	v, _ := ctx.Value(accountCtxKey{}).(string)
+	return v
+}
+
 // ChatRequest is the payload sent by clients to enqueue an AI inference job.
 type ChatRequest struct {
 	AgentID     string            `json:"agent_id"`
@@ -116,11 +123,12 @@ type Handler struct {
 	profileRedis    *redis.Client
 	wsBroadcast     func(eventType string, data interface{})
 	refreshWorker   *provider.RefreshWorker
+	optimizers      *Optimizers
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker) *Handler {
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw}
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers) *Handler {
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -639,6 +647,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return tok.AccessToken, true
 	}
 	profileOpts.OnRateLimitError = rotateAccountFn
+
+	// Store account ID in context for usage tracking.
+	if selectedTokenInfo != nil {
+		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
+	}
 
 	// Resolve CodeAssist project ID for gemini-oauth requests.
 	codeAssistProjectID := ""
@@ -1646,4 +1659,14 @@ func extractSeries(model string) string {
 		return "5"
 	}
 	return "unknown"
+}
+
+// GetWasteFindings returns waste detection findings.
+func (h *Handler) GetWasteFindings(w http.ResponseWriter, r *http.Request) {
+	if h.optimizers == nil {
+		writeJSON(w, http.StatusOK, []string{})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(h.optimizers.GetWasteFindings()))
 }
