@@ -28,6 +28,8 @@ import (
 
 type profileCtxKey struct{}
 
+
+
 type accountCtxKey struct{}
 
 func AccountIDFromContext(ctx context.Context) string {
@@ -417,7 +419,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Quota enforcement: check before acquiring slot (fail-open on errors).
+	// Store account ID in context for usage tracking.
+		if selectedTokenInfo != nil {
+			*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
+		}
+
+		// Quota enforcement: check before acquiring slot (fail-open on errors).
 	if h.quotaHandler != nil {
 		providerID := "default"
 		accountID := "default"
