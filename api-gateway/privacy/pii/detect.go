@@ -1,39 +1,12 @@
 package pii
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
-
-type PresidioClient struct {
-	url            string
-	scoreThreshold float64
-	entities       []string
-	language       string
-	httpClient     *http.Client
-}
-
-type presidioRequest struct {
-	Text           string   `json:"text"`
-	Language       string   `json:"language"`
-	Entities       []string `json:"entities"`
-	ScoreThreshold float64  `json:"score_threshold"`
-	ReturnDecision bool     `json:"return_decision"`
-}
-
-type presidioResponse []struct {
-	EntityType string  `json:"entity_type"`
-	Start      int     `json:"start"`
-	End        int     `json:"end"`
-	Score      float64 `json:"score"`
-}
 
 type DetectResult struct {
 	Entities []masking.PIIEntity
@@ -41,85 +14,136 @@ type DetectResult struct {
 	ScanMs   int64
 }
 
-func NewPresidioClient(url string, scoreThreshold float64, entities []string, language string) *PresidioClient {
-	return &PresidioClient{
-		url:            url,
-		scoreThreshold: scoreThreshold,
-		entities:       entities,
-		language:       language,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-	}
+// RegexDetector finds PII entities using compiled regex patterns.
+// Replaces the slow Presidio HTTP container (7-14s per call) with <1ms regex.
+//
+// Supported entities:
+//   - EMAIL_ADDRESS: standard email format
+//   - PHONE_NUMBER: international phone numbers
+//   - CREDIT_CARD: Visa, Mastercard, Amex, Discover
+//   - SSN: US Social Security Number
+//   - IBAN: International Bank Account Number
+//   - IP_ADDRESS: IPv4 addresses
+//   - THAI_NATIONAL_ID: Thai citizen ID (13 digits with dashes)
+//   - THAI_PHONE: Thai phone numbers (0x-xxx-xxxx or +66x-xxx-xxxx)
+type RegexDetector struct {
+	entities []string
 }
 
-func (c *PresidioClient) Detect(text string) DetectResult {
+var (
+	emailRegex = regexp.MustCompile(`[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}`)
+	phoneRegex = regexp.MustCompile(`(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}`)
+
+	// Credit card: Visa (4xxx), Mastercard (5xxx/2xxx), Amex (34/37), Discover (6011/65)
+	creditCardRegex = regexp.MustCompile(`\b(?:4\d{3}|5[1-5]\d{2}|2[2-7]\d{2}|3[47]\d{2}|6011|65\d{2})[ -]?\d{4}[ -]?\d{4}[ -]?\d{3,4}\b`)
+	// US SSN: xxx-xx-xxxx
+	ssnRegex = regexp.MustCompile(`\b\d{3}[ -]\d{2}[ -]\d{4}\b`)
+	// IBAN: 2 letter country code + 2 check digits + up to 30 alphanum
+	ibanRegex = regexp.MustCompile(`\b[A-Z]{2}\d{2}[A-Z0-9]{4}[A-Z0-9]{0,26}\b`)
+	// IPv4
+	ipv4Regex = regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b`)
+	// Thai national ID: x-xxxx-xxxxx-xx-x
+	thaiIDRegex = regexp.MustCompile(`\b\d{1}[- ]?\d{4}[- ]?\d{5}[- ]?\d{2}[- ]?\d{1}\b`)
+	// Thai phone: 0[2-9]x-xxx-xxxx or +66[2-9]x-xxx-xxxx
+	thaiPhoneRegex = regexp.MustCompile(`(?:\+66|0)[2-9]\d{1}[- ]?\d{3}[- ]?\d{4}`)
+)
+
+func NewRegexDetector(entities []string) *RegexDetector {
+	return &RegexDetector{entities: entities}
+}
+
+func (d *RegexDetector) Detect(text string) DetectResult {
 	if text == "" {
 		return DetectResult{}
 	}
 
-	reqBody := presidioRequest{
-		Text:           text,
-		Language:       c.language,
-		Entities:       c.entities,
-		ScoreThreshold: c.scoreThreshold,
-		ReturnDecision: false,
-	}
-
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		return DetectResult{}
-	}
-
 	start := time.Now()
-	resp, err := c.httpClient.Post(c.url+"/analyze", "application/json", bytes.NewReader(data))
-	elapsed := time.Since(start).Milliseconds()
-	if err != nil {
-		return DetectResult{ScanMs: elapsed}
-	}
-	defer resp.Body.Close()
+	var entities []masking.PIIEntity
 
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		slog.Warn("presidio analyze failed",
-			"status", resp.StatusCode,
-			"response", string(bodyBytes),
-			"request_text_len", len(text),
-		)
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
-		return DetectResult{ScanMs: elapsed}
-	}
-
-	var result presidioResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		slog.Warn("presidio decode error", "error", err)
-		return DetectResult{ScanMs: elapsed}
-	}
-
-	slog.Info("presidio detect",
-		"text_len", len(text),
-		"text_preview", func() string {
-			if len(text) > 100 {
-				return text[:100]
+	for _, entity := range d.entities {
+		switch entity {
+		case "EMAIL_ADDRESS":
+			for _, m := range emailRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "EMAIL_ADDRESS",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.95,
+				})
 			}
-			return text
-		}(),
-		"entities_found", len(result),
-		"score_threshold", c.scoreThreshold,
-		"filter_entities", c.entities,
-	)
-
-	entities := make([]masking.PIIEntity, 0, len(result))
-	for _, e := range result {
-		if e.Start < 0 || e.End <= e.Start {
-			continue
+		case "PHONE_NUMBER":
+			for _, m := range phoneRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "PHONE_NUMBER",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.90,
+				})
+			}
+		case "CREDIT_CARD":
+			for _, m := range creditCardRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "CREDIT_CARD",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.95,
+				})
+			}
+		case "SSN":
+			for _, m := range ssnRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "SSN",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.90,
+				})
+			}
+		case "IBAN":
+			for _, m := range ibanRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "IBAN",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.90,
+				})
+			}
+		case "IP_ADDRESS":
+			for _, m := range ipv4Regex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "IP_ADDRESS",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.80,
+				})
+			}
+		case "THAI_NATIONAL_ID":
+			for _, m := range thaiIDRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "THAI_NATIONAL_ID",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.90,
+				})
+			}
+		case "THAI_PHONE":
+			for _, m := range thaiPhoneRegex.FindAllStringIndex(text, -1) {
+				entities = append(entities, masking.PIIEntity{
+					EntityType: "THAI_PHONE",
+					Start:      m[0],
+					End:        m[1],
+					Score:      0.90,
+				})
+			}
 		}
-		entities = append(entities, masking.PIIEntity{
-			EntityType: e.EntityType,
-			Start:      e.Start,
-			End:        e.End,
-			Score:      e.Score,
-		})
+	}
+
+	elapsed := time.Since(start).Milliseconds()
+	if len(entities) > 0 {
+		slog.Info("pii detect",
+			"text_len", len(text),
+			"entities_found", len(entities),
+			"ms", elapsed,
+		)
 	}
 
 	return DetectResult{
@@ -127,21 +151,4 @@ func (c *PresidioClient) Detect(text string) DetectResult {
 		HasPII:   len(entities) > 0,
 		ScanMs:   elapsed,
 	}
-}
-
-func (c *PresidioClient) HealthCheck() bool {
-	resp, err := c.httpClient.Get(c.url + "/health")
-	if err != nil {
-		return false
-	}
-	resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
-func (c *PresidioClient) URL() string {
-	return c.url
-}
-
-func (c *PresidioClient) fmt() string {
-	return fmt.Sprintf("PresidioClient{url=%s, lang=%s, entities=%v}", c.url, c.language, c.entities)
 }

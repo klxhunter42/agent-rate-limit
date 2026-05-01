@@ -16,21 +16,18 @@ import (
 )
 
 type Config struct {
-	Enabled           bool
-	SecretsEnabled    bool
-	MaxScanChars      int
-	SecretEntities    []string
-	PIIEnabled        bool
-	PresidioURL       string
-	PIIScoreThreshold float64
-	PIIEntities       []string
-	PIILanguage       string
+	Enabled        bool
+	SecretsEnabled bool
+	MaxScanChars   int
+	SecretEntities []string
+	PIIEnabled     bool
+	PIIEntities    []string
 }
 
 type Pipeline struct {
 	cfg            *Config
 	secretDetector *secrets.SecretDetector
-	presidioClient *pii.PresidioClient
+	piiDetector    *pii.RegexDetector
 	metrics        *Metrics
 }
 
@@ -54,18 +51,11 @@ func NewPipeline(cfg *Config, m *Metrics) *Pipeline {
 	}
 
 	if cfg.PIIEnabled {
-		p.presidioClient = pii.NewPresidioClient(
-			cfg.PresidioURL,
-			cfg.PIIScoreThreshold,
-			cfg.PIIEntities,
-			cfg.PIILanguage,
-		)
-		if p.presidioClient.HealthCheck() {
-			slog.Info("presidio PII analyzer connected", "url", cfg.PresidioURL)
-		} else {
-			slog.Warn("presidio PII analyzer unreachable, PII detection disabled", "url", cfg.PresidioURL)
-			p.presidioClient = nil
+		if len(cfg.PIIEntities) == 0 {
+			cfg.PIIEntities = []string{"EMAIL_ADDRESS", "PHONE_NUMBER"}
 		}
+		p.piiDetector = pii.NewRegexDetector(cfg.PIIEntities)
+		slog.Info("PII regex detector ready", "entities", cfg.PIIEntities)
 	}
 
 	return p
@@ -131,9 +121,9 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 				}
 			}
 
-			if p.presidioClient != nil && text != "" {
+			if p.piiDetector != nil && text != "" {
 				start := time.Now()
-				piiResult := p.presidioClient.Detect(text)
+				piiResult := p.piiDetector.Detect(text)
 				if p.metrics != nil {
 					p.metrics.ObserveMaskDuration("pii_detect", time.Since(start))
 				}
@@ -368,21 +358,18 @@ func setInputLeaf(obj map[string]any, keyPath string, value string) {
 	}
 }
 
-// HasPresidio returns true if PII detection is active.
-func (p *Pipeline) HasPresidio() bool {
-	return p.presidioClient != nil
+// HasPIIDetector returns true if PII detection is active.
+func (p *Pipeline) HasPIIDetector() bool {
+	return p.piiDetector != nil
 }
 
 func DefaultConfig() *Config {
 	return &Config{
-		Enabled:           true,
-		SecretsEnabled:    true,
-		MaxScanChars:      200000,
-		SecretEntities:    strings.Split("OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,JWT_TOKEN,BEARER_TOKEN", ","),
-		PIIEnabled:        true,
-		PresidioURL:       "http://arl-presidio:3000",
-		PIIScoreThreshold: 0.7,
-		PIIEntities:       strings.Split("EMAIL_ADDRESS,PHONE_NUMBER", ","),
-		PIILanguage:       "en",
+		Enabled:        true,
+		SecretsEnabled: true,
+		MaxScanChars:   200000,
+		SecretEntities: strings.Split("OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,JWT_TOKEN,BEARER_TOKEN", ","),
+		PIIEnabled:     true,
+		PIIEntities:    strings.Split("EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE", ","),
 	}
 }
