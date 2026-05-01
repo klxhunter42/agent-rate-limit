@@ -74,11 +74,15 @@ func TestPipeline_Disabled(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-func TestPipeline_HasPresidio(t *testing.T) {
+func TestPipeline_HasPIIDetector(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.PIIEnabled = false
 	p := NewPipeline(cfg, nil)
-	assert.False(t, p.HasPresidio())
+	assert.True(t, p.HasPIIDetector())
+
+	cfg2 := DefaultConfig()
+	cfg2.PIIEnabled = false
+	p2 := NewPipeline(cfg2, nil)
+	assert.False(t, p2.HasPIIDetector())
 }
 
 func TestPipeline_NewStreamUnmasker(t *testing.T) {

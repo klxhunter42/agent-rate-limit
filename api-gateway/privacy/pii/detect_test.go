@@ -1,9 +1,6 @@
 package pii
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,92 +8,109 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
-func TestPresidioClient_Detect(t *testing.T) {
+func TestRegexDetector_Detect(t *testing.T) {
+	d := NewRegexDetector([]string{"EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "SSN", "IBAN", "IP_ADDRESS", "THAI_NATIONAL_ID", "THAI_PHONE"})
+
 	t.Run("empty text", func(t *testing.T) {
-		c := NewPresidioClient("http://localhost:5002", 0.7, []string{"PERSON"}, "en")
-		result := c.Detect("")
+		result := d.Detect("")
 		assert.False(t, result.HasPII)
 	})
 
-	t.Run("successful detection", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/analyze", r.URL.Path)
-			assert.Equal(t, "POST", r.Method)
+	t.Run("no PII", func(t *testing.T) {
+		result := d.Detect("Hello, how are you today?")
+		assert.False(t, result.HasPII)
+	})
 
-			var req presidioRequest
-			json.NewDecoder(r.Body).Decode(&req)
-			assert.Equal(t, "John Smith lives here", req.Text)
-
-			resp := presidioResponse{
-				{EntityType: "PERSON", Start: 0, End: 10, Score: 0.85},
-			}
-			json.NewEncoder(w).Encode(resp)
-		}))
-		defer server.Close()
-
-		c := NewPresidioClient(server.URL, 0.7, []string{"PERSON"}, "en")
-		result := c.Detect("John Smith lives here")
+	t.Run("email detection", func(t *testing.T) {
+		result := d.Detect("Contact me at user@example.com please")
 		assert.True(t, result.HasPII)
 		assert.Len(t, result.Entities, 1)
-		assert.Equal(t, "PERSON", result.Entities[0].EntityType)
-		assert.Equal(t, 0, result.Entities[0].Start)
-		assert.Equal(t, 10, result.Entities[0].End)
+		assert.Equal(t, "EMAIL_ADDRESS", result.Entities[0].EntityType)
+		assert.Equal(t, "user@example.com", "Contact me at user@example.com please"[result.Entities[0].Start:result.Entities[0].End])
 	})
 
-	t.Run("server error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		defer server.Close()
-
-		c := NewPresidioClient(server.URL, 0.7, []string{"PERSON"}, "en")
-		result := c.Detect("some text")
-		assert.False(t, result.HasPII)
-	})
-
-	t.Run("connection refused", func(t *testing.T) {
-		c := NewPresidioClient("http://localhost:1", 0.7, []string{"PERSON"}, "en")
-		result := c.Detect("some text")
-		assert.False(t, result.HasPII)
-	})
-
-	t.Run("invalid entity filtered", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			resp := presidioResponse{
-				{EntityType: "PERSON", Start: -1, End: 5, Score: 0.9},
-				{EntityType: "EMAIL", Start: 10, End: 5, Score: 0.8},
+	t.Run("phone detection", func(t *testing.T) {
+		result := d.Detect("Call me at 555-123-4567")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "PHONE_NUMBER" {
+				found = true
 			}
-			json.NewEncoder(w).Encode(resp)
-		}))
-		defer server.Close()
+		}
+		assert.True(t, found)
+	})
 
-		c := NewPresidioClient(server.URL, 0.7, []string{"PERSON", "EMAIL"}, "en")
-		result := c.Detect("some text")
+	t.Run("credit card detection", func(t *testing.T) {
+		result := d.Detect("Card: 4111-1111-1111-1111")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "CREDIT_CARD" {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("SSN detection", func(t *testing.T) {
+		result := d.Detect("SSN: 123-45-6789")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "SSN" {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("IPv4 detection", func(t *testing.T) {
+		result := d.Detect("Server at 192.168.1.1 is down")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "IP_ADDRESS" {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("Thai national ID detection", func(t *testing.T) {
+		result := d.Detect("ID: 1-1001-00001-23-4")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "THAI_NATIONAL_ID" {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("Thai phone detection", func(t *testing.T) {
+		result := d.Detect("Call 081-234-5678")
+		assert.True(t, result.HasPII)
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "THAI_PHONE" {
+				found = true
+			}
+		}
+		assert.True(t, found)
+	})
+
+	t.Run("multiple entities", func(t *testing.T) {
+		result := d.Detect("Email user@example.com and phone 555-123-4567")
+		assert.True(t, result.HasPII)
+		assert.GreaterOrEqual(t, len(result.Entities), 2)
+	})
+
+	t.Run("disabled entity", func(t *testing.T) {
+		d2 := NewRegexDetector([]string{"EMAIL_ADDRESS"})
+		result := d2.Detect("Call 555-123-4567")
 		assert.False(t, result.HasPII)
-		assert.Len(t, result.Entities, 0)
-	})
-}
-
-func TestPresidioClient_HealthCheck(t *testing.T) {
-	t.Run("healthy", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "/health", r.URL.Path)
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		c := NewPresidioClient(server.URL, 0.7, nil, "en")
-		assert.True(t, c.HealthCheck())
-	})
-
-	t.Run("unhealthy", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}))
-		defer server.Close()
-
-		c := NewPresidioClient(server.URL, 0.7, nil, "en")
-		assert.False(t, c.HealthCheck())
 	})
 }
 
@@ -109,21 +123,21 @@ func TestMaskPII(t *testing.T) {
 	t.Run("single entity", func(t *testing.T) {
 		ctx := masking.NewMaskContext()
 		entities := []masking.PIIEntity{
-			{EntityType: "PERSON", Start: 0, End: 10, Score: 0.9},
+			{EntityType: "EMAIL_ADDRESS", Start: 0, End: 16, Score: 0.9},
 		}
-		result := MaskPII("John Smith is here", entities, ctx)
-		assert.Contains(t, result.MaskedText, "[[PERSON_1]]")
-		assert.Equal(t, "John Smith", ctx.Mapping["[[PERSON_1]]"])
+		result := MaskPII("user@example.com is my email", entities, ctx)
+		assert.Contains(t, result.MaskedText, "[[EMAIL_ADDRESS_1]]")
+		assert.Equal(t, "user@example.com", ctx.Mapping["[[EMAIL_ADDRESS_1]]"])
 	})
 
 	t.Run("dedup same entity", func(t *testing.T) {
 		ctx := masking.NewMaskContext()
 		entities := []masking.PIIEntity{
-			{EntityType: "PERSON", Start: 0, End: 10, Score: 0.9},
-			{EntityType: "PERSON", Start: 14, End: 24, Score: 0.85},
+			{EntityType: "EMAIL_ADDRESS", Start: 0, End: 16, Score: 0.9},
+			{EntityType: "EMAIL_ADDRESS", Start: 22, End: 38, Score: 0.85},
 		}
-		text := "John Smith xx John Smith!!"
+		text := "user@example.com xx user@example.com!!"
 		result := MaskPII(text, entities, ctx)
-		assert.Contains(t, result.MaskedText, "[[PERSON_1]]")
+		assert.Contains(t, result.MaskedText, "[[EMAIL_ADDRESS_1]]")
 	})
 }

@@ -30,23 +30,12 @@ func LoadConfig() *Config {
 	if v := os.Getenv("PASTEGUARD_PII_ENABLED"); v != "" {
 		cfg.PIIEnabled = strings.ToLower(v) == "true" || v == "1"
 	}
-	if v := os.Getenv("PASTEGUARD_PRESIDIO_URL"); v != "" {
-		cfg.PresidioURL = v
-	}
-	if v := os.Getenv("PASTEGUARD_PII_SCORE_THRESHOLD"); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			cfg.PIIScoreThreshold = f
-		}
-	}
 	if v := os.Getenv("PASTEGUARD_PII_ENTITIES"); v != "" {
 		entities := strings.Split(v, ",")
 		for i, e := range entities {
 			entities[i] = strings.TrimSpace(e)
 		}
 		cfg.PIIEntities = entities
-	}
-	if v := os.Getenv("PASTEGUARD_PII_LANGUAGE"); v != "" {
-		cfg.PIILanguage = v
 	}
 
 	return cfg

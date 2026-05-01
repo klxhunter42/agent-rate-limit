@@ -373,6 +373,19 @@ GLM_ENDPOINT=https://api.z.ai/api/anthropic
 | `GRAFANA_ADMIN_PASSWORD` | `klxhunter` | รหัสผ่าน admin ของ Grafana |
 | `DASHBOARD_PORT` | `8082` | Gateway Dashboard UI port (ภายนอก container) |
 
+### PasteGuard (Privacy Pipeline)
+
+| Variable | Default | คำอธิบาย |
+|----------|---------|----------|
+| `PASTEGUARD_ENABLED` | `true` | เปิด/ปิด PasteGuard ทั้งระบบ |
+| `PASTEGUARD_SECRETS_ENABLED` | `true` | เปิด/ปิด secret detection (API keys, tokens, certs) |
+| `PASTEGUARD_SECRET_ENTITIES` | (8 types) | Secret entity types ที่ตรวจจับ (comma-separated) |
+| `PASTEGUARD_PII_ENABLED` | `true` | เปิด/ปิด PII detection |
+| `PASTEGUARD_PII_ENTITIES` | `EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE` | PII entity types ที่ตรวจจับ (comma-separated, default = all 8) |
+| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | จำนวนตัวอักษรสูงสุดที่ scan |
+
+> **Note**: `PASTEGUARD_PRESIDIO_URL`, `PASTEGUARD_PII_SCORE_THRESHOLD`, and `PASTEGUARD_PII_LANGUAGE` have been removed. PII detection now uses the built-in `RegexDetector` (<1ms per call) instead of the Presidio HTTP container (7-14s per call).
+
 ---
 
 ## 6. การใช้งานกับ Claude Code
@@ -1829,6 +1842,60 @@ go test ./... -count=1 -race
 # Combined: build UI -> build Go -> cleanup binary
 cd ../ui && bun run build && cd ../api-gateway && go build -o api-gateway . && rm -f api-gateway
 ```
+
+---
+
+## 18.1. PasteGuard PII Detection: Presidio-to-Regex Migration
+
+### Why Presidio Was Replaced
+
+The original PasteGuard PII pipeline used Microsoft Presidio Analyzer (NLP container) for entity detection. This caused severe latency problems:
+
+| Issue | Detail |
+|-------|--------|
+| **Slow HTTP calls** | Each Presidio `/analyze` call took 7-14 seconds per text span |
+| **Compounding latency** | Multiple spans per request = 30+ seconds total request time |
+| **Overkill NLP** | Only 2 entity types were used (`EMAIL_ADDRESS`, `PHONE_NUMBER`) - far too light to justify a 2GB NLP container |
+| **Regex is faster** | Compiled regex detection is <1ms vs 7-14s per Presidio call |
+| **Container removed** | Presidio container (2GB RAM) is no longer needed for default deployment |
+
+The replacement is `RegexDetector` - a pure Go regex engine with zero external dependencies.
+
+### RegexDetector Supported Entities
+
+| Entity | Pattern | Example |
+|--------|---------|---------|
+| `EMAIL_ADDRESS` | Standard email format | `user@example.com` |
+| `PHONE_NUMBER` | International phone numbers | `+1-555-123-4567` |
+| `CREDIT_CARD` | Visa / Mastercard / Amex / Discover | `4111-1111-1111-1111` |
+| `SSN` | US Social Security Number | `123-45-6789` |
+| `IBAN` | International Bank Account Number | `GB82WEST12345698765432` |
+| `IP_ADDRESS` | IPv4 addresses | `192.168.1.1` |
+| `THAI_NATIONAL_ID` | Thai citizen ID (13 digits) | `1-1001-00001-23-4` |
+| `THAI_PHONE` | Thai phone format | `081-234-5678`, `+66812345678` |
+
+Default: all 8 entities are enabled. Customize via `PASTEGUARD_PII_ENTITIES` env var.
+
+### Presidio Legacy (Optional)
+
+The Presidio container is still available for legacy use but is not required:
+
+```bash
+# Start with Presidio (not recommended - use only if needed)
+docker-compose --profile pii up
+
+# Default deployment (regex only, no Presidio)
+docker-compose up
+```
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `privacy/pii/detect.go` | `RegexDetector` - regex pattern matching for all 8 entities |
+| `privacy/pii/mask.go` | PII masking with placeholder generation |
+| `privacy/config.go` | Env var loading, default config |
+| `privacy/pipeline.go` | Full mask/unmask pipeline (secrets + PII) |
 
 ---
 
