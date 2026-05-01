@@ -187,10 +187,8 @@ func (r *Resolver) ResolveFallback(model string, exclude []string) *RoutingDecis
 }
 
 func (r *Resolver) Resolve(model string) *RoutingDecision {
-	matched := false
 	for _, rule := range modelRules {
 		if strings.HasPrefix(model, rule.prefix) {
-			matched = true
 			for _, pid := range rule.providers {
 				var decision *RoutingDecision
 				if pid == "claude-oauth" {
@@ -202,14 +200,22 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 					return decision
 				}
 			}
-			break
+			// Model matched a rule but no provider had a token.
+			// In GLM mode: allow Z.AI fallback if zai is the intended provider
+			// (key may come from pool or UPSTREAM_API_KEYS).
+			if r.glmMode {
+				for _, pid := range rule.providers {
+					if pid == "zai" {
+						return r.buildDecision("zai", model, "", "")
+					}
+				}
+			}
+			return nil
 		}
 	}
 
-	// Z.AI fallback only for models that don't match any known prefix.
-	// Models that matched a rule but had no provider token return nil
-	// (triggers "no provider" error) instead of misrouting to Z.AI.
-	if r.glmMode && !matched {
+	// No rule matched: Z.AI fallback in GLM mode for unknown models.
+	if r.glmMode {
 		decision := r.tryResolve("zai", model)
 		if decision != nil {
 			return decision
