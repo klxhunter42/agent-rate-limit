@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -146,18 +147,73 @@ func ProfileNameFromContext(ctx context.Context) string {
 
 // recordProfileUsage records both Prometheus metrics and Redis usage for a profile.
 
-// trySidecarOrDirect routes transparent claude-oauth requests through the Node.js
-// sidecar (for billing header injection) when available, falling back to direct proxy.
+// trySidecarOrDirect routes transparent claude-oauth requests with billing header
+// injection. Path priority: Go direct (fastest) -> sidecar (Node.js fallback) -> direct proxy.
 func (h *Handler) trySidecarOrDirect(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback proxy.FeedbackFunc, maskResult *privacy.MaskResult, opts *proxy.ProxyOptions, transparent bool) error {
-	slog.Info("trySidecarOrDirect", "transparent", transparent, "sidecarURL", h.sidecarURL, "model", model)
-	if transparent && h.sidecarURL != "" {
-		if err := h.proxy.ProxySidecar(w, r, h.sidecarURL, body, model, isStream, feedback, maskResult, opts); err != nil {
-			slog.Warn("sidecar failed, falling back to direct", "error", err, "model", model)
-			return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+	profile := ProfileNameFromContext(r.Context())
+	slog.Info("trySidecarOrDirect", "transparent", transparent, "sidecarURL", h.sidecarURL, "model", model, "profile", profile)
+	if !transparent {
+		return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+	}
+
+	// Fix headers for profile-routed OAuth tokens.
+	if strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+		r.Header.Set("Authorization", "Bearer "+apiKey)
+		r.Header.Del("x-api-key")
+		if beta := r.Header.Get("anthropic-beta"); beta != "" {
+			if !strings.Contains(beta, "oauth-2025-04-20") {
+				r.Header.Set("anthropic-beta", beta+",oauth-2025-04-20")
+			}
+		} else {
+			r.Header.Set("anthropic-beta", "oauth-2025-04-20")
 		}
+	}
+
+	// Path 1: Go direct billing injection (fastest, no sidecar hop).
+	start := time.Now()
+	billingOpts := opts
+	if billingOpts == nil {
+		billingOpts = &proxy.ProxyOptions{Transparent: true}
+	} else {
+		billingOptsCopy := *opts
+		billingOpts = &billingOptsCopy
+	}
+	billingOpts.BillingInjected = true
+	injectedBody := proxy.InjectBillingHeader(body)
+	err := h.proxy.ProxyTransparent(w, r, apiKey, injectedBody, model, isStream, feedback, maskResult, billingOpts)
+	if err == nil {
+		h.metrics.RecordBillingPath("go_direct", model, profile)
+		h.metrics.RecordBillingPathLatency("go_direct", model, time.Since(start).Seconds())
 		return nil
 	}
-	return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+	if !errors.Is(err, proxy.ErrBillingRejected) {
+		return err
+	}
+
+	// Billing rejected - record and fall back.
+	h.metrics.RecordBillingPath("billing_rejected", model, profile)
+
+	// Path 2: Sidecar fallback (Node.js TLS fingerprint).
+	slog.Warn("Go billing rejected, trying sidecar fallback", "model", model)
+	if h.sidecarURL != "" {
+		start = time.Now()
+		if err := h.proxy.ProxySidecar(w, r, h.sidecarURL, body, model, isStream, feedback, maskResult, opts); err != nil {
+			slog.Warn("sidecar failed, falling back to direct", "error", err, "model", model)
+			h.metrics.RecordBillingPath("direct", model, profile)
+			h.metrics.RecordBillingPathLatency("direct", model, time.Since(start).Seconds())
+			return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+		}
+		h.metrics.RecordBillingPath("sidecar", model, profile)
+		h.metrics.RecordBillingPathLatency("sidecar", model, time.Since(start).Seconds())
+		return nil
+	}
+
+	// Path 3: Direct proxy (no billing header).
+	start = time.Now()
+	err = h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+	h.metrics.RecordBillingPath("direct", model, profile)
+	h.metrics.RecordBillingPathLatency("direct", model, time.Since(start).Seconds())
+	return err
 }
 func (h *Handler) recordProfileUsage(profile, model string, input, output int, cost float64) {
 	h.metrics.RecordProfileUsage(profile, model, input, output, cost)
@@ -503,6 +559,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Profile-selected OAuth token: enable transparent mode for sidecar routing.
+	if !transparent && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+		transparent = true
+		slog.Info("profile OAuth token, enabling transparent sidecar routing", "profile", func() string {
+			if profileOverride != nil {
+				return profileOverride.Name
+			}
+			return ""
+		}())
+	}
+
 	// Store account ID in context for usage tracking.
 	if selectedTokenInfo != nil {
 		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
@@ -529,8 +596,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Non-GLM mode: require a resolved provider. No Z.AI fallback.
-	if !h.cfg.GLMMode && decision == nil && profileOverride == nil {
+	// No provider resolved and no profile override: reject.
+	if decision == nil && profileOverride == nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"type":  "error",
 			"error": map[string]string{"type": "no_provider", "message": fmt.Sprintf("no provider configured for model %s - authenticate via /v1/auth/claude/start or configure an API key", requestedModel)},
@@ -599,7 +666,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.Info("strip debug", "model", selectedModel, "has_effort", payload["effort"] != nil, "has_thinking", payload["thinking"] != nil, "has_budget", payload["budget_tokens"] != nil)
 
 		// Strip content block types unsupported by upstream (only needed for Z.AI).
-		if h.cfg.GLMMode {
+		if decision != nil && decision.ProviderID == "zai" {
 			filterUnsupportedContent(payload)
 		}
 	}
@@ -650,6 +717,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					payload["system"] = optimized
 				}
 			}
+		}
+	}
+
+	// Run token optimization on message content.
+	if h.optimizers != nil {
+		if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
+			h.optimizers.OptimizeMessages(msgs, h.metrics)
 		}
 	}
 
@@ -795,6 +869,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	profileOpts.OnRateLimitError = rotateAccountFn
 
+	// Profile-selected OAuth token: enable transparent mode for sidecar routing.
+	if !transparent && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+		transparent = true
+		slog.Info("profile OAuth token, enabling transparent sidecar routing", "profile", func() string {
+			if profileOverride != nil {
+				return profileOverride.Name
+			}
+			return ""
+		}())
+	}
+
 	// Store account ID in context for usage tracking.
 	if selectedTokenInfo != nil {
 		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
@@ -893,7 +978,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if h.cfg.GLMMode && hasImages && (decision == nil || decision.ProviderID == "zai") {
+	if hasImages && decision != nil && decision.ProviderID == "zai" {
 		// GLM models: use dedicated Z.AI vision endpoint (OpenAI format).
 		imgBytes, imgCount := analyzeImagePayload(payload)
 		visionModel := selectVisionModel(imgBytes, imgCount)

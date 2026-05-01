@@ -146,6 +146,68 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	return text
 }
 
+// OptimizeMessages applies lightweight optimization to message content (whitespace + dedup).
+// Skips code blocks and privacy placeholders. Only applies to text content in user/assistant messages.
+func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
+	for _, msg := range messages {
+		msgMap, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, ok := msgMap["content"]
+		if !ok {
+			continue
+		}
+
+		switch c := content.(type) {
+		case string:
+			if c == "" {
+				continue
+			}
+			optimized, saved := tokenizer.OptimizeWhitespace(c)
+			if saved > 0 {
+				if opt2, s2 := tokenizer.DeduplicateSentences(optimized); s2 > 0 {
+					optimized = opt2
+					saved += s2
+				}
+				msgMap["content"] = optimized
+				m.RecordOptimization("message_text", saved)
+			}
+		case []any:
+			for _, block := range c {
+				blockMap, ok := block.(map[string]any)
+				if !ok {
+					continue
+				}
+				blockType, _ := blockMap["type"].(string)
+				if blockType == "tool_use" {
+					continue
+				}
+				// text blocks use "text" field, tool_result uses "content" field
+				fields := []string{"text"}
+				if blockType == "tool_result" {
+					fields = []string{"content"}
+				}
+				for _, field := range fields {
+					text, ok := blockMap[field].(string)
+					if !ok || text == "" {
+						continue
+					}
+					optimized, saved := tokenizer.OptimizeWhitespace(text)
+					if saved > 0 {
+						if opt2, s2 := tokenizer.DeduplicateSentences(optimized); s2 > 0 {
+							optimized = opt2
+							saved += s2
+						}
+						blockMap[field] = optimized
+						m.RecordOptimization("message_block_"+blockType, saved)
+					}
+				}
+			}
+		}
+	}
+}
+
 // PostProxyFeedback records telemetry after a proxy response completes.
 func (o *Optimizers) PostProxyFeedback(sessionID, model string, input, output int) {
 	// Prefetcher (F4)

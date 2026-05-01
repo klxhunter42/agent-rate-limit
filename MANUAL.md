@@ -24,6 +24,7 @@
 14. [การเพิ่ม AI Provider](#14-การเพิ่ม-ai-provider)
 15. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
 16. [Profile-Based Routing](#16-profile-based-routing)
+17.1. [Claude OAuth Transparent Passthrough](#171-claude-oauth-transparent-passthrough-sonnet--opus-via-gateway)
 17. [Vision Auto-Routing (รูปภาพ)](#17-vision-auto-routing-รูปภาพ)
 18. [Multi-Agent และการเลือกโหมด](#18-multi-agent-และการเลือกโหมด)
 
@@ -1199,6 +1200,338 @@ echo "proxy-no-key"
 
 ---
 
+
+## 17.1. Claude OAuth Transparent Passthrough (Sonnet / Opus via Gateway)
+
+ระบบที่ทำให้ Claude Code CLI ใช้ Sonnet/Opus ผ่าน gateway ได้ โดย gateway ทำหน้าที่:
+1. รับ request พร้อม profile API token (`arl_*`)
+2. ดึง OAuth token จาก Redis (เชื่อมกับ Anthropic account)
+3. Route ผ่าน Node.js sidecar เพื่อ inject billing header
+4. ส่งต่อไป `api.anthropic.com` ด้วย auth ที่ถูกต้อง
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Claude Code CLI                                     │
+│                  (Remote: 192.168.5.221)                                    │
+│                                                                             │
+│  ANTHROPIC_BASE_URL=http://192.168.5.62:9000                               │
+│  ANTHROPIC_API_KEY=arl_2f3a72a7...                                         │
+│                                                                             │
+│  POST /v1/messages                                                         │
+│  Headers: x-api-key: arl_2f3a72a7...                                       │
+│  Body: {model: "claude-sonnet-4-20250514", messages: [...]}                │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             │  HTTP POST
+                             │  (arl_ token)
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Caddy Reverse Proxy (:9000)                           │
+│                        arl-proxy container                                  │
+│                                                                             │
+│  TLS termination, CORS, static file serving                                 │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             │  HTTP POST
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      API Gateway (Go, :8080)                                │
+│                       arl-gateway container                                 │
+│                                                                             │
+│  1. Parse arl_ token → ResolveProfileToken() → profile "th15011880"        │
+│  2. Profile target = claude-oauth                                          │
+│  3. GetDefault("claude-oauth") → sk-ant-oat01-* from Redis                 │
+│  4. Detect: apiKey starts with "sk-ant-oat01-" → transparent = true        │
+│  5. Fix headers:                                                            │
+│     - Set Authorization: Bearer sk-ant-oat01-*                              │
+│     - Del x-api-key (remove arl_ token)                                     │
+│     - Ensure anthropic-beta contains oauth-2025-04-20                       │
+│  6. Route to trySidecarOrDirect() → ProxySidecar()                          │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             │  HTTP POST
+                             │  (Authorization: Bearer sk-ant-oat01-*)
+                             │  (anthropic-beta: ...oauth-2025-04-20...)
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  Node.js Sidecar (:8081)                                    │
+│                  (Same container as Gateway)                                │
+│                                                                             │
+│  7. Parse request body JSON                                                 │
+│  8. Extract first user message text                                         │
+│  9. Compute billing header:                                                 │
+│     chars = [text[4], text[7], text[20]]                                    │
+│     hash  = SHA256("59cf53e54c78" + chars + "2.1.123").hex[:3]             │
+│     header = "cc_version=2.1.123.{hash}; cc_entrypoint=cli; cch=00000;"    │
+│  10. Inject as system[0]:                                                   │
+│      {"type":"text","text":"x-anthropic-billing-header: {header}"}         │
+│  11. Inject identity as system[1]:                                          │
+│      {"type":"text","text":"You are Claude Code, Anthropic's official..."}  │
+│  12. Forward ALL client headers as-is to api.anthropic.com                  │
+│      (Node.js https module — same TLS fingerprint as real CLI)             │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             │  HTTPS POST
+                             │  (Authorization: Bearer sk-ant-oat01-*)
+                             │  + billing header in system[0]
+                             │  + oauth-2025-04-20 in anthropic-beta
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    api.anthropic.com/v1/messages                             │
+│                                                                             │
+│  Auth: OAuth Bearer token (sk-ant-oat01-*)                                  │
+│  Billing: Claude Code rate limit bucket (more generous limits)              │
+│  Beta: oauth-2025-04-20 (enables OAuth auth on /v1/messages)               │
+│                                                                             │
+│  Response: 200 {content: [{type:"text", text:"Hello!"}]}                   │
+└────────────────────────────┬────────────────────────────────────────────────┘
+                             │
+                             │  200 OK (SSE stream or JSON)
+                             ▼
+                      Back to CLI client
+```
+
+### Request Routing Flow (Step by Step)
+
+```
+Client sends request
+  │
+  ├─ Header: x-api-key: arl_2f3a72a7...
+  ├─ Body: {model: "claude-sonnet-4-20250514", messages: [...]}
+  │
+  ▼
+Handler.Messages()
+  │
+  ├─ 1. Parse model from body: "claude-sonnet-4-20250514"
+  │
+  ├─ 2. Transparent detection (client headers):
+  │     isClaudeOAuthToken(r) → false (arl_ is not OAuth)
+  │     transparent = false
+  │
+  ├─ 3. Profile detection:
+  │     x-api-key starts with "arl_" → ResolveProfileToken()
+  │     → profile name = "th15011880"
+  │     → profile target = "claude-oauth"
+  │
+  ├─ 4. Token selection:
+  │     Profile has no accountIds → GetDefault("claude-oauth")
+  │     → apiKey = "sk-ant-oat01-eGNq..."
+  │     (OAuth token from Redis, stored via gateway OAuth flow)
+  │
+  ├─ 5. Transparent override:
+  │     apiKey starts with "sk-ant-oat01-" → transparent = true
+  │     (Enables sidecar routing for billing header injection)
+  │
+  ├─ 6. Privacy masking (PasteGuard):
+  │     Scan for secrets/PII → none found → skip
+  │
+  ├─ 7. trySidecarOrDirect():
+  │     transparent=true && sidecarURL != "" → ProxySidecar()
+  │
+  │     Before calling ProxySidecar, fix headers:
+  │     ├─ r.Header.Set("Authorization", "Bearer sk-ant-oat01-...")
+  │     ├─ r.Header.Del("x-api-key")
+  │     └─ r.Header.Set("anthropic-beta", "...,oauth-2025-04-20")
+  │        (add oauth flag if missing)
+  │
+  ├─ 8. ProxySidecar():
+  │     Forward ALL headers + body to http://127.0.0.1:8081/v1/messages
+  │
+  │     Sidecar (Node.js):
+  │     ├─ Parse body JSON
+  │     ├─ Inject billing header as system[0]
+  │     ├─ Inject identity string as system[1]
+  │     ├─ Forward to https://api.anthropic.com/v1/messages
+  │     └─ Stream response back (pipe)
+  │
+  └─ 9. Response 200 → relay to client
+```
+
+### Auth Mechanism: Two Paths
+
+```
+Path 1: API Key (standard)
+  ANTHROPIC_API_KEY = sk-ant-api03-*
+  → Sent as: x-api-key header
+  → Anthropic validates via API key lookup
+  → Works with any Anthropic-compatible endpoint
+
+Path 2: OAuth Token (Claude Code)
+  ANTHROPIC_AUTH_TOKEN = sk-ant-oat01-*
+  → Sent as: Authorization: Bearer header
+  → REQUIRES: anthropic-beta includes oauth-2025-04-20
+  → Without oauth-2025-04-20: "OAuth authentication is currently not supported"
+  → Wrong header (x-api-key instead of Bearer): "invalid x-api-key"
+```
+
+### Required Headers for OAuth on /v1/messages
+
+| Header | Value | Required |
+|--------|-------|:--------:|
+| `Authorization` | `Bearer sk-ant-oat01-*` | YES |
+| `anthropic-beta` | Must include `oauth-2025-04-20` | YES |
+| `anthropic-version` | `2023-06-01` | YES |
+| `x-app` | `cli` | YES |
+| `anthropic-dangerous-direct-browser-access` | `true` | Recommended |
+| `User-Agent` | `claude-cli/2.1.123 (external, cli)` | Recommended |
+
+Full `anthropic-beta` value (from resolver route table):
+```
+claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,
+redact-thinking-2026-02-12,context-management-2025-06-27,
+prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24
+```
+
+### Billing Header Algorithm (from Claude CLI v2.1.123)
+
+Sidecar injects a billing header into `system[0]` that routes the request to the Claude Code rate limit bucket (higher limits than generic OAuth):
+
+```
+Step 1: Extract first user message text
+  firstMsg = messages.find(m => m.role === "user" && !m.isMeta)
+  text = firstMsg.content (string or first text block)
+
+Step 2: Compute build hash
+  SALT    = "59cf53e54c78"
+  VERSION = "2.1.123"
+  chars   = [text[4], text[7], text[20]].map(c => c || "0").join("")
+  hash    = SHA256(SALT + chars + VERSION).hex.slice(0, 3)
+
+Step 3: Build header string
+  "cc_version=${VERSION}.${hash}; cc_entrypoint=cli; cch=00000;"
+
+Step 4: Inject as system[0]
+  system.unshift({"type": "text", "text": "x-anthropic-billing-header: " + headerStr})
+
+Step 5: Inject identity as system[1]
+  system.splice(1, 0, {"type": "text", "text": "You are Claude Code, Anthropic's official CLI for Claude."})
+```
+
+### Sidecar Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│            arl-gateway container                 │
+│                                                  │
+│  ┌────────────────────┐  ┌────────────────────┐ │
+│  │  Go Gateway (:8080)│  │ Node.js Sidecar    │ │
+│  │                    │  │ (:8081)            │ │
+│  │  - HTTP routing    │──▶│ - Parse JSON body  │ │
+│  │  - Profile resolve │  │ - Inject billing   │ │
+│  │  - Rate limiting   │  │ - Inject identity  │ │
+│  │  - Privacy masking │  │ - Forward headers  │ │
+│  │                    │  │ - HTTPS to Anthro. │ │
+│  └────────────────────┘  └────────────────────┘ │
+│                                                  │
+│  Entrypoint: /app/sidecar/entrypoint.sh          │
+│  Starts both processes, waits for either to exit │
+└─────────────────────────────────────────────────┘
+```
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `api-gateway/sidecar/index.js` | Node.js proxy (~170 lines, zero dependencies) |
+| `api-gateway/sidecar/entrypoint.sh` | Starts Go + Node processes |
+| `api-gateway/sidecar/package.json` | No dependencies (built-in modules only) |
+| `api-gateway/Dockerfile` | Multi-stage build, `apk add nodejs`, copies sidecar/ |
+| `api-gateway/handler/handler.go` | Profile routing, transparent detection, header fix |
+| `api-gateway/proxy/anthropic.go` | `ProxySidecar()` method, forwards to sidecar |
+
+### Config Env Vars
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `CLI_SIDECAR_ENABLED` | `true` | Enable/disable sidecar routing |
+| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL (same container) |
+| `SIDECAR_PORT` | `8081` | Node.js sidecar listen port |
+
+### Error Codes and Causes
+
+| HTTP | Error Message | Cause | Fix |
+|------|--------------|-------|-----|
+| 401 | `invalid x-api-key` | OAuth token sent as `x-api-key` header | Use `Authorization: Bearer` instead |
+| 401 | `OAuth authentication is currently not supported` | Missing `oauth-2025-04-20` in `anthropic-beta` | Add the beta flag |
+| 401 | `Invalid bearer token` | Token expired or revoked | Re-auth via gateway OAuth flow |
+| 400 | `reserved keyword` | Billing header rejected by Anthropic | TLS fingerprint mismatch (sidecar fixes this) |
+| 404 | `not_found_error: model: X` | Wrong model name | Use `claude-sonnet-4-20250514`, not `claude-sonnet-4-6-20250514` |
+| 429 | `rate_limit_error` | Rate limit exceeded (generic OAuth bucket) | Must route through sidecar for billing header |
+| 502 | (empty) | Gateway panic (slice bounds) | Fixed with `truncate()` helper in proxy |
+
+### Setup: CLI on Remote Machine
+
+```bash
+# 1. Gateway OAuth flow (one-time, via browser)
+# Open: http://192.168.5.62:9000/v1/auth/claude-oauth/start-url
+# Click authorize → token stored in Redis
+
+# 2. Create profile connected to claude-oauth
+curl -X POST http://192.168.5.62:9000/v1/profiles \
+  -H "Content-Type: application/json" \
+  -d '{"name": "th15011880", "target": "claude-oauth"}'
+
+# 3. Generate profile API token
+# Dashboard UI → Profiles → th15011880 → Generate API Key
+# Returns: arl_2f3a72a7eb07b4c43ffe87d8c19776eecf62c4c64e30285eee0796198bc91be1
+
+# 4. Configure CLI on remote machine
+# Option A: Environment variables
+export ANTHROPIC_BASE_URL=http://192.168.5.62:9000
+export ANTHROPIC_API_KEY=arl_2f3a72a7eb07b4c43ffe87d8c19776eecf62c4c64e30285eee0796198bc91be1
+claude
+
+# Option B: settings.json
+# ~/.claude/settings.json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://192.168.5.62:9000",
+    "ANTHROPIC_API_KEY": "arl_2f3a72a7..."
+  }
+}
+
+# 5. Test
+claude -p "Say hello" --model claude-sonnet-4-20250514
+claude -p "Say hello" --model claude-opus-4-20250514
+```
+
+### Test with curl
+
+```bash
+curl -X POST http://192.168.5.62:9000/v1/messages \
+  -H "x-api-key: arl_2f3a72a7eb07b4c43ffe87d8c19776eecf62c4c64e30285eee0796198bc91be1" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 64,
+    "messages": [{"role": "user", "content": "Say hi in 3 words"}]
+  }'
+# → 200 {"content":[{"type":"text","text":"Hello there, human!"}]}
+```
+
+### Fallback Behavior
+
+```
+ProxySidecar() fails
+  │
+  ├─ Sidecar process not running → error
+  ├─ Billing header rejected (reserved keyword) → error
+  ├─ Connection refused → error
+  │
+  ▼
+trySidecarOrDirect() catches error
+  │
+  ▼
+Fallback to ProxyTransparent() (direct, no billing header)
+  → Goes to generic OAuth rate limit bucket
+  → More likely to get 429
+```
+
+---
+
 ## 17. Vision Auto-Routing (รูปภาพ)
 
 Gateway ตรวจจับ image content ใน request อัตโนมัติ แล้ว route ไปยัง native Zhipu vision endpoint แทน z.ai Anthropic endpoint พร้อม **auto-select vision model** ตามขนาดภาพ และ **SSE streaming** แบบ real-time
@@ -1548,4 +1881,50 @@ Request → Mask PII/Secrets → Upstream API
 
 Placeholder ที่ split ข้าม content block boundary (text → thinking) ไม่สามารถ restore ได้  
 เพราะแต่ละ block เป็นคนละ logical unit แต่กรณีนี้เกิดได้น้อยมากในทางปฏิบัติ
+
+---
+
+## 20. GLM Mode Isolation Fix
+
+### ปัญหา: GLM_MODE มีผลกับทุก provider
+
+`GLM_MODE=true` (ค่า default) ทำให้ feature ของ Z.AI รันกับทุก model รวมถึง claude:
+- Resolver fallback ส่ง claude model ไป Z.AI เมื่อไม่มี Anthropic token
+- `filterUnsupportedContent` strip content block ของ claude request
+- Vision routing ส่ง claude image request ไป Z.AI vision endpoint
+
+`GLM_MODE=false` ซ่อน Z.AI models จาก listing (ถูกต้อง) แต่ไม่ควรมีผลอื่น
+
+### หลักการ: Provider-Scoped, Not Flag-Scoped
+
+GLM_MODE ควรเป็น toggle ระดับ infrastructure (key sync, model listing) เท่านั้น
+ส่วน request-path logic ต้องตัดสินใจจาก **target provider** ไม่ใช่ global flag
+
+### แก้ 4 จุด
+
+| ไฟล์ | เดิม | ใหม่ |
+|---|---|---|
+| `provider/resolver.go:Resolve()` | Z.AI fallback ทุก model ที่หา token ไม่เจอ | Z.AI fallback เฉพาะ model ที่ไม่ตรง prefix rule ไหน |
+| `handler/handler.go:584` | `!GLMMode && decision == nil` reject | `decision == nil` reject ทุกกรณี |
+| `handler/handler.go:653` | `GLMMode` → filterUnsupportedContent | `decision.ProviderID == "zai"` เท่านั้น |
+| `handler/handler.go:974` | `GLMMode && hasImages && (decision==nil \|\| zai)` | `hasImages && decision != nil && zai` เท่านั้น |
+
+### GLM_MODE ที่ยังใช้ (ถูกต้อง)
+
+- `main.go:217` — sync Z.AI keys เข้า KeyPool
+- `handler.go:1762,1822` — ซ่อน zai models จาก listing เมื่อปิด
+- `resolver.go:212` — Z.AI fallback สำหรับ unknown model prefix
+
+### Flow หลังแก้
+
+```
+claude-sonnet-4 request → Resolve() → matched "claude-" rule → no token → nil
+→ handler: decision == nil → reject "no provider configured" ✅
+
+glm-5 request → Resolve() → matched "glm-" rule → zai token → zai decision
+→ handler: filterUnsupportedContent ✅, vision auto-route ✅
+
+unknown-model request → Resolve() → no rule matched → GLM fallback → zai
+→ handler: filterUnsupportedContent ✅ (ถ้า GLM_MODE=true)
+```
 
