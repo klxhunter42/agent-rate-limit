@@ -60,6 +60,9 @@ services:
       GEMINI_OAUTH_CLIENT_ID: ${GEMINI_OAUTH_CLIENT_ID:-}
       GEMINI_OAUTH_CLIENT_SECRET: ${GEMINI_OAUTH_CLIENT_SECRET:-}
       GLM_MODE: ${GLM_MODE:-true}
+      CLI_SIDECAR_ENABLED: ${CLI_SIDECAR_ENABLED:-true}
+      CLI_SIDECAR_URL: ${CLI_SIDECAR_URL:-http://127.0.0.1:8081}
+      SIDECAR_PORT: ${SIDECAR_PORT:-8081}
     depends_on:
       arl-dragonfly:
         condition: service_healthy

@@ -24,6 +24,7 @@ type Config struct {
 	RedisPoolSize     int
 	RedisMinIdleConns int
 	UpstreamURL       string
+	AnthropicDirectURL string
 	StreamTimeout     time.Duration
 
 	// Per-model upstream concurrency limits.
@@ -100,6 +101,10 @@ type Config struct {
 	// GLM mode toggle. true = Z.AI features active (vision, key pool, model limits).
 	// false = pure multi-provider proxy for Claude/Gemini/OpenAI.
 	GLMMode bool
+
+	// CLI sidecar for billing header injection (Node.js proxy).
+	CLISidecarURL     string
+	CLISidecarEnabled bool
 }
 
 // ModelPrice holds per-token pricing for cost calculation.
@@ -125,6 +130,7 @@ func Load() *Config {
 		RedisPoolSize:            envIntOr("REDIS_POOL_SIZE", 50),
 		RedisMinIdleConns:        envIntOr("REDIS_MIN_IDLE_CONNS", 10),
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
+		AnthropicDirectURL:     envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
 		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 1),
@@ -177,6 +183,10 @@ func Load() *Config {
 
 		// GLM mode.
 		GLMMode: envBoolOr("GLM_MODE", true),
+
+		// CLI sidecar.
+		CLISidecarURL:     envOr("CLI_SIDECAR_URL", "http://127.0.0.1:8081"),
+		CLISidecarEnabled: envBoolOr("CLI_SIDECAR_ENABLED", true),
 	}
 }
 

@@ -666,6 +666,9 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 						if unmasker != nil {
 							text = unmasker.ProcessChunk(text)
 						}
+						if text == "" {
+							continue
+						}
 						writeSSE(w, flusher, "content_block_delta", map[string]any{
 							"type":  "content_block_delta",
 							"index": 0,

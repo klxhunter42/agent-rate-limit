@@ -382,7 +382,7 @@ func DefaultConfig() *Config {
 		PIIEnabled:        true,
 		PresidioURL:       "http://arl-presidio:3000",
 		PIIScoreThreshold: 0.7,
-		PIIEntities:       strings.Split("PERSON,EMAIL_ADDRESS,PHONE_NUMBER", ","),
+		PIIEntities:       strings.Split("EMAIL_ADDRESS,PHONE_NUMBER", ","),
 		PIILanguage:       "en",
 	}
 }
