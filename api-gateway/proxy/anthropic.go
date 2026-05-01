@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -751,9 +752,12 @@ type ProxyOptions struct {
 	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
 	ExtraHeaders     map[string]string                            // additional headers to set
 	Transparent      bool                                         // skip all body/header modifications (claude-oauth passthrough)
+	BillingInjected  bool                                         // billing header was injected in Go; return ErrBillingRejected on 400 reserved keyword
 	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
 	OnRateLimitError func(oldKey string) (newKey string, ok bool) // called on 429 to rotate account
 }
+
+var ErrBillingRejected = fmt.Errorf("billing header rejected by upstream (reserved keyword)")
 
 // It tracks token usage via Prometheus and optionally trims verbose responses.
 func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, opts *ProxyOptions) error {
@@ -892,9 +896,9 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			"ua", httpReq.Header.Get("User-Agent"),
 			"session_id", httpReq.Header.Get("x-session-id"),
 			"req_id", httpReq.Header.Get("x-client-request-id"),
-			"auth", httpReq.Header.Get("Authorization")[:30],
+			"auth", truncate(httpReq.Header.Get("Authorization"), 30),
 			"browser_access", httpReq.Header.Get("anthropic-dangerous-direct-browser-access"),
-			"apikey", httpReq.Header.Get("x-api-key")[:30])
+			"apikey", truncate(httpReq.Header.Get("x-api-key"), 30))
 
 		start := time.Now()
 		resp, err := p.client.Do(httpReq)
@@ -1106,6 +1110,13 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		lastErrBody = errBody
 		lastErrStatus = resp.StatusCode
 
+		// If billing was injected and upstream rejected with reserved keyword,
+		// return early so handler can fall back to sidecar.
+		if opts != nil && opts.BillingInjected && resp.StatusCode == 400 && strings.Contains(string(errBody), "reserved keyword") {
+			slog.Warn("Go billing injection rejected by upstream, returning ErrBillingRejected", "model", model)
+			return ErrBillingRejected
+		}
+
 		action := ClassifyError(resp.StatusCode, errBody)
 		switch action {
 		case ActionTruncateAndRetry:
@@ -1184,6 +1195,112 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	}
 
 	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
+}
+
+const (
+	billingSalt     = "59cf53e54c78"
+	billingVersion  = "2.1.123"
+	billingPrefix   = "x-anthropic-billing-header: "
+	billingIdentity = "You are Claude Code, Anthropic's official CLI for Claude."
+)
+
+// injectBillingHeader modifies the request body to inject the Claude Code billing
+// header as system[0] and identity string as system[1], matching the CLI's algorithm.
+func InjectBillingHeader(body []byte) []byte {
+	var req map[string]any
+	if json.Unmarshal(body, &req) != nil {
+		return body
+	}
+
+	firstText := extractFirstUserText(req)
+	buildHash := computeBuildHash(firstText)
+	headerStr := fmt.Sprintf("cc_version=%s.%s; cc_entrypoint=cli; cch=00000;", billingVersion, buildHash)
+	billingEntry := map[string]string{"type": "text", "text": billingPrefix + headerStr}
+	identityEntry := map[string]string{"type": "text", "text": billingIdentity}
+
+	system, _ := req["system"]
+	switch s := system.(type) {
+	case nil:
+		req["system"] = []any{billingEntry, identityEntry}
+	case string:
+		req["system"] = []any{billingEntry, identityEntry, map[string]string{"type": "text", "text": s}}
+	case []any:
+		for _, item := range s {
+			if m, ok := item.(map[string]any); ok {
+				if t, _ := m["text"].(string); strings.HasPrefix(t, billingPrefix) {
+					return body // already has billing header
+				}
+			}
+		}
+		hasIdentity := false
+		for _, item := range s {
+			if m, ok := item.(map[string]any); ok {
+				if t, _ := m["text"].(string); t == billingIdentity {
+					hasIdentity = true
+					break
+				}
+			}
+		}
+		entries := []any{billingEntry}
+		if !hasIdentity {
+			entries = append(entries, identityEntry)
+		}
+		req["system"] = append(entries, s...)
+	}
+
+	newBody, err := json.Marshal(req)
+	if err != nil {
+		return body
+	}
+	return newBody
+}
+
+func extractFirstUserText(req map[string]any) string {
+	msgs, ok := req["messages"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, m := range msgs {
+		msg, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		if role, _ := msg["role"].(string); role != "user" {
+			continue
+		}
+		if _, isMeta := msg["isMeta"]; isMeta {
+			continue
+		}
+		c := msg["content"]
+		switch content := c.(type) {
+		case string:
+			return content
+		case []any:
+			for _, b := range content {
+				block, ok := b.(map[string]any)
+				if !ok {
+					continue
+				}
+				if t, _ := block["type"].(string); t == "text" {
+					if text, _ := block["text"].(string); text != "" {
+						return text
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func computeBuildHash(text string) string {
+	chars := []byte{'0', '0', '0'}
+	for i, idx := range []int{4, 7, 20} {
+		if idx < len(text) {
+			chars[i] = text[idx]
+		}
+	}
+	h := sha256.Sum256([]byte(billingSalt + string(chars) + billingVersion))
+	return fmt.Sprintf("%x", h)[:3]
 }
 
 // ProxySidecar forwards the request to a local Node.js sidecar that injects
@@ -1733,4 +1850,11 @@ func OverloadedError(msg string) ErrorResponse {
 			Message: msg,
 		},
 	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
 }

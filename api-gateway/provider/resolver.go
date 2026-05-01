@@ -79,7 +79,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-			"X-Stainless-Runtime-Version": "v24.3.0",
+		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}},
@@ -94,7 +94,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-OS":              "MacOS",
 		"X-Stainless-Arch":            "arm64",
 		"X-Stainless-Runtime":         "node",
-			"X-Stainless-Runtime-Version": "v24.3.0",
+		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}}, // alias
@@ -187,8 +187,10 @@ func (r *Resolver) ResolveFallback(model string, exclude []string) *RoutingDecis
 }
 
 func (r *Resolver) Resolve(model string) *RoutingDecision {
+	matched := false
 	for _, rule := range modelRules {
 		if strings.HasPrefix(model, rule.prefix) {
+			matched = true
 			for _, pid := range rule.providers {
 				var decision *RoutingDecision
 				if pid == "claude-oauth" {
@@ -204,8 +206,10 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 		}
 	}
 
-	// Default fallback: Z.AI only in GLM mode.
-	if r.glmMode {
+	// Z.AI fallback only for models that don't match any known prefix.
+	// Models that matched a rule but had no provider token return nil
+	// (triggers "no provider" error) instead of misrouting to Z.AI.
+	if r.glmMode && !matched {
 		decision := r.tryResolve("zai", model)
 		if decision != nil {
 			return decision
@@ -307,7 +311,6 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	idx := int(counter.Add(1)-1) % len(active)
 	return r.buildDecision(providerID, model, active[idx].AccessToken, active[idx].AccountID)
 }
-
 
 // ResolveTransparent returns a claude-oauth routing decision for transparent passthrough,
 // bypassing token expiry checks. The client provides its own valid Bearer token.

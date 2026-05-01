@@ -100,18 +100,12 @@ function forwardHeaders(req) {
       headers[k] = v;
     }
   }
-  // Claude Code sends OAuth tokens as x-api-key, not Authorization: Bearer.
-  // Convert Bearer to x-api-key so Anthropic accepts the token.
-  const auth = headers["authorization"];
-  if (auth && auth.startsWith("Bearer ")) {
-    const token = auth.slice(7);
-    if (token.startsWith("sk-ant-oat01-")) {
-      headers["x-api-key"] = token;
-      delete headers["authorization"];
-    }
-  }
+  // Keep Authorization: Bearer as-is. CLI uses Bearer for OAuth tokens.
+  // Do NOT convert to x-api-key — Anthropic validates OAuth via Authorization header.
   return headers;
 }
+
+const agent = new https.Agent({ keepAlive: true, maxSockets: 10 });
 
 const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/health") {
@@ -154,7 +148,7 @@ const server = http.createServer((req, res) => {
       headers,
     };
 
-    const upstream = https.request(opts, (upRes) => {
+    const upstream = https.request({ ...opts, agent }, (upRes) => {
       res.writeHead(upRes.statusCode, upRes.headers);
       upRes.pipe(res);
     });

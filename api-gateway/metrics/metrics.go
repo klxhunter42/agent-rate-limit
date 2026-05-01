@@ -49,6 +49,8 @@ type Metrics struct {
 	CostSavings          prometheus.Counter
 	ContextTruncations   *prometheus.CounterVec
 	TransientRetries     *prometheus.CounterVec
+	BillingPathRequests  *prometheus.CounterVec
+	BillingPathLatency   *prometheus.HistogramVec
 	registry             *prometheus.Registry
 	queueDepthFn         func() float64
 	pricing              map[string]modelPrice
@@ -204,30 +206,43 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Total number of transient error retries by status code and model.",
 		}, []string{"status", "model"}),
 
-			OptimizerDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-				Namespace: namespace,
-				Name:      "optimizer_duration_seconds",
-				Help:      "Duration of optimization technique execution.",
-				Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
-			}, []string{"technique"}),
+		BillingPathRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "billing_path_requests_total",
+			Help:      "Total Claude OAuth billing path requests by path (go_direct, sidecar, direct, billing_rejected).",
+		}, []string{"path", "model", "profile"}),
 
-			OptimizerTokensSaved: prometheus.NewCounter(prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "optimizer_tokens_saved_total",
-				Help:      "Total estimated tokens saved by optimization.",
-			}),
+		BillingPathLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "billing_path_latency_seconds",
+			Help:      "Latency of billing header injection and upstream call by path.",
+			Buckets:   []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		}, []string{"path", "model"}),
 
-			BudgetLevel: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "budget_level",
-				Help:      "Current budget utilization level per model (0=green, 1=yellow, 2=red).",
-			}, []string{"model"}),
+		OptimizerDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "optimizer_duration_seconds",
+			Help:      "Duration of optimization technique execution.",
+			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		}, []string{"technique"}),
 
-			CostSavings: prometheus.NewCounter(prometheus.CounterOpts{
-				Namespace: namespace,
-				Name:      "cost_savings_total",
-				Help:      "Total estimated cost savings from optimization in USD.",
-			}),
+		OptimizerTokensSaved: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "optimizer_tokens_saved_total",
+			Help:      "Total estimated tokens saved by optimization.",
+		}),
+
+		BudgetLevel: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "budget_level",
+			Help:      "Current budget utilization level per model (0=green, 1=yellow, 2=red).",
+		}, []string{"model"}),
+
+		CostSavings: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cost_savings_total",
+			Help:      "Total estimated cost savings from optimization in USD.",
+		}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -259,10 +274,12 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.OptimizerRuns,
 		m.ContextTruncations,
 		m.TransientRetries,
-			m.OptimizerDuration,
-			m.OptimizerTokensSaved,
-			m.BudgetLevel,
-			m.CostSavings,
+		m.OptimizerDuration,
+		m.OptimizerTokensSaved,
+		m.BudgetLevel,
+		m.CostSavings,
+		m.BillingPathRequests,
+		m.BillingPathLatency,
 	)
 
 	return m
@@ -435,6 +452,17 @@ func (m *Metrics) IncContextTruncation(model string) {
 // IncTransientRetry increments the transient retry counter for a status code and model.
 func (m *Metrics) IncTransientRetry(statusCode int, model string) {
 	m.TransientRetries.WithLabelValues(strconv.Itoa(statusCode), model).Inc()
+}
+
+
+// RecordBillingPath records a billing path routing event (go_direct, sidecar, direct, billing_rejected).
+func (m *Metrics) RecordBillingPath(path, model, profile string) {
+	m.BillingPathRequests.WithLabelValues(path, model, profile).Inc()
+}
+
+// RecordBillingPathLatency records the total latency for a billing path request.
+func (m *Metrics) RecordBillingPathLatency(path, model string, seconds float64) {
+	m.BillingPathLatency.WithLabelValues(path, model).Observe(seconds)
 }
 
 // RecordFallback records a model fallback event.
