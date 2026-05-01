@@ -25,6 +25,7 @@
 15. [การแก้ปัญหา (Troubleshooting)](#15-การแก้ปัญหา-troubleshooting)
 16. [Profile-Based Routing](#16-profile-based-routing)
 17.1. [Claude OAuth Transparent Passthrough](#171-claude-oauth-transparent-passthrough-sonnet--opus-via-gateway)
+17.2. [Message Body Optimization](#172-message-body-optimization)
 17. [Vision Auto-Routing (รูปภาพ)](#17-vision-auto-routing-รูปภาพ)
 18. [Multi-Agent และการเลือกโหมด](#18-multi-agent-และการเลือกโหมด)
 
@@ -621,6 +622,7 @@ Password: ดูจาก GRAFANA_ADMIN_PASSWORD ใน .env (default: klxhunter
 | **API Gateway Detailed** | http://localhost:3000/d/arl-gateway | Gateway metrics เช่น request rate by path, latency percentiles |
 | **AI Worker Detailed** | http://localhost:3000/d/arl-worker | Worker metrics เช่น job rate, provider latency, memory |
 | **Cost Calculator & Savings** | http://localhost:3000/d/arl-cost | คำนวณค่าใช้จ่าย AI, rate limit savings, cost estimation |
+| **Claude OAuth Billing Path** | http://localhost:3000/d/claude-oauth-billing | Billing path distribution, latency, per-profile usage, cost |
 
 ### สิ่งที่ดูได้ในแต่ละ Dashboard
 
@@ -690,6 +692,26 @@ Password: ดูจาก GRAFANA_ADMIN_PASSWORD ใน .env (default: klxhunter
 | `ai_worker_provider_latency_seconds` | Worker | Provider latency histogram (labels: provider) |
 | `ai_worker_provider_errors_total` | Worker | Provider errors (labels: provider) |
 | `ai_worker_rate_limit_hits_total` | Worker | Rate limit hits (labels: provider) |
+
+### Token Optimization Metrics
+
+| Metric | Type | Labels | คำอธิบาย |
+|--------|------|--------|----------|
+| `api_gateway_optimizer_runs_total` | Counter | `technique` | จำนวนครั้งที่ optimizer รัน (system + message) |
+| `api_gateway_optimizer_chars_saved_total` | Counter | `technique` | อักขระที่ประหยัดได้แยกตาม technique |
+| `api_gateway_optimizer_duration_seconds` | Histogram | `technique` | เวลาที่ optimizer ใช้ |
+| `api_gateway_optimizer_tokens_saved_total` | Counter | - | ประมาณการ tokens ที่ประหยัดได้ |
+| `api_gateway_cost_savings_total` | Counter | - | ค่าใช้จ่ายที่ประหยัดจาก optimization (USD) |
+| `api_gateway_budget_level` | Gauge | `model` | ระดับ budget utilization (0=green, 1=yellow, 2=red) |
+
+**Technique labels**: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `intent_filter`, `caveman`, `message_text` (string content), `message_block_text` (text blocks), `message_block_tool_result` (tool results)
+
+### Claude OAuth Billing Path Metrics
+
+| Metric | Type | Labels | คำอธิบาย |
+|--------|------|--------|----------|
+| `api_gateway_billing_path_requests_total` | Counter | `path`, `model`, `profile` | Request แยกตาม billing path (go_direct/sidecar/direct/billing_rejected) |
+| `api_gateway_billing_path_latency_seconds` | Histogram | `path`, `model` | Latency แยกตาม billing path |
 | `http_server_requests_seconds_*` | Rate Limiter | HTTP metrics |
 | `jvm_memory_*` | Rate Limiter | JVM memory |
 
@@ -1206,8 +1228,10 @@ echo "proxy-no-key"
 ระบบที่ทำให้ Claude Code CLI ใช้ Sonnet/Opus ผ่าน gateway ได้ โดย gateway ทำหน้าที่:
 1. รับ request พร้อม profile API token (`arl_*`)
 2. ดึง OAuth token จาก Redis (เชื่อมกับ Anthropic account)
-3. Route ผ่าน Node.js sidecar เพื่อ inject billing header
-4. ส่งต่อไป `api.anthropic.com` ด้วย auth ที่ถูกต้อง
+3. **Go billing injection** — compute billing header ใน Go, inject เป็น `system[0]` (primary path)
+4. ถ้า Anthropic reject billing header → fallback ไป Node.js sidecar → fallback ไป direct proxy
+5. Privacy masking (PasteGuard) ทำงานก่อน proxy
+6. Message body optimization (whitespace + dedup) ทำงานก่อน privacy masking
 
 ### Architecture Diagram
 
@@ -1224,68 +1248,40 @@ echo "proxy-no-key"
 │  Body: {model: "claude-sonnet-4-20250514", messages: [...]}                │
 └────────────────────────────┬────────────────────────────────────────────────┘
                              │
-                             │  HTTP POST
-                             │  (arl_ token)
+                             │  HTTP POST (arl_ token)
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       Caddy Reverse Proxy (:9000)                           │
-│                        arl-proxy container                                  │
-│                                                                             │
-│  TLS termination, CORS, static file serving                                 │
 └────────────────────────────┬────────────────────────────────────────────────┘
                              │
-                             │  HTTP POST
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                      API Gateway (Go, :8080)                                │
-│                       arl-gateway container                                 │
 │                                                                             │
-│  1. Parse arl_ token → ResolveProfileToken() → profile "th15011880"        │
-│  2. Profile target = claude-oauth                                          │
-│  3. GetDefault("claude-oauth") → sk-ant-oat01-* from Redis                 │
-│  4. Detect: apiKey starts with "sk-ant-oat01-" → transparent = true        │
-│  5. Fix headers:                                                            │
-│     - Set Authorization: Bearer sk-ant-oat01-*                              │
-│     - Del x-api-key (remove arl_ token)                                     │
-│     - Ensure anthropic-beta contains oauth-2025-04-20                       │
-│  6. Route to trySidecarOrDirect() → ProxySidecar()                          │
+│  1. ResolveProfileToken() → profile → claude-oauth                         │
+│  2. Get OAuth token from Redis (sk-ant-oat01-*)                             │
+│  3. Transparent mode: fix headers (Bearer auth, oauth-2025-04-20)          │
+│  4. Message body optimization (whitespace + dedup)                         │
+│  5. Privacy masking (PasteGuard: secrets, PII)                             │
+│  6. 3-Path Routing:                                                        │
+│     ├── Path 1 (primary): Go billing injection → api.anthropic.com         │
+│     ├── Path 2 (fallback): Sidecar (Node.js) → api.anthropic.com           │
+│     └── Path 3 (last resort): Direct proxy (no billing header)             │
 └────────────────────────────┬────────────────────────────────────────────────┘
                              │
-                             │  HTTP POST
-                             │  (Authorization: Bearer sk-ant-oat01-*)
-                             │  (anthropic-beta: ...oauth-2025-04-20...)
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                  Node.js Sidecar (:8081)                                    │
-│                  (Same container as Gateway)                                │
-│                                                                             │
-│  7. Parse request body JSON                                                 │
-│  8. Extract first user message text                                         │
-│  9. Compute billing header:                                                 │
-│     chars = [text[4], text[7], text[20]]                                    │
-│     hash  = SHA256("59cf53e54c78" + chars + "2.1.123").hex[:3]             │
-│     header = "cc_version=2.1.123.{hash}; cc_entrypoint=cli; cch=00000;"    │
-│  10. Inject as system[0]:                                                   │
-│      {"type":"text","text":"x-anthropic-billing-header: {header}"}         │
-│  11. Inject identity as system[1]:                                          │
-│      {"type":"text","text":"You are Claude Code, Anthropic's official..."}  │
-│  12. Forward ALL client headers as-is to api.anthropic.com                  │
-│      (Node.js https module — same TLS fingerprint as real CLI)             │
-└────────────────────────────┬────────────────────────────────────────────────┘
-                             │
-                             │  HTTPS POST
-                             │  (Authorization: Bearer sk-ant-oat01-*)
-                             │  + billing header in system[0]
-                             │  + oauth-2025-04-20 in anthropic-beta
+                             │  Path 1 (Go billing injection)
+                             │  Inject billing header as system[0] in Go
+                             │  HTTPS POST to api.anthropic.com
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                    api.anthropic.com/v1/messages                             │
 │                                                                             │
-│  Auth: OAuth Bearer token (sk-ant-oat01-*)                                  │
+│  Auth: OAuth Bearer token + anthropic-beta: oauth-2025-04-20               │
 │  Billing: Claude Code rate limit bucket (more generous limits)              │
-│  Beta: oauth-2025-04-20 (enables OAuth auth on /v1/messages)               │
-│                                                                             │
 │  Response: 200 {content: [{type:"text", text:"Hello!"}]}                   │
+│                                                                             │
+│  If 400 "reserved keyword" (billing rejected):                             │
+│  → Fallback to Path 2 (Sidecar) → Path 3 (Direct)                         │
 └────────────────────────────┬────────────────────────────────────────────────┘
                              │
                              │  200 OK (SSE stream or JSON)
@@ -1306,47 +1302,41 @@ Handler.Messages()
   │
   ├─ 1. Parse model from body: "claude-sonnet-4-20250514"
   │
-  ├─ 2. Transparent detection (client headers):
-  │     isClaudeOAuthToken(r) → false (arl_ is not OAuth)
-  │     transparent = false
-  │
-  ├─ 3. Profile detection:
+  ├─ 2. Profile detection:
   │     x-api-key starts with "arl_" → ResolveProfileToken()
-  │     → profile name = "th15011880"
   │     → profile target = "claude-oauth"
+  │     → apiKey = "sk-ant-oat01-*" from Redis
   │
-  ├─ 4. Token selection:
-  │     Profile has no accountIds → GetDefault("claude-oauth")
-  │     → apiKey = "sk-ant-oat01-eGNq..."
-  │     (OAuth token from Redis, stored via gateway OAuth flow)
-  │
-  ├─ 5. Transparent override:
+  ├─ 3. Transparent override:
   │     apiKey starts with "sk-ant-oat01-" → transparent = true
-  │     (Enables sidecar routing for billing header injection)
+  │     Fix headers: Bearer auth, oauth-2025-04-20
   │
-  ├─ 6. Privacy masking (PasteGuard):
-  │     Scan for secrets/PII → none found → skip
+  ├─ 4. Message body optimization:
+  │     OptimizeMessages() → whitespace + dedup on text content
+  │     Skips: code blocks, tool_use, privacy placeholders
   │
-  ├─ 7. trySidecarOrDirect():
-  │     transparent=true && sidecarURL != "" → ProxySidecar()
+  ├─ 5. Privacy masking (PasteGuard):
+  │     Detect secrets/PII → mask with placeholders
   │
-  │     Before calling ProxySidecar, fix headers:
-  │     ├─ r.Header.Set("Authorization", "Bearer sk-ant-oat01-...")
-  │     ├─ r.Header.Del("x-api-key")
-  │     └─ r.Header.Set("anthropic-beta", "...,oauth-2025-04-20")
-  │        (add oauth flag if missing)
+  ├─ 6. trySidecarOrDirect() — 3-path routing:
   │
-  ├─ 8. ProxySidecar():
-  │     Forward ALL headers + body to http://127.0.0.1:8081/v1/messages
+  │     Path 1: Go billing injection (primary)
+  │     ├─ InjectBillingHeader() computes billing header in Go
+  │     ├─ ProxyTransparent() → api.anthropic.com
+  │     ├─ Record metrics: path=go_direct
+  │     └─ If 400 "reserved keyword" → ErrBillingRejected → fallback
   │
-  │     Sidecar (Node.js):
-  │     ├─ Parse body JSON
-  │     ├─ Inject billing header as system[0]
-  │     ├─ Inject identity string as system[1]
-  │     ├─ Forward to https://api.anthropic.com/v1/messages
-  │     └─ Stream response back (pipe)
+  │     Path 2: Sidecar fallback (if Go billing rejected)
+  │     ├─ ProxySidecar() → Node.js sidecar → api.anthropic.com
+  │     ├─ Record metrics: path=sidecar
+  │     └─ If sidecar fails → fallback
   │
-  └─ 9. Response 200 → relay to client
+  │     Path 3: Direct proxy (last resort)
+  │     ├─ ProxyTransparent() without billing header
+  │     ├─ Record metrics: path=direct
+  │     └─ Uses generic OAuth bucket (more 429s expected)
+  │
+  └─ 7. Response 200 → unmask PII → relay to client
 ```
 
 ### Auth Mechanism: Two Paths
@@ -1512,22 +1502,22 @@ curl -X POST http://192.168.5.62:9000/v1/messages \
 # → 200 {"content":[{"type":"text","text":"Hello there, human!"}]}
 ```
 
-### Fallback Behavior
+### Fallback Behavior (3-Path Routing)
 
 ```
-ProxySidecar() fails
+trySidecarOrDirect()
   │
-  ├─ Sidecar process not running → error
-  ├─ Billing header rejected (reserved keyword) → error
-  ├─ Connection refused → error
+  ├─ Path 1: Go billing injection (InjectBillingHeader + ProxyTransparent)
+  │   ├─ Success (200) → done, metrics: go_direct
+  │   └─ 400 "reserved keyword" → ErrBillingRejected → try Path 2
   │
-  ▼
-trySidecarOrDirect() catches error
+  ├─ Path 2: Sidecar (ProxySidecar → Node.js)
+  │   ├─ Success (200) → done, metrics: sidecar
+  │   └─ Failure → try Path 3
   │
-  ▼
-Fallback to ProxyTransparent() (direct, no billing header)
-  → Goes to generic OAuth rate limit bucket
-  → More likely to get 429
+  └─ Path 3: Direct proxy (ProxyTransparent, no billing header)
+      ├─ Success (200) → done, metrics: direct
+      └─ Goes to generic OAuth bucket → more 429s expected
 ```
 
 ---
@@ -1738,6 +1728,56 @@ PROVIDER_RPM_LIMITS=glm:15,openai:120
 
 ---
 
+## 17.2. Message Body Optimization
+
+Gateway ทำ token optimization 2 ระดับ: system prompt (13-stage pipeline) และ message content (lightweight whitespace + dedup)
+
+### Pipeline Flow
+
+```
+Request body (JSON)
+  │
+  ├─ System prompt optimization (OptimizeSystemPrompt)
+  │   ├── Semantic dedup (DeduplicateSemantic)
+  │   ├── Chunker (F1)
+  │   ├── Delta encoding (F8)
+  │   ├── Sketch dedup (F9)
+  │   ├── Summarizer (F6, red budget only)
+  │   ├── Intent filter (F13)
+  │   └── Caveman compression (F16)
+  │
+  ├─ Message content optimization (OptimizeMessages)
+  │   ├── String content: whitespace collapse + sentence dedup
+  │   ├── Text blocks: whitespace collapse + sentence dedup
+  │   ├── Tool result blocks: whitespace collapse + sentence dedup
+  │   └── Skip: tool_use blocks, code blocks (```...```), privacy placeholders
+  │
+  └─ Privacy masking (PasteGuard)
+      └── Detect + mask secrets/PII
+```
+
+### Content Types Handled
+
+| Content Type | Optimized? | How |
+|---|---|---|
+| `messages[].content` (string) | Yes | `OptimizeWhitespace` + `DeduplicateSentences` |
+| `messages[].content[].text` blocks | Yes | Same, metric: `message_block_text` |
+| `messages[].content[]` tool_result `content` field | Yes | Same, metric: `message_block_tool_result` |
+| `messages[].content[]` tool_use | No | Skipped (JSON input, not prose) |
+| Code blocks inside text (` ```...``` `) | No | `SplitCodeBlocks` preserves code verbatim |
+| Privacy placeholders (`__SECRET_1__`, `__PII_1__`) | No | Dedup skipped when placeholders present |
+
+### Metrics
+
+```
+api_gateway_optimizer_runs_total{technique="message_text"}          N
+api_gateway_optimizer_chars_saved_total{technique="message_text"}   M
+api_gateway_optimizer_runs_total{technique="message_block_text"}    N
+api_gateway_optimizer_runs_total{technique="message_block_tool_result"} N
+```
+
+---
+
 ## Quick Start (สรุป)
 
 ```bash
@@ -1904,27 +1944,28 @@ GLM_MODE ควรเป็น toggle ระดับ infrastructure (key sync, 
 
 | ไฟล์ | เดิม | ใหม่ |
 |---|---|---|
-| `provider/resolver.go:Resolve()` | Z.AI fallback ทุก model ที่หา token ไม่เจอ | Z.AI fallback เฉพาะ model ที่ไม่ตรง prefix rule ไหน |
+| `provider/resolver.go:Resolve()` | Z.AI fallback ทุก model ที่หา token ไม่เจอ | Z.AI fallback เฉพาะ model ที่มี `zai` เป็น intended provider หรือไม่ตรง prefix rule |
 | `handler/handler.go:584` | `!GLMMode && decision == nil` reject | `decision == nil` reject ทุกกรณี |
-| `handler/handler.go:653` | `GLMMode` → filterUnsupportedContent | `decision.ProviderID == "zai"` เท่านั้น |
+| `handler/handler.go:653` | `GLMMode` -> filterUnsupportedContent | `decision.ProviderID == "zai"` เท่านั้น |
 | `handler/handler.go:974` | `GLMMode && hasImages && (decision==nil \|\| zai)` | `hasImages && decision != nil && zai` เท่านั้น |
 
 ### GLM_MODE ที่ยังใช้ (ถูกต้อง)
 
-- `main.go:217` — sync Z.AI keys เข้า KeyPool
-- `handler.go:1762,1822` — ซ่อน zai models จาก listing เมื่อปิด
-- `resolver.go:212` — Z.AI fallback สำหรับ unknown model prefix
+- `main.go:217` -- sync Z.AI keys เข้า KeyPool
+- `handler.go:1762,1822` -- ซ่อน zai models จาก listing เมื่อปิด
+- `resolver.go` -- Z.AI fallback สำหรับ unknown prefix และ glm- model ที่หา token ไม่เจอ
 
 ### Flow หลังแก้
 
 ```
-claude-sonnet-4 request → Resolve() → matched "claude-" rule → no token → nil
-→ handler: decision == nil → reject "no provider configured" ✅
+claude-sonnet-4 request -> Resolve() -> matched "claude-" rule -> no token -> nil
+-> handler: decision == nil -> reject "no provider configured" OK
 
-glm-5 request → Resolve() → matched "glm-" rule → zai token → zai decision
-→ handler: filterUnsupportedContent ✅, vision auto-route ✅
+glm-5.1 request -> Resolve() -> matched "glm-" rule -> zai token? -> yes: zai decision
+                                                -> no token: zai decision (empty key, from pool)
+-> handler: filterUnsupportedContent OK, vision auto-route OK
 
-unknown-model request → Resolve() → no rule matched → GLM fallback → zai
-→ handler: filterUnsupportedContent ✅ (ถ้า GLM_MODE=true)
+unknown-model request -> Resolve() -> no rule matched -> GLM fallback -> zai decision
+-> handler: filterUnsupportedContent OK
 ```
 
