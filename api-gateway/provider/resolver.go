@@ -68,7 +68,7 @@ type providerRoute struct {
 
 var providerRouteTable = map[string]providerRoute{
 	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"claude-oauth": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
+	"claude-oauth": {FormatAnthropic, "api_key", "/v1/messages?beta=true", map[string]string{
 		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
 		"User-Agent":     "claude-cli/2.1.123 (external, cli)",
@@ -83,7 +83,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
 	}},
-	"claude": {FormatAnthropic, "bearer", "/v1/messages?beta=true", map[string]string{
+	"claude": {FormatAnthropic, "api_key", "/v1/messages?beta=true", map[string]string{
 		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
 		"User-Agent":     "claude-cli/2.1.123 (external, cli)",
@@ -306,6 +306,13 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	counter := val.(*atomic.Uint64)
 	idx := int(counter.Add(1)-1) % len(active)
 	return r.buildDecision(providerID, model, active[idx].AccessToken, active[idx].AccountID)
+}
+
+
+// ResolveTransparent returns a claude-oauth routing decision for transparent passthrough,
+// bypassing token expiry checks. The client provides its own valid Bearer token.
+func (r *Resolver) ResolveTransparent(model string) *RoutingDecision {
+	return r.buildDecision("claude-oauth", model, "", "")
 }
 
 func (r *Resolver) buildDecision(providerID, model, apiKey, accountID string) *RoutingDecision {

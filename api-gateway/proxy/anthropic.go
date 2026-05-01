@@ -28,6 +28,7 @@ const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
 var allowedResponseHeaders = map[string]bool{
 	"Content-Type":                                     true,
+	"Content-Encoding":                                 true,
 	"X-RateLimit-Limit":                                true,
 	"X-RateLimit-Remaining":                            true,
 	"X-RateLimit-Reset":                                true,
@@ -608,7 +609,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 				// Flush remaining unmasker buffer before closing events.
 				if unmasker != nil {
 					if remaining := unmasker.Flush(); remaining != "" {
-						slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
+						escaped, _ := json.Marshal(remaining)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 					}
 				}
 				// content_block_stop
@@ -683,10 +685,11 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		}
 	}
 
-	// Log any remaining unmasker buffer.
+	// Emit any remaining unmasker buffer after stream ended without [DONE].
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 		}
 	}
 
@@ -759,6 +762,13 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		upstreamURL = opts.UpstreamOverride
 	}
 
+	if opts != nil && opts.Transparent {
+		upstreamURL = p.cfg.AnthropicDirectURL + "/v1/messages"
+		if r.URL.RawQuery != "" {
+			upstreamURL += "?" + r.URL.RawQuery
+		}
+	}
+
 	// Estimate input tokens and log model capabilities.
 	estInput := tokenizer.QuickEstimateTokens(string(body))
 	modelCap := tokenizer.GetModelCapabilities(model)
@@ -766,8 +776,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 
 	// Optimize system prompt in body if present.
 	// Skip when masking is active to avoid corrupting placeholders.
-	// Skip in transparent mode to preserve exact CLI payload.
-	if (maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII)) && (opts == nil || !opts.Transparent) {
+	if maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII) {
 		if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
 			if sys, ok := bodyMap["system"].(string); ok && sys != "" {
 				optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
@@ -829,9 +838,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				httpReq.Header[k] = vv
 			}
 			// Remove hop-by-hop and host headers that must not be forwarded.
-			for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
+			for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding"} {
 				httpReq.Header.Del(h)
 			}
+			// Force uncompressed response so SSE/JSON validation works.
+			httpReq.Header.Set("Accept-Encoding", "identity")
 		} else {
 			httpReq.Header.Set("Content-Type", "application/json")
 			if opts != nil && opts.AuthMode == "bearer" {
@@ -875,11 +886,15 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		httpReq.ContentLength = int64(len(body))
 
 		slog.Info("upstream req", "model", model,
+			"url", upstreamURL,
 			"beta", httpReq.Header.Get("anthropic-beta"),
 			"xapp", httpReq.Header.Get("x-app"),
 			"ua", httpReq.Header.Get("User-Agent"),
-			"session_id", httpReq.Header.Get("X-Claude-Code-Session-Id"),
-			"req_id", httpReq.Header.Get("x-client-request-id"))
+			"session_id", httpReq.Header.Get("x-session-id"),
+			"req_id", httpReq.Header.Get("x-client-request-id"),
+			"auth", httpReq.Header.Get("Authorization")[:30],
+			"browser_access", httpReq.Header.Get("anthropic-dangerous-direct-browser-access"),
+			"apikey", httpReq.Header.Get("x-api-key")[:30])
 
 		start := time.Now()
 		resp, err := p.client.Do(httpReq)
@@ -908,7 +923,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		}
 
 		// On 401 with OAuth bearer, try refreshing the token once.
-		if resp.StatusCode == 401 && opts != nil && opts.AuthMode == "bearer" && opts.OnAuthError != nil {
+		if resp.StatusCode == 401 && opts != nil && opts.AuthMode == "bearer" && opts.OnAuthError != nil && !opts.Transparent {
 			resp.Body.Close()
 			if newKey, ok := opts.OnAuthError(apiKey); ok {
 				slog.Warn("upstream retry with refreshed token", "model", model, "status", resp.StatusCode)
@@ -1171,6 +1186,150 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
 }
 
+// ProxySidecar forwards the request to a local Node.js sidecar that injects
+// the Claude Code billing header into the system prompt before proxying to
+// api.anthropic.com. This routes requests to the Claude Code rate limit bucket
+// instead of the generic OAuth bucket.
+func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, sidecarURL string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult, opts *ProxyOptions) error {
+	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, sidecarURL+r.URL.Path+"?beta=true", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create sidecar request: %w", err)
+	}
+	// Forward ALL client headers (same as transparent mode).
+	for k, vv := range r.Header {
+		httpReq.Header[k] = vv
+	}
+	for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
+		httpReq.Header.Del(h)
+	}
+	httpReq.ContentLength = int64(len(body))
+
+	slog.Info("sidecar proxy req", "model", model, "url", sidecarURL+r.URL.Path, "transparent", true)
+
+	start := time.Now()
+	resp, err := p.client.Do(httpReq)
+	rtt := time.Since(start)
+	if err != nil {
+		return fmt.Errorf("sidecar call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if feedback != nil {
+		feedback(resp.StatusCode, rtt, resp.Header)
+	}
+
+	if resp.StatusCode == 400 {
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if strings.Contains(string(errBody), "reserved keyword") {
+			slog.Warn("sidecar billing header rejected (reserved keyword)", "model", model, "status", 400)
+			return fmt.Errorf("sidecar: billing header rejected by upstream (reserved keyword)")
+		}
+		// Relay non-reserved-keyword 400s as-is.
+	}
+
+	// Copy response headers.
+	for k, vs := range resp.Header {
+		if _, ok := allowedResponseHeaders[k]; !ok {
+			continue
+		}
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+
+	if isStream {
+		var unmasker *masking.StreamUnmasker
+		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		}
+
+		flusher, _ := w.(http.Flusher)
+		scanner := bufio.NewScanner(resp.Body)
+		scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+
+			if unmasker != nil {
+				if strings.HasPrefix(line, "data: ") {
+					data := line[6:]
+
+					if strings.Contains(data, `"content_block_delta"`) {
+						var evt struct {
+							Type  string `json:"type"`
+							Index int    `json:"index"`
+							Delta struct {
+								Type        string `json:"type"`
+								Text        string `json:"text,omitempty"`
+								Thinking    string `json:"thinking,omitempty"`
+								PartialJSON string `json:"partial_json,omitempty"`
+							} `json:"delta"`
+						}
+						if json.Unmarshal([]byte(data), &evt) == nil {
+							var changed bool
+							if evt.Delta.Text != "" {
+								before := evt.Delta.Text
+								evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
+								changed = evt.Delta.Text != before
+							} else if evt.Delta.Thinking != "" {
+								before := evt.Delta.Thinking
+								evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
+								changed = evt.Delta.Thinking != before
+							} else if evt.Delta.PartialJSON != "" {
+								before := evt.Delta.PartialJSON
+								evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
+								changed = evt.Delta.PartialJSON != before
+							}
+							if changed {
+								if newData, err := json.Marshal(evt); err == nil {
+									line = "data: " + string(newData)
+								}
+							}
+						}
+					} else if strings.Contains(data, `"content_block_stop"`) {
+						if remaining := unmasker.Flush(); remaining != "" {
+							escaped, _ := json.Marshal(remaining)
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+						}
+					} else if strings.Contains(data, "[[") {
+						unmasked := unmasker.ReplaceDirectJSON(data)
+						if unmasked != data {
+							line = "data: " + unmasked
+						}
+					}
+				}
+			}
+
+			fmt.Fprintln(w, line)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+
+		if unmasker != nil {
+			if remaining := unmasker.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			}
+		}
+		return nil
+	}
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+	if err != nil {
+		return fmt.Errorf("read sidecar response: %w", err)
+	}
+
+	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
+	w.Write(respBody)
+	return nil
+}
+
 // handleNonStreamResponse buffers the full response, tracks tokens, optionally trims, and sends.
 const maxResponseSize = 100 * 1024 * 1024 // 100MB limit
 
@@ -1320,8 +1479,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		}
 		data := line[6:]
 
-		// Unmask placeholders in ALL SSE data lines containing [[.
-		if unmasker != nil && strings.Contains(data, "[[") {
+		// Unmask placeholders in SSE data lines.
+		// content_block_delta must always be processed when unmasker is active
+		// because a [[PERSON_N]] placeholder can be split across chunks --
+		// the second chunk won't contain "[[" so a naive guard would skip it,
+		// leaving the buffer stuck and the raw placeholder leaking to the client.
+		if unmasker != nil {
 			if strings.Contains(data, `"content_block_delta"`) {
 				var evt struct {
 					Type  string `json:"type"`
@@ -1355,12 +1518,22 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						}
 					}
 				}
-			} else {
+			} else if strings.Contains(data, "[[") {
 				unmasked := unmasker.ReplaceDirectJSON(data)
 				if unmasked != data {
 					unmaskHits++
 					line = "data: " + unmasked
 				}
+			}
+		}
+
+		// Flush unmasker buffer at content block boundaries to prevent
+		// cross-block contamination (e.g. text buffer leaking into thinking).
+		if unmasker != nil && strings.Contains(data, `"content_block_stop"`) {
+			if remaining := unmasker.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				unmaskHits++
 			}
 		}
 
@@ -1397,10 +1570,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		return fmt.Errorf("stream read error: %w", err)
 	}
 
-	// Log any remaining unmasker buffer (should not happen with correct streaming).
+	// Emit any remaining unmasker buffer as a final content_block_delta.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			slog.Warn("unmask buffer not empty at stream end", "remaining_len", len(remaining))
+			escaped, _ := json.Marshal(remaining)
+			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			slog.Warn("unmask buffer not empty at stream end, emitted as delta", "remaining_len", len(remaining))
 		}
 	}
 

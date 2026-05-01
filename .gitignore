@@ -20,3 +20,5 @@ ui/.vite/
 ui/test-results/
 api-gateway/static/assets/
 api-gateway/vendor/
+
+*flow*

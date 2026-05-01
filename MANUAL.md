@@ -1460,3 +1460,92 @@ cd ../ui && bun run build && cd ../api-gateway && go build -o api-gateway . && r
 ---
 
 *Multi-Agent AI Rate-Limited System v1.2*
+
+---
+
+## 19. PasteGuard Streaming Unmask — Bug Fix Log
+
+### ปัญหา: `[[PERSON_N]]` รั่วถึง client
+
+ผู้ใช้เห็น `[[PERSON_2]]`, `[[PERSON_13]]` ใน response แทนชื่อจริง เพราะ unmask step ไม่ทำงานบางกรณี
+
+### Root Causes และการแก้ไข
+
+#### Bug #1 (HIGH) — relayStreamWithTracking guard ข้าม ProcessChunk
+
+**ไฟล์:** `proxy/anthropic.go` — `relayStreamWithTracking()`
+
+**สาเหตุ:** Guard `strings.Contains(data, "[[")` ป้องกัน ProcessChunk เมื่อ SSE line ไม่มี `[[`  
+เมื่อ placeholder split ข้าม 2 chunks (เช่น chunk1=`[[PER`, chunk2=`SON_1]]`) chunk ที่ 2 ไม่มี `[[` จึงถูกข้าม buffer ค้าง placeholder รั่ว
+
+**แก้:** เปลี่ยน logic เป็น process `content_block_delta` ทุก chunk เมื่อ unmasker active โดยไม่ต้อง check `[[`
+
+#### Bug #2 (HIGH) — Flush output ถูกทิ้ง
+
+**ไฟล์:** `proxy/anthropic.go` — `relayStreamWithTracking()`, `convertOpenAIStreamResponse()`
+
+**สาเหตุ:** `unmasker.Flush()` return ค่าที่ค้างใน buffer แต่ code เดิม log เฉย ๆ ไม่ emit เป็น SSE event  
+ทำให้ placeholder ที่ค้างอยู่ตอน stream จบหายไป (data loss)
+
+**แก้:** Emit Flush result เป็น `content_block_delta` SSE event ก่อน `content_block_stop`
+
+#### Bug #3 (CRITICAL) — ProxySidecar ไม่ unmask เลย
+
+**ไฟล์:** `proxy/anthropic.go` — `ProxySidecar()`
+
+**สาเหตุ:** Sidecar ทำ raw byte relay ไม่มี SSE parsing, ไม่มี maskResult parameter  
+Response ทั้งหมดส่งตรงถึง client รวม placeholder
+
+**แก้:** เพิ่ม `maskResult` parameter + SSE line scanner + unmask logic เหมือน relayStreamWithTracking  
+Non-stream path: อ่าน full body, unmask, write
+
+#### Bug #4 (MEDIUM) — Cross-block buffer contamination
+
+**ไฟล์:** `proxy/anthropic.go` — `relayStreamWithTracking()`
+
+**สาเหตุ:** ProcessChunk ใช้ buffer ร่วมกันระหว่าง text/thinking block  
+ถ้า placeholder split ตรง block boundary buffer จะ leak ไป block ถัดไป
+
+**แก้:** Intercept `content_block_stop` event, flush buffer ก่อน relay stop event
+
+#### Bug #5 (LOW) — gemini-codeassist emit empty text_delta
+
+**ไฟล์:** `proxy/gemini-codeassist.go` — `streamResponse()`
+
+**สาเหตุ:** ไม่มี `if text == "" { continue }` หลัง ProcessChunk  
+เมื่อ unmasker buffer ทั้ง chunk จะ emit empty `text_delta` event
+
+**แก้:** เพิ่ม empty text guard หลัง ProcessChunk
+
+### การทำงานของ Streaming Unmask (หลังแก้)
+
+```
+Request → Mask PII/Secrets → Upstream API
+                                      ↓
+                              SSE Stream Response
+                                      ↓
+                         ┌─────────────────────────┐
+                         │  content_block_delta?    │
+                         │  YES → ProcessChunk()    │
+                         │    (buffered, every time)│
+                         │                         │
+                         │  content_block_stop?     │
+                         │  YES → Flush() → emit   │
+                         │    delta before stop     │
+                         │                         │
+                         │  other + contains [[?    │
+                         │  YES → ReplaceDirectJSON │
+                         │                         │
+                         │  Relay to client         │
+                         └─────────────────────────┘
+                                      ↓
+                         End of stream → Flush() → emit
+                                      ↓
+                              Unmasked Response
+```
+
+### Known Limitation
+
+Placeholder ที่ split ข้าม content block boundary (text → thinking) ไม่สามารถ restore ได้  
+เพราะแต่ละ block เป็นคนละ logical unit แต่กรณีนี้เกิดได้น้อยมากในทางปฏิบัติ
+

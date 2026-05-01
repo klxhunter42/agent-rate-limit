@@ -124,11 +124,18 @@ type Handler struct {
 	wsBroadcast     func(eventType string, data interface{})
 	refreshWorker   *provider.RefreshWorker
 	optimizers      *Optimizers
+	sidecarURL      string // empty = sidecar disabled
+	sessionManager  *proxy.ClaudeSessionManager
 }
 
 // New creates a new Handler.
 func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers) *Handler {
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt}
+	var sidecarURL string
+	if cfg.CLISidecarEnabled {
+		sidecarURL = cfg.CLISidecarURL
+	}
+	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode)
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager()}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -138,6 +145,20 @@ func ProfileNameFromContext(ctx context.Context) string {
 }
 
 // recordProfileUsage records both Prometheus metrics and Redis usage for a profile.
+
+// trySidecarOrDirect routes transparent claude-oauth requests through the Node.js
+// sidecar (for billing header injection) when available, falling back to direct proxy.
+func (h *Handler) trySidecarOrDirect(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback proxy.FeedbackFunc, maskResult *privacy.MaskResult, opts *proxy.ProxyOptions, transparent bool) error {
+	slog.Info("trySidecarOrDirect", "transparent", transparent, "sidecarURL", h.sidecarURL, "model", model)
+	if transparent && h.sidecarURL != "" {
+		if err := h.proxy.ProxySidecar(w, r, h.sidecarURL, body, model, isStream, feedback, maskResult, opts); err != nil {
+			slog.Warn("sidecar failed, falling back to direct", "error", err, "model", model)
+			return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+		}
+		return nil
+	}
+	return h.proxy.ProxyTransparent(w, r, apiKey, body, model, isStream, feedback, maskResult, opts)
+}
 func (h *Handler) recordProfileUsage(profile, model string, input, output int, cost float64) {
 	h.metrics.RecordProfileUsage(profile, model, input, output, cost)
 	if h.usageHandler != nil {
@@ -239,6 +260,20 @@ func (h *Handler) GetResult(w http.ResponseWriter, r *http.Request) {
 
 // maxRequestBody moved to cfg.MaxRequestBody
 
+// isClaudeOAuthToken checks if the request carries a claude-oauth token
+// via Authorization: Bearer or x-api-key header. Returns the token and true if found.
+func isClaudeOAuthToken(r *http.Request) (string, bool) {
+	if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+		if tok := strings.TrimPrefix(ah, "Bearer "); tok != "" && !strings.HasPrefix(tok, "arl_") {
+			return tok, true
+		}
+	}
+	if ak := r.Header.Get("x-api-key"); strings.HasPrefix(ak, "sk-ant-oat01-") {
+		return ak, true
+	}
+	return "", false
+}
+
 // Messages handles POST /v1/messages — transparent proxy to upstream.
 // Applies system prompt injection, smart max_tokens, per-model concurrency
 // limiting with auto-fallback, and retries on 429.
@@ -288,15 +323,36 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	transparent := false
 	if h.resolver != nil {
 		d := h.resolver.Resolve(requestedModel)
+		slog.Info("resolver result", "model", requestedModel, "provider", func() string {
+			if d != nil {
+				return d.ProviderID
+			}
+			return "nil"
+		}(), "has_oauth_token", func() bool {
+			_, ok := isClaudeOAuthToken(r)
+			return ok
+		}())
+		// No stored token but client has Bearer or x-api-key OAuth: use transparent resolve.
+		if d == nil && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
+			if _, ok := isClaudeOAuthToken(r); ok {
+				d = h.resolver.ResolveTransparent(requestedModel)
+			}
+		}
 		if d != nil && d.ProviderID == "claude-oauth" {
-			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
-				if tok := strings.TrimPrefix(ah, "Bearer "); tok != "" && !strings.HasPrefix(tok, "arl_") {
-					transparent = true
-				}
+			if _, ok := isClaudeOAuthToken(r); ok {
+				transparent = true
+			}
+		}
+		// Override: client sends OAuth token for claude model - always transparent
+		// regardless of what the resolver returned (may have resolved to 'anthropic'
+		// via stored API key, but we want transparent for OAuth tokens).
+		if !transparent && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
+			if _, ok := isClaudeOAuthToken(r); ok {
+				transparent = true
+				slog.Info("forced transparent for claude-oauth", "model", requestedModel)
 			}
 		}
 	}
-	rawBody := body
 
 	// Rewrite sonnet/opus requests to haiku (org-level rate limit workaround).
 	// Disabled: testing direct sonnet routing via claude-oauth.
@@ -355,6 +411,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	var selectedTokenInfo *provider.TokenInfo
 	if h.resolver != nil {
 		decision = h.resolver.Resolve(requestedModel)
+		// Fallback: no stored token for claude-oauth, use transparent resolve
+		// so client's Bearer token is used instead.
+		if decision == nil && transparent {
+			decision = h.resolver.ResolveTransparent(requestedModel)
+		}
 	}
 
 	// Account pool: if profile has accountIds, pick from pool.
@@ -404,25 +465,24 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	} else if transparent {
+		// Transparent passthrough: use client's own OAuth token.
+		if tok, ok := isClaudeOAuthToken(r); ok {
+			slog.Info("claude-oauth transparent passthrough", "token_prefix", tok[:min(20, len(tok))]+"...")
+			h.sessionManager.BootstrapIfNeeded(tok)
+			apiKey = tok
+		}
 	} else if decision != nil && decision.APIKey != "" {
 		apiKey = decision.APIKey
-		// claude-oauth passthrough: prefer client's Bearer token when available,
-		// since stored tokens may be stale/expired. Claude Code CLI has its own valid session.
+		// claude-oauth passthrough: prefer client's own token when available,
+		// since stored tokens may be stale/expired. [[PERSON_16]] Code CLI has its own valid session.
 		if decision.ProviderID == "claude-oauth" {
-			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
-				if tok := strings.TrimPrefix(ah, "Bearer "); tok != "" && !strings.HasPrefix(tok, "arl_") {
-					slog.Info("claude-oauth passthrough activated", "token_prefix", tok[:min(20, len(tok))]+"...")
-					apiKey = tok
-				}
+			if tok, ok := isClaudeOAuthToken(r); ok {
+				h.sessionManager.BootstrapIfNeeded(tok)
+				slog.Info("claude-oauth passthrough activated", "token_prefix", tok[:min(20, len(tok))]+"...")
+				apiKey = tok
 			}
 		}
-	} else if !h.keyPool.Passthrough() {
-		poolKey, ok := h.keyPool.Acquire()
-		if !ok {
-			writeJSON(w, http.StatusTooManyRequests, proxy.RateLimitError(10))
-			return
-		}
-		apiKey = poolKey
 	} else {
 		apiKey = r.Header.Get("x-api-key")
 		if apiKey == "" {
@@ -527,53 +587,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			injectSystemPrompt(payload, h.cfg.PromptInjectionText)
 		}
 
-		// Run token optimization pipeline on system prompt.
-		if h.optimizers != nil {
-			budgetLevel := 0
-			if sys, ok := payload["system"]; ok {
-				var sysText string
-				switch v := sys.(type) {
-				case string:
-					sysText = v
-				case []any:
-					parts := make([]string, 0, len(v))
-					for _, item := range v {
-						if m, ok := item.(map[string]any); ok {
-							if t, ok := m["text"].(string); ok {
-								parts = append(parts, t)
-							}
-						}
-					}
-					sysText = strings.Join(parts, "\n\n")
-				}
-				if sysText != "" {
-					cap := tokenizer.GetModelCapabilities(selectedModel)
-					sysTokens := tokenizer.QuickEstimateTokens(sysText)
-					msgTokens := 0
-					if msgs, ok := payload["messages"].([]any); ok {
-						for _, msg := range msgs {
-							msgTokens += proxy.EstimateMessageTokens(msg)
-						}
-					}
-					totalTokens := sysTokens + msgTokens
-					pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
-					if pctUsed >= 0.8 {
-						budgetLevel = 2
-						h.metrics.SetBudgetLevel(selectedModel, 2)
-					} else if pctUsed >= 0.6 {
-						budgetLevel = 1
-						h.metrics.SetBudgetLevel(selectedModel, 1)
-					} else {
-						h.metrics.SetBudgetLevel(selectedModel, 0)
-					}
-					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
-					if optimized != sysText {
-						payload["system"] = optimized
-					}
-				}
-			}
-		}
-
 		// Smart max_tokens auto-adjustment.
 		if h.cfg.EnableSmartMaxTokens {
 			applySmartMaxTokens(payload, selectedModel)
@@ -589,35 +602,81 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if h.cfg.GLMMode {
 			filterUnsupportedContent(payload)
 		}
+	}
 
-		// Detect if request contains images for native vision routing.
-		hasImages = proxy.HasImageContent(payload)
+	// --- Always run: optimizer, image detection, re-encode, privacy masking ---
 
-		// Re-encode modified payload.
-		body, err = json.Marshal(payload)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-			return
-		}
-
-		// Privacy masking: detect and mask secrets/PII before proxying.
-		var maskResult *privacy.MaskResult
-		if h.privacy != nil {
-			maskResult, _ = h.privacy.MaskRequest(body)
-			if maskResult != nil {
-				body = maskResult.MaskedBody
-				slog.Info("privacy mask applied",
-					"has_secrets", maskResult.HasSecrets,
-					"has_pii", maskResult.HasPII,
-					"secrets_count", len(maskResult.SecretsCtx.Mapping),
-					"pii_count", len(maskResult.PIICtx.Mapping),
-				)
-			} else {
-				slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+	// Run token optimization pipeline on system prompt.
+	if h.optimizers != nil {
+		budgetLevel := 0
+		if sys, ok := payload["system"]; ok {
+			var sysText string
+			switch v := sys.(type) {
+			case string:
+				sysText = v
+			case []any:
+				parts := make([]string, 0, len(v))
+				for _, item := range v {
+					if m, ok := item.(map[string]any); ok {
+						if t, ok := m["text"].(string); ok {
+							parts = append(parts, t)
+						}
+					}
+				}
+				sysText = strings.Join(parts, "\n\n")
+			}
+			if sysText != "" {
+				cap := tokenizer.GetModelCapabilities(selectedModel)
+				sysTokens := tokenizer.QuickEstimateTokens(sysText)
+				msgTokens := 0
+				if msgs, ok := payload["messages"].([]any); ok {
+					for _, msg := range msgs {
+						msgTokens += proxy.EstimateMessageTokens(msg)
+					}
+				}
+				totalTokens := sysTokens + msgTokens
+				pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
+				if pctUsed >= 0.8 {
+					budgetLevel = 2
+					h.metrics.SetBudgetLevel(selectedModel, 2)
+				} else if pctUsed >= 0.6 {
+					budgetLevel = 1
+					h.metrics.SetBudgetLevel(selectedModel, 1)
+				} else {
+					h.metrics.SetBudgetLevel(selectedModel, 0)
+				}
+				optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
+				if optimized != sysText {
+					payload["system"] = optimized
+				}
 			}
 		}
-	} else {
-		body = rawBody
+	}
+
+	// Detect if request contains images for native vision routing.
+	hasImages = proxy.HasImageContent(payload)
+
+	// Re-encode modified payload.
+	body, err = json.Marshal(payload)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+		return
+	}
+
+	// Privacy masking: detect and mask secrets/PII before proxying.
+	if h.privacy != nil {
+		maskResult, _ = h.privacy.MaskRequest(body)
+		if maskResult != nil {
+			body = maskResult.MaskedBody
+			slog.Info("privacy mask applied",
+				"has_secrets", maskResult.HasSecrets,
+				"has_pii", maskResult.HasPII,
+				"secrets_count", len(maskResult.SecretsCtx.Mapping),
+				"pii_count", len(maskResult.PIICtx.Mapping),
+			)
+		} else {
+			slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+		}
 	}
 
 	isStream, _ := payload["stream"].(bool)
@@ -893,7 +952,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				OnRateLimitError: rotateAccountFn,
 				Transparent:      transparent,
 			}
-			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
+			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
 				slog.Error("vision proxy error", "error", err)
 				h.metrics.IncError("upstream")
 			}
@@ -927,12 +986,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				OnRateLimitError: rotateAccountFn,
 				Transparent:      transparent,
 			}
-			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts); err != nil {
+			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
 				slog.Error("proxy error", "error", err)
 				h.metrics.IncError("upstream")
 			}
 		}
-	} else if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, profileOpts); err != nil {
+	} else if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, profileOpts, transparent); err != nil {
 		slog.Error("proxy error", "error", err)
 		h.metrics.IncError("upstream")
 	}
@@ -1766,11 +1825,6 @@ func (h *Handler) GetWasteFindings(w http.ResponseWriter, r *http.Request) {
 // AnthropicPassthrough proxies requests to the upstream Anthropic API.
 // Used for Claude Code CLI endpoints like /api/claude_code/* and /v1/mcp_servers.
 func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	bearerToken := ""
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		bearerToken = strings.TrimPrefix(authHeader, "Bearer ")
-	}
 
 	upstreamURL := "https://api.anthropic.com" + r.URL.RequestURI()
 
@@ -1799,17 +1853,27 @@ func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Forward headers from original request
-	httpReq.Header.Set("Content-Type", "application/json")
-	if bearerToken != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+bearerToken)
+	// Forward ALL client headers transparently (preserves x-api-key, x-app,
+	// X-Stainless-*, User-Agent fingerprint from Claude Code CLI).
+	for k, vv := range r.Header {
+		httpReq.Header[k] = vv
 	}
-	if beta := r.Header.Get("anthropic-beta"); beta != "" {
-		httpReq.Header.Set("anthropic-beta", beta)
+	for _, hdr := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
+		httpReq.Header.Del(hdr)
 	}
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-	if ua := r.Header.Get("User-Agent"); ua != "" {
-		httpReq.Header.Set("User-Agent", ua)
+	// Claude OAuth tokens must be sent as x-api-key, not Authorization: Bearer.
+	if auth := httpReq.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+		tok := strings.TrimPrefix(auth, "Bearer ")
+		if strings.HasPrefix(tok, "sk-ant-oat") {
+			httpReq.Header.Set("x-api-key", tok)
+			httpReq.Header.Del("Authorization")
+		}
+	}
+	if httpReq.Header.Get("anthropic-version") == "" {
+		httpReq.Header.Set("anthropic-version", "2023-06-01")
+	}
+	if httpReq.Header.Get("Content-Type") == "" {
+		httpReq.Header.Set("Content-Type", "application/json")
 	}
 
 	resp, err := http.DefaultClient.Do(httpReq)

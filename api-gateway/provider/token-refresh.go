@@ -175,6 +175,10 @@ func (w *RefreshWorker) doRefresh(ctx context.Context, pc ProviderConfig, t *Tok
 		return fmt.Errorf("decode refresh response: %w", err)
 	}
 
+	if tokResp.AccessToken == "" {
+		return fmt.Errorf("refresh returned empty access_token")
+}
+
 	t.AccessToken = tokResp.AccessToken
 	if tokResp.RefreshToken != "" {
 		t.RefreshToken = tokResp.RefreshToken
@@ -211,7 +215,7 @@ func (w *RefreshWorker) RefreshOne(providerID, accountID string) error {
 		return fmt.Errorf("provider not found: %s", providerID)
 	}
 
-	return w.doRefresh(context.Background(), pc, t)
+	return w.refreshToken(context.Background(), pc, *t)
 }
 
 // AuthType returns the auth type for a TokenInfo based on whether it has a refresh token.
