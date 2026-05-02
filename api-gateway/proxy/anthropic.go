@@ -156,7 +156,7 @@ func HasImageContent(payload map[string]any) bool {
 // It converts Anthropic format to OpenAI/Zhipu format and converts the response back.
 func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult) error {
 	// Convert Anthropic payload to Zhipu OpenAI format.
-	zhipuReq, err := AnthropicToOpenAI(body, model, p.metrics)
+	zhipuReq, err := AnthropicToOpenAI(body, model, p.metrics, "")
 	if err != nil {
 		return fmt.Errorf("convert to zhipu format: %w", err)
 	}
@@ -271,7 +271,7 @@ func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Reques
 // AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
 // Z.AI vision API only accepts "user" and "assistant" roles, so system prompts are prepended
 // to the first user message. Unsupported content types (server_tool_use, tool_use, etc.) are filtered.
-func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[string]any, error) {
+func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode string) (map[string]any, error) {
 	var src map[string]any
 	if err := json.Unmarshal(body, &src); err != nil {
 		return nil, err
@@ -303,22 +303,28 @@ func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[st
 		"image_url": true,
 	}
 
-	// Convert messages - only user and assistant roles, filter unsupported content types.
+	// Convert messages.
 	srcMsgs, _ := src["messages"].([]any)
 	var messages []map[string]any
 	for _, msg := range srcMsgs {
-		m, ok := msg.(map[string]any)
+		msgMap, ok := msg.(map[string]any)
 		if !ok {
 			continue
 		}
-		role, _ := m["role"].(string)
+		role, _ := msgMap["role"].(string)
 
-		// Skip system/tool roles entirely.
+		if toolMode == "native" {
+			converted := convertMessageWithTools(msgMap, role)
+			messages = append(messages, converted...)
+			continue
+		}
+
+		// Non-tools path: only user and assistant roles, filter unsupported content types.
 		if role != "user" && role != "assistant" {
 			continue
 		}
 
-		content := m["content"]
+		content := msgMap["content"]
 
 		switch v := content.(type) {
 		case string:
@@ -354,7 +360,7 @@ func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[st
 		}
 	}
 
-	// Prepend system text to first user message instead of using unsupported system role.
+	// Handle system prompt based on tool mode.
 	if systemText != "" && len(messages) > 0 {
 		// Optimize system text: whitespace cleanup + dedup to save tokens.
 		optText, wsSaved := tokenizer.OptimizeWhitespace(systemText)
@@ -362,25 +368,34 @@ func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[st
 		if wsSaved > 0 || dedupSaved > 0 {
 			slog.Debug("system prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved, "original_chars", len(systemText), "optimized_chars", len(dedupText))
 		}
-		if len(m) > 0 && m[0] != nil {
-			m[0].RecordOptimization("whitespace", wsSaved)
-			m[0].RecordOptimization("dedup", dedupSaved)
+		if m != nil {
+			m.RecordOptimization("whitespace", wsSaved)
+			m.RecordOptimization("dedup", dedupSaved)
 		}
 		systemText = dedupText
-		first := messages[0]
-		if first["role"] == "user" {
-			switch v := first["content"].(type) {
-			case string:
-				first["content"] = systemText + "\n\n" + v
-			case []any:
-				// Prepend a text block with system prompt.
-				sysBlock := map[string]any{"type": "text", "text": systemText}
-				newParts := make([]any, 0, len(v)+1)
-				newParts = append(newParts, sysBlock)
-				for _, p := range v {
-					newParts = append(newParts, p)
+
+		if toolMode == "native" {
+			// OpenAI-compatible providers support system role - use it directly
+			// so the model properly understands working directory and context.
+			toolHint := "\n\nYou have access to tools. Use Write for creating files, Bash for commands, Read for reading files, Edit for editing files. Do NOT run pwd or ls to check the directory - trust the working directory shown above."
+			sysMsg := map[string]any{"role": "system", "content": systemText + toolHint}
+			messages = append([]map[string]any{sysMsg}, messages...)
+		} else {
+			// Z.AI mode: prepend to first user message.
+			first := messages[0]
+			if first["role"] == "user" {
+				switch v := first["content"].(type) {
+				case string:
+					first["content"] = systemText + "\n\n" + v
+				case []any:
+					sysBlock := map[string]any{"type": "text", "text": systemText}
+					newParts := make([]any, 0, len(v)+1)
+					newParts = append(newParts, sysBlock)
+					for _, p := range v {
+						newParts = append(newParts, p)
+					}
+					first["content"] = newParts
 				}
-				first["content"] = newParts
 			}
 		}
 	}
@@ -424,6 +439,41 @@ func AnthropicToOpenAI(body []byte, model string, m ...*metrics.Metrics) (map[st
 	result := map[string]any{
 		"model":    model,
 		"messages": messages,
+	}
+
+	// Tool handling based on mode.
+	if toolMode == "native" {
+		// Native OpenAI function calling format.
+		if tools, ok := src["tools"].([]any); ok && len(tools) > 0 {
+			var openaiTools []map[string]any
+			for _, t := range tools {
+				tm, ok := t.(map[string]any)
+				if !ok {
+					continue
+				}
+				name, _ := tm["name"].(string)
+				desc, _ := tm["description"].(string)
+				schema := tm["input_schema"]
+				openaiTools = append(openaiTools, map[string]any{
+					"type": "function",
+					"function": map[string]any{
+						"name":        name,
+						"description": desc,
+						"parameters":  schema,
+					},
+				})
+			}
+			if len(openaiTools) > 0 {
+				result["tools"] = openaiTools
+			}
+		}
+		if tc, ok := src["tool_choice"]; ok {
+			result["tool_choice"] = convertToolChoiceToOpenAI(tc)
+		} else if toolMode == "native" {
+			if _, hasTools := result["tools"]; hasTools {
+				result["tool_choice"] = "auto"
+			}
+		}
 	}
 	// Cap max_tokens for Z.AI vision models (max output ~4096).
 	const maxVisionTokens = 4096
@@ -502,15 +552,140 @@ func FetchImageAsBase64(imgURL string) string {
 	return fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(data))
 }
 
-// convertToolResultBlock converts Anthropic tool_result to OpenAI tool message format.
-func convertToolResultBlock(cb map[string]any) map[string]any {
-	toolUseID, _ := cb["tool_use_id"].(string)
-	content := cb["content"]
-	return map[string]any{
-		"type":        "tool_result",
-		"tool_use_id": toolUseID,
-		"content":     content,
+// convertMessageWithTools converts a single Anthropic message to one or more OpenAI messages,
+// handling tool_use (-> tool_calls) and tool_result (-> tool role) translations.
+func convertMessageWithTools(msg map[string]any, role string) []map[string]any {
+	content := msg["content"]
+	var results []map[string]any
+
+	switch role {
+	case "assistant":
+		switch v := content.(type) {
+		case string:
+			results = append(results, map[string]any{"role": "assistant", "content": v})
+		case []any:
+			var textParts []string
+			var toolCalls []map[string]any
+			for _, block := range v {
+				cb, ok := block.(map[string]any)
+				if !ok {
+					continue
+				}
+				t, _ := cb["type"].(string)
+				switch t {
+				case "text":
+					if text, _ := cb["text"].(string); text != "" {
+						textParts = append(textParts, text)
+					}
+				case "tool_use":
+					id, _ := cb["id"].(string)
+					name, _ := cb["name"].(string)
+					args, _ := json.Marshal(cb["input"])
+					toolCalls = append(toolCalls, map[string]any{
+						"id":   id,
+						"type": "function",
+						"function": map[string]any{
+							"name":      name,
+							"arguments": string(args),
+						},
+					})
+				}
+			}
+			assistantMsg := map[string]any{"role": "assistant"}
+			if len(textParts) > 0 {
+				assistantMsg["content"] = strings.Join(textParts, "\n")
+			} else if len(toolCalls) > 0 {
+				assistantMsg["content"] = nil
+			}
+			if len(toolCalls) > 0 {
+				assistantMsg["tool_calls"] = toolCalls
+			}
+			if len(textParts) > 0 || len(toolCalls) > 0 {
+				results = append(results, assistantMsg)
+			}
+		default:
+			results = append(results, map[string]any{"role": "assistant", "content": content})
+		}
+
+	case "user":
+		switch v := content.(type) {
+		case string:
+			results = append(results, map[string]any{"role": "user", "content": v})
+		case []any:
+			var userParts []map[string]any
+			for _, block := range v {
+				cb, ok := block.(map[string]any)
+				if !ok {
+					continue
+				}
+				t, _ := cb["type"].(string)
+				switch t {
+				case "text":
+					userParts = append(userParts, map[string]any{"type": "text", "text": cb["text"]})
+				case "tool_result":
+					toolUseID, _ := cb["tool_use_id"].(string)
+					toolContent := flattenToolContent(cb["content"])
+					results = append(results, map[string]any{
+						"role":         "tool",
+						"tool_call_id": toolUseID,
+						"content":      toolContent,
+					})
+				}
+			}
+			if len(userParts) > 0 {
+				results = append(results, map[string]any{"role": "user", "content": userParts})
+			}
+		default:
+			results = append(results, map[string]any{"role": "user", "content": content})
+		}
 	}
+
+	return results
+}
+
+// flattenToolContent converts tool_result content (string or content block array) to a plain string.
+func flattenToolContent(content any) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case []any:
+		var parts []string
+		for _, item := range v {
+			if m, ok := item.(map[string]any); ok {
+				if text, _ := m["text"].(string); text != "" {
+					parts = append(parts, text)
+				}
+			}
+		}
+		return strings.Join(parts, "\n")
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", content)
+	}
+}
+
+// convertToolChoiceToOpenAI converts Anthropic tool_choice to OpenAI format.
+func convertToolChoiceToOpenAI(tc any) any {
+	switch v := tc.(type) {
+	case string:
+		return v // "auto", "none"
+	case map[string]any:
+		tcType, _ := v["type"].(string)
+		switch tcType {
+		case "tool":
+			name, _ := v["name"].(string)
+			return map[string]any{
+				"type":     "function",
+				"function": map[string]any{"name": name},
+			}
+		case "any":
+			return "required"
+		default:
+			return "auto"
+		}
+	}
+	return "auto"
 }
 
 // convertOpenAIResponse reads an OpenAI response and converts back to Anthropic format.
@@ -559,7 +734,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 		slog.Info("token usage", "model", model, "input", int(pt), "output", int(ct), "format", "zhipu")
 	}
 
-	anthropicResp := OpenAIToAnthropic(zhipuResp, model)
+	anthropicResp := OpenAIToAnthropic(zhipuResp, model, "")
 	respBody, _ := json.Marshal(anthropicResp)
 
 	// Unmask secrets/PII placeholders before sending to client.
@@ -703,9 +878,11 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 }
 
 // OpenAIToAnthropic converts an OpenAI Chat Completions response to Anthropic Messages response format.
-func OpenAIToAnthropic(zhipu map[string]any, model string) map[string]any {
+func OpenAIToAnthropic(zhipu map[string]any, model string, toolMode ...string) map[string]any {
 	content := []any{}
 	var stopReason string
+
+	useTools := len(toolMode) > 0 && toolMode[0] == "native"
 
 	if choices, ok := zhipu["choices"].([]any); ok && len(choices) > 0 {
 		choice, _ := choices[0].(map[string]any)
@@ -713,9 +890,35 @@ func OpenAIToAnthropic(zhipu map[string]any, model string) map[string]any {
 			if text, _ := msg["content"].(string); text != "" {
 				content = append(content, map[string]any{"type": "text", "text": text})
 			}
+			// Convert tool_calls to tool_use content blocks
+			if useTools {
+				if toolCalls, ok := msg["tool_calls"].([]any); ok {
+					for _, tc := range toolCalls {
+						tcMap, ok := tc.(map[string]any)
+						if !ok {
+							continue
+						}
+						id, _ := tcMap["id"].(string)
+						fn, _ := tcMap["function"].(map[string]any)
+						name, _ := fn["name"].(string)
+						var input any
+						if args, _ := fn["arguments"].(string); args != "" {
+							json.Unmarshal([]byte(args), &input)
+						}
+						content = append(content, map[string]any{
+							"type":  "tool_use",
+							"id":    id,
+							"name":  name,
+							"input": input,
+						})
+					}
+				}
+			}
 		}
 		if fr, _ := choice["finish_reason"].(string); fr == "stop" {
 			stopReason = "end_turn"
+		} else if fr == "tool_calls" {
+			stopReason = "tool_use"
 		} else {
 			stopReason = fr
 		}
