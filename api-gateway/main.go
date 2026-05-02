@@ -110,6 +110,7 @@ func main() {
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
 	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
 	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
+	authHandler.SetRefreshWorker(refreshWorker)
 
 	// --- WebSocket Hub ---
 	wsHub := handler.NewWebSocketHub()

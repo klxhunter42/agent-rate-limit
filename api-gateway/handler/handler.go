@@ -454,8 +454,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 			slog.Info("profile routing", "profile", profileName, "model", requestedModel, "baseUrl", p.BaseURL)
 		} else {
-			slog.Warn("profile not found, using default routing", "profile", profileName, "error", perr)
+			slog.Warn("profile not found, rejecting request", "profile", profileName, "error", perr)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "profile not found: " + profileName})
+			return
 		}
+	}
+
+	// Require valid profile for all requests.
+	if profileName == "" {
+		slog.Warn("no valid profile, rejecting request", "path", r.URL.Path, "remote", r.RemoteAddr)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "valid profile required"})
+		return
 	}
 
 	if profileName != "" {
@@ -481,6 +490,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// so client's Bearer token is used instead.
 		if decision == nil && transparent {
 			decision = h.resolver.ResolveTransparent(requestedModel)
+		}
+	}
+
+	// Profile must have selected accounts when targeting a provider.
+	if profileOverride != nil && !profileOverride.PassthroughAuth && len(profileOverride.AccountIDs) == 0 {
+		pid := profileOverride.Provider
+		if pid == "" {
+			pid = profileOverride.Target
+		}
+		if pid != "" {
+			slog.Warn("profile has no accounts selected", "profile", profileOverride.Name, "provider", pid)
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "profile has no accounts selected for provider: " + pid})
+			return
 		}
 	}
 
