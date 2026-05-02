@@ -61,12 +61,53 @@ func (w *RefreshWorker) refreshAll(ctx context.Context) {
 	}
 
 	threshold := time.Now().Add(45 * time.Minute)
-	refreshed, failed := 0, 0
+	refreshed, failed, cleaned := 0, 0, 0
 
 	for _, t := range tokens {
 		if t.Paused {
 			continue
 		}
+
+		// Auto-cleanup: delete OAuth tokens that are expired AND refresh failed.
+		// API key tokens (no expiry) are never cleaned.
+		if !t.ExpiryDate.IsZero() && t.ExpiryDate.Before(time.Now()) {
+			if t.RefreshToken == "" {
+				// No refresh token possible - delete stale token
+				w.store.Delete(t.Provider, t.AccountID)
+				slog.Info("cleaned expired token without refresh_token",
+					"provider", t.Provider, "account_id", t.AccountID,
+					"expired", t.ExpiryDate,
+				)
+				cleaned++
+				continue
+			}
+
+			pc, ok := w.registry.Get(t.Provider)
+			if !ok || pc.AuthType != AuthTypeAuthCode {
+				// Provider removed or not OAuth - delete stale token
+				w.store.Delete(t.Provider, t.AccountID)
+				slog.Info("cleaned expired token for removed provider",
+					"provider", t.Provider, "account_id", t.AccountID,
+				)
+				cleaned++
+				continue
+			}
+
+			// Try to refresh expired OAuth token
+			if err := w.refreshToken(ctx, pc, t); err != nil {
+				slog.Warn("token refresh failed, will retry next cycle",
+					"provider", t.Provider,
+					"account_id", t.AccountID,
+					"error", err,
+				)
+				failed++
+				continue
+			}
+			refreshed++
+			continue
+		}
+
+		// Non-expired tokens approaching threshold
 		if t.RefreshToken == "" && t.AuthType() != AuthTypeAuthCode {
 			continue
 		}
@@ -91,7 +132,7 @@ func (w *RefreshWorker) refreshAll(ctx context.Context) {
 		refreshed++
 	}
 
-	slog.Info("token refresh cycle completed", "refreshed", refreshed, "failed", failed)
+	slog.Info("token refresh cycle completed", "refreshed", refreshed, "failed", failed, "cleaned", cleaned)
 
 	// Resolve missing project IDs for gemini-oauth tokens.
 	w.resolveMissingProjects(ctx)
@@ -177,7 +218,7 @@ func (w *RefreshWorker) doRefresh(ctx context.Context, pc ProviderConfig, t *Tok
 
 	if tokResp.AccessToken == "" {
 		return fmt.Errorf("refresh returned empty access_token")
-}
+	}
 
 	t.AccessToken = tokResp.AccessToken
 	if tokResp.RefreshToken != "" {

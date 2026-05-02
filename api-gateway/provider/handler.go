@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"crypto/rand"
+	"encoding/hex"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 )
@@ -405,6 +407,69 @@ func (h *AuthHandler) removeAccountFromProfiles(providerID, accountID string) {
 				h.profileRedis.Set(ctx, key, data, 0)
 			}
 		}
+
+	}
+}
+
+// removeProviderFromProfiles removes a provider ID from all profile targets.
+// Called when a custom provider is deleted.
+func (h *AuthHandler) removeProviderFromProfiles(providerID string) {
+	if h.profileRedis == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	keys, err := h.profileRedis.Keys(ctx, "profile:*").Result()
+	if err != nil {
+		return
+	}
+	for _, key := range keys {
+		val, err := h.profileRedis.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+		var p map[string]interface{}
+		if json.Unmarshal([]byte(val), &p) != nil {
+			continue
+		}
+
+		changed := false
+
+		// Remove from top-level target/provider
+		if p["target"] == providerID {
+			p["target"] = ""
+			p["provider"] = ""
+			changed = true
+		}
+
+		// Remove from targets array
+		targets, _ := p["targets"].([]interface{})
+		if targets != nil {
+			var filtered []interface{}
+			for _, t := range targets {
+				tm, ok := t.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if tm["target"] == providerID {
+					changed = true
+					continue
+				}
+				filtered = append(filtered, t)
+			}
+			if changed {
+				p["targets"] = filtered
+			}
+		}
+
+		// Clear accountIds that belong to this provider
+		if changed {
+			p["accountIds"] = []interface{}{}
+			if data, err := json.Marshal(p); err == nil {
+				h.profileRedis.Set(ctx, key, data, 0)
+			}
+		}
 	}
 }
 
@@ -625,7 +690,113 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/logout", h.DashboardLogout)
 		r.Get("/auth/check", h.CheckAuth)
 		r.Get("/providers", h.ListProviders)
+		r.Put("/providers/{provider}/upstream", h.UpdateProviderUpstream)
+		r.Post("/providers/custom", h.CreateCustomProvider)
+		r.Delete("/providers/custom/{provider}", h.DeleteCustomProvider)
 	}
+}
+
+func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name     string `json:"name"`
+		Format   string `json:"format"` // "openai" or "anthropic"
+		Upstream string `json:"upstream"`
+		APIKey   string `json:"apiKey"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if body.Name == "" || body.Upstream == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and upstream are required"})
+		return
+	}
+
+	// Generate short ID
+	b := make([]byte, 3)
+	rand.Read(b)
+	providerID := "custom-" + hex.EncodeToString(b)
+
+	format := ProviderFormat(body.Format)
+	if format != FormatOpenAI {
+		format = FormatAnthropic
+	}
+
+	cfg := ProviderConfig{
+		ID:           providerID,
+		Name:         body.Name,
+		AuthType:     AuthTypeAPIKey,
+		UpstreamBase: body.Upstream,
+	}
+
+	h.registry.Register(cfg)
+	RegisterProviderRoute(providerID, format)
+
+	// Persist to Redis
+	if h.profileRedis != nil {
+		if err := h.registry.PersistCustom(h.profileRedis, cfg); err != nil {
+			slog.Warn("failed to persist custom provider", "id", providerID, "error", err)
+		}
+	}
+
+	// Store API key if provided
+	if body.APIKey != "" && h.store != nil {
+		accountID := body.APIKey
+		if len(body.APIKey) > 6 {
+			accountID = body.APIKey[len(body.APIKey)-6:]
+		}
+		token := TokenInfo{
+			Provider:    providerID,
+			AccountID:   accountID,
+			AccessToken: body.APIKey,
+			Email:       accountID,
+			IsDefault:   true,
+			Tier:        "api_key",
+		}
+		if err := h.store.Store(token); err != nil {
+			slog.Warn("failed to store custom provider api key", "id", providerID, "error", err)
+		}
+	}
+
+	slog.Info("custom provider created", "id", providerID, "name", body.Name, "upstream", body.Upstream, "format", string(format))
+	writeJSON(w, http.StatusCreated, map[string]string{"id": providerID, "name": body.Name, "status": "created"})
+}
+
+func (h *AuthHandler) DeleteCustomProvider(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if !h.registry.IsCustom(providerID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only custom providers can be deleted"})
+		return
+	}
+
+	// Remove from registry
+	if !h.registry.Delete(providerID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found"})
+		return
+	}
+
+	// Remove route table entry
+	delete(providerRouteTable, providerID)
+
+	// Remove all tokens for this provider
+	if h.store != nil {
+		if err := h.store.DeleteByProvider(providerID); err != nil {
+			slog.Warn("failed to remove tokens for deleted provider", "id", providerID, "error", err)
+		}
+	}
+
+	// Cascade: remove provider from all profile targets
+	h.removeProviderFromProfiles(providerID)
+
+	// Remove from Redis
+	if h.profileRedis != nil {
+		if err := h.registry.RemovePersisted(h.profileRedis, providerID); err != nil {
+			slog.Warn("failed to remove persisted custom provider", "id", providerID, "error", err)
+		}
+	}
+
+	slog.Info("custom provider deleted", "id", providerID)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -648,17 +819,36 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	}
 	providers := h.registry.List()
 	type providerInfo struct {
-		ID       string `json:"id"`
-		Name     string `json:"name"`
-		AuthType string `json:"authType"`
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		AuthType     string `json:"authType"`
+		UpstreamBase string `json:"upstreamBase"`
 	}
 	result := make([]providerInfo, 0, len(providers))
 	for _, p := range providers {
 		result = append(result, providerInfo{
-			ID:       p.ID,
-			Name:     p.Name,
-			AuthType: string(p.AuthType),
+			ID:           p.ID,
+			Name:         p.Name,
+			AuthType:     string(p.AuthType),
+			UpstreamBase: p.UpstreamBase,
 		})
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *AuthHandler) UpdateProviderUpstream(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	var body struct {
+		Upstream string `json:"upstream"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Upstream == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "upstream field required"})
+		return
+	}
+	if !h.registry.UpdateUpstream(providerID, body.Upstream) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown provider: " + providerID})
+		return
+	}
+	slog.Info("provider upstream updated", "provider", providerID, "upstream", body.Upstream)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

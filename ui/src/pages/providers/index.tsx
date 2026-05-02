@@ -10,10 +10,13 @@ import { ApiKeyDialog } from '@/components/auth/api-key-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bot, Sparkles, Zap, Github, Plus, ChevronDown, ChevronUp, Loader2, Globe, Info, Brain, Cpu, Server, Code, Terminal, Coffee, Blocks } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Bot, Sparkles, Zap, Github, Plus, ChevronDown, ChevronUp, Loader2, Globe, Info, Brain, Cpu, Server, Code, Terminal, Coffee, Blocks, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { fetchProviders, updateProviderUpstream, registerCustomProvider, deleteCustomProvider } from '@/lib/providers';
+import type { ProviderInfo } from '@/lib/providers';
 
 interface ProviderDef {
   id: string;
@@ -170,18 +173,34 @@ export default function ProvidersPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [apiKeyDialogProvider, setApiKeyDialogProvider] = useState<ProviderDef | null>(null);
+  const [upstreamMap, setUpstreamMap] = useState<Record<string, string>>({});
+  const [editingUpstream, setEditingUpstream] = useState<string | null>(null);
+  const [editUpstreamVal, setEditUpstreamVal] = useState('');
+  const [showCustomDialog, setShowCustomDialog] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customUpstream, setCustomUpstream] = useState('');
+  const [customFormat, setCustomFormat] = useState('openai');
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customProviders, setCustomProviders] = useState<ProviderInfo[]>([]);
 
   const authFlow = useAuthFlow();
 
   const loadAccounts = useCallback(async () => {
     try {
-      const [all, rls] = await Promise.all([authApi.listAccounts(), authApi.fetchRateLimits()]);
+      const [all, rls, provs] = await Promise.all([authApi.listAccounts(), authApi.fetchRateLimits(), fetchProviders()]);
       const map: Record<string, authApi.AccountInfo[]> = {};
       for (const acct of all) {
         (map[acct.provider] ??= []).push(acct);
       }
       setAccountsMap(map);
       setRatelimits(rls);
+      const um: Record<string, string> = {};
+      for (const p of provs) {
+        if (p.upstreamBase) um[p.id] = p.upstreamBase;
+      }
+      setUpstreamMap(um);
+      setCustomProviders(provs.filter((p) => p.id.startsWith('custom-')));
     } catch {
       // accounts endpoint may not exist yet
     } finally {
@@ -230,6 +249,31 @@ export default function ProvidersPage() {
     await loadAccounts();
   };
 
+  const handleCreateCustom = async () => {
+    setCustomLoading(true);
+    try {
+      await registerCustomProvider({
+        name: customName.trim(),
+        format: customFormat,
+        upstream: customUpstream.trim(),
+        apiKey: customApiKey || undefined,
+      });
+      setShowCustomDialog(false);
+      setCustomName('');
+      setCustomUpstream('');
+      setCustomFormat('openai');
+      setCustomApiKey('');
+      await loadAccounts();
+    } finally {
+      setCustomLoading(false);
+    }
+  };
+
+  const handleDeleteCustom = async (id: string) => {
+    await deleteCustomProvider(id);
+    await loadAccounts();
+  };
+
 
   const authCodeStatus = authFlow.flowType === 'auth_code'
     ? authFlow.completed
@@ -241,7 +285,48 @@ export default function ProvidersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Providers</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Providers</h1>
+        <Button size="sm" variant="outline" onClick={() => setShowCustomDialog(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Custom
+        </Button>
+      </div>
+
+      {showCustomDialog && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Add Custom Provider</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Name *</label>
+              <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="My LLM" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Upstream URL *</label>
+              <Input value={customUpstream} onChange={(e) => setCustomUpstream(e.target.value)} placeholder="https://api.example.com/v1" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Format</label>
+              <select className="w-full h-9 rounded-md border bg-background px-3 text-sm" value={customFormat} onChange={(e) => setCustomFormat(e.target.value)}>
+                <option value="openai">OpenAI-compatible</option>
+                <option value="anthropic">Anthropic-compatible</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">API Key</label>
+              <Input type="password" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} placeholder="sk-..." />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => setShowCustomDialog(false)}>
+                <X className="h-4 w-4 mr-1" /> Cancel
+              </Button>
+              <Button size="sm" onClick={handleCreateCustom} disabled={!customName.trim() || !customUpstream.trim() || customLoading}>
+                {customLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
+                Create
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">
@@ -338,11 +423,120 @@ export default function ProvidersPage() {
                         Updating...
                       </div>
                     )}
+                    {upstreamMap[provider.id] && (
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground shrink-0">Upstream</span>
+                          {editingUpstream === provider.id ? (
+                            <div className="flex gap-1.5 flex-1">
+                              <Input
+                                value={editUpstreamVal}
+                                onChange={(e) => setEditUpstreamVal(e.target.value)}
+                                onKeyDown={async (e) => {
+                                  if (e.key === 'Enter' && editUpstreamVal.trim()) {
+                                    await updateProviderUpstream(provider.id, editUpstreamVal.trim());
+                                    setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
+                                    setEditingUpstream(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingUpstream(null);
+                                  }
+                                }}
+                                className="h-6 text-xs flex-1"
+                                autoFocus
+                              />
+                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                                onClick={async () => {
+                                  await updateProviderUpstream(provider.id, editUpstreamVal.trim());
+                                  setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
+                                  setEditingUpstream(null);
+                                }}>
+                                Save
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-xs font-mono text-muted-foreground truncate flex-1">
+                                {upstreamMap[provider.id]}
+                              </span>
+                              <button
+                                onClick={() => { setEditingUpstream(provider.id); setEditUpstreamVal(upstreamMap[provider.id] ?? ''); }}
+                                className="shrink-0 p-1 rounded hover:bg-muted transition-colors text-muted-foreground/30 hover:text-muted-foreground"
+                                title="Edit upstream URL"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 )}
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {customProviders.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">Custom Providers</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {customProviders.map((cp) => {
+              const accounts = accountsMap[cp.id] ?? [];
+              const isExpanded = expanded === cp.id;
+              return (
+                <Card key={cp.id} className={cn('transition-all duration-200 border-transparent', isExpanded ? 'border-border' : 'hover:border-border hover:shadow-md')}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center h-9 w-9 rounded-full bg-muted shrink-0">
+                        <Globe className="h-4.5 w-4.5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm font-medium">{cp.name}</CardTitle>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className="text-[10px] px-1.5 bg-cyan-500/10 text-cyan-500">Custom</Badge>
+                          {accounts.length > 0 && (
+                            <span className="text-xs text-muted-foreground">{accounts.filter((a) => !a.paused).length}/{accounts.length} active</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button size="sm" variant="outline" onClick={() => { setApiKeyDialogProvider({ id: cp.id, name: cp.name, icon: Globe, authType: 'API Key', setup: [] }); }}>
+                          <Plus className="h-3.5 w-3.5" /> {accounts.length === 0 ? 'Connect' : 'Add'}
+                        </Button>
+                        {accounts.length > 0 && (
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setExpanded(isExpanded ? null : cp.id)}>
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        )}
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCustom(cp.id)} title="Delete provider">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isExpanded && accounts.length > 0 && (
+                    <CardContent>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-medium text-muted-foreground">Accounts</span>
+                      </div>
+                      <AccountList
+                        provider={cp.id}
+                        accounts={accounts}
+                        ratelimits={ratelimits.filter((r) => r.provider === cp.id)}
+                        onRemove={(id) => handleAction(id, () => authApi.removeAccount(cp.id, id))}
+                        onPause={(id) => handleAction(id, () => authApi.pauseAccount(cp.id, id))}
+                        onResume={(id) => handleAction(id, () => authApi.resumeAccount(cp.id, id))}
+                        onSetDefault={(id) => handleAction(id, () => authApi.setDefaultAccount(cp.id, id))}
+                        onUpdate={loadAccounts}
+                      />
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 

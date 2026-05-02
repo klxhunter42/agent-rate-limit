@@ -186,6 +186,27 @@ func (s *TokenStore) Get(provider, accountID string) (*TokenInfo, error) {
 	return &token, nil
 }
 
+// DeleteByProvider removes all tokens for a provider (used when deleting a custom provider).
+func (s *TokenStore) DeleteByProvider(provider string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tokens, err := s.ListByProvider(provider)
+	if err != nil {
+		return fmt.Errorf("list tokens: %w", err)
+	}
+
+	for _, t := range tokens {
+		s.client.Del(ctx, tokenKey(provider, t.AccountID))
+	}
+	s.client.Del(ctx, tokenKeyPrefix+provider+":_index")
+
+	if len(tokens) > 0 {
+		slog.Info("deleted all tokens for provider", "provider", provider, "count", len(tokens))
+	}
+	return nil
+}
+
 func (s *TokenStore) Delete(provider, accountID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
