@@ -577,6 +577,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, decision.AccountID))
 	}
 
+	// Apply provider-level model override and max_tokens clamp (e.g., lotus -> "default")
+	if decision != nil && decision.ModelOverride != "" {
+		slog.Info("model override", "original", requestedModel, "override", decision.ModelOverride, "provider", decision.ProviderID)
+		payload["model"] = decision.ModelOverride
+		requestedModel = decision.ModelOverride
+	}
+	if decision != nil && decision.MaxTokens > 0 {
+		if mt, ok := payload["max_tokens"].(float64); ok && mt > float64(decision.MaxTokens) {
+			slog.Info("max_tokens clamped", "original", int(mt), "clamped", decision.MaxTokens, "provider", decision.ProviderID)
+			payload["max_tokens"] = decision.MaxTokens
+		}
+	}
+
 	// Quota enforcement: check before acquiring slot (fail-open on errors).
 	if h.quotaHandler != nil {
 		providerID := "default"

@@ -99,6 +99,13 @@ func NewRegistry() *Registry {
 		UpstreamBase: envOr("ZAI_UPSTREAM_BASE", "https://api.z.ai/api/anthropic"),
 	}
 
+	r.providers["lotus"] = ProviderConfig{
+		ID:           "lotus",
+		Name:         "Lotus LLM",
+		AuthType:     AuthTypeAPIKey,
+		UpstreamBase: envOr("LOTUS_UPSTREAM_BASE", "https://llm.internal/custom/llm"),
+	}
+
 	r.providers["openrouter"] = ProviderConfig{
 		ID:           "openrouter",
 		Name:         "OpenRouter",
