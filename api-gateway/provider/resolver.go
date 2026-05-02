@@ -17,14 +17,16 @@ const (
 )
 
 type RoutingDecision struct {
-	ProviderID   string
-	ProviderCfg  ProviderConfig
-	Format       ProviderFormat
-	UpstreamURL  string
-	AuthMode     string // "api_key", "bearer"
-	ExtraHeaders map[string]string
-	APIKey       string
-	AccountID    string
+	ProviderID    string
+	ProviderCfg   ProviderConfig
+	Format        ProviderFormat
+	UpstreamURL   string
+	AuthMode      string // "api_key", "bearer"
+	ExtraHeaders  map[string]string
+	APIKey        string
+	AccountID     string
+	ModelOverride string
+	MaxTokens     int
 }
 
 type Resolver struct {
@@ -60,14 +62,16 @@ func (r *Resolver) isCoolingDown(providerID string, model ...string) bool {
 }
 
 type providerRoute struct {
-	format       ProviderFormat
-	authMode     string
-	urlSuffix    string
-	extraHeaders map[string]string
+	format        ProviderFormat
+	authMode      string
+	urlSuffix     string
+	extraHeaders  map[string]string
+	modelOverride string
+	maxTokens     int
 }
 
 var providerRouteTable = map[string]providerRoute{
-	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil},
+	"anthropic": {FormatAnthropic, "api_key", "/v1/messages", nil, "", 0},
 	"claude-oauth": {FormatAnthropic, "api_key", "/v1/messages?beta=true", map[string]string{
 		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
@@ -82,7 +86,7 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
-	}},
+	}, "", 0},
 	"claude": {FormatAnthropic, "api_key", "/v1/messages?beta=true", map[string]string{
 		"anthropic-beta": "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24",
 		"x-app":          "cli",
@@ -97,22 +101,23 @@ var providerRouteTable = map[string]providerRoute{
 		"X-Stainless-Runtime-Version": "v24.3.0",
 		"X-Stainless-Retry-Count":     "0",
 		"X-Stainless-Timeout":         "3000",
-	}}, // alias
-	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"copilot":      {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"openrouter":   {FormatOpenAI, "bearer", "/v1/chat/completions", map[string]string{"HTTP-Referer": "https://github.com/klxhunter/agent-rate-limit"}},
-	"qwen":         {FormatOpenAI, "bearer", "/compatible-mode/v1/chat/completions", nil},
-	"gemini":       {FormatGemini, "api_key", "", nil},
-	"gemini-oauth": {FormatGemini, "bearer", "", nil},
-	"deepseek":     {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"kimi":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"huggingface":  {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"ollama":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"agy":          {FormatAnthropic, "api_key", "/v1/messages", nil},
-	"cursor":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"codebuddy":    {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
-	"kilo":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil},
+	}, "", 0}, // alias
+	"zai":          {FormatAnthropic, "api_key", "/v1/messages", nil, "", 0},
+	"openai":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"copilot":      {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"openrouter":   {FormatOpenAI, "bearer", "/v1/chat/completions", map[string]string{"HTTP-Referer": "https://github.com/klxhunter/agent-rate-limit"}, "", 0},
+	"qwen":         {FormatOpenAI, "bearer", "/compatible-mode/v1/chat/completions", nil, "", 0},
+	"gemini":       {FormatGemini, "api_key", "", nil, "", 0},
+	"gemini-oauth": {FormatGemini, "bearer", "", nil, "", 0},
+	"deepseek":     {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"kimi":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"huggingface":  {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"ollama":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"agy":          {FormatAnthropic, "api_key", "/v1/messages", nil, "", 0},
+	"cursor":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"codebuddy":    {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"kilo":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"lotus":        {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 14000},
 }
 
 type modelRule struct {
@@ -141,9 +146,10 @@ var modelRules = []modelRule{
 	{"huggingface/", []string{"huggingface"}},
 	{"ollama", []string{"ollama"}},
 	{"agy-", []string{"agy"}},
+	{"lotus-", []string{"lotus"}},
 }
 
-// ModelBelongsToProvider checks if a model name routes to the given provider.
+// ModelBelongsToProvider checks if a model name routes to the given provider
 func ModelBelongsToProvider(model, providerID string) bool {
 	for _, rule := range modelRules {
 		if strings.HasPrefix(model, rule.prefix) {
@@ -158,7 +164,7 @@ func ModelBelongsToProvider(model, providerID string) bool {
 	return false
 }
 
-// ResolveFallback returns the next routing decision for a model, skipping providers in exclude.
+// ResolveFallback returns the next routing decision for a model, skipping providers in excluded
 func (r *Resolver) ResolveFallback(model string, exclude []string) *RoutingDecision {
 	excludeMap := make(map[string]bool, len(exclude))
 	for _, p := range exclude {
@@ -200,9 +206,9 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 					return decision
 				}
 			}
-			// Model matched a rule but no provider had a token.
+			// Model matched a rule but no provider had a token
 			// In GLM mode: allow Z.AI fallback if zai is the intended provider
-			// (key may come from pool or UPSTREAM_API_KEYS).
+			// (key may come from pool or UPSTREAM_API_KEYS)
 			if r.glmMode {
 				for _, pid := range rule.providers {
 					if pid == "zai" {
@@ -214,7 +220,7 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 		}
 	}
 
-	// No rule matched: Z.AI fallback in GLM mode for unknown models.
+	// No rule matched: Z.AI fallback in GLM mode for unknown models
 	if r.glmMode {
 		decision := r.tryResolve("zai", model)
 		if decision != nil {
@@ -226,7 +232,7 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 }
 
 // ResolveByProvider creates a routing decision for a specific provider ID,
-// looking up its token and route config.
+// looking up its token and route config
 func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool) {
 	if _, ok := r.registry.Get(providerID); !ok {
 		return nil, false
@@ -254,15 +260,15 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 	if token == nil {
 		return nil
 	}
-	// Skip expired tokens so fallback to next provider can trigger.
+	// Skip expired tokens so fallback to next provider can trigger
 	if !token.ExpiryDate.IsZero() && token.ExpiryDate.Before(time.Now()) {
 		return nil
 	}
 	return r.buildDecision(providerID, model, token.AccessToken, token.AccountID)
 }
 
-// tryResolveRoundRobin cycles through all active tokens for a provider.
-// Prefers accounts with low 5h utilization; falls back to all if all are high.
+// tryResolveRoundRobin cycles through all active tokens for a provider
+// Prefers accounts with low 5h utilization; falls back to all if all are high
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
 	if r.isCoolingDown(providerID, model) {
 		return nil
@@ -277,7 +283,7 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 	var active []TokenInfo
 	for _, t := range tokens {
 		if !t.Paused {
-			// Skip expired tokens so fallback to next provider can trigger.
+			// Skip expired tokens so fallback to next provider can trigger
 			if !t.ExpiryDate.IsZero() && t.ExpiryDate.Before(time.Now()) {
 				continue
 			}
@@ -288,7 +294,7 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 		return nil
 	}
 
-	// If multiple accounts, try to pick one with lowest utilization.
+	// If multiple accounts, try to pick one with lowest utilization
 	if len(active) > 1 {
 		ids := make([]string, len(active))
 		for i, t := range active {
@@ -296,7 +302,7 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 		}
 		rls := r.tokenStore.GetRateLimits(providerID, ids)
 
-		// Partition into low-util (<0.8) and high-util.
+		// Partition into low-util (<0.8) and high-util
 		var low, high []TokenInfo
 		for _, t := range active {
 			if rl, ok := rls[t.AccountID]; ok && rl.Util5h >= 0.8 {
@@ -332,24 +338,26 @@ func (r *Resolver) buildDecision(providerID, model, apiKey, accountID string) *R
 
 	route, ok := providerRouteTable[providerID]
 	if !ok {
-		route = providerRoute{FormatAnthropic, "api_key", "/v1/messages", nil}
+		route = providerRoute{FormatAnthropic, "api_key", "/v1/messages", nil, "", 0}
 	}
 
 	upstreamURL := cfg.UpstreamBase + route.urlSuffix
 
-	// Gemini API key: endpoint includes model name and key as query param.
+	// Gemini API key: endpoint includes model name and key as query param
 	if providerID == "gemini" && apiKey != "" {
 		upstreamURL = fmt.Sprintf("%s/v1beta/models/%s:streamGenerateContent?key=%s", cfg.UpstreamBase, model, apiKey)
 	}
 
 	return &RoutingDecision{
-		ProviderID:   providerID,
-		ProviderCfg:  cfg,
-		Format:       route.format,
-		UpstreamURL:  upstreamURL,
-		AuthMode:     route.authMode,
-		ExtraHeaders: route.extraHeaders,
-		APIKey:       apiKey,
-		AccountID:    accountID,
+		ProviderID:    providerID,
+		ProviderCfg:   cfg,
+		Format:        route.format,
+		UpstreamURL:   upstreamURL,
+		AuthMode:      route.authMode,
+		ExtraHeaders:  route.extraHeaders,
+		APIKey:        apiKey,
+		AccountID:     accountID,
+		ModelOverride: route.modelOverride,
+		MaxTokens:     route.maxTokens,
 	}
 }

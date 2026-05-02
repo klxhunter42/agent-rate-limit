@@ -143,6 +143,14 @@ const PROVIDERS: ProviderDef[] = [
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
+ { id: 'lotus', name: 'Lotus LLM', icon: Blocks, authType: 'API Key',
+ setup: [
+ 'OpenAI-compatible endpoint at api-cpxis.lotuss.com/llm',
+ 'Get API key from Lotus admin',
+ 'Use model prefix "lotus-" (e.g., lotus-sonnet)',
+ 'Model is overridden to "default" automatically',
+ 'max_tokens is clamped to 14000',
+ ] },
 ];
 
 const AUTH_TYPE_STYLES: Record<string, string> = {

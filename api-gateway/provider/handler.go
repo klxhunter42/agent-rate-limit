@@ -549,12 +549,12 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accountID := secret[len(secret)-6:]
-	if len(secret) < 6 {
-		accountID = secret
+	accountID := secret
+	if len(secret) > 6 {
+		accountID = secret[len(secret)-6:]
 	}
 
-	tier := "unknown"
+	tier := "api_key"
 	if pc.AuthType == AuthTypeSessionCookie {
 		tier = "browser_session"
 	}
@@ -564,6 +564,7 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 		AccountID:   accountID,
 		Provider:    providerID,
 		Tier:        tier,
+		Email:       accountID,
 		IsDefault:   false,
 		CreatedAt:   time.Now(),
 	}

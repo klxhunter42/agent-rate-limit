@@ -23,7 +23,8 @@ const TIER_STYLES: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
   pro: 'bg-blue-500/10 text-blue-500',
   ultra: 'bg-purple-500/10 text-purple-500',
-  unknown: 'bg-muted text-muted-foreground',
+  api_key: 'bg-amber-500/10 text-amber-500',
+	unknown: 'bg-muted text-muted-foreground',
 };
 
 function blurEmail(email: string | undefined): string {
@@ -50,7 +51,7 @@ export function AccountList({
   );
 
   const handleSaveEmail = async (id: string) => {
-    if (!editEmail.includes('@')) return;
+    if (!editEmail.trim()) return;
     await updateAccountEmail(provider, id, editEmail.trim());
     setEditingId(null);
     onUpdate?.();
@@ -86,8 +87,8 @@ export function AccountList({
           {editingId === acct.id ? (
             <div className="flex gap-1.5 flex-1 min-w-0">
               <Input
-                type="email"
-                placeholder="you@example.com"
+                type="text"
+                placeholder="Account name"
                 value={editEmail}
                 onChange={(e) => setEditEmail(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveEmail(acct.id)}
@@ -95,7 +96,7 @@ export function AccountList({
                 autoFocus
               />
               <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
-                disabled={!editEmail.includes('@')}
+                disabled={!editEmail.trim()}
                 onClick={() => handleSaveEmail(acct.id)}>
                 Save
               </Button>
