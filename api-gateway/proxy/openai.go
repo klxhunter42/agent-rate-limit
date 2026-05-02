@@ -530,6 +530,11 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 			fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
 			started = true
 			textBlockOpen = true
+		} else if !textBlockOpen && !toolBlockOpen {
+			// Continuation: message already started but need new content block
+			contentBlockIdx++
+			fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":%d,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n", contentBlockIdx)
+			textBlockOpen = true
 		}
 
 		accumulatedText += text
@@ -625,17 +630,20 @@ func compactOpenAIMessages(req map[string]any, estInput int, contextLimit int) b
 
 	// Keep last 4 messages (2 full turns: assistant+user pairs)
 	keepCount := 4
-	// Walk backwards to ensure we don't split a tool_call sequence
+	// Walk backwards to include assistant that owns tool results at boundary.
+	// Cap walkback at 8 to avoid pulling in entire history.
 	keepFrom := len(convMsgs) - keepCount
-	for keepFrom > 0 {
+	maxWalkback := 8
+	for keepFrom > 0 && maxWalkback > 0 {
 		role, _ := convMsgs[keepFrom]["role"].(string)
 		if role == "tool" {
 			keepFrom--
+			maxWalkback--
 			continue
 		}
 		if _, hasTC := convMsgs[keepFrom]["tool_calls"]; hasTC {
 			keepFrom--
-			continue
+			break
 		}
 		break
 	}

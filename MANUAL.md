@@ -2258,6 +2258,13 @@ if resp.StatusCode == 400 && strings.Contains(body, "max_tokens") {
 - Removed simulate branch from `anthropic.go` (prompt injection)
 - Only `native` and `""` (no tools) modes remain
 
+#### Problem 7: "Mismatched content block type" during auto-continuation
+
+
+**Root cause**: In `relayOpenAIStreamChunk`, when `isContinuation=true` the code sets `started=true` to skip `message_start` (correct) but also skips `content_block_start`. The client receives `content_block_delta` events without a matching `content_block_start`, causing the protocol violation.
+
+**Fix**: Added `else if !textBlockOpen && !toolBlockOpen` branch after the `!started` check. For continuation streams, this emits a new `content_block_start` at `contentBlockIdx+1` before the first text delta, then sets `textBlockOpen=true`.
+
 ### 19.5 Configuration
 
 ```
