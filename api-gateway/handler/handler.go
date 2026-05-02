@@ -466,7 +466,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	var decision *provider.RoutingDecision
 	var selectedTokenInfo *provider.TokenInfo
 	if h.resolver != nil {
-		decision = h.resolver.Resolve(requestedModel)
+		// Profile with explicit target: resolve by provider, not by model name.
+		// This lets any model name (e.g. claude-sonnet-4-6) route through the
+		// profile's target provider (e.g. lotus).
+		if profileOverride != nil && profileOverride.Target != "" {
+			if d, ok := h.resolver.ResolveByProvider(profileOverride.Target); ok && d != nil {
+				decision = d
+			}
+		}
+		if decision == nil {
+			decision = h.resolver.Resolve(requestedModel)
+		}
 		// Fallback: no stored token for claude-oauth, use transparent resolve
 		// so client's Bearer token is used instead.
 		if decision == nil && transparent {
@@ -575,6 +585,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, selectedTokenInfo.AccountID))
 	} else if decision != nil && decision.AccountID != "" {
 		*r = *r.WithContext(context.WithValue(r.Context(), accountCtxKey{}, decision.AccountID))
+	}
+
+	// Profile BaseURL override: if profile specifies a custom base URL, replace upstream.
+	if decision != nil && profileOverride != nil && profileOverride.BaseURL != "" {
+		decision.UpstreamURL = profileOverride.BaseURL
+		slog.Info("profile base_url override", "profile", profileOverride.Name, "upstream", decision.UpstreamURL)
 	}
 
 	// Apply provider-level model override and max_tokens clamp (e.g., lotus -> "default")
@@ -742,6 +758,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Detect if request contains images for native vision routing.
 	hasImages = proxy.HasImageContent(payload)
+	if hasImages {
+		slog.Info("image request detected",
+			"model", selectedModel,
+			"body_len", len(body),
+			"transparent", transparent,
+			"provider", func() string {
+				if decision != nil {
+					return decision.ProviderID
+				}
+				return "none"
+			}(),
+		)
+	}
 
 	// Re-encode modified payload.
 	body, err = json.Marshal(payload)
@@ -1011,8 +1040,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("routing to native vision endpoint", "model", selectedModel)
 		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-			slog.Error("vision proxy error", "error", err)
+			slog.Error("vision proxy error", "error", err, "model", selectedModel)
 			h.metrics.IncError("upstream")
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
 		}
 	} else if hasImages && decision != nil {
 		// Non-GLM models with images: re-resolve for the vision model and use normal routing.
@@ -1026,19 +1056,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		switch visionDecision.Format {
 		case provider.FormatOpenAI:
 			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-				slog.Error("openai vision proxy error", "error", err)
+				slog.Error("openai vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "openai vision proxy error: " + err.Error()})
 			}
 		case provider.FormatGemini:
 			if visionDecision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
 				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
-					slog.Error("code assist vision failed", "error", err)
+					slog.Error("code assist vision failed", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
+					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "code assist vision error: " + err.Error()})
 				}
 			} else if h.geminiAPIProxy != nil {
 				if err := h.geminiAPIProxy.ProxyGemini(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-					slog.Error("gemini vision proxy error", "error", err)
+					slog.Error("gemini vision proxy error", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
+					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "gemini vision proxy error: " + err.Error()})
 				}
 			}
 		default:
@@ -1051,28 +1084,31 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				Transparent:      transparent,
 			}
 			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
-				slog.Error("vision proxy error", "error", err)
+				slog.Error("vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
 			}
 		}
 	} else if decision != nil {
 		switch decision.Format {
 		case provider.FormatOpenAI:
 			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-				slog.Error("openai proxy error", "error", err)
+				slog.Error("openai proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "openai proxy error: " + err.Error()})
 			}
 		case provider.FormatGemini:
 			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
 				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
-					// Don't fallback to direct Gemini API with OAuth token (requires API key).
-					slog.Error("code assist failed", "error", err)
+					slog.Error("code assist failed", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
+					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "code assist error: " + err.Error()})
 				}
 			} else if h.geminiAPIProxy != nil {
 				if err := h.geminiAPIProxy.ProxyGemini(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-					slog.Error("gemini proxy error", "error", err)
+					slog.Error("gemini proxy error", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
+					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "gemini proxy error: " + err.Error()})
 				}
 			}
 		default:
@@ -1085,13 +1121,15 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				Transparent:      transparent,
 			}
 			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
-				slog.Error("proxy error", "error", err)
+				slog.Error("proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "proxy error: " + err.Error()})
 			}
 		}
 	} else if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, profileOpts, transparent); err != nil {
-		slog.Error("proxy error", "error", err)
+		slog.Error("proxy error", "error", err, "model", selectedModel)
 		h.metrics.IncError("upstream")
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "proxy error: " + err.Error()})
 	}
 }
 

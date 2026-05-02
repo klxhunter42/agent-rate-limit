@@ -11,21 +11,21 @@ import (
 // Config holds all configuration for the API gateway, loaded from environment
 // variables with sensible defaults for containerised deployment.
 type Config struct {
-	ServerPort        string
-	RedisAddr         string
-	RateLimiterAddr   string
-	QueueName         string
-	GlobalRateLimit   int
-	AgentRateLimit    int
-	WorkerPoolSize    int
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	OTLPEndpoint      string
-	RedisPoolSize     int
-	RedisMinIdleConns int
-	UpstreamURL       string
+	ServerPort         string
+	RedisAddr          string
+	RateLimiterAddr    string
+	QueueName          string
+	GlobalRateLimit    int
+	AgentRateLimit     int
+	WorkerPoolSize     int
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	OTLPEndpoint       string
+	RedisPoolSize      int
+	RedisMinIdleConns  int
+	UpstreamURL        string
 	AnthropicDirectURL string
-	StreamTimeout     time.Duration
+	StreamTimeout      time.Duration
 
 	// Per-model upstream concurrency limits.
 	// Map of model name → max concurrent requests to upstream.
@@ -124,13 +124,13 @@ func Load() *Config {
 		GlobalRateLimit:          envIntOr("GLOBAL_RATE_LIMIT", 100),
 		AgentRateLimit:           envIntOr("AGENT_RATE_LIMIT", 5),
 		WorkerPoolSize:           envIntOr("WORKER_POOL_SIZE", 100),
-		ReadTimeout:              envDurationOr("READ_TIMEOUT", 5*time.Second),
+		ReadTimeout:              envDurationOr("READ_TIMEOUT", 30*time.Second),
 		WriteTimeout:             envDurationOr("WRITE_TIMEOUT", 10*time.Second),
 		OTLPEndpoint:             envOr("OTLP_ENDPOINT", "otel-collector:4317"),
 		RedisPoolSize:            envIntOr("REDIS_POOL_SIZE", 50),
 		RedisMinIdleConns:        envIntOr("REDIS_MIN_IDLE_CONNS", 10),
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
-		AnthropicDirectURL:     envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
+		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
 		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 1),

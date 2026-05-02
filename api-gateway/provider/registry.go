@@ -1,7 +1,14 @@
 package provider
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
 	"os"
+	"strings"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type AuthType string
@@ -212,4 +219,77 @@ func (r *Registry) List() []ProviderConfig {
 		out = append(out, p)
 	}
 	return out
+}
+
+func (r *Registry) UpdateUpstream(id, upstream string) bool {
+	p, ok := r.providers[id]
+	if !ok {
+		return false
+	}
+	p.UpstreamBase = upstream
+	r.providers[id] = p
+	return true
+}
+
+const customProviderPrefix = "arl:providers:custom:"
+
+func (r *Registry) Register(cfg ProviderConfig) {
+	r.providers[cfg.ID] = cfg
+}
+
+func (r *Registry) Delete(id string) bool {
+	if !strings.HasPrefix(id, "custom-") {
+		return false
+	}
+	_, ok := r.providers[id]
+	if !ok {
+		return false
+	}
+	delete(r.providers, id)
+	return true
+}
+
+func (r *Registry) IsCustom(id string) bool {
+	return strings.HasPrefix(id, "custom-")
+}
+
+func (r *Registry) PersistCustom(rdb *redis.Client, cfg ProviderConfig) error {
+	if rdb == nil {
+		return fmt.Errorf("redis not available")
+	}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return rdb.Set(context.Background(), customProviderPrefix+cfg.ID, data, 0).Err()
+}
+
+func (r *Registry) RemovePersisted(rdb *redis.Client, id string) error {
+	if rdb == nil {
+		return fmt.Errorf("redis not available")
+	}
+	return rdb.Del(context.Background(), customProviderPrefix+id).Err()
+}
+
+func (r *Registry) LoadCustomProviders(rdb *redis.Client) {
+	if rdb == nil {
+		return
+	}
+	keys, err := rdb.Keys(context.Background(), customProviderPrefix+"*").Result()
+	if err != nil {
+		slog.Warn("failed to load custom providers", "error", err)
+		return
+	}
+	for _, key := range keys {
+		data, err := rdb.Get(context.Background(), key).Bytes()
+		if err != nil {
+			continue
+		}
+		var cfg ProviderConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			continue
+		}
+		r.providers[cfg.ID] = cfg
+		slog.Info("loaded custom provider", "id", cfg.ID, "name", cfg.Name, "upstream", cfg.UpstreamBase)
+	}
 }

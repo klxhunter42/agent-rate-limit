@@ -79,11 +79,12 @@ export function ProfilesPage() {
     name: string;
     targets: ProfileTarget[];
   }) {
-    const provider = data.targets[0]?.target ?? '';
+    const primary = data.targets[0];
+    const provider = primary?.target ?? '';
     const res = await fetch('/v1/profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, target: provider, provider }),
+      body: JSON.stringify({ ...data, target: provider, provider, accountIds: primary?.accountIds ?? [] }),
     });
     if (res.ok) {
       setShowCreate(false);
@@ -669,14 +670,14 @@ function ProfileCard({
             id: uid(),
             target: resolvedProvider,
             accountIds: (profile.accountIds ?? []).filter(Boolean),
-            apiKey: profile.apiKey,
-            baseUrl: profile.baseUrl,
+            apiKey: undefined,
+            baseUrl: undefined,
             passthroughAuth: profile.passthroughAuth,
           },
         ]);
       }
     }
-  }, [editing, profile.name, profile.targets, profile.accountIds, profile.apiKey, profile.baseUrl, profile.passthroughAuth, resolvedProvider]);
+  }, [editing, profile.name, profile.targets, profile.accountIds, profile.passthroughAuth, resolvedProvider]);
 
   useEffect(() => {
     if (!editing) return;
@@ -815,14 +816,17 @@ function ProfileCard({
               <X className="h-4 w-4 mr-1" /> Cancel
             </Button>
             <Button size="sm" disabled={!editName.trim()} onClick={() => {
-              const primaryTarget = editTargets[0]?.target ?? '';
-              const primaryAccountIds = editTargets[0]?.accountIds ?? [];
+              const primary = editTargets[0];
+              const primaryTarget = primary?.target ?? '';
+              const primaryAccountIds = primary?.accountIds ?? [];
               onSave(profile.name, {
                 ...profile,
                 name: editName.trim(),
                 target: primaryTarget,
                 provider: primaryTarget,
                 accountIds: primaryAccountIds,
+                baseUrl: profile.baseUrl,
+                apiKey: profile.apiKey,
                 targets: editTargets,
               });
             }}>

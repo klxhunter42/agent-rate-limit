@@ -2,6 +2,7 @@ export interface ProviderInfo {
   id: string;
   name: string;
   authType: 'api_key' | 'device_code' | 'auth_code' | 'session_cookie';
+  upstreamBase?: string;
 }
 
 const AUTH_TYPE_LABELS: Record<string, string> = {
@@ -88,4 +89,53 @@ export async function fetchProviders(): Promise<ProviderInfo[]> {
 
 export function clearProviderCache() {
   cachedProviders = null;
+}
+
+export async function updateProviderUpstream(providerId: string, upstream: string): Promise<void> {
+  const res = await fetch(`/v1/providers/${providerId}/upstream`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ upstream }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'update failed' }));
+    throw new Error(err.error || 'update failed');
+  }
+  clearProviderCache();
+}
+
+export interface CustomProviderResult {
+  id: string;
+  name: string;
+  status: string;
+}
+
+export async function registerCustomProvider(data: {
+  name: string;
+  format: string;
+  upstream: string;
+  apiKey?: string;
+}): Promise<CustomProviderResult> {
+  const res = await fetch('/v1/providers/custom', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'create failed' }));
+    throw new Error(err.error || 'create failed');
+  }
+  clearProviderCache();
+  return res.json();
+}
+
+export async function deleteCustomProvider(providerId: string): Promise<void> {
+  const res = await fetch(`/v1/providers/custom/${providerId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'delete failed' }));
+    throw new Error(err.error || 'delete failed');
+  }
+  clearProviderCache();
 }

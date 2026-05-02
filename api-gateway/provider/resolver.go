@@ -120,6 +120,18 @@ var providerRouteTable = map[string]providerRoute{
 	"lotus":        {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 14000},
 }
 
+// RegisterProviderRoute adds a dynamic route entry for custom providers.
+func RegisterProviderRoute(providerID string, format ProviderFormat) {
+	var route providerRoute
+	switch format {
+	case FormatOpenAI:
+		route = providerRoute{FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0}
+	default:
+		route = providerRoute{FormatAnthropic, "api_key", "/v1/messages", nil, "", 0}
+	}
+	providerRouteTable[providerID] = route
+}
+
 type modelRule struct {
 	prefix    string
 	providers []string // ordered by priority
