@@ -133,7 +133,7 @@ func Load() *Config {
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
 		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
-		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 1),
+		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 3),
 		GlobalLimit:              envIntOr("UPSTREAM_GLOBAL_LIMIT", 9),
 		UpstreamMaxRetries:       envIntOr("UPSTREAM_MAX_RETRIES", 3),
 		UpstreamRetryBaseBackoff: envDurationOr("UPSTREAM_RETRY_BACKOFF", 500*time.Millisecond),

@@ -33,6 +33,11 @@ type AuthHandler struct {
 	mu           sync.Mutex
 	apiKey       string
 	profileRedis *redis.Client
+	refresher    *RefreshWorker
+}
+
+func (h *AuthHandler) SetRefreshWorker(rw *RefreshWorker) {
+	h.refresher = rw
 }
 
 func (h *AuthHandler) SetProfileRedis(rdb *redis.Client) {
@@ -473,6 +478,24 @@ func (h *AuthHandler) removeProviderFromProfiles(providerID string) {
 	}
 }
 
+func (h *AuthHandler) RefreshAccount(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	accountID := chi.URLParam(r, "accountId")
+	if providerID == "" || accountID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provider and accountId required"})
+		return
+	}
+	if h.refresher == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "refresh worker not available"})
+		return
+	}
+	if err := h.refresher.RefreshOne(providerID, accountID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "refreshed"})
+}
+
 func (h *AuthHandler) PauseAccount(w http.ResponseWriter, r *http.Request) {
 	providerID := chi.URLParam(r, "provider")
 	accountID := chi.URLParam(r, "accountId")
@@ -686,6 +709,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/accounts/{provider}/{accountId}/resume", h.ResumeAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/default", h.SetDefaultAccount)
 		r.Post("/auth/accounts/{provider}/{accountId}/email", h.UpdateAccountEmail)
+		r.Post("/auth/accounts/{provider}/{accountId}/refresh", h.RefreshAccount)
 		r.Post("/auth/login", h.DashboardLogin)
 		r.Post("/auth/logout", h.DashboardLogout)
 		r.Get("/auth/check", h.CheckAuth)
