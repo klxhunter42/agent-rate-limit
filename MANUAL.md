@@ -2036,3 +2036,268 @@ unknown-model request -> Resolve() -> no rule matched -> GLM fallback -> zai dec
 -> handler: filterUnsupportedContent OK
 ```
 
+---
+
+
+### 19.1 Overview
+
+
+### 19.2 Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│  ┌──────────────┐             ┌──────────────────┐      ┌───────────┐  │
+│  │              │  Anthropic   │                  │ OpenAI│           │  │
+│  │  sends:      │  API format  │  1. Resolve model│ fmt  │  OpenAI-  │  │
+│  │  claude-*    │             │  2. Override to   │      │  endpoint │  │
+│  │              │             │     "default"     │      │           │  │
+│  │  tools:      │             │  3. Convert tools │◀─────│  returns  │  │
+│  │  [Write,Bash,│             │     Anthropic->   │ OpenAI│  tool_calls│  │
+│  │   Read,...]  │             │     OpenAI func   │ fmt  │           │  │
+│  │              │             │  4. Add system    │      └───────────┘  │
+│  │  receives:   │  Anthropic   │     role message  │                     │
+│  │  tool_use    │◀─────────────│  5. tool_choice:  │                     │
+│  │  SSE stream  │  SSE format  │     auto          │                     │
+│  └──────────────┘             │  6. Convert resp  │                     │
+│                               │     OpenAI->       │                     │
+│                               │     Anthropic      │                     │
+│                               └──────────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 19.3 Request Flow (step-by-step)
+
+```
+    │                                  │                                │
+    │  POST /v1/messages               │                                │
+    │  model: claude-sonnet-4-6        │                                │
+    │  tools: [Write,Bash,Read,...]    │                                │
+    │  stream: true                    │                                │
+    │─────────────────────────────────▶│                                │
+    │                                  │                                │
+    │                                  │  1. Profile "โลตัส" resolved   │
+    │                                  │                                │
+    │                                  │  2. Model override:            │
+    │                                  │     claude-sonnet-4-6          │
+    │                                  │     -> "default"               │
+    │                                  │                                │
+    │                                  │  3. max_tokens clamped:        │
+    │                                  │     128000 -> 4096             │
+    │                                  │                                │
+    │                                  │  4. AnthropicToOpenAI():       │
+    │                                  │     - tools: Anthropic schema  │
+    │                                  │       -> OpenAI function fmt   │
+    │                                  │     - system: -> "system" role │
+    │                                  │       (not prepend to user)    │
+    │                                  │     - tool_choice: "auto"      │
+    │                                  │     - messages: tool_use       │
+    │                                  │       -> tool_calls,           │
+    │                                  │       tool_result -> tool role │
+    │                                  │                                │
+    │                                  │  POST /v1/chat/completions     │
+    │                                  │───────────────────────────────▶│
+    │                                  │                                │
+    │                                  │                                │  with function
+    │                                  │                                │  calling
+    │                                  │                                │
+    │                                  │  SSE stream with tool_calls    │
+    │                                  │◀───────────────────────────────│
+    │                                  │                                │
+    │                                  │  5. Convert stream:            │
+    │                                  │     OpenAI delta tool_calls    │
+    │                                  │     -> Anthropic tool_use SSE  │
+    │                                  │                                │
+    │  SSE: message_start              │                                │
+    │  SSE: content_block_start (text) │                                │
+    │  SSE: content_block_delta        │                                │
+    │  SSE: content_block_stop         │                                │
+    │  SSE: content_block_start        │                                │
+    │        (tool_use: Write)         │                                │
+    │  SSE: input_json_delta           │                                │
+    │  SSE: content_block_stop         │                                │
+    │  SSE: message_delta              │                                │
+    │       stop_reason: "tool_use"    │                                │
+    │  SSE: message_stop               │                                │
+    │◀─────────────────────────────────│                                │
+    │                                  │                                │
+    │  Claude Code executes tool       │                                │
+    │  (creates file, runs cmd, etc.)  │                                │
+    │                                  │                                │
+    │  POST /v1/messages (2nd turn)    │                                │
+    │  with tool_result                │                                │
+    │─────────────────────────────────▶│                                │
+    │                                  │  tool_result -> tool role      │
+    │                                  │───────────────────────────────▶│
+    │                                  │◀───────────────────────────────│
+    │  ... more turns ...              │                                │
+```
+
+### 19.4 Problems Found and Fixes
+
+
+
+
+
+```
+File: api-gateway/provider/resolver.go
+var providerToolMode = map[string]string{
+}
+```
+
+#### Problem 2: Streaming SSE missing `message_start` event
+
+
+**Root cause**: Bug ใน `relayOpenAIStreamChunk()` - ตัวแปร `started` กลับด้าน
+
+```
+Before (WRONG):
+  started := !isContinuation
+  // isContinuation=false -> started=true -> skip message_start!
+
+After (CORRECT):
+  started := isContinuation
+  // isContinuation=false -> started=false -> emit message_start
+```
+
+**Fix**: `api-gateway/proxy/openai.go:397` - เปลี่ยน `!isContinuation` เป็น `isContinuation`
+
+
+
+**Root cause**: OpenAI request ไม่มี `tool_choice` field ทำให้ model ไม่ถูก encourage ให้ใช้ tools
+
+**Fix**: เพิ่ม `tool_choice: "auto"` เป็น default สำหรับ native mode
+
+```
+File: api-gateway/proxy/anthropic.go
+// When no tool_choice specified but native mode with tools:
+} else if toolMode == "native" {
+    if _, hasTools := result["tools"]; hasTools {
+        result["tool_choice"] = "auto"
+    }
+}
+```
+
+
+
+
+**Fix**: สำหรับ native mode ใช้ system role message จริง + inject tool-usage hint
+
+```
+File: api-gateway/proxy/anthropic.go
+
+if toolMode == "native" {
+    // Use real system role (OpenAI supports this)
+    toolHint := "IMPORTANT: You have access to tools..."
+    sysMsg := {"role": "system", "content": systemText + toolHint}
+    messages = [sysMsg] + messages
+} else {
+    // Z.AI: prepend to first user message (no system role support)
+    first["content"] = systemText + "\n\n" + userContent
+}
+```
+
+#### Problem 5: Context overflow (400 error) when conversation gets long
+
+
+
+**Fix**: 3-layer defense ใน `ProxyOpenAI`:
+
+```
+Layer 1: Auto-compaction (truncate old messages)
+  - Estimate input tokens from OpenAI request body
+  - If estInput > 32000 (80% of 40000):
+    * Keep: system message + last 4 messages (2 turns)
+    * Don't split mid tool_call/tool_result sequence
+    * Insert compaction notice for context continuity
+    * Re-estimate and continue to Layer 2
+
+Layer 2: Dynamic max_tokens reduction
+  - After compaction (or if under threshold):
+    available = 40000 - estInput - 1500 buffer
+    if max_tokens > available -> reduce max_tokens
+
+Layer 3: Retry on 400 (if estimation was wrong)
+  - Parse actual input token count from error message
+  - Retry with: max_tokens = 40000 - actualInput - 500
+```
+
+```
+File: api-gateway/proxy/openai.go
+
+// Layer 1: auto-compact when context nearly full
+if estInput > 32000 {
+    compactOpenAIMessages(openaiReq, estInput, 40000)
+    // Keep: system + last 4 messages + compaction notice
+    // Never split tool_call/tool_result pairs
+    estInput = re-estimate from compacted body
+}
+
+// Layer 2: reduce max_tokens to fit
+available := 40000 - estInput - 1500
+if max_tokens > available {
+    openaiReq["max_tokens"] = available
+}
+
+// Layer 3: catch 400, parse actual tokens, retry
+if resp.StatusCode == 400 && strings.Contains(body, "max_tokens") {
+    actualInput = parse from error message
+    openaiReq["max_tokens"] = 40000 - actualInput - 500
+    retry request
+}
+```
+
+
+#### Problem 6: Simulate mode was dead code
+
+
+
+**Fix**: Removed entirely:
+- Deleted `proxy/tool_sim.go`, `proxy/tool_sim_test.go`, `proxy/tool_sim_integration_test.go`
+- Removed simulate streaming path from `openai.go` (buffer, emitToolSimResponse)
+- Removed simulate branch from `anthropic.go` (prompt injection)
+- Only `native` and `""` (no tools) modes remain
+
+### 19.5 Configuration
+
+```
+    Format:  FormatOpenAI,
+    AuthMode: "bearer",
+    URL:     "/v1/chat/completions",
+    ModelOverride: "default",     // overrides claude-sonnet-4-6 -> "default"
+    MaxTokens: 4096,              // clamped from 128000
+}
+
+
+# Model routing
+
+# Profile: "โลตัส"
+accountIds: ["mLoH9s"]
+```
+
+### 19.6 Supported Tools (forwarded from Claude Code)
+
+| Tool | Anthropic Format | OpenAI Format | Status |
+|---|---|---|---|
+| Bash | input_schema | function.parameters | Works |
+| Write | input_schema | function.parameters | Works |
+| Read | input_schema | function.parameters | Works |
+| Edit | input_schema | function.parameters | Forwarded |
+| MultiEdit | input_schema | function.parameters | Forwarded |
+| Glob | input_schema | function.parameters | Forwarded |
+| Grep | input_schema | function.parameters | Forwarded |
+| LS | input_schema | function.parameters | Forwarded |
+| TodoRead | input_schema | function.parameters | Forwarded |
+| TodoWrite | input_schema | function.parameters | Forwarded |
+| WebFetch | input_schema | function.parameters | Forwarded |
+| WebSearch | input_schema | function.parameters | Forwarded |
+
+
+### 19.7 Key Files
+
+| File | Role |
+|---|---|
+| `api-gateway/proxy/openai.go` | Streaming SSE conversion, auto-continuation, auto-compact, max_tokens dynamic adjustment |
+| `api-gateway/proxy/anthropic.go` | AnthropicToOpenAI conversion, system role, tool_choice |
+| `api-gateway/handler/handler.go` | Request routing, profile resolution, optimizer, privacy masking |
+

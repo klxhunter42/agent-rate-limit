@@ -1077,7 +1077,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		switch visionDecision.Format {
 		case provider.FormatOpenAI:
-			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, visionDecision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, visionDecision.MaxContinuations, visionDecision.ToolMode); err != nil {
 				slog.Error("openai vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "openai vision proxy error: " + err.Error()})
@@ -1114,7 +1114,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	} else if decision != nil {
 		switch decision.Format {
 		case provider.FormatOpenAI:
-			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, decision.MaxContinuations, decision.ToolMode); err != nil {
 				slog.Error("openai proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "openai proxy error: " + err.Error()})

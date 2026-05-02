@@ -83,7 +83,7 @@ func SharedTransport() *http.Transport {
 				return dialer.DialContext(ctx, network, addr)
 			},
 			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
+			ResponseHeaderTimeout: 4 * time.Hour,
 			MaxIdleConns:          200,
 			MaxIdleConnsPerHost:   100,
 			IdleConnTimeout:       120 * time.Second,

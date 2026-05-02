@@ -17,16 +17,18 @@ const (
 )
 
 type RoutingDecision struct {
-	ProviderID    string
-	ProviderCfg   ProviderConfig
-	Format        ProviderFormat
-	UpstreamURL   string
-	AuthMode      string // "api_key", "bearer"
-	ExtraHeaders  map[string]string
-	APIKey        string
-	AccountID     string
-	ModelOverride string
-	MaxTokens     int
+	ProviderID       string
+	ProviderCfg      ProviderConfig
+	Format           ProviderFormat
+	UpstreamURL      string
+	AuthMode         string // "api_key", "bearer"
+	ExtraHeaders     map[string]string
+	APIKey           string
+	AccountID        string
+	ModelOverride    string
+	MaxTokens        int
+	MaxContinuations int    // 0 = disabled, >0 = max auto-continuations
+	ToolMode         string // "" = none, "native" = OpenAI function calling
 }
 
 type Resolver struct {
@@ -68,6 +70,19 @@ type providerRoute struct {
 	extraHeaders  map[string]string
 	modelOverride string
 	maxTokens     int
+}
+
+// providerContinuations maps provider IDs to max auto-continuation count.
+// When a provider returns finish_reason:"length", the gateway automatically
+// sends a continuation request up to this many times.
+var providerContinuations = map[string]int{
+	"lotus": 3,
+}
+
+// providerToolMode maps provider IDs to tool handling mode.
+// "native" = use OpenAI function calling format, convert tool_calls to Anthropic tool_use.
+var providerToolMode = map[string]string{
+	"lotus": "native",
 }
 
 var providerRouteTable = map[string]providerRoute{
@@ -117,7 +132,7 @@ var providerRouteTable = map[string]providerRoute{
 	"cursor":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"codebuddy":    {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"kilo":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
-	"lotus":        {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 14000},
+	"lotus":        {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 4096},
 }
 
 // RegisterProviderRoute adds a dynamic route entry for custom providers.
@@ -361,15 +376,17 @@ func (r *Resolver) buildDecision(providerID, model, apiKey, accountID string) *R
 	}
 
 	return &RoutingDecision{
-		ProviderID:    providerID,
-		ProviderCfg:   cfg,
-		Format:        route.format,
-		UpstreamURL:   upstreamURL,
-		AuthMode:      route.authMode,
-		ExtraHeaders:  route.extraHeaders,
-		APIKey:        apiKey,
-		AccountID:     accountID,
-		ModelOverride: route.modelOverride,
-		MaxTokens:     route.maxTokens,
+		ProviderID:       providerID,
+		ProviderCfg:      cfg,
+		Format:           route.format,
+		UpstreamURL:      upstreamURL,
+		AuthMode:         route.authMode,
+		ExtraHeaders:     route.extraHeaders,
+		APIKey:           apiKey,
+		AccountID:        accountID,
+		ModelOverride:    route.modelOverride,
+		MaxTokens:        route.maxTokens,
+		MaxContinuations: providerContinuations[providerID],
+		ToolMode:         providerToolMode[providerID],
 	}
 }
