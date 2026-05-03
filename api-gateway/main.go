@@ -139,7 +139,7 @@ func main() {
 	optRdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 	// MCP proxy for Z.AI remote MCP servers (GLM mode only).
 	var mcpProxy *proxy.MCPProxy
-	if cfg.GLMMode && cfg.MCPEnabled {
+	if cfg.MCPEnabled {
 		mcpProxy = proxy.NewMCPProxy(cfg, m, keyPool, optRdb)
 		slog.Info("mcp proxy enabled", "servers", len(proxy.MCPServers), "cache_ttl", cfg.MCPCacheTTL, "rate_limit_per_min", cfg.MCPRateLimitPerMin)
 	}
@@ -190,6 +190,7 @@ func main() {
 		}
 		if aid := handler.AccountIDFromContext(ctx); aid != "" {
 			usageHandler.RecordAccountUsage(aid, model, input, output, cost)
+		m.RecordAccountUsage(aid, model, input, output)
 		}
 		sessionID := "default"
 		if pn := handler.ProfileNameFromContext(ctx); pn != "" {
@@ -375,7 +376,7 @@ func main() {
 	r.HandleFunc("/v1/mcp_servers", h.AnthropicPassthrough)
 
 	// MCP proxy routes (GLM mode only).
-	if cfg.GLMMode && cfg.MCPEnabled {
+	if cfg.MCPEnabled {
 		r.Post("/mcp/{server}", h.MCPProxyHandle)
 		r.Get("/mcp", h.MCPListServers)
 		slog.Info("mcp routes registered")
