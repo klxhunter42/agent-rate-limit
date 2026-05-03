@@ -81,12 +81,21 @@ export function AuthCodeDialog({
                   <TooltipTrigger asChild>
                     <Terminal className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-[320px]">
-                    <p className="font-medium mb-1.5">SSH Tunnel</p>
-                    <p className="text-xs text-muted-foreground mb-2">If the gateway is on a remote server, run this on your local machine:</p>
-                    <code className="block bg-muted px-2 py-1.5 rounded text-xs font-mono break-all select-all">
-                      {getSSHTunnelCommand()}
-                    </code>
+                  <TooltipContent side="bottom" className="max-w-[360px]">
+                    <p className="font-medium mb-1.5">How it works</p>
+                    <ol className="text-xs text-muted-foreground list-decimal list-inside space-y-1 mb-2">
+                      <li>Click the auth URL below to authorize</li>
+                      <li>Browser redirects to localhost (page fails - this is normal)</li>
+                      <li>Copy the <strong>full URL</strong> from the address bar</li>
+                      <li>Paste it below and click Submit</li>
+                    </ol>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer hover:text-foreground text-xs font-medium">SSH Tunnel (alternative)</summary>
+                      <p className="text-xs text-muted-foreground mb-1 mt-1">Run on your local machine:</p>
+                      <code className="block bg-muted px-2 py-1.5 rounded text-xs font-mono break-all select-all">
+                        {getSSHTunnelCommand()}
+                      </code>
+                    </details>
                   </TooltipContent>
                 </Tooltip>
               </div>

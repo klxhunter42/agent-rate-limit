@@ -23,7 +23,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_tokens_saved_total)", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -40,7 +40,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_cost_savings_total)", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_cost_savings_total[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -57,7 +57,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_runs_total)", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -172,7 +172,7 @@
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
       "targets": [
-        { "expr": "sum by (technique) (api_gateway_optimizer_chars_saved_total)", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total[$__range]))", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
       ],
       "fieldConfig": {
         "defaults": {
@@ -239,7 +239,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 0, "y": 39 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_runs_total{technique=\"disclosure\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"disclosure\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -279,7 +279,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 16, "y": 39 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_chars_saved_total{technique=~\"chunker|delta|sketch_dedup\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=~\"chunker|delta|sketch_dedup\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -347,7 +347,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 0, "y": 52 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_runs_total{technique=\"bandit\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"bandit\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -363,7 +363,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 8, "y": 52 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_runs_total{technique=\"prefetcher\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"prefetcher\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -379,7 +379,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 16, "y": 52 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_chars_saved_total{technique=\"summarizer\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=\"summarizer\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -446,7 +446,7 @@
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
       "targets": [
-        { "expr": "sum by (technique) (api_gateway_optimizer_chars_saved_total{technique=~\"semantic_dedup|sketch_dedup|delta\"})", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique=~\"semantic_dedup|sketch_dedup|delta\"}[$__range]))", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
       ],
       "fieldConfig": {
         "defaults": {
@@ -462,7 +462,7 @@
       "type": "stat",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
       "targets": [
-        { "expr": "sum by (technique) (api_gateway_optimizer_runs_total{technique=~\"semantic_dedup|sketch_dedup|delta\"})", "legendFormat": "{{technique}}", "refId": "A" }
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_runs_total{technique=~\"semantic_dedup|sketch_dedup|delta\"}[$__range]))", "legendFormat": "{{technique}}", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -547,7 +547,7 @@
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 82 },
       "targets": [
-        { "expr": "sum by (detector) (api_gateway_waste_tokens_wasted_total)", "legendFormat": "{{detector}}", "refId": "A", "instant": true }
+        { "expr": "sum by (detector) (increase(api_gateway_waste_tokens_wasted_total[$__range]))", "legendFormat": "{{detector}}", "refId": "A", "instant": true }
       ],
       "fieldConfig": {
         "defaults": {
@@ -637,7 +637,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 8, "y": 99 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_tokens_saved_total)", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -727,7 +727,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 0, "y": 112 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_runs_total{technique=\"caveman\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"caveman\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -743,7 +743,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 8, "x": 8, "y": 112 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_chars_saved_total{technique=\"caveman\"})", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=\"caveman\"}[$__range]))", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {

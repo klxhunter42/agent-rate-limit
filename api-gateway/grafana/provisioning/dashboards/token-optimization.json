@@ -1,1241 +1,781 @@
 {
-  "annotations": {
-    "list": []
-  },
-  "description": "Token optimization pipeline metrics for API gateway",
+  "annotations": { "list": [] },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
+  "uid": "token-optimization",
+  "title": "Token Optimization",
+  "tags": ["api-gateway", "optimization"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
   "links": [],
   "panels": [
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 1,
       "title": "Overview",
-      "type": "row"
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 1
-      },
-      "id": 2,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_optimizer_tokens_saved_total",
-          "legendFormat": "tokens saved"
-        }
-      ],
       "title": "Total Tokens Saved",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))", "refId": "A" }
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "currencyUSD"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 1
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_cost_savings_total",
-          "legendFormat": "cost savings"
+          "unit": "none",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
-      ],
-      "title": "Cost Savings ($)",
-      "type": "stat"
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
+      "title": "Cost Savings (USD)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_cost_savings_total[$__range]))", "refId": "A" }
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 1
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "count(api_gateway_optimizer_runs_total > 0)",
-          "legendFormat": "active"
+          "unit": "currencyUSD",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
-      ],
-      "title": "Active Techniques",
-      "type": "stat"
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
+      "title": "Optimizer Runs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total[$__range]))", "refId": "A" }
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 1
-      },
-      "id": 5,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_duration_seconds_sum[$__rate_interval]) / rate(api_gateway_optimizer_duration_seconds_count[$__rate_interval])",
-          "legendFormat": "avg overhead"
+          "unit": "none",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
         }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Avg Optimizer Duration",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_duration_seconds_sum[$__rate_interval])) / sum(rate(api_gateway_optimizer_duration_seconds_count[$__rate_interval]))", "refId": "A" }
       ],
-      "title": "Avg Overhead",
-      "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 5
-      },
-      "id": 6,
-      "title": "Per-Technique Performance",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
         }
       },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_chars_saved_total[$__rate_interval])",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Chars Saved/sec",
-      "type": "timeseries"
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total[$__rate_interval])",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Runs/sec",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 14
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_optimizer_duration_seconds_bucket[$__rate_interval])) by (le, technique))",
-          "legendFormat": "{{technique}} p95"
-        }
-      ],
-      "title": "P95 Duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 14
-      },
-      "id": 10,
-      "options": {
-        "orientation": "horizontal",
-        "showValue": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_optimizer_chars_saved_total",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Total Chars by Technique",
-      "type": "barchart"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 22
-      },
-      "id": 11,
-      "title": "Cache & Context",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 23
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_chars_saved_total{technique=~\"chunker|delta|sketch_dedup\"}[$__rate_interval])",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Context Savings",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 23
-      },
-      "id": 13,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"disclosure\"}[$__rate_interval])",
-          "legendFormat": "disclosure"
-        }
-      ],
-      "title": "Disclosure Runs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 23
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"packer\"}[$__rate_interval])",
-          "legendFormat": "packer"
-        }
-      ],
-      "title": "Packer Runs",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 31
-      },
-      "id": 15,
-      "title": "Learning & Prediction",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 32
-      },
-      "id": 16,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"bandit\"}[$__rate_interval])",
-          "legendFormat": "bandit"
-        }
-      ],
-      "title": "Bandit Selections",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 32
-      },
-      "id": 17,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"prefetcher\"}[$__rate_interval])",
-          "legendFormat": "prefetcher"
-        }
-      ],
-      "title": "Prefetcher Activity",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 32
-      },
-      "id": 18,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_chars_saved_total{technique=\"summarizer\"}[$__rate_interval])",
-          "legendFormat": "summarizer"
-        }
-      ],
-      "title": "Summarizer Savings",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "id": 19,
-      "title": "Dedup & Encoding",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 41
-      },
-      "id": 20,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_chars_saved_total{technique=~\"semantic_dedup|sketch_dedup|delta\"}[$__rate_interval])",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Dedup Savings",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 41
-      },
-      "id": 21,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=~\"semantic_dedup|delta|sketch\"}[$__rate_interval])",
-          "legendFormat": "{{technique}}"
-        }
-      ],
-      "title": "Dedup Runs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 41
-      },
-      "id": 22,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_optimizer_chars_saved_total{technique=\"delta\"}",
-          "legendFormat": "delta"
-        }
-      ],
-      "title": "Delta Savings",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 49
-      },
-      "id": 23,
-      "title": "Cross-Session & Waste",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 50
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"warmstart\"}[$__rate_interval])",
-          "legendFormat": "warmstart"
-        }
-      ],
-      "title": "Warm Start",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 50
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_waste_findings_total[$__rate_interval])",
-          "legendFormat": "{{detector}} ({{severity}})"
-        }
-      ],
-      "title": "Waste Findings",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 50
-      },
-      "id": 26,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_waste_tokens_wasted_total",
-          "legendFormat": "{{detector}}"
-        }
-      ],
-      "title": "Tokens Wasted",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 58
-      },
-      "id": 27,
-      "title": "Caveman Compression",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 59
-      },
-      "id": 28,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_runs_total{technique=\"caveman\"}[$__rate_interval])",
-          "legendFormat": "caveman"
-        }
-      ],
-      "title": "Caveman Runs",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 59
-      },
-      "id": 29,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_chars_saved_total{technique=\"caveman\"}[$__rate_interval])",
-          "legendFormat": "chars saved"
-        }
-      ],
-      "title": "Caveman Savings",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 59
-      },
-      "id": 30,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_optimizer_duration_seconds_bucket{technique=\"caveman\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p95"
-        }
-      ],
-      "title": "Caveman P95",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 67
-      },
-      "id": 31,
-      "title": "Budget Levels",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 2
-              }
-            ]
-          },
-          "unit": "short",
-          "min": 0,
-          "max": 2
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 68
-      },
-      "id": 32,
-      "options": {
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "api_gateway_budget_level",
-          "legendFormat": "{{model}}"
-        }
-      ],
-      "title": "Budget Level (0=green, 1=yellow, 2=red)",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 68
-      },
-      "id": 33,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "stacking": {
-          "mode": "normal"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "expr": "rate(api_gateway_optimizer_tokens_saved_total[$__rate_interval])",
-          "legendFormat": "tokens saved"
-        }
-      ],
       "title": "Tokens Saved Over Time",
-      "type": "timeseries"
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total[$__rate_interval]))", "legendFormat": "tokens/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "fillOpacity": 30, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Cost Savings Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_cost_savings_total[$__rate_interval]))", "legendFormat": "USD/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": { "fillOpacity": 30, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Per-Technique",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "collapsed": false
+    },
+    {
+      "title": "Chars Saved by Technique",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total[$__rate_interval]))", "legendFormat": "{{technique}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Runs by Technique",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__rate_interval]))", "legendFormat": "{{technique}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "P95 Optimizer Duration by Technique",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, technique) (rate(api_gateway_optimizer_duration_seconds_bucket[$__rate_interval])))", "legendFormat": "{{technique}} p95", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Chars Saved by Technique (Bar)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total[$__range]))", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "groupWidth": 0.7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Cache & Context",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "collapsed": false
+    },
+    {
+      "title": "Chunker Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 31 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"chunker\"}[$__rate_interval]))", "legendFormat": "chunker", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Delta Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 31 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"delta\"}[$__rate_interval]))", "legendFormat": "delta", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Sketch Dedup Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 31 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"sketch_dedup\"}[$__rate_interval]))", "legendFormat": "sketch_dedup", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Disclosure Runs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 39 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"disclosure\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Cache Hit Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 39 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"chunker\"}[$__rate_interval])) / (sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"chunker\"}[$__rate_interval])) + sum(rate(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__rate_interval]))) * 100", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 60 }
+            ]
+          }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Total Context Chars Saved",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 39 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=~\"chunker|delta|sketch_dedup\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "super-light-green", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Learning",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "collapsed": false
+    },
+    {
+      "title": "Bandit Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 44 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_runs_total{technique=\"bandit\"}[$__rate_interval]))", "legendFormat": "bandit runs/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Prefetcher Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 44 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_runs_total{technique=\"prefetcher\"}[$__rate_interval]))", "legendFormat": "prefetcher runs/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Summarizer Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 44 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"summarizer\"}[$__rate_interval]))", "legendFormat": "summarizer chars/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Bandit Total Runs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 52 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"bandit\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Prefetcher Total Runs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 52 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"prefetcher\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Summarizer Total Chars Saved",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 52 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=\"summarizer\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Dedup",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
+      "collapsed": false
+    },
+    {
+      "title": "Semantic Dedup Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"semantic_dedup\"}[$__rate_interval]))", "legendFormat": "semantic_dedup", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Sketch Dedup Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"sketch_dedup\"}[$__rate_interval]))", "legendFormat": "sketch_dedup", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Delta Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__rate_interval]))", "legendFormat": "delta", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Dedup Comparison (Bar)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
+      "targets": [
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique=~\"semantic_dedup|sketch_dedup|delta\"}[$__range]))", "legendFormat": "{{technique}}", "refId": "A", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "orientation": "horizontal", "groupWidth": 0.7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Dedup Total Runs",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
+      "targets": [
+        { "expr": "sum by (technique) (increase(api_gateway_optimizer_runs_total{technique=~\"semantic_dedup|sketch_dedup|delta\"}[$__range]))", "legendFormat": "{{technique}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Cross-Session & Waste",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 73 },
+      "collapsed": false
+    },
+    {
+      "title": "Warmstart Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 74 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_runs_total{technique=\"warmstart\"}[$__rate_interval]))", "legendFormat": "warmstart", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Waste Findings by Severity",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 74 },
+      "targets": [
+        { "expr": "sum by (severity) (rate(api_gateway_waste_findings_total[$__rate_interval]))", "legendFormat": "{{severity}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Tokens Wasted by Detector",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 74 },
+      "targets": [
+        { "expr": "sum by (detector) (rate(api_gateway_waste_tokens_wasted_total[$__rate_interval]))", "legendFormat": "{{detector}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Waste Findings Table",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 82 },
+      "targets": [
+        { "expr": "sum by (detector, severity) (rate(api_gateway_waste_findings_total[$__rate_interval]))", "format": "table", "instant": true, "refId": "A" },
+        { "expr": "sum by (detector, severity) (rate(api_gateway_waste_tokens_wasted_total[$__rate_interval]))", "format": "table", "instant": true, "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [{ "id": "displayName", "value": "Findings/sec" }] },
+          { "matcher": { "id": "byName", "options": "Value #B" }, "properties": [{ "id": "displayName", "value": "Tokens wasted/sec" }] }
+        ]
+      },
+      "options": { "showHeader": true },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Waste by Detector (Bar)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 82 },
+      "targets": [
+        { "expr": "sum by (detector) (increase(api_gateway_waste_tokens_wasted_total[$__range]))", "legendFormat": "{{detector}}", "refId": "A", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" }
+        }
+      },
+      "options": { "orientation": "horizontal", "groupWidth": 0.7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Budget",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 90 },
+      "collapsed": false
+    },
+    {
+      "title": "Budget Level by Model",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 91 },
+      "targets": [
+        { "expr": "api_gateway_budget_level", "legendFormat": "{{model}}", "refId": "A", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "options": { "showThresholdLabels": true, "showThresholdMarkers": true },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Tokens Saved Over Time (Stacked)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 91 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total[$__rate_interval]))", "legendFormat": "tokens saved", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 50,
+            "lineWidth": 1,
+            "stacking": { "mode": "normal" }
+          }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Budget Status Summary",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 99 },
+      "targets": [
+        { "expr": "count(api_gateway_budget_level == 0) or vector(0)", "legendFormat": "Green", "refId": "A" },
+        { "expr": "count(api_gateway_budget_level == 1) or vector(0)", "legendFormat": "Yellow", "refId": "B" },
+        { "expr": "count(api_gateway_budget_level == 2) or vector(0)", "legendFormat": "Red", "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Yellow" }, "properties": [{ "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "yellow", "value": null }] } }] },
+          { "matcher": { "id": "byName", "options": "Red" }, "properties": [{ "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }] } }] }
+        ]
+      },
+      "options": { "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Total Tokens Saved (Budget Row)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 99 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Budget Level Detail",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 99 },
+      "targets": [
+        { "expr": "api_gateway_budget_level", "legendFormat": "{{model}}", "refId": "A", "instant": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "options": { "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 103 },
+      "collapsed": false
+    },
+    {
+      "title": "Caveman Runs",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 104 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_runs_total{technique=\"caveman\"}[$__rate_interval]))", "legendFormat": "caveman runs/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman Chars Saved",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 104 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_chars_saved_total{technique=\"caveman\"}[$__rate_interval]))", "legendFormat": "caveman chars/sec", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "chars/sec",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman Duration P95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 104 },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_optimizer_duration_seconds_bucket{technique=\"caveman\"}[$__rate_interval])))", "legendFormat": "caveman p95", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 20, "lineWidth": 2 }
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman Total Runs",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 112 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"caveman\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman Total Chars Saved",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 112 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=\"caveman\"}[$__range]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Caveman Avg Duration",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 112 },
+      "targets": [
+        { "expr": "sum(rate(api_gateway_optimizer_duration_seconds_sum{technique=\"caveman\"}[$__rate_interval])) / sum(rate(api_gateway_optimizer_duration_seconds_count{technique=\"caveman\"}[$__rate_interval]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
     }
   ],
-  "refresh": "30s",
-  "schemaVersion": 39,
-  "tags": [
-    "api-gateway",
-    "optimization"
-  ],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "selected": false,
-          "text": "Prometheus",
-          "value": "Prometheus"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "name": "DS_PROMETHEUS",
-        "options": [],
-        "query": "prometheus",
-        "type": "datasource"
-      }
-    ]
+    "list": []
   },
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  },
-  "title": "Token Optimization",
-  "uid": "token-optimization",
-  "version": 1
+  "timepicker": {},
+  "timezone": "browser",
+  "version": 0
 }

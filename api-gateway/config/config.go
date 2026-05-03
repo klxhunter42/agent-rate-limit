@@ -103,6 +103,16 @@ type Config struct {
 	// false = pure multi-provider proxy for Claude/Gemini/OpenAI.
 	GLMMode bool
 
+	// Z.AI OpenAI-compatible endpoint for models that don't support Anthropic format.
+	// Models listed in ZAIOpenAIModels will be routed here instead of the Anthropic endpoint.
+	ZAIOpenAIURL    string
+	ZAIOpenAIModels map[string]bool
+
+	// Z.AI web chat routing: uses chat.z.ai's signed API for free/anonymous access.
+	ZAIWebEnabled bool
+	ZAIWebToken   string   // JWT Bearer token (empty = auto-fetch anonymous)
+	ZAIWebModels  []string // models to route through chat.z.ai
+
 	// CLI sidecar for billing header injection (Node.js proxy).
 	CLISidecarURL     string
 	CLISidecarEnabled bool
@@ -134,6 +144,7 @@ func Load() *Config {
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
 		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
+		VisionModelLimits:        parseModelLimits(envOr("UPSTREAM_VISION_MODEL_LIMITS", "glm-5.1:5,glm-4.6v:5,glm-4.5v:3,glm-4.6v-flashx:3")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 3),
 		GlobalLimit:              envIntOr("UPSTREAM_GLOBAL_LIMIT", 9),
 		UpstreamMaxRetries:       envIntOr("UPSTREAM_MAX_RETRIES", 3),
@@ -184,6 +195,15 @@ func Load() *Config {
 
 		// GLM mode.
 		GLMMode: envBoolOr("GLM_MODE", true),
+
+		// Z.AI OpenAI-compatible routing for models that don't support Anthropic format.
+		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),
+		ZAIOpenAIModels: parseModelSet(envOr("ZAI_OPENAI_MODELS", "")),
+
+		// Z.AI web chat routing.
+		ZAIWebEnabled: envBoolOr("ZAI_WEB_ENABLED", false),
+		ZAIWebToken:   envOr("ZAI_WEB_TOKEN", ""),
+		ZAIWebModels:  parseModelList(envOr("ZAI_WEB_MODELS", "")),
 
 		// CLI sidecar.
 		CLISidecarURL:     envOr("CLI_SIDECAR_URL", "http://127.0.0.1:8081"),
@@ -264,7 +284,7 @@ Identify dominant colors, shapes, text, objects, and spatial layout.
 Answer based only on what is visibly present in the image — never assume or guess.
 If the image is unclear or too small, state that explicitly.`
 
-const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8,glm-4-32b-0414-128k:0.1:0.1"
+const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8,glm-4-32b-0414-128k:0.1:0.1,glm-ocr:0.03:0.03,glm-4-plus:1.4:5.7,glm-4-long:0.1:0.1,glm-z1-air:0.2:1.1,glm-z1-airx:1.1:4.5,glm-z1-flashx:0.07:0.4,codegeex-4:0.01:0.01"
 
 // parseModelPricing parses "model1:input:output,model2:input:output" into a pricing map.
 // Prices are USD per 1M tokens.
@@ -349,4 +369,48 @@ func ParseProviderModelPrefixes(s string) map[string][]string {
 // ParseModelPriority parses "model:priority,model:priority" into a map.
 func ParseModelPriority(s string) map[string]int {
 	return parseModelLimits(s)
+}
+
+// parseModelSet parses a comma-separated list of model names into a set (map[string]bool).
+func parseModelSet(s string) map[string]bool {
+	m := make(map[string]bool)
+	for _, v := range splitComma(s) {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			m[v] = true
+		}
+	}
+	return m
+}
+
+// parseModelList parses a comma-separated list into a string slice.
+func parseModelList(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for _, v := range splitComma(s) {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+// IsZAIWebModel returns true if the model should be routed through chat.z.ai web API.
+func (c *Config) IsZAIWebModel(model string) bool {
+	if !c.ZAIWebEnabled {
+		return false
+	}
+	for _, m := range c.ZAIWebModels {
+		if m == model {
+			return true
+		}
+		// Support prefix matching: "glm-" matches all glm models.
+		if strings.HasSuffix(m, "-") && strings.HasPrefix(model, m) {
+			return true
+		}
+	}
+	return false
 }

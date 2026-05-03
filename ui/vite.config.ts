@@ -37,8 +37,16 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: '0.0.0.0',
-    allowedHosts: ['ai.klxhub.com'],
+    host: true,
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',') || ['localhost'],
+    hmr: process.env.VITE_HMR_HOST
+      ? {
+          protocol: (process.env.VITE_HMR_PROTOCOL as 'wss' | 'ws') || 'wss',
+          host: process.env.VITE_HMR_HOST,
+          clientPort: parseInt(process.env.VITE_HMR_PORT || '443'),
+          path: '/hmr',
+        }
+      : undefined,
     watch: {
       usePolling: true,
       interval: 1000,

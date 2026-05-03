@@ -118,72 +118,34 @@ export async function fetchAccountUsage(): Promise<AccountUsage[]> {
 }
 
 export interface ParsedMetric {
-  name: string;
-  labels: Record<string, string>;
-  value: number;
-}
-
-// --- Debug / Mock ---
-
-export async function seedMockData(category = 'all'): Promise<void> {
-  const res = await fetch(`/v1/mock/seed?category=${encodeURIComponent(category)}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`seed: ${res.status}`);
-}
-
-export async function startMockLoop(): Promise<{ status: string }> {
-  const res = await fetch('/v1/mock/loop/start', { method: 'POST' });
-  if (!res.ok) throw new Error(`loop/start: ${res.status}`);
-  return res.json();
-}
-
-export async function stopMockLoop(): Promise<{ status: string }> {
-  const res = await fetch('/v1/mock/loop/stop', { method: 'POST' });
-  if (!res.ok) throw new Error(`loop/stop: ${res.status}`);
-  return res.json();
-}
-
-export async function fetchMockStatus(): Promise<{ running: boolean }> {
-  const res = await fetch('/v1/mock/status');
-  if (!res.ok) throw new Error(`mock/status: ${res.status}`);
-  return res.json();
-}
-
-export async function fetchWasteFindings(): Promise<WasteFinding[]> {
-  const res = await fetch('/v1/waste/findings');
-  if (!res.ok) throw new Error(`waste/findings: ${res.status}`);
-  return res.json();
-}
-
-export interface WasteFinding {
-  detector: string;
-  severity: string;
-  message: string;
-  tokens_wasted: number;
-  suggestion: string;
+ name: string;
+ labels: Record<string, string>;
+ value: number;
 }
 
 export function parsePrometheusText(text: string): ParsedMetric[] {
-  const metrics: ParsedMetric[] = [];
-  for (const line of text.split('\n')) {
-    if (line.startsWith('#') || !line.trim()) continue;
-    const match = line.match(/^(\w+)(?:\{([^}]*)\})?\s+([\d.e+-]+|NaN)/);
-    if (!match) continue;
-    const [, name, labelStr, valStr] = match;
-    const labels: Record<string, string> = {};
-    if (labelStr) {
-      for (const pair of labelStr.split(',')) {
-        const eqIdx = pair.indexOf('=');
-        if (eqIdx > 0) {
-          const k = pair.slice(0, eqIdx).trim();
-          const v = pair.slice(eqIdx + 1).replace(/^"|"$/g, '');
-          labels[k] = v;
-        }
-      }
-    }
-    const v = parseFloat(valStr!);
-    if (!Number.isNaN(v)) {
-      metrics.push({ name: name!, labels, value: v });
-    }
-  }
-  return metrics;
+ const metrics: ParsedMetric[] = [];
+ for (const line of text.split('\n')) {
+ if (line.startsWith('#') || !line.trim()) continue;
+ const match = line.match(/^(\w+)(?:\{([^}]*)\})?\s+([\d.e+-]+|NaN)/);
+ if (!match) continue;
+ const [, name, labelStr, valStr] = match;
+ const labels: Record<string, string> = {};
+ if (labelStr) {
+ for (const pair of labelStr.split(',')) {
+ const eqIdx = pair.indexOf('=');
+ if (eqIdx > 0) {
+ const k = pair.slice(0, eqIdx).trim();
+ const v = pair.slice(eqIdx + 1).replace(/^"|"$/g, '');
+ labels[k] = v;
+ }
+ }
+ }
+ const v = parseFloat(valStr!);
+ if (!Number.isNaN(v)) {
+ metrics.push({ name: name!, labels, value: v });
+ }
+ }
+ return metrics;
 }
+

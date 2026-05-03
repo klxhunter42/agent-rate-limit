@@ -17,7 +17,7 @@
       "type": "piechart",
       "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_billing_path_requests_total)", "legendFormat": "{{path}}", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_billing_path_requests_total[$__range]))", "legendFormat": "{{path}}", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": { "color": { "mode": "palette-classic" } },
@@ -51,9 +51,9 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_billing_path_requests_total{path=\"go_direct\"})", "legendFormat": "Go Direct", "refId": "A" },
-        { "expr": "sum(api_gateway_billing_path_requests_total{path=\"sidecar\"})", "legendFormat": "Sidecar", "refId": "B" },
-        { "expr": "sum(api_gateway_billing_path_requests_total{path=\"billing_rejected\"})", "legendFormat": "Rejected", "refId": "C" }
+        { "expr": "sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range]))", "legendFormat": "Go Direct", "refId": "A" },
+        { "expr": "sum(increase(api_gateway_billing_path_requests_total{path=\"sidecar\"}[$__range]))", "legendFormat": "Sidecar", "refId": "B" },
+        { "expr": "sum(increase(api_gateway_billing_path_requests_total{path=\"billing_rejected\"}[$__range]))", "legendFormat": "Rejected", "refId": "C" }
       ],
       "fieldConfig": {
         "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } },
@@ -68,7 +68,7 @@
       "type": "gauge",
       "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
       "targets": [
-        { "expr": "sum(api_gateway_billing_path_requests_total{path=\"go_direct\"}) / (sum(api_gateway_billing_path_requests_total{path=~\"go_direct|sidecar|billing_rejected\"}) > 0) * 100", "legendFormat": "", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_billing_path_requests_total{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100", "legendFormat": "", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {

@@ -104,6 +104,13 @@ func main() {
 	middleware.SetModelPriority(config.ParseModelPriority(cfg.ModelPriority))
 	keyPool := proxy.NewKeyPool(cfg.UpstreamAPIKeys, cfg.UpstreamRPMLimit)
 
+	// Z.AI web chat proxy (free access via chat.z.ai signed API).
+	var zaiWebProxy *proxy.ZAIWebProxy
+	if cfg.ZAIWebEnabled {
+		zaiWebProxy = proxy.NewZAIWebProxy(cfg, m)
+		slog.Info("zaiweb proxy enabled", "token_configured", cfg.ZAIWebToken != "", "models", cfg.ZAIWebModels)
+	}
+
 	// --- Provider OAuth ---
 	providerRegistry := provider.NewRegistry()
 	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
@@ -199,7 +206,7 @@ func main() {
 		optCache.StartEvictionLoop(bgCtx)
 	}
 
-	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers)
+	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers, zaiWebProxy)
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)
@@ -284,6 +291,7 @@ func main() {
 
 	// Claude OAuth loopback callback: redirect_uri is http://localhost:port/callback
 	r.Get("/callback", authHandler.HandleClaudeCallback)
+	r.Post("/callback", authHandler.HandleClaudeCallbackPost)
 
 	// Dashboard auth middleware (for /admin/* routes)
 	dashAPIKey := os.Getenv("DASHBOARD_API_KEY")
@@ -302,6 +310,14 @@ func main() {
 	r.Put("/v1/routing/strategy", h.SetRoutingStrategy)
 	r.Get("/v1/logs/errors", h.GetErrorLogs)
 	r.Get("/v1/logs/errors/count", h.GetErrorLogCount)
+
+		// ZAI web chat token management + media generation.
+		if cfg.ZAIWebEnabled && zaiWebProxy != nil {
+			r.Get("/v1/zaiweb/status", h.ZAIWebStatus)
+			r.Post("/v1/zaiweb/token", h.ZAIWebSetToken)
+			r.Post("/v1/images/generations", h.ZAIWebImageGenerate)
+			r.Post("/v1/audio/tts", h.ZAIWebAudioTTS)
+		}
 	r.Get("/v1/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.UserAgent()
 		if strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli") {

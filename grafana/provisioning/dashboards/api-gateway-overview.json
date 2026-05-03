@@ -272,7 +272,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 12, "x": 0, "y": 94 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_chars_saved_total)", "legendFormat": "Total", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total[$__range]))", "legendFormat": "Total", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -287,7 +287,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 12, "x": 12, "y": 94 },
       "targets": [
-        { "expr": "sum(api_gateway_optimizer_chars_saved_total) / sum(api_gateway_optimizer_runs_total)", "legendFormat": "Avg", "refId": "A" }
+        { "expr": "sum(increase(api_gateway_optimizer_chars_saved_total[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))", "legendFormat": "Avg", "refId": "A" }
       ],
       "fieldConfig": {
         "defaults": {

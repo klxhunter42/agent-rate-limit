@@ -86,11 +86,12 @@ func StartAuthCode(ctx context.Context, pc ProviderConfig, redirectBase string) 
 		return nil, fmt.Errorf("generate PKCE: %w", err)
 	}
 
-	// Claude uses http://localhost:port/callback, Google uses redirectBase/v1/auth/provider/callback.
+	// Claude uses http://localhost:8765/callback, Google uses redirectBase/v1/auth/provider/callback.
 	redirectURI := fmt.Sprintf("%s/v1/auth/%s/callback", redirectBase, pc.ID)
 	if pc.ClientSecret == "" && pc.ID != "gemini-oauth" {
-		// PKCE-only providers (Claude) require localhost, not 127.0.0.1.
-		redirectURI = strings.Replace(redirectBase, "127.0.0.1", "localhost", 1) + "/callback"
+		// PKCE-only providers (Claude): Anthropic only accepts http://localhost:8765/callback.
+		// Port 8765 matches Claude Code CLI registration; user pastes callback manually on remote servers.
+		redirectURI = "http://localhost:8765/callback"
 	}
 
 	params := url.Values{}
@@ -130,7 +131,7 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 	// Build redirect_uri matching what was sent in StartAuthCode.
 	redirectURI := fmt.Sprintf("%s/v1/auth/%s/callback", redirectBase, pc.ID)
 	if pc.ClientSecret == "" && pc.ID != "gemini-oauth" {
-		redirectURI = strings.Replace(redirectBase, "127.0.0.1", "localhost", 1) + "/callback"
+		redirectURI = "http://localhost:8765/callback"
 	}
 
 	// Claude uses JSON body, Google uses form-urlencoded.

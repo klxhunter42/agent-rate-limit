@@ -127,16 +127,17 @@ type Handler struct {
 	optimizers      *Optimizers
 	sidecarURL      string // empty = sidecar disabled
 	sessionManager  *proxy.ClaudeSessionManager
+	zaiWebProxy     *proxy.ZAIWebProxy
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers) *Handler {
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers, zwp *proxy.ZAIWebProxy) *Handler {
 	var sidecarURL string
 	if cfg.CLISidecarEnabled {
 		sidecarURL = cfg.CLISidecarURL
 	}
-	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode)
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager()}
+	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode, "zaiweb_enabled", cfg.ZAIWebEnabled)
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), zaiWebProxy: zwp}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -1070,7 +1071,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
 		imgBytes, imgCount := analyzeImagePayload(payload)
-		if !isNativeImageModel(selectedModel) {
+		if !isNativeImageModel(selectedModel) && !h.cfg.ZAIOpenAIModels[selectedModel] {
 			visionModel := selectVisionModel(imgBytes, imgCount)
 			if visionModel != selectedModel {
 				slog.Info("vision model auto-selected",
@@ -1087,6 +1088,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// Route ZAI OpenAI-format vision models through OpenAI endpoint.
+		if h.cfg.ZAIOpenAIModels[selectedModel] {
+			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
+				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
+				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai vision proxy error: " + err.Error()})
+			}
+			return
+		}
+
 		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 		opts := &proxy.ProxyOptions{
 			AuthMode:         decision.AuthMode,
@@ -1146,6 +1158,23 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
 			}
+		}
+	} else if h.cfg.ZAIWebEnabled && h.cfg.IsZAIWebModel(selectedModel) && h.zaiWebProxy != nil {
+		// Z.AI web chat routing: free access via chat.z.ai signed API.
+		slog.Info("routing via zai web chat", "model", selectedModel, "stream", isStream)
+		if err := h.zaiWebProxy.ProxyZAIWeb(w, r, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
+			slog.Error("zaiweb proxy error", "error", err, "model", selectedModel)
+			h.metrics.IncError("upstream")
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zaiweb proxy error: " + err.Error()})
+		}
+	} else if h.cfg.GLMMode && h.cfg.ZAIOpenAIModels[selectedModel] {
+		// GLM model that requires OpenAI-compatible endpoint.
+		upstreamURL := h.cfg.ZAIOpenAIURL
+		slog.Info("glm via zai openai endpoint", "model", selectedModel, "upstream", upstreamURL)
+		if err := h.openaiProxy.ProxyOpenAI(w, r, upstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
+			slog.Error("zai openai proxy error", "error", err, "model", selectedModel)
+			h.metrics.IncError("upstream")
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai proxy error: " + err.Error()})
 		}
 	} else if decision != nil {
 		switch decision.Format {
@@ -1251,6 +1280,84 @@ func (h *Handler) LimiterOverride(w http.ResponseWriter, r *http.Request) {
 		action = "set to " + strconv.FormatInt(req.Limit, 10)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "model": req.Model, "override": action})
+}
+
+// ZAIWebStatus returns the current ZAI web chat token status.
+func (h *Handler) ZAIWebStatus(w http.ResponseWriter, r *http.Request) {
+	if h.zaiWebProxy == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
+		return
+	}
+	token, userID := h.zaiWebProxy.GetToken()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled":   h.cfg.ZAIWebEnabled,
+		"token_set": token != "",
+		"token_prefix": func() string {
+			if len(token) > 20 {
+				return token[:20] + "..."
+			}
+			return ""
+		}(),
+		"user_id":    userID,
+		"models":     h.cfg.ZAIWebModels,
+		"fe_version": h.zaiWebProxy.GetFEVersion(),
+	})
+}
+
+// ZAIWebSetToken updates the ZAI web chat JWT token at runtime.
+func (h *Handler) ZAIWebSetToken(w http.ResponseWriter, r *http.Request) {
+	if h.zaiWebProxy == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
+		return
+	}
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	if req.Token == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
+		return
+	}
+	h.zaiWebProxy.SetToken(req.Token)
+	slog.Info("zaiweb token updated", "prefix", req.Token[:min(20, len(req.Token))]+"...")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// ZAIWebImageGenerate proxies image generation requests to image.z.ai.
+func (h *Handler) ZAIWebImageGenerate(w http.ResponseWriter, r *http.Request) {
+	if h.zaiWebProxy == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024*1024))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
+		return
+	}
+	if err := h.zaiWebProxy.ProxyImageGeneration(w, r, body); err != nil {
+		slog.Error("image generation failed", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+	}
+}
+
+// ZAIWebAudioTTS proxies TTS requests to audio.z.ai.
+func (h *Handler) ZAIWebAudioTTS(w http.ResponseWriter, r *http.Request) {
+	if h.zaiWebProxy == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024*1024))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
+		return
+	}
+	if err := h.zaiWebProxy.ProxyAudioTTS(w, r, body); err != nil {
+		slog.Error("audio tts failed", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+	}
 }
 
 func validateChatRequest(req *ChatRequest) string {
@@ -1430,7 +1537,20 @@ var modelMaxTokens = map[string]int{
 	"glm-5.1":                   8192,
 	"glm-5-turbo":               4096,
 	"glm-5":                     8192,
+	"glm-4.7":                   4096,
+	"glm-4.7-flashx":            4096,
+	"glm-4.6":                   4096,
 	"glm-4.5":                   4096,
+	"glm-4.5-x":                 4096,
+	"glm-4.5-air":               4096,
+	"glm-4.5-airx":              4096,
+	"glm-4.6v":                  4096,
+	"glm-4.6v-flashx":           4096,
+	"glm-4.5v":                  4096,
+	"glm-ocr":                   4096,
+	"glm-z1-air":                8192,
+	"glm-z1-airx":               16384,
+	"glm-z1-flashx":             8192,
 	"claude-opus-4-7":           200000,
 	"claude-sonnet-4-6":         200000,
 	"claude-haiku-4-5-20251001": 200000,
@@ -1649,7 +1769,7 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 // and should not be overridden by vision auto-selection.
 func isNativeImageModel(model string) bool {
 	switch model {
-	case "glm-5.1", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v":
+	case "glm-5.1", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v", "glm-4.1v-thinking-flashx":
 		return true
 	}
 	return false
@@ -1756,6 +1876,10 @@ var knownModels = []struct {
 	{"glm-4.6v-flashx", "zai", "4-vision", "anthropic", 0.04, 0.4, 128000, "none", false, true, false},
 	{"glm-4.6v-flash", "zai", "4-vision", "anthropic", 0, 0, 128000, "none", false, true, false},
 	{"glm-4.5v", "zai", "4-vision", "anthropic", 0.6, 1.8, 128000, "none", false, true, false},
+	{"glm-ocr", "zai", "4-tool", "openai", 0.03, 0.03, 128000, "none", false, false, false},
+	{"glm-z1-air", "zai", "z1", "anthropic", 0.2, 1.1, 128000, "none", false, false, false},
+	{"glm-z1-airx", "zai", "z1", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
+	{"glm-z1-flashx", "zai", "z1", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
 	// Anthropic
 	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
 	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
