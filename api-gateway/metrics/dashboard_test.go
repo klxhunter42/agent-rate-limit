@@ -53,6 +53,10 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_transient_retry_total":        {"status", "model"},
 	"api_gateway_waste_findings_total":         {"detector", "severity"},
 	"api_gateway_waste_tokens_wasted_total":    {"detector"},
+	"api_gateway_account_token_input_total":  {"account_id", "model"},
+	"api_gateway_account_token_output_total": {"account_id", "model"},
+	"api_gateway_billing_path_requests_total": {"path"},
+	"api_gateway_billing_path_latency_seconds": {"path"},
 }
 
 // skipMetricsFromCoverage are registered metrics excluded from the
@@ -346,6 +350,10 @@ func TestRegisteredMetricsComplete(t *testing.T) {
 		"api_gateway_transient_retry_total",
 		"api_gateway_waste_findings_total",
 		"api_gateway_waste_tokens_wasted_total",
+	"api_gateway_account_token_input_total",
+	"api_gateway_account_token_output_total",
+	"api_gateway_billing_path_requests_total",
+	"api_gateway_billing_path_latency_seconds",
 	}
 
 	for _, m := range canonical {

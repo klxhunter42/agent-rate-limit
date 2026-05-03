@@ -42,6 +42,8 @@ type Metrics struct {
 	ProfileTokenIn       *prometheus.CounterVec
 	ProfileTokenOut      *prometheus.CounterVec
 	ProfileCost          *prometheus.CounterVec
+	AccountTokenIn  *prometheus.CounterVec
+	AccountTokenOut *prometheus.CounterVec
 	OptimizerCharsSaved  *prometheus.CounterVec
 	OptimizerRuns        *prometheus.CounterVec
 	OptimizerDuration    *prometheus.HistogramVec
@@ -190,6 +192,19 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Estimated cost in USD per profile per model.",
 		}, []string{"profile", "model", "type"}),
 
+		AccountTokenIn: prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name: "account_token_input_total",
+		Help: "Total input tokens consumed per account per model.",
+	}, []string{"account_id", "model"}),
+
+
+		AccountTokenOut: prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name: "account_token_output_total",
+		Help: "Total output tokens generated per account per model.",
+	}, []string{"account_id", "model"}),
+
 		OptimizerCharsSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "optimizer_chars_saved_total",
@@ -316,6 +331,8 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.ProfileTokenIn,
 		m.ProfileTokenOut,
 		m.ProfileCost,
+		m.AccountTokenIn,
+		m.AccountTokenOut,
 		m.OptimizerCharsSaved,
 		m.OptimizerRuns,
 		m.ContextTruncations,
@@ -488,6 +505,16 @@ func (m *Metrics) RecordProfileUsage(profile, model string, input, output int, c
 }
 
 // IncRetry increments the upstream retry counter.
+// RecordAccountUsage records per-account token usage in Prometheus.
+func (m *Metrics) RecordAccountUsage(accountID, model string, input, output int) {
+	if input > 0 {
+		m.AccountTokenIn.WithLabelValues(accountID, model).Add(float64(input))
+	}
+	if output > 0 {
+		m.AccountTokenOut.WithLabelValues(accountID, model).Add(float64(output))
+	}
+}
+
 func (m *Metrics) IncRetry() {
 	m.UpstreamRetries.Inc()
 }

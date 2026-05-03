@@ -86,6 +86,11 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 		return
 	}
 
+	if p.keyPool == nil {
+		writeMCPError(w, nil, -32000, "no available API key")
+		return
+	}
+
 	apiKey, ok := p.keyPool.Acquire()
 	if !ok {
 		writeMCPError(w, nil, -32000, "no available API key")
