@@ -19,7 +19,7 @@ Client Request
       |
       +-- is GLM model? --> check ZAI_OPENAI_MODELS config
       |       |
-      |       +-- YES (e.g., glm-5v-turbo) --> openaiProxy.ProxyOpenAI()
+      |       +-- YES --> openaiProxy.ProxyOpenAI()
       |       |       --> ZAI_OPENAI_URL (api.z.ai/api/paas/v4/chat/completions)
       |       |
       |       +-- NO (e.g., glm-5.1) --> trySidecarOrDirect()
@@ -29,7 +29,7 @@ Client Request
               |
               +-- model in ZAI_OPENAI_MODELS? --> openaiProxy (vision)
               +-- isNativeImageModel? --> anthropic proxy (no auto-select)
-              +-- neither? --> auto-select vision model (glm-4.6v/4.6v-flashx)
+              +-- neither? --> auto-select vision model (glm-4.6v)
 ```
 
 ## Configuration
@@ -39,22 +39,21 @@ Client Request
 | Variable | Default | Description |
 |---|---|---|
 | `ZAI_OPENAI_URL` | `https://api.z.ai/api/paas/v4/chat/completions` | OpenAI-compatible endpoint URL |
-| `ZAI_OPENAI_MODELS` | `glm-5v-turbo` | Comma-separated list of GLM models to route via OpenAI endpoint |
-| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3,glm-4.6v-flashx:3,glm-5v-turbo:5` | Per-model vision concurrency limits |
+| `ZAI_OPENAI_MODELS` | `` | Comma-separated list of GLM models to route via OpenAI endpoint |
+| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3` | Per-model vision concurrency limits |
 
 ### Adding a Model to OpenAI Routing
 
 No code changes needed. Just add the model name to `ZAI_OPENAI_MODELS` in `.env`:
 
 ```env
-ZAI_OPENAI_MODELS=glm-5v-turbo,glm-ocr,glm-future-model
+ZAI_OPENAI_MODELS=glm-future-model
 ```
 
-### Example: Enable glm-5v-turbo
+### Example: Enable OpenAI-compatible model
 
 ```env
-# Already the default
-ZAI_OPENAI_MODELS=glm-5v-turbo
+ZAI_OPENAI_MODELS=glm-future-model
 ZAI_OPENAI_URL=https://api.z.ai/api/paas/v4/chat/completions
 ```
 
@@ -67,7 +66,6 @@ ZAI_OPENAI_URL=https://api.z.ai/api/paas/v4/chat/completions
 | glm-5.1 | Anthropic | $1.40/$4.40 | 128K | Yes | Anthropic (default) |
 | glm-5 | Anthropic | $1.00/$3.20 | 128K | No | Anthropic (default) |
 | glm-5-turbo | Anthropic | $1.20/$4.00 | 128K | No | Anthropic (default) |
-| glm-5v-turbo | **OpenAI** | $1.20/$4.00 | **200K** | Yes | OpenAI (ZAI_OPENAI_MODELS) |
 | glm-4.7 | Anthropic | $0.60/$2.20 | 128K | No | Anthropic (default) |
 | glm-4.7-flashx | Anthropic | $0.07/$0.40 | 128K | No | Anthropic (default) |
 | glm-4.6 | Anthropic | $0.60/$2.20 | 128K | No | Anthropic (default) |
@@ -76,9 +74,7 @@ ZAI_OPENAI_URL=https://api.z.ai/api/paas/v4/chat/completions
 | glm-4.5-air | Anthropic | $0.20/$1.10 | 128K | No | Anthropic (default) |
 | glm-4.5-airx | Anthropic | $1.10/$4.50 | 128K | No | Anthropic (default) |
 | glm-4.6v | Anthropic | $0.30/$0.90 | 128K | Yes | Anthropic (vision) |
-| glm-4.6v-flashx | Anthropic | $0.04/$0.40 | 128K | Yes | Anthropic (vision) |
 | glm-4.5v | Anthropic | $0.60/$1.80 | 128K | Yes | Anthropic (vision) |
-| glm-ocr | **OpenAI** | $0.03/$0.03 | 128K | Yes | Add to ZAI_OPENAI_MODELS |
 
 ### Domestic-only (open.bigmodel.cn, NOT on api.z.ai)
 
@@ -91,7 +87,6 @@ These models exist on the Chinese domestic endpoint only and are NOT accessible 
 | glm-z1-air/airx/flashx | Reasoning | - | Z1 reasoning series |
 | glm-4v-plus-0111 | - | - | Multimodal (5 images + video) |
 | codegeex-4 | - | - | Code completion |
-| glm-4.1v-thinking-flashx | - | - | Unconfirmed |
 | glm-4-assistant | - | - | Unconfirmed |
 
 ## Bugs Fixed
@@ -106,7 +101,7 @@ These models exist on the Chinese domestic endpoint only and are NOT accessible 
 
 - Z.AI pricing: https://docs.z.ai/guides/overview/pricing
 - Z.AI model overview: https://docs.z.ai/guides/overview/models
-- GLM-5V-Turbo docs: https://docs.z.ai/guides/overview/models/glm-5v-turbo
+- Z.AI model overview: https://docs.z.ai/guides/overview/models
 - Zhipu domestic models: https://open.bigmodel.cn/dev/howuse/model
 - Zhipu API reference: https://open.bigmodel.cn/dev/api/normal-model/glm-4
 

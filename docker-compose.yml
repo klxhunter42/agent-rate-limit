@@ -36,7 +36,7 @@ services:
       UPSTREAM_URL: ${UPSTREAM_URL:-https://api.z.ai/api/anthropic}
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-300s}
       UPSTREAM_MODEL_LIMITS: ${UPSTREAM_MODEL_LIMITS:-glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10}
-      UPSTREAM_VISION_MODEL_LIMITS: ${UPSTREAM_VISION_MODEL_LIMITS:-glm-5.1:5,glm-4.6v:5,glm-4.5v:3,glm-4.6v-flashx:3}
+      UPSTREAM_VISION_MODEL_LIMITS: ${UPSTREAM_VISION_MODEL_LIMITS:-glm-5.1:5,glm-4.6v:5,glm-4.5v:3}
       UPSTREAM_DEFAULT_LIMIT: ${UPSTREAM_DEFAULT_LIMIT:-1}
       UPSTREAM_GLOBAL_LIMIT: ${UPSTREAM_GLOBAL_LIMIT:-9}
       UPSTREAM_MAX_RETRIES: ${UPSTREAM_MAX_RETRIES:-3}
@@ -48,7 +48,7 @@ services:
       UPSTREAM_API_KEYS: ${UPSTREAM_API_KEYS:-${GLM_API_KEYS:-}}
       UPSTREAM_RPM_LIMIT: ${UPSTREAM_RPM_LIMIT:-40}
       UPSTREAM_PROBE_MULTIPLIER: ${UPSTREAM_PROBE_MULTIPLIER:-5}
-      MODEL_PRICING: ${MODEL_PRICING:-glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8}
+      MODEL_PRICING: ${MODEL_PRICING:-glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8}
       PASTEGUARD_ENABLED: ${PASTEGUARD_ENABLED:-true}
       PASTEGUARD_SECRETS_ENABLED: ${PASTEGUARD_SECRETS_ENABLED:-true}
       PASTEGUARD_SECRET_ENTITIES: ${PASTEGUARD_SECRET_ENTITIES:-}
@@ -200,7 +200,7 @@ services:
       GEMINI_API_KEYS: ${GEMINI_API_KEYS:-}
       OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS:-}
       UPSTREAM_MODEL_LIMITS: ${UPSTREAM_MODEL_LIMITS:-glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10}
-      UPSTREAM_VISION_MODEL_LIMITS: ${UPSTREAM_VISION_MODEL_LIMITS:-glm-5.1:5,glm-4.6v:5,glm-4.5v:3,glm-4.6v-flashx:3}
+      UPSTREAM_VISION_MODEL_LIMITS: ${UPSTREAM_VISION_MODEL_LIMITS:-glm-5.1:5,glm-4.6v:5,glm-4.5v:3}
       UPSTREAM_DEFAULT_LIMIT: ${UPSTREAM_DEFAULT_LIMIT:-1}
       UPSTREAM_GLOBAL_LIMIT: ${UPSTREAM_GLOBAL_LIMIT:-9}
       PROVIDER_RPM_LIMITS: ${PROVIDER_RPM_LIMITS:-glm:5}
@@ -452,7 +452,6 @@ services:
     container_name: arl-proxy
     restart: always
     ports:
-      - "443:443"
       - "9000:9000"
     volumes:
       - ./docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro

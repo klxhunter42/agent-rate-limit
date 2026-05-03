@@ -722,11 +722,11 @@ func TestSelectVisionModel(t *testing.T) {
 	}{
 		{name: "small single image", totalBytes: 200 * 1024, imageCount: 1, want: "glm-4.6v"},
 		{name: "medium single image", totalBytes: 1500 * 1024, imageCount: 1, want: "glm-4.6v"},
-		{name: "large single image", totalBytes: 3 * 1024 * 1024, imageCount: 1, want: "glm-4.6v-flashx"},
-		{name: "3 small images", totalBytes: 100 * 1024, imageCount: 3, want: "glm-4.6v-flashx"},
+		{name: "large single image", totalBytes: 3 * 1024 * 1024, imageCount: 1, want: "glm-4.6v"},
+		{name: "3 small images", totalBytes: 100 * 1024, imageCount: 3, want: "glm-4.6v"},
 		{name: "2 medium images", totalBytes: 1024 * 1024, imageCount: 2, want: "glm-4.6v"},
-		{name: "2 large images", totalBytes: 2 * 1024 * 1024, imageCount: 2, want: "glm-4.6v-flashx"},
-		{name: "5 screenshots", totalBytes: 500 * 1024, imageCount: 5, want: "glm-4.6v-flashx"},
+		{name: "2 large images", totalBytes: 2 * 1024 * 1024, imageCount: 2, want: "glm-4.6v"},
+		{name: "5 screenshots", totalBytes: 500 * 1024, imageCount: 5, want: "glm-4.6v"},
 		{name: "zero bytes zero images", totalBytes: 0, imageCount: 0, want: "glm-4.6v"},
 	}
 

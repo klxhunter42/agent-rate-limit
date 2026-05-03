@@ -475,7 +475,7 @@ case <-r.Context().Done():
 
 **Problem**: All vision requests used whatever model the client requested, no intelligence around model selection.
 
-**Fix**: Gateway now analyzes image payload (total base64 bytes + count) and auto-selects optimal vision model: `glm-4.6v` for normal payloads, `glm-4.6v-flashx` for heavy payloads.
+**Fix**: Gateway now analyzes image payload (total base64 bytes + count) and auto-selects optimal vision model: `glm-4.6v` for normal payloads, `glm-4.5v` as fallback.
 
 **Files**: `api-gateway/handler/handler.go`
 

@@ -171,11 +171,11 @@ Usage recording (sync path): Token counts automatically populate Redis hourly/da
 
 | Tier | Models | Notes |
 |------|--------|-------|
-| Flash | glm-5-flash, glm-4.6-flash, glm-4.6v-flash | Free tier available |
+| Flash | glm-5-flash, glm-4.6-flash | Free tier available |
 | Air | glm-5-air, glm-5-air-turbo | Budget tier |
 | Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose |
 | Plus | glm-4.7, glm-4.6, glm-4.5 | Older generation |
-| Vision | glm-4.6v, glm-4.5v, glm-4.6v-flashx | Image analysis |
+| Vision | glm-4.6v, glm-4.5v | Image analysis |
 
 ### Z.AI Anthropic-Compatible Model Mapping
 
@@ -219,13 +219,10 @@ Vision models ที่รองรับ:
 |-------|-------|-----------|-------|
 | glm-4.6v | 10 | Same as glm-4.6 | แนะนำ, default for most vision requests |
 | glm-4.5v | 10 | Same as glm-4.5 | Works well |
-| glm-4.6v-flashx | 3 | Lower | Auto-selected for heavy payloads |
-| glm-4.6v-flash | 1 | Lower | Fast, not auto-selected |
 
 Gateway เลือก vision model อัตโนมัติ:
 - `score = totalBase64KB + (imageCount * 300)`
-- score <= 2000 and count < 3 -> glm-4.6v (best quality)
-- score > 2000 or count >= 3 -> glm-4.6v-flashx (fastest)
+- Default selection: glm-4.6v (best quality)
 
 SSE streaming รองรับแล้ว: Zhipu SSE chunks ถูก convert เป็น Anthropic SSE format แบบ real-time
 

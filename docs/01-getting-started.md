@@ -3,64 +3,62 @@
 ## 1. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ Multi-Agent AI System                                               │
-│                                                                     │
-│ ┌──────────┐ ┌──────────────┐ ┌──────────────┐                     │
-│ │ Client   │───▶│ API Gateway  │───▶│ Rate Limiter │                     │
-│ │(Claude/  │ │ (Go)         │ │ (Java/Spring)│                     │
-│ │ Agent)   │ │ :8080        │ │ :8080        │                     │
-│ └──────────┘ └──────┬───────┘ └──────┬───────┘                     │
-│                     │                 │                             │
-│ ┌────▼────┐ ┌────▼────┐                                               │
-│ │Dragonfly│◀─────────│ Token    │                                   │
-│ │(Redis)  │ │ Bucket   │                                   │
-│ │ :6379   │ │ Store    │                                   │
-│ └────┬────┘ └─────────┘                                   │
-│     │                                                       │
-│ ┌────▼────────────────────────┐                            │
-│ │ AI Worker (Python)          │                            │
-│ │ ┌──┬──┬──┬──┬──┬──┬──┬──┐ │ WORKER_CONCURRENCY=50     │
-│ │ │W0│W1│W2│..│..│..│..│W49│ │                            │
-│ │ └──┴──┴──┴──┴──┴──┴──┴──┘ │                            │
-│ │ Per-Model Semaphores:       │                            │
-│ │ glm-5.1(1) glm-5-turbo(1)  │                            │
-│ │ glm-5(2) glm-4.7(2) glm-4.6(3)│                           │
-│ │ glm-4.5(10)                 │                            │
-│ │ Vision: glm-4.6v(10) glm-4.5v(10)│                       │
-│ │ glm-4.6v-flashx(3) glm-4.6v-flash(1)│                     │
-│ │ RPM Limiter: glm:5 req/min   │                            │
-│ │ Global Limit: 9 concurrent   │                            │
-│ └─────┼────────────────────────┘                            │
-│       │                                                       │
-│ ┌───────────▼───────▼───────▼──────────┐                     │
-│ │ Provider Fallback Chain              │                     │
-│ │ glm → openai → anthropic → gemini    │                     │
-│ │ → openrouter                          │                     │
-│ │ OAuth: claude-oauth, gemini-oauth     │                     │
-│ │ Profile: X-Profile header routing     │                     │
-│ └───────────────────────────────────────┘                     │
-│                                                               │
-│ ┌──────────────── Observability Stack ─────────────────┐      │
-│ │ OpenTelemetry → Prometheus → Grafana                  │      │
-│ │ Rate Limiter Dashboard (React) :8081                  │      │
-│ └──────────────────────────────────────────────────────┘      │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ Multi-Agent AI System                                                │
+│                                                                      │
+│ ┌──────────┐ ┌──────────────┐ ┌──────────────┐                      │
+│ │ Client   │──▶│ API Gateway  │──▶│ Rate Limiter │                      │
+│ │(Claude/  │   │ (Go/chi)     │   │ (Java/Spring)│                      │
+│ │ Agent)   │   │ :8080        │   │ :8080        │                      │
+│ └──────────┘ └──────┬───────┘ └──────┬───────┘                      │
+│                      │                 │                              │
+│               ┌──────▼────┐     ┌──────▼────┐                        │
+│               │Dragonfly  │◀────│ Token     │                        │
+│               │(Redis)    │     │ Bucket    │                        │
+│               │:6379      │     │ Store     │                        │
+│               └──────┬────┘     └───────────┘                        │
+│                      │                                               │
+│ ┌────────────────────▼──────────────────────────┐                   │
+│ │ AI Worker (Python)                             │                   │
+│ │ ┌──┬──┬──┬──┬──┬──┬──┬──┐                     │                   │
+│ │ │W0│W1│W2│..│..│..│..│W49│ WORKER_CONCURRENCY=50                   │
+│ │ └──┴──┴──┴──┴──┴──┴──┴──┘                     │                   │
+│ │ Per-Model Semaphores:                          │                   │
+│ │  glm-5.1(1) glm-5-turbo(1) glm-5(2)           │                   │
+│ │  glm-4.7(2) glm-4.6(3) glm-4.5(10)            │                   │
+│ │ Vision: glm-4.6v(10) glm-4.5v(10)             │                   │
+│ │ Global Limit: 9 concurrent                     │                   │
+│ └────────────────────┬───────────────────────────┘                   │
+│                      │                                               │
+│ ┌────────────────────▼────────────────────────────┐                  │
+│ │ Provider Fallback Chain (18 providers)          │                  │
+│ │ claude-oauth → anthropic → gemini-oauth → gemini│                  │
+│ │ → openai → zai → copilot → openrouter → qwen   │                  │
+│ │ → deepseek → kimi → huggingface → ollama       │                  │
+│ │ Profile: X-Profile header / arl_ API token       │                  │
+│ └─────────────────────────────────────────────────┘                  │
+│                                                                      │
+│ ┌──────────────── Observability Stack ─────────────────┐             │
+│ │ OpenTelemetry → Prometheus → Grafana                  │             │
+│ │ Caddy Proxy :9000 (external entry point)              │             │
+│ └──────────────────────────────────────────────────────┘             │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ### System Components
 
 | Service | Technology | Port | Purpose |
 |---------|-----------|------|---------|
-| **arl-gateway** | Go (chi router) | 8080 (external) | HTTP proxy, rate limit check, queue |
-| **arl-rate-limiter** | Java 21 / Spring Boot | 8080 (internal) | Token bucket rate limiting, admin API |
-| **arl-dragonfly** | DragonflyDB (Redis-compatible) | 6379 (internal) | Cache, queue, rate limit state |
-| **arl-worker** | Python 3.12 (asyncio + httpx) | 9090/9091 (internal) | AI job processing, provider fallback |
-| **arl-rl-dashboard** | React + Vite + nginx | 8081 (external) | Rate limiter web management UI |
-| **arl-dashboard** | React + Vite + Bun + nginx | 8082 (external) | Gateway dashboard UI |
-| **arl-prometheus** | Prometheus | 9090 (internal) | Metrics collection |
-| **arl-grafana** | Grafana | 3000 (external) | Dashboard & visualization |
-| **arl-otel** | OpenTelemetry | 4317/4318 (internal) | Trace & metric pipeline |
+| **arl-gateway** | Go (chi router) | 8080 (internal) | HTTP proxy, rate limit check, queue, OAuth, profiles |
+| **arl-proxy** | Caddy | 9000 (external) | Reverse proxy to gateway + dashboard |
+| **arl-rate-limiter** | Java / Spring Boot | 8080 (internal) | Token bucket rate limiting, admin API |
+| **arl-dragonfly** | DragonflyDB v1.37 (Redis-compatible) | 6379 (internal) | Cache, queue, rate limit state, token storage |
+| **arl-worker** | Python (asyncio + httpx) | 9090/9091 (internal) | AI job processing, provider fallback |
+| **arl-rl-dashboard** | React + Vite + nginx | internal | Rate limiter web management UI |
+| **arl-dashboard** | React + Vite + Bun | 5173 (internal) | Gateway dashboard SPA (embedded in Go binary) |
+| **arl-prometheus** | Prometheus v2.54 | 9090 (internal) | Metrics collection |
+| **arl-grafana** | Grafana 11.3 | internal | Dashboard & visualization |
+| **arl-otel** | OTel Collector Contrib 0.112 | 4317/4318 (internal) | Trace & metric pipeline |
 
 ## 2. Traffic Flow
 
@@ -68,43 +66,63 @@
 
 ```
 Claude Code
-│
-│ POST /v1/messages (Anthropic API format)
-│ Header: x-api-key: <your-key>
-│ Header: anthropic-version: 2023-06-01
-│ Header: X-Profile: <profile-name> (optional)
-│
-▼
+|
+| POST /v1/messages (Anthropic API format)
+| Header: x-api-key / Authorization: Bearer
+| Header: anthropic-version: 2023-06-01
+| Header: X-Profile: <profile-name> (optional)
+|
+v
 API Gateway (:8080)
-│
-├─ Rate Limit Check (per x-api-key)
-│ │
-│ ▼
-│ Rate Limiter → Dragonfly (token bucket)
-│ │
-│ ├─ Pass: forward to upstream
-│ └─ Fail: return 429 Rate Limit Error (Anthropic format)
-│
-├─ X-Profile header (optional):
-│ ├─ Present: load profile from Redis → use target provider + token pool
-│ └─ Absent: use normal routing (key pool + model fallback)
-│
-├─ Content Filter (strip server_tool_use/tool_use/tool_result, convert image format, prepend system to user)
-│
-├─ No image (Text Request):
-│ ▼
-│ Upstream Provider (https://api.z.ai/api/anthropic)
-│ │
-│ ▼
-│ SSE Streaming Response → relay back to Claude Code chunk by chunk
-│
-├─ Has image (Vision Request):
-│ ▼
-│ Auto-route to native vision endpoint (Zhipu)
-│ Convert Anthropic format → OpenAI/Zhipu format
-│ SSE streaming with real-time conversion back to Anthropic format
-│
-└─ Response back to Claude Code
+|
++- Rate Limit Check (per API key)
+|   |
+|   v
+|   Rate Limiter -> Dragonfly (token bucket)
+|   |
+|   +- Pass: forward to upstream
+|   +- Fail: return 429 Rate Limit Error (Anthropic format)
+|
++- Profile detection (arl_ token / X-Profile header):
+|   +- Present: load profile from Redis -> use target provider + token pool
+|   +- Absent: use normal routing (resolver + key pool)
+|
++- Provider resolver: match model prefix to provider route table
+|   +- claude-* -> claude-oauth -> anthropic
+|   +- gemini-* -> gemini-oauth -> gemini
+|   +- gpt-*/o3-*/o4-* -> openai
+|   +- glm-* -> zai
+|   +- or-* -> openrouter
+|   +- (others) -> matching provider
+|
++- Claude OAuth transparent passthrough:
+|   +- Client sends Bearer sk-ant-oat01-* -> transparent mode
+|   +- Go billing injection -> Sidecar fallback -> Direct proxy
+|
++- Content processing (non-transparent only):
+|   +- System prompt injection (ENABLE_PROMPT_INJECTION)
+|   +- Smart max_tokens auto-adjust
+|   +- Strip unsupported fields (context_management, thinking for haiku)
+|   +- Token optimization pipeline (13 optimizers)
+|   +- Privacy masking (PasteGuard: secrets + PII)
+|
++- No image (Text Request):
+|   v
+|   Upstream Provider (format-aware proxy)
+|   +- FormatAnthropic -> Anthropic proxy
+|   +- FormatOpenAI -> OpenAI proxy
+|   +- FormatGemini -> Gemini CodeAssist / API proxy
+|   +- ZAI Web chat proxy (free access models)
+|   |
+|   v
+|   SSE Streaming Response -> relay back to client chunk by chunk
+|
++- Has image (Vision Request):
+|   v
+|   Auto-route to vision model (glm-4.6v default)
+|   Convert Anthropic image format -> provider format
+|
++- Response back to client
 ```
 
 ### Async Mode (for Batch Agents)
@@ -224,9 +242,11 @@ docker-compose logs -f arl-rate-limiter
 ```
 NAME                STATUS
 arl-gateway         Up (healthy)
+arl-proxy           Up (healthy)
 arl-rate-limiter    Up (healthy)
 arl-dragonfly       Up (healthy)
 arl-worker          Up (healthy)
+arl-dashboard       Up (healthy)
 arl-rl-dashboard    Up
 arl-prometheus      Up
 arl-grafana         Up
@@ -245,22 +265,68 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GATEWAY_PORT` | `8080` | Gateway external port |
+| `SERVER_PORT` | `:8080` | Gateway listen address |
+| `REDIS_ADDR` | `dragonfly:6379` | Dragonfly/Redis address |
+| `RATE_LIMITER_ADDR` | `http://rate-limiter:8080` | Rate limiter service URL |
+| `QUEUE_NAME` | `ai_jobs` | Redis queue name for async jobs |
 | `GLOBAL_RATE_LIMIT` | `100` | Global rate limit (req/min) |
 | `AGENT_RATE_LIMIT` | `5` | Per-agent/key rate limit (req/min) |
 | `WORKER_POOL_SIZE` | `100` | Goroutine pool size for async mode |
+| `READ_TIMEOUT` | `30s` | HTTP read timeout |
+| `WRITE_TIMEOUT` | `10s` | HTTP write timeout (0 for SSE) |
+| `OTLP_ENDPOINT` | `otel-collector:4317` | OpenTelemetry collector endpoint |
+| `REDIS_POOL_SIZE` | `50` | Redis connection pool size |
+| `REDIS_MIN_IDLE_CONNS` | `10` | Redis minimum idle connections |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider endpoint |
+| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Direct Anthropic API URL |
 | `STREAM_TIMEOUT` | `300s` | Streaming request timeout |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unlisted models |
+| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,...` | Per-model concurrent limits |
+| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,...` | Vision model concurrent limits |
+| `UPSTREAM_DEFAULT_LIMIT` | `3` | Default limit for unlisted models |
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | Max concurrent requests across all models |
+| `UPSTREAM_MAX_RETRIES` | `3` | Max retries on 429 errors |
+| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Retry backoff base duration |
+| `UPSTREAM_API_KEYS` | `` | Comma-separated API keys for key pool |
+| `UPSTREAM_RPM_LIMIT` | `40` | Per-key requests-per-minute budget |
+| `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive limiter probe ceiling multiplier |
+| `ENABLE_PROMPT_INJECTION` | `true` | Inject system prompt for conciseness |
+| `ENABLE_RESPONSE_TRIM` | `true` | Trim response whitespace |
+| `ENABLE_SMART_MAX_TOKENS` | `true` | Auto-set max_tokens per model |
+| `PROMPT_INJECTION_TEXT` | (built-in) | Custom system prompt injection text |
+| `MAX_REQUEST_BODY` | `10485760` (10MB) | Max request body size in bytes |
+| `MODEL_PRICING` | `glm-5.1:1.4:4.4,...` | Per-model pricing (input:output per 1M tokens) |
 | `NATIVE_VISION_URL` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | Native Zhipu endpoint for vision |
+| `IP_WHITELIST` | `` | Comma-separated IPs/CIDRs |
+| `IP_BLACKLIST` | `` | Comma-separated IPs/CIDRs |
+| `DEFAULT_MODEL` | `glm-5` | Default model for chat requests |
+| `DEFAULT_PROVIDER` | `glm` | Default provider for chat requests |
+| `DEFAULT_TEMPERATURE` | `0.7` | Default temperature |
+| `DEFAULT_MAX_TOKENS` | `1024` | Default max_tokens |
+| `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
+| `GEMINI_CODEASSIST_ENDPOINT` | `https://cloudcode-pa.googleapis.com/v1internal` | Gemini CodeAssist endpoint |
+| `GEMINI_API_ENDPOINT` | `https://generativelanguage.googleapis.com` | Gemini API endpoint |
+| `GEMINI_DEFAULT_MODEL` | `models/gemini-2.5-flash-preview-05-20` | Default Gemini model |
+| `MODEL_PRIORITY` | `glm-5.1:100,glm-5-turbo:90,...` | Model priority for adaptive limiter |
+| `GLM_MODE` | `true` | Enable Z.AI features (key pool, model limits, vision) |
+| `ZAI_OPENAI_URL` | `https://api.z.ai/api/paas/v4/chat/completions` | Z.AI OpenAI-compatible endpoint |
+| `ZAI_OPENAI_MODELS` | `` | Models requiring OpenAI format (comma-separated) |
+| `ZAI_WEB_ENABLED` | `false` | Enable Z.AI web chat proxy |
+| `ZAI_WEB_TOKEN` | `` | Z.AI web chat JWT token |
+| `ZAI_WEB_MODELS` | `` | Models to route through chat.z.ai |
+| `CLI_SIDECAR_ENABLED` | `true` | Enable Node.js sidecar for billing injection |
+| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
+| `SIDECAR_PORT` | `8081` | Sidecar listen port |
+| `DASHBOARD_URL` | `https://ai.klxhub.com` | Dashboard URL for OAuth callbacks |
+| `OAUTH_CALLBACK_BASE` | `https://ai.klxhub.com` | OAuth callback base URL |
+| `GEMINI_OAUTH_CLIENT_ID` | `` | Google OAuth client ID |
+| `GEMINI_OAUTH_CLIENT_SECRET` | `` | Google OAuth client secret |
+| `DASHBOARD_API_KEY` | `` | API key for /admin/* routes (empty = no auth) |
 
 ### Dragonfly
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DRAGONFLY_MAX_MEMORY` | `6gb` | Dragonfly memory limit |
+| `DRAGONFLY_MAX_MEMORY` | `4gb` | Dragonfly memory limit |
 
 ### Rate Limiter
 
@@ -317,9 +383,10 @@ GLM_ENDPOINT=https://api.z.ai/api/anthropic
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GRAFANA_PORT` | `3000` | Grafana external port |
-| `GRAFANA_ADMIN_PASSWORD` | `klxhunter` | Grafana admin password |
-| `DASHBOARD_PORT` | `8082` | Gateway Dashboard UI external port |
+| `GRAFANA_ADMIN_PASSWORD` | (required) | Grafana admin password |
+| `PROXY_PORT` | `9000` | Caddy external proxy port |
+| `EXTERNAL_HOST` | `localhost` | External hostname for proxy |
+| `PROXY_SCHEME` | `http` | Proxy URL scheme |
 
 ### PasteGuard (Privacy Pipeline)
 
@@ -329,8 +396,8 @@ GLM_ENDPOINT=https://api.z.ai/api/anthropic
 | `PASTEGUARD_SECRETS_ENABLED` | `true` | Enable/disable secret detection |
 | `PASTEGUARD_SECRET_ENTITIES` | (8 types) | Secret entity types to detect (comma-separated) |
 | `PASTEGUARD_PII_ENABLED` | `true` | Enable/disable PII detection |
-| `PASTEGUARD_PII_ENTITIES` | `EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE` | PII entity types (default = all 8) |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max characters to scan |
+| `PASTEGUARD_PII_ENTITIES` | `EMAIL_ADDRESS,PHONE_NUMBER` | PII entity types (default = email + phone only) |
+| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max characters to scan (200K) |
 
 > **Note**: `PASTEGUARD_PRESIDIO_URL`, `PASTEGUARD_PII_SCORE_THRESHOLD`, and `PASTEGUARD_PII_LANGUAGE` have been removed. PII detection now uses built-in `RegexDetector` (<1ms per call) instead of Presidio HTTP container (7-14s per call).
 
@@ -338,21 +405,20 @@ GLM_ENDPOINT=https://api.z.ai/api/anthropic
 
 ```bash
 # 1. Setup
-cp .env.example .env && vim .env # Add GLM_API_KEYS
+cp .env.example .env && vim .env   # Set GRAFANA_ADMIN_PASSWORD, add API keys
 
 # 2. Run
 docker-compose up -d --build
 
 # 3. Use with Claude Code
 # Add to ~/.claude/settings.json:
-# "ANTHROPIC_BASE_URL": "http://localhost:8080"
-# "ANTHROPIC_AUTH_TOKEN": "your-glm-key"
+# "ANTHROPIC_BASE_URL": "http://localhost:9000"
+# "ANTHROPIC_AUTH_TOKEN": "your-key"
 
 # 4. Monitor
-# Grafana: http://localhost:3000 (admin/klxhunter)
-# Rate Limiter UI: http://localhost:8081
-# Gateway Health: http://localhost:8080/health
-# Admin Dashboard: http://localhost:8080/admin
+# Gateway Health: http://localhost:9000/health
+# Admin Dashboard: http://localhost:9000/admin
+# Prometheus: http://localhost:9000/metrics
 ```
 
 ### Build Dashboard UI
@@ -390,13 +456,14 @@ cd ../ui && bun run build && cd ../api-gateway && go build -o api-gateway . && r
 
 | Port | Service | External | Protocol |
 |------|---------|----------|----------|
-| **8080** | API Gateway | Yes | HTTP |
-| **8081** | Rate Limiter Dashboard | Yes | HTTP |
-| **3000** | Grafana | Yes | HTTP |
+| **9000** | Caddy Reverse Proxy | Yes | HTTP |
+| 8080 | API Gateway | No | HTTP |
 | 8080 | Rate Limiter | No | HTTP |
+| 8081 | Node.js Sidecar | No | HTTP |
+| 5173 | Dashboard UI (dev) | No | HTTP |
 | 6379 | Dragonfly | No | Redis |
 | 9090 | AI Worker / Prometheus | No | HTTP |
-| 9091 | AI Worker (internal) | No | HTTP |
+| 9091 | AI Worker (internal metrics) | No | HTTP |
 | 4317 | OTel Collector (gRPC) | No | gRPC |
 | 4318 | OTel Collector (HTTP) | No | HTTP |
 | 8889 | OTel Collector (Prom) | No | HTTP |

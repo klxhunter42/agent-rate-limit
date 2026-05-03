@@ -130,7 +130,7 @@ Added native Z.AI web chat API support to the gateway, replicating the [zai-prox
  select   route     proxy         proxy  sidecar proxy         |
    |         |        |              |      |      |      |     |
    v         v        v              +------+------+------+-----+
- [glm-4.6v] [glm-5] [glm-5v-turbo]                 |
+ [glm-4.6v] [glm-5]                               |
  [glm-4.5v] etc     etc                            v
    |         |        |                    upstream response
    +----+----+--------+

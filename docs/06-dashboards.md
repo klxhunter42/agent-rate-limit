@@ -7,8 +7,10 @@
 ```
 URL: http://localhost:3000
 Username: admin
-Password: from GRAFANA_ADMIN_PASSWORD in .env (default: klxhunter)
+Password: from GRAFANA_ADMIN_PASSWORD in .env (required)
 ```
+
+Grafana is exposed via Caddy reverse proxy at `${PROXY_SCHEME}://${EXTERNAL_HOST}:${PROXY_PORT}/grafana`. No external port is mapped directly.
 
 ### Available Dashboards
 
@@ -63,55 +65,39 @@ Access from **Dashboards** -> **General** or use URL directly:
 
 | Provider | Model | Input (per 1M tokens) | Output (per 1M tokens) |
 |----------|-------|----------------------|------------------------|
-| GLM/Z.ai | glm-5 | $0.50 | $1.50 |
+| Z.AI | glm-5.1 | $1.40 | $4.40 |
+| Z.AI | glm-5-turbo | $1.20 | $4.00 |
+| Z.AI | glm-5 | $1.00 | $3.20 |
+| Z.AI | glm-4.7 | $0.60 | $2.20 |
+| Z.AI | glm-4.7-flashx | $0.07 | $0.40 |
+| Z.AI | glm-4.6v | $0.30 | $0.90 |
+| Z.AI | glm-4.5v | $0.60 | $1.80 |
+| Z.AI | glm-4.5v | $0.60 | $1.80 |
 | OpenAI | gpt-4o | $2.50 | $10.00 |
+| Anthropic | claude-opus-4-7 | $15.00 | $75.00 |
 | Anthropic | claude-sonnet-4-6 | $3.00 | $15.00 |
-| Gemini | gemini-2.0-flash | $0.10 | $0.40 |
+| Anthropic | claude-haiku-4-5 | $0.80 | $4.00 |
+| Gemini | gemini-2.5-pro | $1.25 | $10.00 |
+| Gemini | gemini-2.5-flash | $0.15 | $0.60 |
 | OpenRouter | varies | varies | varies |
 
-### Metrics in System
+### Prometheus Endpoints
 
-| Metric | Source | Description |
-|--------|--------|-------------|
-| `api_gateway_request_latency_seconds` | Gateway | Request latency histogram (labels: method, path, status) |
-| `api_gateway_active_connections` | Gateway | Active connections |
-| `api_gateway_queue_depth` | Gateway | Queue depth |
-| `api_gateway_error_total` | Gateway | Errors by type (labels: type -- bad_request, validation, queue_push, cache_get, upstream) |
-| `api_gateway_rate_limit_hits_total` | Gateway | Rate limit hits (labels: key) |
-| `api_gateway_token_input_total` | Gateway | Input tokens by model (labels: model) |
-| `api_gateway_token_output_total` | Gateway | Output tokens by model (labels: model) |
-| `api_gateway_upstream_429_total` | Gateway | Upstream 429 responses |
-| `api_gateway_upstream_retries_total` | Gateway | Upstream retries on 429 |
-| `ai_worker_jobs_processed_total` | Worker | Jobs processed (labels: provider) |
-| `ai_worker_jobs_failed_total` | Worker | Jobs failed |
-| `ai_worker_jobs_retried_total` | Worker | Jobs retried |
-| `ai_worker_queue_depth` | Worker | Queue depth |
-| `ai_worker_active` | Worker | Active workers |
-| `ai_worker_provider_latency_seconds` | Worker | Provider latency histogram (labels: provider) |
-| `ai_worker_provider_errors_total` | Worker | Provider errors (labels: provider) |
-| `ai_worker_rate_limit_hits_total` | Worker | Rate limit hits (labels: provider) |
+| Endpoint | Description |
+|----------|-------------|
+| `GET /metrics` | Prometheus metrics (gateway internal) |
+| `GET /api/metrics` | Alias for `/metrics` |
 
-### Token Optimization Metrics
+Both endpoints are served by the `promhttp.Handler` on the gateway's main server. The Prometheus scraper targets `arl-gateway:8080/metrics`.
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_optimizer_runs_total` | Counter | `technique` | Number of optimizer runs (system + message) |
-| `api_gateway_optimizer_chars_saved_total` | Counter | `technique` | Characters saved per technique |
-| `api_gateway_optimizer_duration_seconds` | Histogram | `technique` | Time taken by optimizer |
-| `api_gateway_optimizer_tokens_saved_total` | Counter | - | Estimated tokens saved |
-| `api_gateway_cost_savings_total` | Counter | - | Cost savings from optimization (USD) |
-| `api_gateway_budget_level` | Gauge | `model` | Budget utilization level (0=green, 1=yellow, 2=red) |
+### Mock Data Endpoints (for dashboard testing)
 
-**Technique labels**: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `intent_filter`, `caveman`, `message_text` (string content), `message_block_text` (text blocks), `message_block_tool_result` (tool results)
-
-### Claude OAuth Billing Path Metrics
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_billing_path_requests_total` | Counter | `path`, `model`, `profile` | Requests by billing path (go_direct/sidecar/direct/billing_rejected) |
-| `api_gateway_billing_path_latency_seconds` | Histogram | `path`, `model` | Latency by billing path |
-| `http_server_requests_seconds_*` | Rate Limiter | HTTP metrics |
-| `jvm_memory_*` | Rate Limiter | JVM memory |
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/mock/seed?category=all` | Seed mock data (categories: `all`, `optimizer`, `waste`, `budget`) |
+| `POST` | `/v1/mock/loop/start` | Start continuous mock data feed (5s interval) |
+| `POST` | `/v1/mock/loop/stop` | Stop continuous mock data feed |
+| `GET` | `/v1/mock/status` | Check if mock loop is running |
 
 ---
 
@@ -120,10 +106,11 @@ Access from **Dashboards** -> **General** or use URL directly:
 ### Access
 
 ```
-URL: http://localhost:8081
+Container: arl-rl-dashboard (internal only, no external port)
+Build: ./distributed-rate-limiter/examples/web-dashboard
 ```
 
-> No login required -- open access. Has nginx proxy to rate-limiter API automatically.
+Accessed via Caddy reverse proxy. No external port mapped.
 
 ### Features
 
@@ -144,11 +131,16 @@ URL: http://localhost:8081
 
 | Method | URL | Notes |
 |--------|-----|-------|
-| Embedded (Go binary) | `http://localhost:8080/admin` | Works after `bun run build` in `ui/` |
-| Docker Compose | `http://localhost:8082` | Standalone container, nginx proxy to gateway |
+| Embedded (Go binary) | `http://localhost:8080/admin` | Static files embedded via `go:embed` from `api-gateway/static/` |
+| Docker Compose | `http://localhost:9000/admin` | Via Caddy reverse proxy |
+| Standalone container | `http://arl-dashboard:5173` | Hot-reload dev container (internal) |
 | Dev mode (hot reload) | `http://localhost:5173` | `cd ui && bun run dev` |
 
-> Login with Gateway URL + API key (stored in sessionStorage)
+### Authentication
+
+Dashboard auth is controlled by `DASHBOARD_API_KEY` env var:
+- **Empty**: No auth required (open access)
+- **Set**: Requires `x-api-key` header or `arl_session` cookie matching the key
 
 ### Pages
 
@@ -171,7 +163,7 @@ cd ui && bun run dev
 # Build static files -> api-gateway/static/ (embedded in Go binary)
 cd ui && bun run build
 
-# Docker
+# Docker (standalone dev container)
 docker-compose up -d --build arl-dashboard
 ```
 
@@ -180,7 +172,7 @@ docker-compose up -d --build arl-dashboard
 - React 19 + Vite 7 + TailwindCSS v4 + shadcn/ui (Radix)
 - Recharts (Prometheus metrics visualization)
 - Bun runtime
-- Playwright E2E tests (10 tests)
+- Playwright E2E tests
 
 ---
 

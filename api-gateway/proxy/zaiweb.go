@@ -195,12 +195,8 @@ var zaiWebModelMap = map[string]string{
 	"glm-4.5-flash":  "glm-4.5-flash",
 	"glm-4.7-flash":  "glm-4.7-flash",
 	// Vision models
-	"glm-5v-turbo":    "glm-5v-turbo",
-	"glm-ocr":         "glm-ocr",
 	"glm-4.6v":        "glm-4.6v",
-	"glm-4.6v-flashx": "glm-4.6v-flashx",
 	"glm-4.5v":        "glm-4.5v",
-	"glm-4.6v-flash":  "glm-4.6v-flash",
 }
 
 func mapModelToZAI(model string) string {

@@ -15,11 +15,12 @@ Source: `api-gateway/proxy/`
 6. [GeminiAPIProxy](#6-geminiapiproxy)
 7. [ClaudeSessionProxy](#7-claudsessionproxy)
 8. [ClaudeSessionManager](#8-claudsessionmanager)
-9. [Format Conversion](#9-format-conversion)
-10. [Error Recovery & Retry](#10-error-recovery--retry)
-11. [Key Pool](#11-key-pool)
-12. [Privacy Masking Integration](#12-privacy-masking-integration)
-13. [State Machine Reference](#13-state-machine-reference)
+9. [ZAIWebProxy](#9-zaiwebproxy)
+10. [Format Conversion](#10-format-conversion)
+11. [Error Recovery & Retry](#11-error-recovery--retry)
+12. [Key Pool](#12-key-pool)
+13. [Privacy Masking Integration](#13-privacy-masking-integration)
+14. [State Machine Reference](#14-state-machine-reference)
 
 ---
 
@@ -37,6 +38,7 @@ Client (Anthropic format)
   +-- GeminiCodeAssistProxy (Google Code Assist OAuth)
   +-- GeminiAPIProxy       (Google Gemini API key)
   +-- ClaudeSessionProxy   (claude.ai web session cookies)
+  +-- ZAIWebProxy          (chat.z.ai signed web API, image generation, audio TTS)
   |
   v
 Upstream Provider
@@ -51,6 +53,7 @@ Upstream Provider
 | `gemini-apikey.go` | ~322 | Gemini API key auth, reuses conversion from gemini-codeassist.go |
 | `claude_session.go` | ~386 | claude.ai web API session proxy |
 | `claude-session.go` | ~139 | Claude CLI session bootstrap (profile, roles, settings, policy) |
+| `zaiweb.go` | ~769 | Z.AI web chat proxy with HMAC-SHA256 signing, image generation, audio TTS |
 | `recovery.go` | ~299 | Error classification, context truncation, token estimation |
 | `key_pool.go` | ~363 | Multi-key RPM management with cooldown |
 | `shared_transport.go` | ~108 | DNS-cached HTTP transport singleton |
@@ -734,9 +737,194 @@ type ClaudeSession struct {
 
 ---
 
-## 9. Format Conversion
+## 9. ZAIWebProxy
 
-### 9.1 Anthropic -> OpenAI (`AnthropicToOpenAI`)
+Routes requests through chat.z.ai's web chat API with HMAC-SHA256 request signing, mimicking the browser frontend. Provides free access to Z.AI models without API keys.
+
+### 9.1 Struct
+
+```go
+type ZAIWebProxy struct {
+    cfg     *config.Config
+    client  *http.Client          // SharedClient(0)
+    metrics *metrics.Metrics
+
+    mu        sync.RWMutex
+    token     string // JWT Bearer token
+    userID    string // extracted from JWT
+    feVersion string // scraped frontend version
+}
+```
+
+### 9.2 Token Management
+
+**Configuration:**
+- `ZAI_WEB_TOKEN`: Initial JWT token (optional)
+- `ZAI_WEB_ENABLED`: Enable/disable ZAIWeb routing
+- `ZAI_WEB_MODELS`: Comma-separated list of models to route through ZAIWeb
+
+**Token lifecycle:**
+1. On startup: if `ZAI_WEB_TOKEN` is set, extract user ID from JWT payload
+2. If no token configured: automatically fetch anonymous token from `https://chat.z.ai/api/v1/auths/`
+3. Anonymous token: `GET /api/v1/auths/` returns `{"token": "..."}` JWT
+4. `SetToken(token)`: updates token and re-extracts user ID (thread-safe)
+5. `GetToken()`: returns current token and user ID (thread-safe)
+
+**JWT user ID extraction** (`extractUserID`):
+1. Split JWT on `.` (3 parts)
+2. Base64-decode payload (part 1) with standard encoding (+ padding fix)
+3. Parse `{"id": "..."}` from payload
+4. Returns empty string on any failure
+
+### 9.3 Frontend Version Scraping
+
+Scrapes the frontend version from `https://chat.z.ai/` HTML to match browser fingerprint.
+
+```go
+var feVersionRegex = regexp.MustCompile(`prod-fe-[.\d]+`)
+```
+
+- `refreshFEVersion()`: GET `https://chat.z.ai/`, read up to 512KB, extract `prod-fe-X.Y.Z`
+- `refreshFEVersionLoop()`: runs every 1 hour in a goroutine
+- `GetFEVersion()`: returns scraped version or `"prod-fe-0.0.1"` fallback
+
+### 9.4 HMAC-SHA256 Request Signing
+
+**Signing key:** `"key-@@@@)))()((9))-xxxx&&&%%%%%"`
+
+**Signature algorithm** (`generateSignature`):
+1. Compute time period: `period = timestamp / (5 * 60 * 1000)` (5-minute windows)
+2. First HMAC: `HMAC-SHA256(signingKey, period)` -> hex-encoded `firstHmac`
+3. Build request info: `"requestId,{requestID},timestamp,{timestamp},user_id,{userID}"`
+4. Base64-encode user content: `base64(userContent)`
+5. Sign data: `"{requestInfo}|{contentBase64}|{timestamp}"`
+6. Second HMAC: `HMAC-SHA256(firstHmac, signData)` -> hex-encoded signature
+
+### 9.5 Model Mapping
+
+20+ models mapped from user-facing names to chat.z.ai upstream names:
+
+```go
+var zaiWebModelMap = map[string]string{
+    // Chat models
+    "glm-5":          "glm-5",
+    "glm-5.1":        "glm-5.1",
+    "glm-5-turbo":    "glm-5-turbo",
+    "glm-4.7":        "glm-4.7",
+    "glm-4.7-flashx": "glm-4.7-flashx",
+    "glm-4.6":        "GLM-4-6-API-V1",
+    "glm-4.5":        "0727-360B-API",
+    "glm-4.5-x":      "glm-4.5-x",
+    "glm-4.5-air":    "0727-106B-API",
+    "glm-4.5-airx":   "glm-4.5-airx",
+    "glm-4-32b":      "glm-4-32b",
+    "glm-4.5-flash":  "glm-4.5-flash",
+    "glm-4.7-flash":  "glm-4.7-flash",
+    // Vision models
+    "glm-4.6v":        "glm-4.6v",
+    "glm-4.5v":        "glm-4.5v",
+}
+```
+
+Unmapped models pass through unchanged.
+
+### 9.6 Format Conversion: Anthropic -> Z.AI Web (`convertToZAIWebFormat`)
+
+**System prompt injection:**
+- Z.AI web API ignores `system` role
+- System prompt is converted to user+assistant pair:
+  - user: `"[System Instructions]\n{sysText}"`
+  - assistant: `"Understood. I will follow these instructions."`
+
+**Message content flattening:**
+- Content block arrays are flattened to plain strings
+- `text` blocks: join text
+- `image` blocks: replaced with `"[image attached]"`
+- `tool_use` blocks: replaced with `"[tool: {name}]"`
+- `tool_result` blocks: extract content string
+
+**Model suffix parsing:**
+- `-search` suffix: enables `web_search` + `auto_web_search`
+- `-thinking` suffix: enables `enable_thinking`
+
+**Output format:**
+```json
+{
+  "stream": true,
+  "model": "<upstream_model>",
+  "messages": [...],
+  "signature_prompt": "<last_user_message>",
+  "params": {},
+  "features": {
+    "image_generation": true,
+    "web_search": false,
+    "auto_web_search": false,
+    "preview_mode": true,
+    "enable_thinking": false
+  },
+  "chat_id": "<uuid>",
+  "id": "<uuid>"
+}
+```
+
+### 9.7 Main Entry: `ProxyZAIWeb`
+
+```go
+func (p *ZAIWebProxy) ProxyZAIWeb(
+    w http.ResponseWriter, r *http.Request,
+    body []byte, model string,
+    isStream bool, feedback FeedbackFunc,
+    maskResult *privacy.MaskResult,
+) error
+```
+
+**Flow:**
+1. Get token (fetch anonymous if empty)
+2. Parse Anthropic payload, convert to Z.AI web format
+3. Generate request ID (UUID v4), timestamp (Unix millis)
+4. Compute HMAC-SHA256 signature
+5. Build target URL: `https://chat.z.ai/api/v2/chat/completions?timestamp={ts}&requestId={rid}&user_id={uid}&version=0.0.1&platform=web&token={token}&current_url=https://chat.z.ai/c/{chatID}&pathname=/c/{chatID}&signature_timestamp={ts}`
+6. Set browser-like headers: Authorization Bearer, X-FE-Version, X-Signature, Origin, Referer, Chrome User-Agent
+7. Non-stream: extract content, estimate tokens, write Anthropic-format response
+8. Stream: SSE relay with Anthropic event sequence
+
+**Stream response handling** (`handleStream`):
+- Scans for `data: ` lines, handles `[DONE]` inside JSON: `{"data":"[DONE]"}`
+- Skips non-content phases (`phase: "done"` or `"other"`)
+- Extracts delta content from two formats:
+  - Z.AI web: `data.delta_content`
+  - OpenAI-compatible: `choices[0].delta.content`
+- Emits Anthropic SSE sequence: message_start -> content_block_start -> content_block_delta(s) -> content_block_stop -> message_delta -> message_stop
+- Output tokens estimated as `len(totalContent) / 4`
+
+### 9.8 Image Generation: `ProxyImageGeneration`
+
+```go
+func (p *ZAIWebProxy) ProxyImageGeneration(w http.ResponseWriter, r *http.Request, body []byte) error
+```
+
+- Forwards to `https://image.z.ai/api/proxy/images/generate`
+- Bearer JWT token (fetches anonymous if empty)
+- Returns upstream response as-is (status code + JSON body)
+- Headers: X-Request-ID, Origin/Referer from chat.z.ai, Chrome User-Agent
+
+### 9.9 Audio TTS: `ProxyAudioTTS`
+
+```go
+func (p *ZAIWebProxy) ProxyAudioTTS(w http.ResponseWriter, r *http.Request, body []byte) error
+```
+
+- Forwards to `https://audio.z.ai/api/v1/z-audio/tts/create`
+- Bearer JWT token (fetches anonymous if empty)
+- Injects `user_id` into request body if missing
+- Returns upstream SSE stream directly (line-by-line relay with flush)
+- Non-200: returns error
+
+---
+
+## 10. Format Conversion
+
+### 10.1 Anthropic -> OpenAI (`AnthropicToOpenAI`)
 
 ```go
 func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode string) (map[string]any, error)
@@ -769,7 +957,7 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 | user text blocks | `{"role":"user","content":[{type:"text",...}]}` |
 | user tool_result blocks | `{"role":"tool","tool_call_id":"...","content":"flattened text"}` |
 
-### 9.2 OpenAI -> Anthropic (`OpenAIToAnthropic`)
+### 10.2 OpenAI -> Anthropic (`OpenAIToAnthropic`)
 
 ```go
 func OpenAIToAnthropic(zhipu map[string]any, model string, toolMode ...string) map[string]any
@@ -782,7 +970,7 @@ func OpenAIToAnthropic(zhipu map[string]any, model string, toolMode ...string) m
 - `usage.prompt_tokens` -> `input_tokens`, `usage.completion_tokens` -> `output_tokens`
 - Preserves `zhipu["id"]` as response ID
 
-### 9.3 Anthropic -> Gemini (`anthropicToGemini`)
+### 10.3 Anthropic -> Gemini (`anthropicToGemini`)
 
 ```go
 func anthropicToGemini(payload map[string]any, defaultModel string, m ...*metrics.Metrics) geminiConversionResult
@@ -800,7 +988,7 @@ func anthropicToGemini(payload map[string]any, defaultModel string, m ...*metric
 - Tools: `tools[].functionDeclarations[].{name, description}`
 - Model mapping (see below)
 
-### 9.4 Gemini -> Anthropic (`geminiToAnthropic`)
+### 10.4 Gemini -> Anthropic (`geminiToAnthropic`)
 
 ```go
 func geminiToAnthropic(gResp geminiResponse, model string, stream bool) map[string]any
@@ -813,7 +1001,7 @@ func geminiToAnthropic(gResp geminiResponse, model string, stream bool) map[stri
 - Usage: `promptTokenCount` -> `input_tokens`, `candidatesTokenCount` -> `output_tokens`
 - Message ID: `msg_{unix_nano}`
 
-### 9.5 Model Mapping: Anthropic -> Gemini
+### 10.5 Model Mapping: Anthropic -> Gemini
 
 ```go
 func mapModelToGemini(model string) string
@@ -833,9 +1021,9 @@ func mapModelToGemini(model string) string
 
 ---
 
-## 10. Error Recovery & Retry
+## 11. Error Recovery & Retry
 
-### 10.1 Error Classification (`ClassifyError`)
+### 11.1 Error Classification (`ClassifyError`)
 
 ```go
 func ClassifyError(statusCode int, body []byte) RecoveryAction
@@ -867,7 +1055,7 @@ const (
 "context limit exceeded", "too many tokens", "reduced context window"
 ```
 
-### 10.2 Context Truncation (`TruncateMessages`)
+### 11.2 Context Truncation (`TruncateMessages`)
 
 ```go
 func TruncateMessages(body []byte, model string) *TruncationResult
@@ -890,9 +1078,9 @@ func TruncateMessages(body []byte, model string) *TruncationResult
 
 ---
 
-## 11. Key Pool
+## 12. Key Pool
 
-### 11.1 Struct
+### 12.1 Struct
 
 ```go
 type KeyPool struct {
@@ -910,7 +1098,7 @@ type keyEntry struct {
 }
 ```
 
-### 11.2 Strategy
+### 12.2 Strategy
 
 ```go
 func SetStrategy(s string)  // "round-robin" (default) or "fill-first"
@@ -920,7 +1108,7 @@ func GetStrategy() string
 - **round-robin**: selects key with most remaining RPM budget (>0 preferred, falls back to highest)
 - **fill-first**: selects key with most remaining RPM budget regardless of zero
 
-### 11.3 Acquire Flow
+### 12.3 Acquire Flow
 
 ```
 1. If passthrough (no keys): return ("", true)
@@ -935,12 +1123,12 @@ func GetStrategy() string
    d. Retry findBest()
 ```
 
-### 11.4 Feedback
+### 12.4 Feedback
 
 - `Report429(apiKey)`: puts key in cooldown for 10 seconds, broadcasts to waiters
 - `ReportSuccess(apiKey)`: clears cooldown, broadcasts to waiters
 
-### 11.5 Dynamic Updates
+### 12.5 Dynamic Updates
 
 ```go
 func (kp *KeyPool) SyncFromStore(keys []string)
@@ -950,11 +1138,11 @@ Replaces pool entries, preserving RPM state for existing keys.
 
 ---
 
-## 12. Privacy Masking Integration
+## 13. Privacy Masking Integration
 
 All proxies support optional privacy masking via `maskResult *privacy.MaskResult`.
 
-### 12.1 Non-Stream Unmasking
+### 13.1 Non-Stream Unmasking
 
 ```go
 pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
@@ -963,7 +1151,7 @@ body = pipeline.UnmaskResponse(body, maskResult)
 
 Applied to full response body before writing to client. Replaces placeholder tokens (e.g., `[[SECRET_1]]`, `[[EMAIL_ADDRESS_3]]`) with original values.
 
-### 12.2 Stream Unmasking
+### 13.2 Stream Unmasking
 
 ```go
 unmasker := masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
@@ -979,7 +1167,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
 - Stream end / `[DONE]`
 - Unmasker buffer not empty at stream end (emitted as extra content_block_delta)
 
-### 12.3 Mask-Aware Processing
+### 13.3 Mask-Aware Processing
 
 - System prompt optimization is SKIPPED when masking is active (would corrupt placeholders)
 - Error bodies are unmasked before forwarding to client
@@ -987,9 +1175,9 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
 
 ---
 
-## 13. State Machine Reference
+## 14. State Machine Reference
 
-### 13.1 Anthropic Transparent Stream
+### 14.1 Anthropic Transparent Stream
 
 ```
                     +-----------+
@@ -1018,7 +1206,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
          [continue]  [return err]
 ```
 
-### 13.2 OpenAI Stream (with tool use)
+### 14.2 OpenAI Stream (with tool use)
 
 ```
                     +-----------+
@@ -1069,7 +1257,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
               [emit close events]
 ```
 
-### 13.3 Gemini CodeAssist Stream
+### 14.3 Gemini CodeAssist Stream
 
 ```
 +-----------+     +----------------+     +------------------+     +------------------+
@@ -1086,7 +1274,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
                     +------------------+
 ```
 
-### 13.4 OpenAI Auto-Continuation State Machine
+### 14.4 OpenAI Auto-Continuation State Machine
 
 ```
 +-------------------+
@@ -1154,6 +1342,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
 | GeminiAPI | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0 | quadratic | 5 min | none |
 | Anthropic (vision) | `cfg.UpstreamMaxRetries` | 0 | 0 | quadratic | 5 min | none |
 | ClaudeSession | 0 | 0 | 0 | none | n/a | none |
+| ZAIWeb | 0 | 0 | 0 | none | n/a | Anonymous token fallback, HMAC signing |
 
 ## Appendix C: Metrics Recorded
 

@@ -516,7 +516,7 @@ if allowed, pct, _ := h.quotaHandler.CheckQuota(providerID, accountID, requested
 
 ### 6.1 Provider Registry
 
-17 built-in providers, each with:
+18 built-in providers, each with:
 
 | Provider ID | Auth Type | Format | Upstream Base |
 |-------------|-----------|--------|---------------|
@@ -530,7 +530,13 @@ if allowed, pct, _ := h.quotaHandler.CheckQuota(providerID, accountID, requested
 | openrouter | api_key | openai | openrouter.ai/api |
 | deepseek | api_key | openai | api.deepseek.com |
 | qwen | device_code | openai | dashscope.aliyuncs.com |
-| and 6 more (kimi, huggingface, ollama, agy, cursor, codebuddy, kilo) |
+| kimi | api_key | openai | api.moonshot.cn/v1 |
+| huggingface | api_key | openai | api-inference.huggingface.co/models |
+| ollama | api_key | openai | localhost:11434 |
+| agy | api_key | openai | antigravity.com |
+| cursor | api_key | openai | api2.cursor.sh |
+| codebuddy | api_key | openai | api.codebuddy.io |
+| kilo | api_key | openai | api.kilo.ai |
 
 ### 6.2 Model-to-Provider Routing Rules
 
@@ -892,7 +898,7 @@ hasImages?
     |     |            selectVisionModel(totalBytes, imageCount)
     |     |            |
     |     |            +-- score = totalBase64KB + (imageCount * 300)
-    |     |            +-- score > 2000 OR imageCount >= 3 --> "glm-4.6v-flashx"
+    |     |            +-- score > 2000 OR imageCount >= 3 --> "glm-4.6v"
     |     |            +-- else --> "glm-4.6v"
     |     |            |
     |     |            +-- Rewrite payload["model"] to vision model
@@ -916,7 +922,7 @@ Models that natively support image input and skip auto-selection:
 ```go
 func isNativeImageModel(model string) bool {
     switch model {
-    case "glm-5.1", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v":
+    case "glm-5.1", "glm-4.6v", "glm-4.5v":
         return true
     }
     return false
@@ -945,10 +951,28 @@ selectVisionModel(totalBytes, imageCount):
     score = totalKB + imageCount * 300
 
     if score > 2000 OR imageCount >= 3:
-        return "glm-4.6v-flashx"  // high-volume, 3 slots
+        return "glm-4.6v"  // high-volume, best quality
     else:
         return "glm-4.6v"         // quality, 10 slots
 ```
+
+### 9.6 Proxy Dispatch Priority
+
+After preprocessing, the handler dispatches to the appropriate proxy in this priority order:
+
+```
+1. hasImages? --> Vision routing (section 9.2)
+2. ZAIWebEnabled + IsZAIWebModel(model)? --> ZAIWebProxy.ProxyZAIWeb()
+3. GLMMode + ZAIOpenAIModels[model]? --> OpenAIProxy.ProxyOpenAI(ZAIOpenAIURL)
+4. decision != nil? --> Format-based dispatch:
+   a. OpenAI format --> OpenAIProxy.ProxyOpenAI()
+   b. Gemini format + gemini-oauth --> GeminiCodeAssistProxy.ProxyCodeAssist()
+   c. Gemini format + gemini API --> GeminiAPIProxy.ProxyGemini()
+   d. Anthropic format --> trySidecarOrDirect()
+5. Fallback: trySidecarOrDirect() with profile options
+```
+
+The ZAIWeb path (step 2) routes requests through chat.z.ai's signed web API, providing free access without API keys. Configuration: `ZAI_WEB_ENABLED`, `ZAI_WEB_MODELS`, `ZAI_WEB_TOKEN`.
 
 ---
 
@@ -996,9 +1020,11 @@ When `transparent == true`:
 - Smart max_tokens (client's value preserved)
 - Field stripping (upstream gets raw Claude Code CLI payload)
 - Content block filtering (Z.AI-specific filtering skipped)
-- Token optimization pipeline (all 13 stages)
-- Privacy masking (no PPI/secret detection)
 - Max tokens clamping
+
+**NOT skipped** in transparent mode (only image requests skip these):
+- Token optimization pipeline (all 13 stages)
+- Privacy masking (secrets/PII detection)
 
 ### 10.3 Transparent Proxy Path (`trySidecarOrDirect`)
 
@@ -1183,7 +1209,49 @@ POST /v1/chat/completions    (enqueue job)
 GET  /v1/results/{requestID} (poll result)
 ```
 
-### 11.12 Profile Management
+### 11.12 ZAIWeb Endpoints
+
+Z.AI web chat proxy endpoints (require `ZAI_WEB_ENABLED=true`):
+
+```
+GET  /v1/zaiweb/status                (token status, FE version, available models)
+POST /v1/zaiweb/token                 (set/update JWT token, body: {"token": "..."})
+POST /v1/zaiweb/image/generate        (proxy to image.z.ai, body forwarded as-is)
+POST /v1/zaiweb/audio/tts             (proxy to audio.z.ai, SSE stream relay)
+```
+
+Routing: when `ZAIWebEnabled && IsZAIWebModel(model)`, requests to `/v1/messages` are routed through `ZAIWebProxy.ProxyZAIWeb()` instead of the standard proxy path.
+
+### 11.13 Auth Routes (provider/handler.go)
+
+Auth routes managed by `AuthHandler.Routes()`:
+
+```
+POST   /v1/auth/{provider}/start                  (start OAuth device/auth code flow)
+POST   /v1/auth/{provider}/start-url              (start auth code flow, return URL)
+POST   /v1/auth/{provider}/register               (register API key directly)
+GET    /v1/auth/{provider}/callback               (OAuth callback, code exchange)
+POST   /v1/auth/{provider}/callback               (OAuth callback, JSON body)
+GET    /v1/auth/{provider}/status                  (poll device code token status)
+POST   /v1/auth/{provider}/cancel                  (cancel pending auth session)
+GET    /v1/auth/accounts                           (list all accounts across providers)
+GET    /v1/auth/accounts/{provider}                (list accounts for provider)
+DELETE /v1/auth/accounts/{provider}/{accountId}    (remove account)
+POST   /v1/auth/accounts/{provider}/{accountId}/pause    (pause account)
+POST   /v1/auth/accounts/{provider}/{accountId}/resume   (resume account)
+POST   /v1/auth/accounts/{provider}/{accountId}/default  (set as default)
+POST   /v1/auth/accounts/{provider}/{accountId}/email    (update email)
+POST   /v1/auth/accounts/{provider}/{accountId}/refresh  (force token refresh)
+POST   /v1/auth/login                              (dashboard login)
+POST   /v1/auth/logout                             (dashboard logout)
+GET    /v1/auth/check                              (check auth status)
+GET    /v1/providers                               (list all providers)
+PUT    /v1/providers/{provider}/upstream           (update provider upstream URL)
+POST   /v1/providers/custom                        (create custom provider)
+DELETE /v1/providers/custom/{provider}             (delete custom provider)
+```
+
+### 11.14 Profile Management
 
 ```
 GET    /v1/profiles                    (list all)
@@ -1202,7 +1270,7 @@ POST   /v1/profiles/{name}/tokens      (generate arl_ token)
 DELETE /v1/profiles/{name}/tokens/{keyName} (revoke token)
 ```
 
-### 11.13 Middleware Endpoints
+### 11.15 Middleware Endpoints
 
 Internal endpoints skipped by rate limiter:
 - `/metrics` - Prometheus metrics
@@ -1210,7 +1278,7 @@ Internal endpoints skipped by rate limiter:
 - `/health` - Health check
 - `/ws` - WebSocket
 
-### 11.14 Security Middleware
+### 11.16 Security Middleware
 
 Applied to all requests:
 - `X-Content-Type-Options: nosniff`
@@ -1222,21 +1290,21 @@ Applied to all requests:
 - Real IP extraction from `CF-Connecting-IP` > `X-Real-IP` > `X-Forwarded-For` > `RemoteAddr`
 - IP whitelist/blacklist filtering
 
-### 11.15 Dashboard Auth
+### 11.17 Dashboard Auth
 
 Dashboard endpoints protected by `DASHBOARD_API_KEY` env:
 - Checks `x-api-key` header
 - Falls back to `arl_session` cookie
 - Disabled when key is empty
 
-### 11.16 Session Secret
+### 11.18 Session Secret
 
 - Loaded from `config/session_secret` file
 - Generated (64 random bytes, hex-encoded) if file doesn't exist
 - Hot-reloaded via fsnotify
 - Used for signing session cookies
 
-### 11.17 Config Watcher
+### 11.19 Config Watcher
 
 Watches `.env` file for changes via fsnotify. Debounced (500ms). Calls callback on changed values for hot-reload of configuration.
 
@@ -1273,3 +1341,6 @@ All relevant env vars for the handler/routing layer:
 | `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
 | `DEFAULT_MODEL` | `glm-5` | Default model |
 | `DEFAULT_PROVIDER` | `glm` | Default provider |
+| `ZAI_WEB_ENABLED` | `false` | Enable Z.AI web chat proxy routing |
+| `ZAI_WEB_TOKEN` | (empty) | JWT token for chat.z.ai (auto-fetches anonymous if empty) |
+| `ZAI_WEB_MODELS` | (empty) | Comma-separated models to route through ZAIWeb |
