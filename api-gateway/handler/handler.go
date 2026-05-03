@@ -128,16 +128,17 @@ type Handler struct {
 	sidecarURL      string // empty = sidecar disabled
 	sessionManager  *proxy.ClaudeSessionManager
 	zaiWebProxy     *proxy.ZAIWebProxy
+	mcpProxy        *proxy.MCPProxy
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers, zwp *proxy.ZAIWebProxy) *Handler {
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers, zwp *proxy.ZAIWebProxy, mcp *proxy.MCPProxy) *Handler {
 	var sidecarURL string
 	if cfg.CLISidecarEnabled {
 		sidecarURL = cfg.CLISidecarURL
 	}
 	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode, "zaiweb_enabled", cfg.ZAIWebEnabled)
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), zaiWebProxy: zwp}
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), zaiWebProxy: zwp, mcpProxy: mcp}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -2266,4 +2267,31 @@ func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+
+// MCPProxyHandle proxies MCP JSON-RPC requests to Z.AI MCP servers.
+func (h *Handler) MCPProxyHandle(w http.ResponseWriter, r *http.Request) {
+	if h.mcpProxy == nil {
+		http.Error(w, "MCP proxy not enabled", http.StatusServiceUnavailable)
+		return
+	}
+	serverName := chi.URLParam(r, "server")
+	if serverName == "" {
+		http.Error(w, "missing server name", http.StatusBadRequest)
+		return
+	}
+	h.mcpProxy.ProxyMCP(w, r, serverName)
+}
+
+// MCPListServers returns the list of available MCP servers.
+func (h *Handler) MCPListServers(w http.ResponseWriter, r *http.Request) {
+	if h.mcpProxy == nil {
+		http.Error(w, "MCP proxy not enabled", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"servers": h.mcpProxy.ListServers(),
+	})
 }

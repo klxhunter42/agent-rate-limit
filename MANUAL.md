@@ -18,6 +18,7 @@
 - [Privacy & Security](docs/11-privacy-security.md) -- PasteGuard PII detection, streaming unmask bugs, GLM mode isolation
 - [Z.AI Vision Routing](docs/12-zai.md) -- Image format bug fix, filterUnsupportedContent changes
 - [Troubleshooting](docs/13-troubleshooting.md) -- Common issues, service health, reset procedures
+- [Retry & MCP Servers](docs/14-retry-mcp-servers.md) -- Upstream retry logic, Z.AI MCP server reference, quota, fallback strategies
 
 ## Implementation Specs (re-implementable from these)
 - [01 Proxy Layer](docs/spec/01-proxy-layer.md) -- All proxy types, SSE streaming, format conversion, retry/error matrix, auto-continuation
