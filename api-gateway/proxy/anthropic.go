@@ -1563,6 +1563,8 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
+		filteredBlocks := make(map[int]bool)
+
 		for scanner.Scan() {
 			line := scanner.Text()
 
@@ -1617,6 +1619,33 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 			}
 
 			fmt.Fprintln(w, line)
+		// Filter out server_tool_use and server_tool_result content blocks
+		// (same as relayStreamWithTracking, prevents SSE line overflow from large tool results)
+		if strings.HasPrefix(line, "data: ") {
+			data := line[6:]
+			if strings.Contains(data, `"content_block_start"`) {
+				var cbs struct {
+					Index       int `json:"index"`
+					ContentBlock struct {
+						Type string `json:"type"`
+					} `json:"content_block"`
+				}
+				if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
+					filteredBlocks[cbs.Index] = true
+					slog.Debug("sidecar: filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
+					continue
+				}
+			}
+			if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
+				var idxEvt struct {
+					Index int `json:"index"`
+				}
+				if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
+					continue
+				}
+			}
+		}
+
 			if flusher != nil {
 				flusher.Flush()
 			}
