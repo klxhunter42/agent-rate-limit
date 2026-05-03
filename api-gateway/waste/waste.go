@@ -96,7 +96,20 @@ func New(reg prometheus.Registerer) *WasteDetector {
 			Namespace: "api_gateway", Name: "waste_scan_duration_seconds", Help: "Waste scan duration",
 		}),
 	}
-	reg.MustRegister(m.findings, m.tokensWaste, m.scanDur)
+	// Register metrics; reuse existing collectors if already registered by another package.
+	for _, c := range []prometheus.Collector{m.scanDur} {
+		reg.MustRegister(c)
+	}
+	if err := reg.Register(m.findings); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			m.findings = are.ExistingCollector.(*prometheus.CounterVec)
+		}
+	}
+	if err := reg.Register(m.tokensWaste); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			m.tokensWaste = are.ExistingCollector.(*prometheus.CounterVec)
+		}
+	}
 	return &WasteDetector{cfg: cfg, m: m, sessions: make(map[string][]RequestRecord)}
 }
 

@@ -15,6 +15,7 @@ import {
   Box,
   UserCircle,
   PieChart,
+  Bug,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
   { path: '/privacy', label: 'Privacy', icon: Shield, group: 'Monitoring' },
   { path: '/models', label: 'Models', icon: Box, group: 'Monitoring' },
   { path: '/logs', label: 'Logs', icon: FileText, group: 'System' },
+ { path: '/debug', label: 'Debug', icon: Bug, group: 'System' },
   { path: '/settings', label: 'Settings', icon: Settings, group: 'System' },
 ];
 

@@ -2343,3 +2343,99 @@ All tools are converted via `input_schema` -> `function.parameters` mapping. Whe
 | `api-gateway/proxy/anthropic.go` | AnthropicToOpenAI conversion, system role, tool_choice |
 | `api-gateway/handler/handler.go` | Request routing, profile resolution, optimizer, privacy masking |
 
+
+## 21. Z.AI Vision Routing — Image Format Bug Fix
+
+### ปัญหา: ส่งรูปภาพไป Z.AI แล้วได้ 400 "Invalid API parameter" (code 1210)
+
+### Root Cause
+
+`filterUnsupportedContent()` แปลง image block จาก Anthropic format → GLM native format
+เพราะตอนแรก vision request ส่งไป `open.bigmodel.cn` (Zhipu native) ที่ต้องการ GLM format
+
+หลังเปลี่ยน route ให้ Z.AI vision ทั้งหมดไป `api.z.ai` (Anthropic-compatible endpoint)
+การแปลง format นี้ทำให้ Z.AI ปฏิเสธ request เพราะ endpoint นี้รับแค่ Anthropic format
+
+### Before (bug)
+
+```
+Client (Claude Code)
+  │
+  │  POST /v1/messages
+  │  messages: [{"role":"user","content":[
+  │    {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}},
+  │    {"type":"text","text":"What color?"}
+  │  ]}]
+  │
+  ▼
+Gateway handler.go
+  │
+  ├─ filterUnsupportedContent()        ← line 734
+  │    image block: type "image"  →  type "image_url"    ← BROKEN
+  │    {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
+  │
+  ├─ HasImageContent()  → true ✓
+  ├─ selectVisionModel() → "glm-4.6v" ✓
+  │
+  ▼
+trySidecarOrDirect()
+  │
+  ▼
+api.z.ai/v1/messages          ← Anthropic-compatible endpoint
+  │
+  ✗ 400 "Invalid API parameter"
+       ↑ ไม่รู้จัก type "image_url" → ต้องเป็น type "image"
+```
+
+### After (fix)
+
+```
+Client (Claude Code)
+  │
+  │  POST /v1/messages
+  │  messages: [{"role":"user","content":[
+  │    {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}},
+  │    {"type":"text","text":"What color?"}
+  │  ]}]
+  │
+  ▼
+Gateway handler.go
+  │
+  ├─ filterUnsupportedContent()        ← line 734
+  │    only removes "server_tool_use" blocks
+  │    image block: ไม่แปลง คง type "image" ไว้          ← FIXED
+  │
+  ├─ HasImageContent()  → true ✓
+  ├─ selectVisionModel() → "glm-4.6v" ✓
+  │
+  ▼
+trySidecarOrDirect()
+  │
+  ▼
+api.z.ai/v1/messages          ← Anthropic-compatible endpoint
+  │
+  ✓ 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
+```
+
+### สิ่งที่เปลี่ยน
+
+| จุด | ก่อน | หลัง |
+|---|---|---|
+| `filterUnsupportedContent()` | ลบ `server_tool_use` + แปลง `image` → `image_url` | ลบ `server_tool_use` เท่านั้น |
+| Vision endpoint | ส่งไป `open.bigmodel.cn` (GLM native) + แปลง format | ส่งไป `api.z.ai` (Anthropic-compatible) + ไม่แปลง format |
+| Image format ที่ upstream ได้รับ | `image_url` (GLM) → 400 error | `image` (Anthropic) → 200 OK |
+
+### ไฟล์ที่เกี่ยวข้อง
+
+| ไฟล์ | ส่วนที่เกี่ยวข้อง |
+|---|---|
+| `api-gateway/handler/handler.go` | `filterUnsupportedContent()`, `HasImageContent()`, vision routing block |
+| `api-gateway/proxy/anthropic.go` | `HasImageContent()`, `rewriteImageToGLMFormat()` (no longer called) |
+| `api-gateway/config/config.go` | `VisionModelLimits`, `UPSTREAM_VISION_MODEL_LIMITS` |
+| `api-gateway/middleware/adaptive_limiter.go` | vision limits แยกจาก language limits |
+
+### บทเรียน
+
+- เมื่อเปลี่ยน upstream endpoint ต้องตรวจสอบว่า middleware ที่ transform payload ยังถูกต้องหรือไม่
+- `filterUnsupportedContent` ถูกเขียนไว้สำหรับ Zhipu native (`open.bigmodel.cn`) เท่านั้น
+- หลังย้ายไป api.z.ai (Anthropic-compatible) ไม่ต้องแปลง format แล้ว เพราะ client ส่ง Anthropic format มาอยู่แล้ว

@@ -25,6 +25,8 @@ func TestClassifyError(t *testing.T) {
 		{"403 forbidden", 403, `{"error":"forbidden"}`, ActionForward},
 		{"401 unauthorized", 401, `{"error":"unauthorized"}`, ActionForward},
 		{"400 empty body", 400, `{}`, ActionForward},
+		{"400 anthropic internal network failure code 1234", 400, `{"type":"error","error":{"message":"Internal network failure, error id: 20260503155516b0cfd25510a14e86, please try again later.","code":"1234"}}`, ActionRetryTransient},
+		{"400 anthropic internal network failure lowercase", 400, `{"type":"error","error":{"message":"internal network failure, please try again later.","code":"1234"}}`, ActionRetryTransient},
 		{"context window limit 400", 400, `{"error":{"message":"The model has reached its context window limit"}}`, ActionTruncateAndRetry},
 		{"context window limit 422", 422, `{"error":{"type":"invalid_request_error","message":"The model has reached its context window limit"}}`, ActionTruncateAndRetry},
 	}

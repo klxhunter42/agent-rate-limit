@@ -1748,6 +1748,28 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		}
 	}
 
+	// Filter out server_tool_use content blocks from non-stream response.
+	var respObj map[string]any
+	if json.Unmarshal(body, &respObj) == nil {
+		if content, ok := respObj["content"].([]any); ok {
+			filtered := make([]any, 0, len(content))
+			for _, block := range content {
+				if cb, ok := block.(map[string]any); ok {
+					if t, _ := cb["type"].(string); t == "server_tool_use" {
+						continue
+					}
+				}
+				filtered = append(filtered, block)
+			}
+			if len(filtered) != len(content) {
+				respObj["content"] = filtered
+				if newBody, err := json.Marshal(respObj); err == nil {
+					body = newBody
+				}
+			}
+		}
+	}
+
 	_, err = w.Write(body)
 	return err
 }
@@ -1781,6 +1803,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
+	filteredBlocks := make(map[int]bool)
 
 	for scanner.Scan() {
 		if !ttfbRecorded {
@@ -1854,6 +1877,31 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 				unmaskHits++
+			}
+		}
+
+		// Filter out server_tool_use content blocks from upstream response.
+		// Z.AI includes these but the client may not support them.
+		// Track block indices to also skip their delta/stop events.
+		if strings.Contains(data, `"content_block_start"`) {
+			var cbs struct {
+				Index        int    `json:"index"`
+				ContentBlock struct {
+					Type string `json:"type"`
+				} `json:"content_block"`
+			}
+			if json.Unmarshal([]byte(data), &cbs) == nil && cbs.ContentBlock.Type == "server_tool_use" {
+				filteredBlocks[cbs.Index] = true
+				slog.Debug("filtered server_tool_use block", "index", cbs.Index)
+				continue
+			}
+		}
+		if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
+			var idxEvt struct {
+				Index int `json:"index"`
+			}
+			if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
+				continue
 			}
 		}
 
