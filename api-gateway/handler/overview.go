@@ -384,7 +384,7 @@ func (oh *OverviewHandler) applyFix(checkID string) FixResponse {
 		return FixResponse{
 			CheckID: checkID,
 			Status:  "info",
-			Message: "no automated fix. Configure API keys via UPSTREAM_API_KEYS env var or provider OAuth endpoints.",
+			Message: "no automated fix. Configure API keys via ZAI_API_KEYS env var or provider OAuth endpoints.",
 		}
 	case "upstream":
 		return FixResponse{

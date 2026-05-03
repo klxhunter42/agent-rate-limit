@@ -287,7 +287,7 @@ cp .env.example .env
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | Max concurrent requests across all models |
 | `UPSTREAM_MAX_RETRIES` | `3` | Max retries on 429 errors |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | Retry backoff base duration |
-| `UPSTREAM_API_KEYS` | `` | Comma-separated API keys for key pool |
+| `ZAI_API_KEYS` | `` | Comma-separated API keys for key pool |
 | `UPSTREAM_RPM_LIMIT` | `40` | Per-key requests-per-minute budget |
 | `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive limiter probe ceiling multiplier |
 | `ENABLE_PROMPT_INJECTION` | `true` | Inject system prompt for conciseness |

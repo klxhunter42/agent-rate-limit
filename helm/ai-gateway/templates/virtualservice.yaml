@@ -2,95 +2,20 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "vs") }}
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "proxy") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "vs") | nindent 4 }}
+    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "proxy") | nindent 4 }}
 spec:
   gateways:
     - {{ .Values.istio.gateway }}
   hosts:
     {{- toYaml .Values.istio.hosts | nindent 4 }}
   http:
-    - match:
-        - uri:
-            prefix: "/v1/"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-      timeout: 300s
-
-    - match:
-        - uri:
-            prefix: "/api/"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-      timeout: 300s
-
-    - match:
-        - uri:
-            exact: "/health"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-
-    - match:
-        - uri:
-            exact: "/metrics"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-
-    - match:
-        - uri:
-            exact: "/callback"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-
-    - match:
-        - uri:
-            exact: "/ws"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-gateway
-            port:
-              number: 8080
-
-    - match:
-        - uri:
-            prefix: "/grafana"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-grafana
-            port:
-              number: 3000
-
-    - match:
-        - uri:
-            prefix: "/rl/"
-      rewrite:
-        uri: "/"
-      route:
-        - destination:
-            host: {{ .Release.Name }}-rl-dashboard
-            port:
-              number: 8080
-
     - route:
         - destination:
-            host: {{ .Release.Name }}-dashboard
+            host: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "proxy") }}
             port:
-              number: 80
+              number: {{ .Values.proxy.service.port }}
+      timeout: 300s
 {{- end }}

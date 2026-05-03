@@ -462,7 +462,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Require valid profile when not in GLM mode.
-	// GLM mode uses UPSTREAM_API_KEYS from env, no profile needed.
+	// GLM mode uses ZAI_API_KEYS from env, no profile needed.
 	if profileName == "" && !h.cfg.GLMMode {
 		slog.Warn("no valid profile, rejecting request", "path", r.URL.Path, "remote", r.RemoteAddr)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "valid profile required"})
@@ -554,7 +554,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					slog.Info("profile default token selected", "profile", profileOverride.Name, "provider", pid, "account", tok.AccountID)
 				}
 			}
-			// Fallback to key pool (UPSTREAM_API_KEYS) when profile has no
+			// Fallback to key pool (ZAI_API_KEYS) when profile has no
 			// stored token for the target provider (common in GLM mode).
 			if apiKey == "" && decision != nil && decision.APIKey != "" {
 				apiKey = decision.APIKey

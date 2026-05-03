@@ -90,7 +90,7 @@ All config via environment variables, parsed at startup with fallback defaults.
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | int | Total concurrent upstream requests |
 | `UPSTREAM_MAX_RETRIES` | `3` | int | Max retries on 429 |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | duration | Base backoff for retry |
-| `UPSTREAM_API_KEYS` | (empty) | csv | API keys for rotation pool |
+| `ZAI_API_KEYS` | (empty) | csv | API keys for rotation pool |
 | `UPSTREAM_RPM_LIMIT` | `40` | int | Per-key RPM budget |
 | `UPSTREAM_PROBE_MULTIPLIER` | `5` | int | Adaptive limit probe multiplier |
 | `MODEL_PRICING` | `glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,...` | map | Per-model USD per 1M tokens (input:output) |

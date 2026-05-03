@@ -155,7 +155,7 @@ func Load() *Config {
 		PromptInjectionText:      envOr("PROMPT_INJECTION_TEXT", defaultPromptInjection),
 		EnableAutoTruncate:       envBoolOr("ENABLE_AUTO_TRUNCATE", true),
 		TransientRetryMax:        envIntOr("TRANSIENT_RETRY_MAX", 3),
-		UpstreamAPIKeys:          parseAPIKeys(envOr("UPSTREAM_API_KEYS", "")),
+		UpstreamAPIKeys:          parseAPIKeys(envOr("ZAI_API_KEYS", "")),
 		UpstreamRPMLimit:         envIntOr("UPSTREAM_RPM_LIMIT", 40),
 		ProbeMultiplier:          envIntOr("UPSTREAM_PROBE_MULTIPLIER", 5),
 		ModelPricing:             parseModelPricing(envOr("MODEL_PRICING", defaultModelPricing)),

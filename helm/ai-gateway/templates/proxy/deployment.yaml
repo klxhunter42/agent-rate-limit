@@ -19,6 +19,8 @@ spec:
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
+      securityContext:
+        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
       containers:
         - name: proxy
           image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"
@@ -26,6 +28,8 @@ spec:
           ports:
             - containerPort: 9000
               name: http
+          securityContext:
+            {{- include "ai-gateway.securityContext" . | nindent 12 }}
           resources:
             {{- toYaml .Values.proxy.resources | nindent 12 }}
           volumeMounts:

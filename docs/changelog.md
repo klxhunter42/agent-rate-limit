@@ -164,7 +164,7 @@ Constructor updated with 4 new parameters.
 ### เปลี่ยนแปลง: .env cleanup
 
 - `GLM_API_KEYS` and `GLM_ENDPOINT` removed from sync proxy path
-- Replaced by `UPSTREAM_API_KEYS` + `UPSTREAM_URL` (already pointed to Z.AI)
+- Replaced by `ZAI_API_KEYS` + `UPSTREAM_URL` (already pointed to Z.AI)
 - Worker async path still uses `GLM_API_KEYS` + `GLM_ENDPOINT` independently
 
 ---
@@ -593,7 +593,7 @@ Prometheus counters สำหรับติดตาม token usage:
 
 | ไฟล์ | สถานะ |
 |------|--------|
-| `docs/providers.md` | v1.6 - UPSTREAM_API_KEYS split, Z.AI pricing table, usage recording |
+| `docs/providers.md` | v1.6 - ZAI_API_KEYS split, Z.AI pricing table, usage recording |
 | `docs/architecture.md` | v3.1 - profile routing, quota enforcement, usage recording, 6 WS events |
 | `docs/known-issues.md` | v1.3 - quota enforcement wired (placeholder data remains) |
 | `docs/claude-code-proxy.md` | v2.7 - profile routing, quota enforcement, WS events, usage integration |

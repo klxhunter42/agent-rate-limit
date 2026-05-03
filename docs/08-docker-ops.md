@@ -129,7 +129,7 @@ The sidecar is enabled by default (`CLI_SIDECAR_ENABLED=true`) and runs a Node.j
 | `SERVER_PORT` | `:8080` | Listen address |
 | `GLM_MODE` | `true` | Enable Z.AI features vs multi-provider proxy |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Default upstream |
-| `UPSTREAM_API_KEYS` | - | Comma-separated API keys for rotation |
+| `ZAI_API_KEYS` | - | Comma-separated API keys for rotation |
 | `UPSTREAM_MODEL_LIMITS` | (see config.go) | Per-model concurrency limits |
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent upstream requests |
 | `CLI_SIDECAR_ENABLED` | `true` | Enable Node.js billing sidecar |

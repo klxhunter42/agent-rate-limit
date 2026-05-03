@@ -235,7 +235,7 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 			}
 			// Model matched a rule but no provider had a token
 			// In GLM mode: allow Z.AI fallback if zai is the intended provider
-			// (key may come from pool or UPSTREAM_API_KEYS)
+			// (key may come from pool or ZAI_API_KEYS)
 			if r.glmMode {
 				for _, pid := range rule.providers {
 					if pid == "zai" {
