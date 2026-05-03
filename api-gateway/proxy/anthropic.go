@@ -1762,7 +1762,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 			filtered := make([]any, 0, len(content))
 			for _, block := range content {
 				if cb, ok := block.(map[string]any); ok {
-					if t, _ := cb["type"].(string); t == "server_tool_use" {
+					if t, _ := cb["type"].(string); t == "server_tool_use" || t == "server_tool_result" {
 						continue
 					}
 				}
@@ -1891,8 +1891,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 		}
 
-		// Filter out server_tool_use content blocks from upstream response.
-		// Z.AI includes these but the client may not support them.
+		// Filter out server_tool_use and server_tool_result content blocks from upstream response.
+		// Z.AI includes these (e.g. built-in webReader) but the result payload can exceed
+		// the SSE line scanner limit and cause JSON parse errors.
 		// Track block indices to also skip their delta/stop events.
 		if strings.Contains(data, `"content_block_start"`) {
 			var cbs struct {
@@ -1901,9 +1902,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					Type string `json:"type"`
 				} `json:"content_block"`
 			}
-			if json.Unmarshal([]byte(data), &cbs) == nil && cbs.ContentBlock.Type == "server_tool_use" {
+			if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
 				filteredBlocks[cbs.Index] = true
-				slog.Debug("filtered server_tool_use block", "index", cbs.Index)
+				slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
 				continue
 			}
 		}
