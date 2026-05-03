@@ -89,14 +89,27 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	}
 
 	var lastResp *http.Response
+	var lastErrBody []byte
+	var lastErrStatus int
+	transientAttempts := 0
+	maxTransient := p.cfg.TransientRetryMax
+	if maxTransient <= 0 {
+		maxTransient = 2
+	}
+	maxAttempts := p.cfg.UpstreamMaxRetries + 1 + maxTransient
 
-	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
+	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}
-			slog.Warn("openai upstream 429, retrying", "attempt", attempt, "backoff", backoff)
+			slog.Warn("openai upstream retry",
+				"attempt", attempt,
+				"backoff", backoff,
+				"model", model,
+				"max_attempts", maxAttempts,
+			)
 			p.metrics.IncRetry()
 			select {
 			case <-time.After(backoff):
@@ -120,7 +133,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 			return fmt.Errorf("openai upstream call failed: %w", err)
 		}
 
-		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
+		isLastAttempt := attempt >= maxAttempts-1
 		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
 			feedback(resp.StatusCode, rtt, resp.Header)
 		}
@@ -131,17 +144,54 @@ func (p *OpenAIProxy) ProxyOpenAI(
 			continue
 		}
 
+		if resp.StatusCode == http.StatusOK {
+			lastResp = resp
+			lastErrBody = nil
+			break
+		}
+
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+		resp.Body.Close()
+
+		action := ClassifyError(resp.StatusCode, errBody)
+		if action == ActionRetryTransient && transientAttempts < maxTransient {
+			transientAttempts++
+			p.metrics.IncTransientRetry(resp.StatusCode, model)
+			slog.Warn("openai upstream retry transient error",
+				"status", resp.StatusCode,
+				"model", model,
+				"retry", transientAttempts,
+				"max_transient", maxTransient,
+				"response", string(errBody[:min(200, len(errBody))]),
+			)
+			lastErrBody = errBody
+			lastErrStatus = resp.StatusCode
+			continue
+		}
+
+		lastErrBody = errBody
+		lastErrStatus = resp.StatusCode
 		lastResp = resp
 		break
 	}
 
 	if lastResp == nil {
-		return fmt.Errorf("openai upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
+		if len(lastErrBody) > 0 {
+			if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+				lastErrBody = pipeline.UnmaskResponse(lastErrBody, maskResult)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(lastErrStatus)
+			w.Write(lastErrBody)
+			return nil
+		}
+		return fmt.Errorf("openai upstream returned no response after %d retries", maxAttempts)
 	}
 	defer lastResp.Body.Close()
 
 	if lastResp.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(io.LimitReader(lastResp.Body, maxResponseSize))
+		errBody := lastErrBody
 		slog.Info("upstream non-200", "status", lastResp.StatusCode, "maxContinuations", maxContinuations, "body_preview", string(errBody[:min(len(errBody), 200)]))
 
 		// If lotus returns 400 for max_tokens too large, retry with reduced max_tokens

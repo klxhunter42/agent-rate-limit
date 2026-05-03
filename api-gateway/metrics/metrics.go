@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,8 @@ type Metrics struct {
 	TransientRetries     *prometheus.CounterVec
 	BillingPathRequests  *prometheus.CounterVec
 	BillingPathLatency   *prometheus.HistogramVec
+	WasteFindings        *prometheus.CounterVec
+	WasteTokensWasted    *prometheus.CounterVec
 	registry             *prometheus.Registry
 	queueDepthFn         func() float64
 	pricing              map[string]modelPrice
@@ -243,6 +246,17 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "cost_savings_total",
 			Help:      "Total estimated cost savings from optimization in USD.",
 		}),
+		WasteFindings: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "waste_findings_total",
+			Help:      "Total waste findings detected by detector and severity.",
+		}, []string{"detector", "severity"}),
+
+		WasteTokensWasted: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "waste_tokens_wasted_total",
+			Help:      "Total tokens identified as wasted by detector.",
+		}, []string{"detector"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -280,6 +294,8 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.CostSavings,
 		m.BillingPathRequests,
 		m.BillingPathLatency,
+		m.WasteFindings,
+		m.WasteTokensWasted,
 	)
 
 	return m
@@ -454,7 +470,6 @@ func (m *Metrics) IncTransientRetry(statusCode int, model string) {
 	m.TransientRetries.WithLabelValues(strconv.Itoa(statusCode), model).Inc()
 }
 
-
 // RecordBillingPath records a billing path routing event (go_direct, sidecar, direct, billing_rejected).
 func (m *Metrics) RecordBillingPath(path, model, profile string) {
 	m.BillingPathRequests.WithLabelValues(path, model, profile).Inc()
@@ -493,4 +508,199 @@ func (m *Metrics) UpdateAdaptiveMetrics(statuses []ModelStatusSnapshot) {
 		m.AdaptiveLimit.WithLabelValues(s.Name).Set(s.Limit)
 		m.AdaptiveInFlight.WithLabelValues(s.Name).Set(s.InFlight)
 	}
+}
+
+// IncWasteFinding increments waste findings counter.
+func (m *Metrics) IncWasteFinding(detector, severity string) {
+	m.WasteFindings.WithLabelValues(detector, severity).Inc()
+}
+
+// RecordWasteTokens records tokens identified as wasted by a detector.
+func (m *Metrics) RecordWasteTokens(detector string, tokens int) {
+	m.WasteTokensWasted.WithLabelValues(detector).Add(float64(tokens))
+}
+
+// SeedMockData populates all optimizer/waste/budget metrics with initial sample data
+// so that stat/barchart panels display immediately. Timeseries panels using rate()
+// are fed by StartMockDataLoop.
+func (m *Metrics) SeedMockData() {
+	techniques := []struct {
+		name       string
+		charsSaved float64
+		runs       int
+		duration   float64
+	}{
+		{"chunker", 128000, 320, 0.012},
+		{"delta", 86400, 210, 0.008},
+		{"sketch_dedup", 42000, 180, 0.005},
+		{"semantic_dedup", 31200, 95, 0.025},
+		{"disclosure", 0, 450, 0.003},
+		{"packer", 15600, 120, 0.015},
+		{"bandit", 0, 780, 0.042},
+		{"prefetcher", 0, 640, 0.006},
+		{"summarizer", 96000, 160, 0.085},
+		{"warmstart", 0, 520, 0.018},
+		{"caveman", 54000, 88, 0.035},
+	}
+
+	for _, t := range techniques {
+		m.OptimizerCharsSaved.WithLabelValues(t.name).Add(t.charsSaved)
+		for i := 0; i < t.runs; i++ {
+			m.OptimizerRuns.WithLabelValues(t.name).Inc()
+		}
+		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration)
+		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 0.7)
+		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 1.4)
+	}
+
+	m.OptimizerTokensSaved.Add(42800)
+	m.CostSavings.Add(3.47)
+
+	models := []struct {
+		name  string
+		level float64
+	}{
+		{"glm-5.1", 0},
+		{"glm-5-turbo", 0},
+		{"glm-5", 1},
+		{"glm-4.7", 0},
+		{"glm-4.6", 2},
+		{"glm-4.5", 0},
+	}
+	for _, md := range models {
+		m.BudgetLevel.WithLabelValues(md.name).Set(md.level)
+	}
+
+	detectors := []struct {
+		name     string
+		findings int
+		tokens   float64
+	}{
+		{"repetition", 120, 8400},
+		{"padding", 85, 5600},
+		{"off_topic", 42, 3200},
+		{"redundancy", 67, 4100},
+	}
+	severities := []string{"low", "medium", "high"}
+
+	for _, d := range detectors {
+		for i, sev := range severities {
+			count := d.findings / (i + 1)
+			for j := 0; j < count; j++ {
+				m.WasteFindings.WithLabelValues(d.name, sev).Inc()
+			}
+		}
+		m.WasteTokensWasted.WithLabelValues(d.name).Add(d.tokens)
+	}
+}
+
+// StartMockDataLoop continuously increments mock metrics so that rate()-based
+// Grafana timeseries panels show live data. Stops when ctx is cancelled.
+func (m *Metrics) StartMockDataLoop(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		techniques := []struct {
+			name     string
+			charsInc float64
+			runsInc  int
+			duration float64
+		}{
+			{"chunker", 120, 1, 0.012},
+			{"delta", 80, 1, 0.008},
+			{"sketch_dedup", 40, 1, 0.005},
+			{"semantic_dedup", 30, 1, 0.025},
+			{"disclosure", 0, 2, 0.003},
+			{"packer", 15, 1, 0.015},
+			{"bandit", 0, 3, 0.042},
+			{"prefetcher", 0, 2, 0.006},
+			{"summarizer", 90, 1, 0.085},
+			{"warmstart", 0, 2, 0.018},
+			{"caveman", 50, 1, 0.035},
+		}
+
+		wasteDetectors := []struct {
+			name     string
+			findings int
+			tokens   float64
+		}{
+			{"repetition", 2, 80},
+			{"padding", 1, 50},
+			{"off_topic", 1, 30},
+			{"redundancy", 1, 40},
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, t := range techniques {
+					if t.charsInc > 0 {
+						m.OptimizerCharsSaved.WithLabelValues(t.name).Add(t.charsInc)
+					}
+					for i := 0; i < t.runsInc; i++ {
+						m.OptimizerRuns.WithLabelValues(t.name).Inc()
+					}
+					m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration)
+				}
+
+				m.OptimizerTokensSaved.Add(40)
+				m.CostSavings.Add(0.003)
+
+				severities := []string{"low", "medium", "high"}
+				for _, d := range wasteDetectors {
+					for _, sev := range severities {
+						for j := 0; j < d.findings; j++ {
+							m.WasteFindings.WithLabelValues(d.name, sev).Inc()
+						}
+					}
+					m.WasteTokensWasted.WithLabelValues(d.name).Add(d.tokens)
+				}
+			}
+		}
+	}()
+}
+
+// mockLoopState tracks the running mock data loop.
+type mockLoopState struct {
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	running bool
+}
+
+var mockLoop mockLoopState
+
+// StartMockLoop starts the continuous mock data loop. Returns false if already running.
+func (m *Metrics) StartMockLoop() bool {
+	mockLoop.mu.Lock()
+	defer mockLoop.mu.Unlock()
+	if mockLoop.running {
+		return false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	mockLoop.cancel = cancel
+	mockLoop.running = true
+	m.StartMockDataLoop(ctx)
+	return true
+}
+
+// StopMockLoop stops the continuous mock data loop. Returns false if not running.
+func (m *Metrics) StopMockLoop() bool {
+	mockLoop.mu.Lock()
+	defer mockLoop.mu.Unlock()
+	if !mockLoop.running {
+		return false
+	}
+	mockLoop.cancel()
+	mockLoop.running = false
+	return true
+}
+
+// MockLoopRunning returns whether the mock data loop is active.
+func (m *Metrics) MockLoopRunning() bool {
+	mockLoop.mu.Lock()
+	defer mockLoop.mu.Unlock()
+	return mockLoop.running
 }

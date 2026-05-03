@@ -54,13 +54,27 @@ func (p *GeminiAPIProxy) ProxyGemini(
 	}
 
 	var lastResp *http.Response
-	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
+	var lastErrBody []byte
+	var lastErrStatus int
+	transientAttempts := 0
+	maxTransient := p.cfg.TransientRetryMax
+	if maxTransient <= 0 {
+		maxTransient = 2
+	}
+	maxAttempts := p.cfg.UpstreamMaxRetries + 1 + maxTransient
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}
-			slog.Warn("gemini upstream 429, retrying", "attempt", attempt, "backoff", backoff)
+			slog.Warn("gemini upstream retry",
+				"attempt", attempt,
+				"backoff", backoff,
+				"model", model,
+				"max_attempts", maxAttempts,
+			)
 			p.metrics.IncRetry()
 			select {
 			case <-time.After(backoff):
@@ -88,7 +102,7 @@ func (p *GeminiAPIProxy) ProxyGemini(
 			return fmt.Errorf("gemini upstream call failed: %w", err)
 		}
 
-		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
+		isLastAttempt := attempt >= maxAttempts-1
 		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
 			feedback(resp.StatusCode, rtt, resp.Header)
 		}
@@ -99,26 +113,56 @@ func (p *GeminiAPIProxy) ProxyGemini(
 			continue
 		}
 
-		lastResp = resp
-		break
-	}
+		if resp.StatusCode == http.StatusOK {
+			lastResp = resp
+			lastErrBody = nil
+			break
+		}
 
-	if lastResp == nil {
-		return fmt.Errorf("gemini upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
-	}
-	defer lastResp.Body.Close()
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
+		resp.Body.Close()
 
-	if lastResp.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(io.LimitReader(lastResp.Body, maxResponseSize))
+		action := ClassifyError(resp.StatusCode, errBody)
+		if action == ActionRetryTransient && transientAttempts < maxTransient {
+			transientAttempts++
+			p.metrics.IncTransientRetry(resp.StatusCode, model)
+			slog.Warn("gemini upstream retry transient error",
+				"status", resp.StatusCode,
+				"model", model,
+				"retry", transientAttempts,
+				"max_transient", maxTransient,
+				"response", string(errBody[:min(200, len(errBody))]),
+			)
+			lastErrBody = errBody
+			lastErrStatus = resp.StatusCode
+			continue
+		}
+
+		// Non-retriable error or retries exhausted - forward to client
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 			errBody = pipeline.UnmaskResponse(errBody, maskResult)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(lastResp.StatusCode)
+		w.WriteHeader(resp.StatusCode)
 		w.Write(errBody)
 		return nil
 	}
+
+	if lastResp == nil {
+		if len(lastErrBody) > 0 {
+			if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
+				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
+				lastErrBody = pipeline.UnmaskResponse(lastErrBody, maskResult)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(lastErrStatus)
+			w.Write(lastErrBody)
+			return nil
+		}
+		return fmt.Errorf("gemini upstream returned no response after %d retries", maxAttempts)
+	}
+	defer lastResp.Body.Close()
 
 	if isStream {
 		return p.relayGeminiStream(w, lastResp, model, maskResult)

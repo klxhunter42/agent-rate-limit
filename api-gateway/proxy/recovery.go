@@ -45,6 +45,11 @@ func ClassifyError(statusCode int, body []byte) RecoveryAction {
 	}
 	if statusCode == 400 || statusCode == 422 {
 		lower := strings.ToLower(string(body))
+		// Anthropic "Internal network failure" with code "1234" is a transient
+		// server-side glitch returned as 400. Retry it like a 500.
+		if strings.Contains(lower, `"code":"1234"`) || strings.Contains(lower, "internal network failure") {
+			return ActionRetryTransient
+		}
 		for _, p := range contextWindowPatterns {
 			if strings.Contains(lower, p) {
 				return ActionTruncateAndRetry

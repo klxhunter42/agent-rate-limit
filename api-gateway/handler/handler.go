@@ -1636,7 +1636,7 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 // and should not be overridden by vision auto-selection.
 func isNativeImageModel(model string) bool {
 	switch model {
-	case "glm-5.1", "glm-5v-turbo", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v", "glm-ocr":
+	case "glm-5.1", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v":
 		return true
 	}
 	return false
@@ -1739,12 +1739,10 @@ var knownModels = []struct {
 	{"glm-4.5-airx", "zai", "4", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-4.5-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
 	{"glm-4-32b-0414-128k", "zai", "4", "anthropic", 0.1, 0.1, 128000, "none", false, false, false},
-	{"glm-5v-turbo", "zai", "5-vision", "anthropic", 1.2, 4.0, 128000, "budget", false, true, false},
 	{"glm-4.6v", "zai", "4-vision", "anthropic", 0.3, 0.9, 128000, "none", false, true, false},
 	{"glm-4.6v-flashx", "zai", "4-vision", "anthropic", 0.04, 0.4, 128000, "none", false, true, false},
 	{"glm-4.6v-flash", "zai", "4-vision", "anthropic", 0, 0, 128000, "none", false, true, false},
 	{"glm-4.5v", "zai", "4-vision", "anthropic", 0.6, 1.8, 128000, "none", false, true, false},
-	{"glm-ocr", "zai", "ocr", "anthropic", 0.03, 0.03, 128000, "none", false, true, false},
 	// Anthropic
 	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
 	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},

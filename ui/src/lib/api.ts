@@ -123,6 +123,45 @@ export interface ParsedMetric {
   value: number;
 }
 
+// --- Debug / Mock ---
+
+export async function seedMockData(): Promise<void> {
+  const res = await fetch('/v1/mock/seed', { method: 'POST' });
+  if (!res.ok) throw new Error(`seed: ${res.status}`);
+}
+
+export async function startMockLoop(): Promise<{ status: string }> {
+  const res = await fetch('/v1/mock/loop/start', { method: 'POST' });
+  if (!res.ok) throw new Error(`loop/start: ${res.status}`);
+  return res.json();
+}
+
+export async function stopMockLoop(): Promise<{ status: string }> {
+  const res = await fetch('/v1/mock/loop/stop', { method: 'POST' });
+  if (!res.ok) throw new Error(`loop/stop: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMockStatus(): Promise<{ running: boolean }> {
+  const res = await fetch('/v1/mock/status');
+  if (!res.ok) throw new Error(`mock/status: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWasteFindings(): Promise<WasteFinding[]> {
+  const res = await fetch('/v1/waste/findings');
+  if (!res.ok) throw new Error(`waste/findings: ${res.status}`);
+  return res.json();
+}
+
+export interface WasteFinding {
+  detector: string;
+  severity: string;
+  message: string;
+  tokens_wasted: number;
+  suggestion: string;
+}
+
 export function parsePrometheusText(text: string): ParsedMetric[] {
   const metrics: ParsedMetric[] = [];
   for (const line of text.split('\n')) {

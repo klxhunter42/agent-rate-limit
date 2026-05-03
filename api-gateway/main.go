@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -311,6 +312,35 @@ func main() {
 	}))
 	r.Post("/v1/messages/count_tokens", h.CountTokens)
 	r.Get("/v1/waste/findings", h.GetWasteFindings)
+
+	// Mock data endpoints (manual control for Grafana dashboard testing).
+	r.Post("/v1/mock/seed", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		m.SeedMockData()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "seeded"})
+	}))
+	r.Post("/v1/mock/loop/start", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		ok := m.StartMockLoop()
+		w.Header().Set("Content-Type", "application/json")
+		if ok {
+			json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+		} else {
+			json.NewEncoder(w).Encode(map[string]string{"status": "already_running"})
+		}
+	}))
+	r.Post("/v1/mock/loop/stop", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		ok := m.StopMockLoop()
+		w.Header().Set("Content-Type", "application/json")
+		if ok {
+			json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
+		} else {
+			json.NewEncoder(w).Encode(map[string]string{"status": "not_running"})
+		}
+	}))
+	r.Get("/v1/mock/status", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"running": m.MockLoopRunning()})
+	}))
 
 	// Claude Code CLI passthrough routes (proxy to Anthropic API)
 	r.HandleFunc("/api/claude_code/policy_limits", h.AnthropicPassthrough)
