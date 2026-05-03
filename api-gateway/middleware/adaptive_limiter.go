@@ -108,7 +108,7 @@ const maxModelsPerSeries = 8
 //   - limits:       model -> max concurrent (also the initial limit)
 //   - defaultLimit: for unconfigured models
 //   - globalLimit:  hard cap across all models (per-key upstream limit)
-func NewAdaptiveLimiter(limits map[string]int, defaultLimit, globalLimit, probeMultiplier int) *AdaptiveLimiter {
+func NewAdaptiveLimiter(limits map[string]int, visionLimits map[string]int, defaultLimit, globalLimit, probeMultiplier int) *AdaptiveLimiter {
 	if globalLimit <= 0 {
 		panic("globalLimit must be positive")
 	}
