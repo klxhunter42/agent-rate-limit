@@ -1102,7 +1102,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
-		// Only strip tools/thinking for multi-image requests (Z.AI error 1210 with 2+ images).
+		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
+		// Strip tools/tool_choice for multi-image requests (Z.AI error 1210). Keep thinking.
 		if isNativeImageModel(selectedModel) {
 			var bm map[string]any
 			if json.Unmarshal(body, &bm) == nil {
@@ -1111,8 +1112,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				if imgCount > 1 {
 					delete(bm, "tools")
 					delete(bm, "tool_choice")
-					delete(bm, "thinking")
-					slog.Info("stripped tools/thinking for multi-image request", "model", selectedModel, "image_count", imgCount)
+				// thinking is preserved - only tools cause 1210 error
+					slog.Info("stripped tools for multi-image request", "model", selectedModel, "image_count", imgCount)
 				}
 				if nb, err := json.Marshal(bm); err == nil {
 					body = nb
