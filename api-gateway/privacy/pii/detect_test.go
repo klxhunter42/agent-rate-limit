@@ -112,6 +112,31 @@ func TestRegexDetector_Detect(t *testing.T) {
 		result := d2.Detect("Call 555-123-4567")
 		assert.False(t, result.HasPII)
 	})
+
+	t.Run("phone in URL not detected", func(t *testing.T) {
+		result := d.Detect("https://example.com/file.png?Expires=1777798284&Signature=abc123")
+		for _, e := range result.Entities {
+			assert.NotEqual(t, "PHONE_NUMBER", e.EntityType, "phone should not be detected inside URL")
+		}
+	})
+
+	t.Run("IP in URL not detected", func(t *testing.T) {
+		result := d.Detect("https://192.168.1.1:8080/api/v1/messages")
+		for _, e := range result.Entities {
+			assert.NotEqual(t, "IP_ADDRESS", e.EntityType, "IP should not be detected inside URL")
+		}
+	})
+
+	t.Run("phone outside URL still detected", func(t *testing.T) {
+		result := d.Detect("Call me at 415-555-1234 or visit https://example.com")
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "PHONE_NUMBER" {
+				found = true
+			}
+		}
+		assert.True(t, found, "phone outside URL should still be detected")
+	})
 }
 
 func TestMaskPII(t *testing.T) {

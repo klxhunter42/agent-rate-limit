@@ -46,10 +46,22 @@ var (
 	thaiIDRegex = regexp.MustCompile(`\b\d{1}[- ]?\d{4}[- ]?\d{5}[- ]?\d{2}[- ]?\d{1}\b`)
 	// Thai phone: 0[2-9]x-xxx-xxxx or +66[2-9]x-xxx-xxxx
 	thaiPhoneRegex = regexp.MustCompile(`(?:\+66|0)[2-9]\d{1}[- ]?\d{3}[- ]?\d{4}`)
+	// URL detection for false-positive filtering
+	urlRegex = regexp.MustCompile(`https?://[^\s"'<>]+`)
 )
 
 func NewRegexDetector(entities []string) *RegexDetector {
 	return &RegexDetector{entities: entities}
+}
+
+// overlapsURL checks if span [start, end) overlaps with any URL in urlSpans.
+func overlapsURL(urlSpans [][]int, start, end int) bool {
+	for _, u := range urlSpans {
+		if start < u[1] && end > u[0] {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *RegexDetector) Detect(text string) DetectResult {
@@ -59,6 +71,7 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 
 	start := time.Now()
 	var entities []masking.PIIEntity
+	urlSpans := urlRegex.FindAllStringIndex(text, -1)
 
 	for _, entity := range d.entities {
 		switch entity {
@@ -73,6 +86,9 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 			}
 		case "PHONE_NUMBER":
 			for _, m := range phoneRegex.FindAllStringIndex(text, -1) {
+				if overlapsURL(urlSpans, m[0], m[1]) {
+					continue
+				}
 				entities = append(entities, masking.PIIEntity{
 					EntityType: "PHONE_NUMBER",
 					Start:      m[0],
@@ -109,6 +125,9 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 			}
 		case "IP_ADDRESS":
 			for _, m := range ipv4Regex.FindAllStringIndex(text, -1) {
+				if overlapsURL(urlSpans, m[0], m[1]) {
+					continue
+				}
 				entities = append(entities, masking.PIIEntity{
 					EntityType: "IP_ADDRESS",
 					Start:      m[0],
@@ -127,6 +146,9 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 			}
 		case "THAI_PHONE":
 			for _, m := range thaiPhoneRegex.FindAllStringIndex(text, -1) {
+				if overlapsURL(urlSpans, m[0], m[1]) {
+					continue
+				}
 				entities = append(entities, masking.PIIEntity{
 					EntityType: "THAI_PHONE",
 					Start:      m[0],

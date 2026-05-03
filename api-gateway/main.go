@@ -314,8 +314,12 @@ func main() {
 	r.Get("/v1/waste/findings", h.GetWasteFindings)
 
 	// Mock data endpoints (manual control for Grafana dashboard testing).
-	r.Post("/v1/mock/seed", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		m.SeedMockData()
+	r.Post("/v1/mock/seed", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := r.URL.Query().Get("category")
+		if category == "" {
+			category = "all"
+		}
+		m.SeedMockCategory(category)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "seeded"})
 	}))

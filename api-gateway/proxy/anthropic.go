@@ -1378,18 +1378,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	}
 	defer lastResp.Body.Close()
 
-	// Copy only allowed response headers (prevent header injection).
-	for k, vs := range lastResp.Header {
-		if _, ok := allowedResponseHeaders[k]; !ok {
-			continue
-		}
-		for _, v := range vs {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(lastResp.StatusCode)
-
 	if isStream {
+		// Stream: must write headers first (SSE requires it).
+		copyResponseHeaders(w, lastResp)
+		w.WriteHeader(lastResp.StatusCode)
+
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
@@ -1397,6 +1390,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput, maskResult)
 	}
 
+	// Non-stream: buffer full response before writing headers so errors
+	// can still return a proper JSON error instead of empty body -> "Unexpected EOF".
 	return p.handleNonStreamResponse(w, lastResp, model, maskResult)
 }
 
@@ -1650,6 +1645,18 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 	return nil
 }
 
+// copyResponseHeaders copies allowed upstream response headers to the client writer.
+func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
+	for k, vs := range resp.Header {
+		if _, ok := allowedResponseHeaders[k]; !ok {
+			continue
+		}
+		for _, v := range vs {
+			w.Header().Add(k, v)
+		}
+	}
+}
+
 // handleNonStreamResponse buffers the full response, tracks tokens, optionally trims, and sends.
 const maxResponseSize = 100 * 1024 * 1024 // 100MB limit
 
@@ -1770,6 +1777,10 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		}
 	}
 
+	// Write headers only after body is fully buffered so errors above can still
+	// return a proper JSON error to the caller without "headers already sent".
+	copyResponseHeaders(w, resp)
+	w.WriteHeader(resp.StatusCode)
 	_, err = w.Write(body)
 	return err
 }
@@ -1885,7 +1896,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		// Track block indices to also skip their delta/stop events.
 		if strings.Contains(data, `"content_block_start"`) {
 			var cbs struct {
-				Index        int    `json:"index"`
+				Index        int `json:"index"`
 				ContentBlock struct {
 					Type string `json:"type"`
 				} `json:"content_block"`

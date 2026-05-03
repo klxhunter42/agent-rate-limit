@@ -524,11 +524,27 @@ func (m *Metrics) RecordWasteTokens(detector string, tokens int) {
 // so that stat/barchart panels display immediately. Timeseries panels using rate()
 // are fed by StartMockDataLoop.
 func (m *Metrics) SeedMockData() {
+	m.SeedMockCategory("all")
+}
+
+func (m *Metrics) SeedMockCategory(category string) {
+	if category == "all" || category == "optimizer" {
+		m.seedOptimizers()
+	}
+	if category == "all" || category == "waste" {
+		m.seedWaste()
+	}
+	if category == "all" || category == "budget" {
+		m.seedBudget()
+	}
+}
+
+func (m *Metrics) seedOptimizers() {
 	techniques := []struct {
-		name       string
+		name string
 		charsSaved float64
-		runs       int
-		duration   float64
+		runs int
+		duration float64
 	}{
 		{"chunker", 128000, 320, 0.012},
 		{"delta", 86400, 210, 0.008},
@@ -542,7 +558,6 @@ func (m *Metrics) SeedMockData() {
 		{"warmstart", 0, 520, 0.018},
 		{"caveman", 54000, 88, 0.035},
 	}
-
 	for _, t := range techniques {
 		m.OptimizerCharsSaved.WithLabelValues(t.name).Add(t.charsSaved)
 		for i := 0; i < t.runs; i++ {
@@ -552,12 +567,13 @@ func (m *Metrics) SeedMockData() {
 		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 0.7)
 		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 1.4)
 	}
-
 	m.OptimizerTokensSaved.Add(42800)
 	m.CostSavings.Add(3.47)
+}
 
+func (m *Metrics) seedBudget() {
 	models := []struct {
-		name  string
+		name string
 		level float64
 	}{
 		{"glm-5.1", 0},
@@ -570,11 +586,13 @@ func (m *Metrics) SeedMockData() {
 	for _, md := range models {
 		m.BudgetLevel.WithLabelValues(md.name).Set(md.level)
 	}
+}
 
+func (m *Metrics) seedWaste() {
 	detectors := []struct {
-		name     string
+		name string
 		findings int
-		tokens   float64
+		tokens float64
 	}{
 		{"repetition", 120, 8400},
 		{"padding", 85, 5600},
@@ -582,7 +600,6 @@ func (m *Metrics) SeedMockData() {
 		{"redundancy", 67, 4100},
 	}
 	severities := []string{"low", "medium", "high"}
-
 	for _, d := range detectors {
 		for i, sev := range severities {
 			count := d.findings / (i + 1)

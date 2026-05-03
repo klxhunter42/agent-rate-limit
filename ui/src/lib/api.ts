@@ -125,8 +125,8 @@ export interface ParsedMetric {
 
 // --- Debug / Mock ---
 
-export async function seedMockData(): Promise<void> {
-  const res = await fetch('/v1/mock/seed', { method: 'POST' });
+export async function seedMockData(category = 'all'): Promise<void> {
+  const res = await fetch(`/v1/mock/seed?category=${encodeURIComponent(category)}`, { method: 'POST' });
   if (!res.ok) throw new Error(`seed: ${res.status}`);
 }
 
