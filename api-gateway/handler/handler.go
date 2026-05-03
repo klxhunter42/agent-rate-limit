@@ -1057,29 +1057,36 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
-		// GLM models: use dedicated Z.AI vision endpoint (OpenAI format).
 		imgBytes, imgCount := analyzeImagePayload(payload)
-		visionModel := selectVisionModel(imgBytes, imgCount)
-		if visionModel != selectedModel {
-			slog.Info("vision model auto-selected",
-				"original", selectedModel,
-				"selected", visionModel,
-				"imageBytes", imgBytes,
-				"imageCount", imgCount,
-			)
-			selectedModel = visionModel
-			var bodyMap map[string]any
-			if json.Unmarshal(body, &bodyMap) == nil {
-				bodyMap["model"] = selectedModel
-				body, _ = json.Marshal(bodyMap)
+		// Models with native image support (glm-5.1, glm-4.6v, etc.) route
+		// through the standard Anthropic-compatible endpoint (api.z.ai).
+		// Only use ProxyNativeVision (open.bigmodel.cn) for text-only models
+		// that need vision auto-selection.
+		if !isNativeImageModel(selectedModel) {
+			visionModel := selectVisionModel(imgBytes, imgCount)
+			if visionModel != selectedModel {
+				slog.Info("vision model auto-selected",
+					"original", selectedModel,
+					"selected", visionModel,
+					"imageBytes", imgBytes,
+					"imageCount", imgCount,
+				)
+				selectedModel = visionModel
+				var bodyMap map[string]any
+				if json.Unmarshal(body, &bodyMap) == nil {
+					bodyMap["model"] = selectedModel
+					body, _ = json.Marshal(bodyMap)
+				}
 			}
+			slog.Info("routing to native vision endpoint", "model", selectedModel)
+			if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
+				slog.Error("vision proxy error", "error", err, "model", selectedModel)
+				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
+			}
+			return
 		}
-		slog.Info("routing to native vision endpoint", "model", selectedModel)
-		if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-			slog.Error("vision proxy error", "error", err, "model", selectedModel)
-			h.metrics.IncError("upstream")
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
-		}
+		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel)
 	} else if hasImages && decision != nil {
 		// Non-GLM models with images: re-resolve for the vision model and use normal routing.
 		visionDecision := decision
@@ -1627,6 +1634,16 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 	return "glm-4.6v"
 }
 
+// isNativeImageModel returns true if the model natively supports image input
+// and should not be overridden by vision auto-selection.
+func isNativeImageModel(model string) bool {
+	switch model {
+	case "glm-5.1", "glm-5v-turbo", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v", "glm-ocr":
+		return true
+	}
+	return false
+}
+
 // applySmartMaxTokens sets an optimal max_tokens if not already specified.
 func applySmartMaxTokens(payload map[string]any, model string) {
 	if _, exists := payload["max_tokens"]; exists {
@@ -1711,7 +1728,7 @@ var knownModels = []struct {
 	Deprecated       bool
 }{
 	// Z.AI / GLM — pricing from https://docs.z.ai/guides/overview/pricing
-	{"glm-5.1", "zai", "5", "anthropic", 1.4, 4.4, 128000, "budget", false, false, false},
+	{"glm-5.1", "zai", "5", "anthropic", 1.4, 4.4, 128000, "budget", false, true, false},
 	{"glm-5", "zai", "5", "anthropic", 1.0, 3.2, 128000, "budget", false, false, false},
 	{"glm-5-turbo", "zai", "5", "anthropic", 1.2, 4.0, 128000, "budget", false, false, false},
 	{"glm-4.7", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
