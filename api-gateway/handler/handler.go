@@ -1102,11 +1102,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
-		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
 		// Strip tools/tool_choice for multi-image requests (Z.AI error 1210). Keep thinking.
 		if isNativeImageModel(selectedModel) {
 			var bm map[string]any
 			if json.Unmarshal(body, &bm) == nil {
+				logImageSourceTypes(bm, selectedModel)
 				bm = convertURLImagesToBase64(bm)
 				imgCount := proxy.CountImageBlocks(bm)
 				if imgCount > 1 {
@@ -1780,6 +1780,49 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 
 // convertURLImagesToBase64 downloads URL-based images and converts to base64 inline.
 // Z.AI cannot fetch Anthropic signed URLs, so we must convert them.
+// logImageSourceTypes logs the source type of each image block for debugging.
+func logImageSourceTypes(payload map[string]any, model string) {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return
+	}
+	for _, msg := range msgs {
+		mm, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		blocks, ok := mm["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range blocks {
+			cb, ok := block.(map[string]any)
+			if !ok || cb["type"] != "image" {
+				continue
+			}
+			src, ok := cb["source"].(map[string]any)
+			if !ok {
+				slog.Warn("image block has no source", "model", model)
+				continue
+			}
+			srcType, _ := src["type"].(string)
+			if srcType == "url" {
+				url, _ := src["url"].(string)
+				slog.Info("image source is URL", "model", model, "url_prefix", url[:min(80, len(url))])
+			} else if srcType == "base64" {
+				mt, _ := src["media_type"].(string)
+				dataLen := 0
+				if d, _ := src["data"].(string); len(d) > 0 {
+					dataLen = len(d)
+				}
+				slog.Info("image source is base64", "model", model, "media_type", mt, "data_len", dataLen)
+			} else {
+				slog.Warn("unknown image source type", "model", model, "src_type", srcType)
+			}
+		}
+	}
+}
+
 func convertURLImagesToBase64(payload map[string]any) map[string]any {
 	msgs, ok := payload["messages"].([]any)
 	if !ok {
