@@ -1088,9 +1088,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// Route ZAI vision models through OpenAI endpoint for multi-image support.
+		// Route native image models through ProxyNativeVision (Z.AI native endpoint).
 		// Z.AI's Anthropic-compatible endpoint rejects multiple images (error 1210).
-		if h.cfg.ZAIOpenAIModels[selectedModel] || isNativeImageModel(selectedModel) {
+		if isNativeImageModel(selectedModel) {
+			slog.Info("vision via native zhipu endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
+				slog.Error("native vision proxy error", "error", err, "model", selectedModel)
+				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "native vision proxy error: " + err.Error()})
+			}
+			return
+		}
+		// Route ZAI OpenAI-format vision models through OpenAI endpoint.
+		if h.cfg.ZAIOpenAIModels[selectedModel] {
 			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
 				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
