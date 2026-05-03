@@ -133,6 +133,32 @@ func (u *UsageHandler) RecordProfileUsage(profile, model string, inputTokens, ou
 	pipe.Exec(ctx)
 }
 
+// RecordProfileAccountUsage increments usage counters scoped to profile+account+model.
+// Enables per-API-key breakdown under a profile.
+func (u *UsageHandler) RecordProfileAccountUsage(profile, accountID, model string, inputTokens, outputTokens int, cost float64) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	dailyKey := "usage:profile:" + profile + ":account:" + accountID + ":daily:" + now.Format("2006-01-02")
+	summaryKey := "usage:profile:" + profile + ":account:" + accountID + ":summary"
+
+	pipe := u.rdb.Pipeline()
+
+	field := model
+	for _, key := range []string{dailyKey, summaryKey} {
+		pipe.HIncrByFloat(ctx, key, field+":cost", cost)
+		pipe.HIncrBy(ctx, key, field+":input", int64(inputTokens))
+		pipe.HIncrBy(ctx, key, field+":output", int64(outputTokens))
+		pipe.HIncrBy(ctx, key, field+":requests", 1)
+		pipe.SAdd(ctx, key+":models", model)
+	}
+
+	pipe.Expire(ctx, dailyKey, 35*24*time.Hour)
+	pipe.Expire(ctx, summaryKey, 0)
+
+	pipe.Exec(ctx)
+}
+
 // RecordAccountUsage increments usage counters for an account+model.
 func (u *UsageHandler) RecordAccountUsage(accountID, model string, inputTokens, outputTokens int, cost float64) {
 	ctx := context.Background()
@@ -156,6 +182,96 @@ func (u *UsageHandler) RecordAccountUsage(accountID, model string, inputTokens, 
 	pipe.Expire(ctx, summaryKey, 0)
 
 	pipe.Exec(ctx)
+}
+
+// ProfileKeysUsage returns per-API-key (account) usage breakdown for a single profile.
+func (u *UsageHandler) ProfileKeysUsage(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	ctx := r.Context()
+	pattern := "usage:profile:" + name + ":account:*:summary"
+	keys, err := scanKeys(ctx, u.rdb, pattern)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "redis error"})
+		return
+	}
+
+	type modelEntry struct {
+		Model    string  `json:"model"`
+		Requests int64   `json:"requests"`
+		Input    int64   `json:"input_tokens"`
+		Output   int64   `json:"output_tokens"`
+		Cost     float64 `json:"cost"`
+	}
+
+	type keyEntry struct {
+		AccountID string       `json:"accountId"`
+		TotalReqs int64        `json:"total_requests"`
+		TotalIn   int64        `json:"total_tokens_in"`
+		TotalOut  int64        `json:"total_tokens_out"`
+		TotalCost float64      `json:"total_cost"`
+		Models    []modelEntry `json:"models"`
+	}
+
+	result := make([]keyEntry, 0)
+	prefix := "usage:profile:" + name + ":account:"
+
+	for _, key := range keys {
+		if strings.HasSuffix(key, ":models") {
+			continue
+		}
+		// Extract accountID: usage:profile:{name}:account:{accountId}:summary
+		rest := strings.TrimPrefix(key, prefix)
+		parts := strings.SplitN(rest, ":", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		accountID := parts[0]
+
+		vals, err := u.rdb.HGetAll(ctx, key).Result()
+		if err != nil || len(vals) == 0 {
+			continue
+		}
+
+		entry := keyEntry{AccountID: accountID}
+		models := map[string]*modelEntry{}
+
+		for field, val := range vals {
+			fp := strings.SplitN(field, ":", 2)
+			if len(fp) != 2 {
+				continue
+			}
+			m, metric := fp[0], fp[1]
+			if models[m] == nil {
+				models[m] = &modelEntry{Model: m}
+			}
+			switch metric {
+			case "requests":
+				models[m].Requests = atoi64(val)
+				entry.TotalReqs += atoi64(val)
+			case "input":
+				models[m].Input = atoi64(val)
+				entry.TotalIn += atoi64(val)
+			case "output":
+				models[m].Output = atoi64(val)
+				entry.TotalOut += atoi64(val)
+			case "cost":
+				models[m].Cost = atof64(val)
+				entry.TotalCost += atof64(val)
+			}
+		}
+
+		for _, me := range models {
+			entry.Models = append(entry.Models, *me)
+		}
+		result = append(result, entry)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"profile": name, "keys": result})
 }
 
 // AccountUsage returns per-account aggregated usage across all accounts.
@@ -458,7 +574,6 @@ func (u *UsageHandler) ProfileUsageByName(w http.ResponseWriter, r *http.Request
 		"models":           ml,
 	})
 }
-
 
 // RecordAccountUsage increments usage counters for an account+model.
 func (u *UsageHandler) RecordError(model string) {

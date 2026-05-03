@@ -1106,14 +1106,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if isNativeImageModel(selectedModel) {
 			var bm map[string]any
 			if json.Unmarshal(body, &bm) == nil {
-				logImageSourceTypes(bm, selectedModel)
 				bm = convertURLImagesToBase64(bm)
 				imgCount := proxy.CountImageBlocks(bm)
+				if imgCount > 3 {
+					// Batch split: send images in groups of 3 with thinking preserved
+					h.batchVisionSplit(w, r, apiKey, body, selectedModel, isStream, bm)
+					return
+				}
 				if imgCount > 1 {
 					delete(bm, "tools")
 					delete(bm, "tool_choice")
-				delete(bm, "thinking")
-					slog.Info("stripped tools/thinking for multi-image request", "model", selectedModel, "image_count", imgCount)
+					slog.Info("stripped tools for multi-image request (<=3 images, keeping thinking)", "model", selectedModel, "image_count", imgCount)
 				}
 				if nb, err := json.Marshal(bm); err == nil {
 					body = nb
@@ -1775,12 +1778,96 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 	return "glm-4.6v"
 }
 
+// batchVisionSplit splits multi-image requests (>3 images) into batches of 3,
+// sends each batch separately with thinking enabled, and merges results.
+func (h *Handler) batchVisionSplit(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, payload map[string]any) {
+	const batchSize = 3
+
+	images, nonImages, lastUserIdx := proxy.ExtractImageBlocks(payload)
+	if len(images) <= batchSize {
+		// No splitting needed - send as single request with thinking
+		return
+	}
+
+	totalBatches := (len(images) + batchSize - 1) / batchSize
+	slog.Info("batch vision split",
+		"model", model,
+		"total_images", len(images),
+		"batches", totalBatches,
+		"batch_size", batchSize,
+	)
+
+	var results []*proxy.BatchResult
+	for i := 0; i < len(images); i += batchSize {
+		end := i + batchSize
+		if end > len(images) {
+			end = len(images)
+		}
+		batch := images[i:end]
+		batchNum := i/batchSize + 1
+
+		batchBody, err := proxy.BuildBatchBody(payload, batch, nonImages, lastUserIdx)
+		if err != nil {
+			slog.Error("batch build body failed", "batch", batchNum, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("batch %d build failed: %v", batchNum, err)})
+			return
+		}
+
+		slog.Info("sending batch", "batch", batchNum, "of", totalBatches, "images_in_batch", len(batch), "body_len", len(batchBody))
+
+		result, err := h.proxy.SendBatchRequest(r.Context(), apiKey, batchBody, model)
+		if err != nil {
+			slog.Error("batch request failed", "batch", batchNum, "error", err)
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("batch %d failed: %v", batchNum, err)})
+			return
+		}
+
+		slog.Info("batch completed", "batch", batchNum, "content_blocks", len(result.Content), "stop_reason", result.StopReason)
+		results = append(results, result)
+	}
+
+	// Track aggregated token usage
+	totalInput := 0
+	totalOutput := 0
+	for _, r := range results {
+		if in, ok := r.Usage["input_tokens"].(float64); ok {
+			totalInput += int(in)
+		}
+		if out, ok := r.Usage["output_tokens"].(float64); ok {
+			totalOutput += int(out)
+		}
+	}
+	h.metrics.RecordTokens(r.Context(), model, totalInput, totalOutput)
+
+	if isStream {
+		// Synthesize SSE stream from batch results
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		if err := proxy.SynthesizeBatchStream(w, results); err != nil {
+			slog.Error("synthesize stream failed", "error", err)
+		}
+	} else {
+		// Return merged JSON response
+		merged := proxy.MergeBatchResults(results)
+		writeJSON(w, http.StatusOK, merged)
+	}
+
+	slog.Info("batch vision complete",
+		"model", model,
+		"batches", len(results),
+		"total_input", totalInput,
+		"total_output", totalOutput,
+		"stream", isStream,
+	)
+}
+
 // isNativeImageModel returns true if the model natively supports image input
 // and should not be overridden by vision auto-selection.
 
 // convertURLImagesToBase64 downloads URL-based images and converts to base64 inline.
 // Z.AI cannot fetch Anthropic signed URLs, so we must convert them.
-// logImageSourceTypes logs the source type of each image block for debugging.
 func logImageSourceTypes(payload map[string]any, model string) {
 	msgs, ok := payload["messages"].([]any)
 	if !ok {
@@ -2317,7 +2404,6 @@ func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
-
 
 // MCPProxyHandle proxies MCP JSON-RPC requests to Z.AI MCP servers.
 func (h *Handler) MCPProxyHandle(w http.ResponseWriter, r *http.Request) {

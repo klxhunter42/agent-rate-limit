@@ -208,12 +208,12 @@ curl -X POST http://localhost:8080/v1/messages \
 # Use with Claude Code (apiKeyHelper)
 # ~/.claude/settings.json
 {
-  "env": { "ANTHROPIC_BASE_URL": "http://localhost:8080" },
-  "apiKeyHelper": "~/.claude/get-token.sh"
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
+    "ANTHROPIC_API_KEY": "arl_your-profile-token"
+  }
 }
-# ~/.claude/get-token.sh
-#!/bin/bash
-echo "proxy-no-key"
 ```
 
 ---
