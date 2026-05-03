@@ -203,6 +203,14 @@ func (p *MCPProxy) doUpstream(ctx context.Context, endpoint, apiKey string, body
 		return nil, resp.StatusCode, fmt.Errorf("read body: %w", err)
 	}
 
+	if len(respBody) == 0 {
+		return nil, resp.StatusCode, fmt.Errorf("upstream returned empty response (status %d)", resp.StatusCode)
+	}
+
+	if !json.Valid(respBody) {
+		return nil, resp.StatusCode, fmt.Errorf("upstream returned invalid JSON (status %d, body: %s)", resp.StatusCode, truncateBody(respBody, 200))
+	}
+
 	return respBody, resp.StatusCode, nil
 }
 
@@ -290,6 +298,13 @@ func writeMCPError(w http.ResponseWriter, id any, code int, message string) {
 		ID:      id,
 		Error:   &jsonRPCError{Code: code, Message: message},
 	})
+}
+
+func truncateBody(b []byte, maxLen int) string {
+	if len(b) <= maxLen {
+		return string(b)
+	}
+	return string(b[:maxLen]) + "..."
 }
 
 func (p *MCPProxy) ListServers() []MCPServerConfig {
