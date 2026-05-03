@@ -91,7 +91,8 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 		writeMCPError(w, nil, -32000, "no available API key")
 		return
 	}
-	defer p.keyPool.ReportSuccess(apiKey)
+	currentKey := apiKey
+	defer p.keyPool.ReportSuccess(currentKey)
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -127,7 +128,7 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 		p.metrics.MCPCacheMisses.WithLabelValues(serverName, toolName).Inc()
 	}
 
-	respBody, status, err := p.doUpstream(r.Context(), srv.Endpoint, apiKey, body)
+	respBody, status, err := p.doUpstream(r.Context(), srv.Endpoint, currentKey, body)
 	if err != nil {
 		p.recordMetrics(serverName, toolName, "error", start)
 		p.keyPool.Report429(apiKey)
@@ -137,18 +138,24 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}
-			time.Sleep(backoff)
+			select {
+			case <-r.Context().Done():
+				writeMCPError(w, req.ID, -32000, "request cancelled during retry")
+				return
+			case <-time.After(backoff):
+			}
 
-			apiKey, ok = p.keyPool.Acquire()
-			if !ok {
+			retryKey, rok := p.keyPool.Acquire()
+			if !rok {
 				break
 			}
-			respBody, status, err = p.doUpstream(r.Context(), srv.Endpoint, apiKey, body)
+			respBody, status, err = p.doUpstream(r.Context(), srv.Endpoint, retryKey, body)
 			if err == nil {
-				p.keyPool.ReportSuccess(apiKey)
+				p.keyPool.ReportSuccess(retryKey)
+				currentKey = retryKey
 				break
 			}
-			p.keyPool.Report429(apiKey)
+			p.keyPool.Report429(retryKey)
 		}
 		if err != nil {
 			writeMCPError(w, req.ID, -32000, fmt.Sprintf("upstream error after retries: %v", err))
