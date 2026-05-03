@@ -699,7 +699,7 @@ File: `api-gateway/privacy/config.go`
 | PASTEGUARD_MAX_SCAN_CHARS | 200000 | Max characters to scan per text span |
 | PASTEGUARD_SECRET_ENTITIES | (all types) | Comma-separated entity types to detect |
 | PASTEGUARD_PII_ENABLED | true | Enable PII detection |
-| PASTEGUARD_PII_ENTITIES | EMAIL_ADDRESS,PHONE_NUMBER | Comma-separated PII types |
+| PASTEGUARD_PII_ENTITIES | EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE | Comma-separated PII types |
 
 **Default Config** (when env vars not set):
 - Secret entities: `OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,JWT_TOKEN,BEARER_TOKEN`
@@ -745,7 +745,7 @@ File: `api-gateway/privacy/secrets/detect.go`, `secrets/patterns.go`
 | Entity | Pattern | Example |
 |--------|---------|---------|
 | OPENSSH_PRIVATE_KEY | `-----BEGIN OPENSSH PRIVATE KEY-----` | SSH private key |
-| PEM_PRIVATE_KEY | `-----BEGIN (RSA \|EC \|DSA )?PRIVATE KEY-----` | PEM keys (3 patterns) |
+| PEM_PRIVATE_KEY | `-----BEGIN (RSA \|ENCRYPTED )?PRIVATE KEY-----` (3 patterns: RSA, plain, encrypted) | PEM keys |
 | API_KEY_SK | `sk[-_][a-zA-Z0-9_-]{20,}` | OpenAI-style API keys |
 | API_KEY_AWS | `AKIA[0-9A-Z]{16}` | AWS access key ID |
 | API_KEY_GITHUB | `gh[pousr]_[a-zA-Z0-9]{36,}` | GitHub tokens |
@@ -754,7 +754,7 @@ File: `api-gateway/privacy/secrets/detect.go`, `secrets/patterns.go`
 | BEARER_TOKEN | `(?i)Bearer\s+[a-zA-Z0-9._-]{40,}` | Bearer auth headers |
 | ENV_PASSWORD | `(?i)[A-Za-z_][A-Za-z0-9_]*(PASSWORD|_PWD)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Password env vars |
 | ENV_SECRET | `(?i)[A-Za-z_][A-Za-z0-9_]*_SECRET\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Secret env vars |
-| CONNECTION_STRING | `(?i)(postgres|mysql|mariadb|mongodb|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+` | DB connection strings |
+| CONNECTION_STRING | `(?i)(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+` | DB connection strings |
 | THAI_NATIONAL_ID | `\b[1-8]\d{12}\b` | 13-digit Thai ID |
 
 **Detection Process**:
@@ -764,7 +764,9 @@ File: `api-gateway/privacy/secrets/detect.go`, `secrets/patterns.go`
 4. Collect `SecretLocation{Start, End, Type}` for each match
 5. Sort locations by Start DESC for safe backward replacement
 
-**DefaultDetector** enables: OpenSSHKey, PEMKey, APIKeySK, APIKeyAWS, APIKeyGitHub, APIKeyGitLab, JWTToken, BearerToken, ThaiID.
+**DefaultDetector** (fallback when SecretEntities is empty) enables: OpenSSHKey, PEMKey, APIKeySK, APIKeyAWS, APIKeyGitHub, APIKeyGitLab, JWTToken, BearerToken, ThaiID.
+
+**Note:** The normal code path uses `DefaultConfig().SecretEntities` (7 types, no GitLab or ThaiID) since `DefaultConfig()` always provides a non-empty list. `DefaultDetector()` is only reached if `SecretEntities` is explicitly set to empty.
 
 ### 5.5 PII Detection
 

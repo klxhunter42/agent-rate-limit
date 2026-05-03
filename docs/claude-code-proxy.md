@@ -358,7 +358,7 @@ Gateway detects image content
   |-- analyzeImagePayload(): count images + total base64 bytes
   |-- selectVisionModel():
   |     score = totalBase64KB + (imageCount * 300)
-  |     glm-4.6v (10 slots) or glm-4.6v-flashx (3 slots)
+  |     glm-4.6v (10 slots, best quality)
   |-- filterUnsupportedContent(): strip server_tool_use, convert image format
   |-- ProxyNativeVision(): convert Anthropic -> Zhipu format
   |-- Send to native Zhipu vision endpoint
@@ -510,11 +510,11 @@ body → io.ReadAll() → ส่ง raw bytes ตรงไป upstream          
 
 **แก้:** Gateway มี vision prompt injection อัตโนมัติ (ENABLE_PROMPT_INJECTION=true)
 
-### อาการ: glm-4.6v-flash overload ตอนส่ง base64
+### อาการ: glm-4.6v overload ตอนส่ง base64
 
-**สาเหตุ:** flash model มี payload limit ต่ำกว่า
+**สาเหตุ:** vision model มี payload limit ต่ำกว่า
 
-**แก้:** ใช้ URL image แทน base64, หรือใช้ glm-4.6v แทน
+**แก้:** ใช้ URL image แทน base64, หรือลดขนาดรูปก่อนส่ง
 
 ---
 

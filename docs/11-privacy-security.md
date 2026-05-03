@@ -31,6 +31,29 @@ The replacement is `RegexDetector` -- a pure Go regex engine with zero external 
 
 Default: all 8 entities are enabled. Customize via `PASTEGUARD_PII_ENTITIES` env var.
 
+### PasteGuard Secret Detection Entities
+
+| Entity | Pattern | Example |
+|---|---|---|
+| `OPENSSH_PRIVATE_KEY` | OpenSSH private key block | `-----BEGIN OPENSSH PRIVATE KEY-----` |
+| `PEM_PRIVATE_KEY` | RSA / PKCS8 / encrypted private key blocks | `-----BEGIN RSA PRIVATE KEY-----` |
+| `API_KEY_SK` | `sk-` prefixed keys (20+ chars) | `sk-abcdef...` |
+| `API_KEY_AWS` | AWS access key ID | `AKIAIOSFODNN7EXAMPLE` |
+| `API_KEY_GITHUB` | GitHub PAT / token | `ghp_xBnf...` |
+| `API_KEY_GITLAB` | GitLab PAT / deploy token | `glpat-abcdef...` |
+| `JWT_TOKEN` | JWT format (3 base64 segments) | `eyJhbG...` |
+| `BEARER_TOKEN` | Bearer auth header value (40+ chars) | `Bearer abc123...` |
+| `ENV_PASSWORD` | `PASSWORD=` / `_PWD=` env vars | `DB_PASSWORD=secret123` |
+| `ENV_SECRET` | `_SECRET=` env vars | `API_SECRET=mysecret` |
+| `CONNECTION_STRING` | Database/queue connection URIs | `postgresql://user:pass@host` |
+| `THAI_NATIONAL_ID` | 13-digit Thai citizen ID (no dashes) | `1100100000123` |
+
+Default: 7 entities enabled (OPENSSH_PRIVATE_KEY, PEM_PRIVATE_KEY, API_KEY_SK, API_KEY_AWS, API_KEY_GITHUB, JWT_TOKEN, BEARER_TOKEN). The remaining 5 (API_KEY_GITLAB, ENV_PASSWORD, ENV_SECRET, CONNECTION_STRING, THAI_NATIONAL_ID) are available but not in the default set. Customize via `PASTEGUARD_SECRET_ENTITIES` env var.
+
+### Mask Order
+
+Secrets are masked first, then PII is applied on top. During unmask, secrets are restored first (innermost), then PII (outermost). This nesting prevents partial unmasking.
+
 ### Presidio Legacy (Optional)
 
 The Presidio container is still available for legacy use but is not required:
@@ -155,14 +178,14 @@ GLM_MODE should be an infrastructure-level toggle (key sync, model listing only)
 | File | Before | After |
 |---|---|---|
 | `provider/resolver.go:Resolve()` | Z.AI fallback for all models that can't find token | Z.AI fallback only for models with `zai` as intended provider or unmatched prefix rule |
-| `handler/handler.go:584` | `!GLMMode && decision == nil` reject | `decision == nil` reject in all cases |
-| `handler/handler.go:653` | `GLMMode` -> filterUnsupportedContent | `decision.ProviderID == "zai"` only |
-| `handler/handler.go:974` | `GLMMode && hasImages && (decision==nil \|\| zai)` | `hasImages && decision != nil && zai` only |
+| `handler/handler.go:666` | `!GLMMode && decision == nil` reject | `decision == nil && profileOverride == nil` reject in all cases |
+| `handler/handler.go:735` | `GLMMode` -> filterUnsupportedContent | `decision.ProviderID == "zai"` only |
+| `handler/handler.go:1072` | `GLMMode && hasImages && (decision==nil \|\| zai)` | `hasImages && decision != nil && decision.ProviderID == "zai"` only |
 
 ### GLM_MODE Still Used (correct)
 
-- `main.go:217` -- sync Z.AI keys into KeyPool
-- `handler.go:1762,1822` -- hide zai models from listing when off
+- `main.go` -- sync Z.AI keys into KeyPool
+- `handler.go` -- hide zai models from listing when GLM mode is off
 - `resolver.go` -- Z.AI fallback for unknown prefix and glm- model that can't find token
 
 ### Flow After Fix

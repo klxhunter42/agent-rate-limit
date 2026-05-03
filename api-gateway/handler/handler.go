@@ -1545,9 +1545,7 @@ var modelMaxTokens = map[string]int{
 	"glm-4.5-air":               4096,
 	"glm-4.5-airx":              4096,
 	"glm-4.6v":                  4096,
-	"glm-4.6v-flashx":           4096,
 	"glm-4.5v":                  4096,
-	"glm-ocr":                   4096,
 	"glm-z1-air":                8192,
 	"glm-z1-airx":               16384,
 	"glm-z1-flashx":             8192,
@@ -1752,16 +1750,8 @@ func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int
 //
 //	score = totalBase64KB + (imageCount * 300)
 //
-// glm-4.6v is the default (10 slots, best quality). Only upgrades to
-// glm-4.6v-flashx for heavy payloads. glm-4.6v-flash (1 slot) is not
-// auto-selected.
+// glm-4.6v is the default (10 slots, best quality) for all vision payloads.
 func selectVisionModel(totalBytes int, imageCount int) string {
-	totalKB := totalBytes / 1024
-	score := totalKB + imageCount*300
-
-	if score > 2000 || imageCount >= 3 {
-		return "glm-4.6v-flashx"
-	}
 	return "glm-4.6v"
 }
 
@@ -1769,7 +1759,7 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 // and should not be overridden by vision auto-selection.
 func isNativeImageModel(model string) bool {
 	switch model {
-	case "glm-5.1", "glm-4.6v", "glm-4.6v-flashx", "glm-4.5v", "glm-4.1v-thinking-flashx":
+	case "glm-5.1", "glm-4.6v", "glm-4.5v":
 		return true
 	}
 	return false
@@ -1873,10 +1863,7 @@ var knownModels = []struct {
 	{"glm-4.5-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
 	{"glm-4-32b-0414-128k", "zai", "4", "anthropic", 0.1, 0.1, 128000, "none", false, false, false},
 	{"glm-4.6v", "zai", "4-vision", "anthropic", 0.3, 0.9, 128000, "none", false, true, false},
-	{"glm-4.6v-flashx", "zai", "4-vision", "anthropic", 0.04, 0.4, 128000, "none", false, true, false},
-	{"glm-4.6v-flash", "zai", "4-vision", "anthropic", 0, 0, 128000, "none", false, true, false},
 	{"glm-4.5v", "zai", "4-vision", "anthropic", 0.6, 1.8, 128000, "none", false, true, false},
-	{"glm-ocr", "zai", "4-tool", "openai", 0.03, 0.03, 128000, "none", false, false, false},
 	{"glm-z1-air", "zai", "z1", "anthropic", 0.2, 1.1, 128000, "none", false, false, false},
 	{"glm-z1-airx", "zai", "z1", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-z1-flashx", "zai", "z1", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},

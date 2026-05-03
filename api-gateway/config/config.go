@@ -143,8 +143,8 @@ func Load() *Config {
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
-		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1")),
-		VisionModelLimits:        parseModelLimits(envOr("UPSTREAM_VISION_MODEL_LIMITS", "glm-5.1:5,glm-4.6v:5,glm-4.5v:3,glm-4.6v-flashx:3")),
+		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10")),
+		VisionModelLimits:        parseModelLimits(envOr("UPSTREAM_VISION_MODEL_LIMITS", "glm-5.1:5,glm-4.6v:5,glm-4.5v:3")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 3),
 		GlobalLimit:              envIntOr("UPSTREAM_GLOBAL_LIMIT", 9),
 		UpstreamMaxRetries:       envIntOr("UPSTREAM_MAX_RETRIES", 3),
@@ -284,7 +284,7 @@ Identify dominant colors, shapes, text, objects, and spatial layout.
 Answer based only on what is visibly present in the image — never assume or guess.
 If the image is unclear or too small, state that explicitly.`
 
-const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.6v-flashx:0.04:0.4,glm-4.5v:0.6:1.8,glm-4-32b-0414-128k:0.1:0.1,glm-ocr:0.03:0.03,glm-4-plus:1.4:5.7,glm-4-long:0.1:0.1,glm-z1-air:0.2:1.1,glm-z1-airx:1.1:4.5,glm-z1-flashx:0.07:0.4,codegeex-4:0.01:0.01"
+const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,glm-4-32b-0414-128k:0.1:0.1,glm-4-plus:1.4:5.7,glm-4-long:0.1:0.1,glm-z1-air:0.2:1.1,glm-z1-airx:1.1:4.5,glm-z1-flashx:0.07:0.4,codegeex-4:0.01:0.01"
 
 // parseModelPricing parses "model1:input:output,model2:input:output" into a pricing map.
 // Prices are USD per 1M tokens.

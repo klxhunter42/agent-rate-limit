@@ -19,7 +19,7 @@ arl-gateway (:8080)
     |-- Calculate totalBase64Bytes + imageCount
     |-- selectVisionModel(): score = totalBase64KB + (imageCount * 300)
     |   |-- score <= 2000 && count < 3 -> glm-4.6v (10 slots, best quality)
-    |   |-- score > 2000 || count >= 3 -> glm-4.6v-flashx (3 slots, fastest)
+    |   |-- score > 2000 || count >= 3 -> glm-4.6v (heavy payload fallback)
     |
     |-- filterUnsupportedContent():
     |   strip server_tool_use blocks
@@ -56,7 +56,7 @@ score = totalBase64KB + (imageCount * 300)
 | Score / Condition | Selected Model | Slots | Reason |
 |---|---|---|---|
 | score <= 2000 && count < 3 | `glm-4.6v` | 10 | Best quality, high capacity |
-| score > 2000 or count >= 3 | `glm-4.6v-flashx` | 3 | Fast processing for heavy payloads |
+| score > 2000 or count >= 3 | `glm-4.6v` | 10 | Fallback for heavy payloads |
 
 **Examples:**
 
@@ -64,9 +64,9 @@ score = totalBase64KB + (imageCount * 300)
 |---|---|---|---|---|
 | 1 screenshot (200KB) | 200 | 1 | 500 | glm-4.6v |
 | 1 photo (1.5MB) | 1500 | 1 | 1800 | glm-4.6v |
-| 2 photos (1MB each) | 2000 | 2 | 2600 | glm-4.6v-flashx |
-| 5 screenshots (100KB each) | 500 | 5 | 2000 | glm-4.6v-flashx |
-| 1 large photo (3MB) | 3000 | 1 | 3300 | glm-4.6v-flashx |
+| 2 photos (1MB each) | 2000 | 2 | 2600 | glm-4.6v |
+| 5 screenshots (100KB each) | 500 | 5 | 2000 | glm-4.6v |
+| 1 large photo (3MB) | 3000 | 1 | 3300 | glm-4.6v |
 
 ### SSE Streaming for Vision
 
@@ -87,10 +87,11 @@ Supports both `delta.content` and `delta.reasoning_content` from Zhipu.
 
 | Model | Slots | Status | Notes |
 |---|---|---|---|
-| `glm-4.6v` | 10 | Recommended | Best quality, highest capacity |
-| `glm-4.5v` | 10 | Available | Good quality, same capacity |
-| `glm-4.6v-flashx` | 3 | Available | Fastest, auto-selected for heavy payloads |
-| `glm-4.6v-flash` | 1 | Available | Fast, not auto-selected (limited slots) |
+| `glm-5.1` | 5 | Native image input | V5 series, natively supports images |
+| `glm-4.6v` | 5 | Recommended | Best quality, auto-selected default |
+| `glm-4.5v` | 3 | Available | Good quality |
+
+Native image models (bypass auto-selection): `glm-5.1`, `glm-4.6v`, `glm-4.5v`.
 
 ### Image Formats Supported
 
@@ -111,8 +112,8 @@ Supports both `delta.content` and `delta.reasoning_content` from Zhipu.
 # Native Zhipu vision endpoint (default)
 NATIVE_VISION_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
 
-# Vision model concurrency limits (included in UPSTREAM_MODEL_LIMITS)
-UPSTREAM_MODEL_LIMITS=...,glm-4.6v:10,glm-4.5v:10,glm-4.6v-flashx:3,glm-4.6v-flash:1
+# Vision model concurrency limits (separate from text model limits)
+UPSTREAM_VISION_MODEL_LIMITS=glm-5.1:5,glm-4.6v:5,glm-4.5v:3
 ```
 
 ### Limitations
@@ -208,7 +209,7 @@ PROVIDER_RPM_LIMITS=glm:15,openai:120
 
 ## 3. Message Body Optimization
 
-Gateway performs token optimization at 2 levels: system prompt (13-stage pipeline) and message content (lightweight whitespace + dedup).
+Gateway performs token optimization at 2 levels: system prompt (7-stage pipeline from 13 components) and message content (lightweight whitespace + dedup).
 
 ### Pipeline Flow
 

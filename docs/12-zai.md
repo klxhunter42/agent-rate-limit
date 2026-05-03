@@ -20,7 +20,7 @@ Client (Claude Code)
 v
 Gateway handler.go
 |
-+- filterUnsupportedContent() <- line 734
++- filterUnsupportedContent() <- line 735
 |  image block: type "image" -> type "image_url" <- BROKEN
 |  {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
 |
@@ -51,7 +51,7 @@ Client (Claude Code)
 v
 Gateway handler.go
 |
-+- filterUnsupportedContent() <- line 734
++- filterUnsupportedContent() <- line 735
 |  only removes "server_tool_use" blocks
 |  image block: no conversion, keep type "image" <- FIXED
 |
@@ -89,3 +89,7 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 - When changing upstream endpoint, verify that middleware transforming payload is still correct
 - `filterUnsupportedContent` was written only for Zhipu native (`open.bigmodel.cn`)
 - After migrating to api.z.ai (Anthropic-compatible), no format conversion needed because client already sends Anthropic format
+
+## Additional Routing: ZAI OpenAI Models
+
+Some Z.AI models (configured via `ZAI_OPENAI_MODELS` env var) are routed through the OpenAI-compatible endpoint (`ZAI_OPENAI_URL`) instead of the Anthropic-compatible endpoint. For these models, `AnthropicToOpenAI()` conversion is applied, including image block conversion via `convertImageBlock()` in `proxy/anthropic.go`. This path is separate from the standard vision routing described above.

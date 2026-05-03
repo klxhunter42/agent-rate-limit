@@ -1,5 +1,4 @@
-# Caddy serves HTTP/2 to origin; browsers use Extended CONNECT (RFC 8441)
-# for WebSocket over h2 which Caddy supports natively.
+# Caddy serves HTTP on port 9000.
 {
 	log default {
 		output stderr
@@ -8,54 +7,6 @@
 	}
 }
 
-# --- Domain with HTTPS (self-signed, Cloudflare terminates public TLS) ---
-ai.klxhub.com {
-	tls internal
-	log
-
-	handle /ws {
-		reverse_proxy arl-gateway:8080 {
-			flush_interval -1
-		}
-	}
-	handle /hmr {
-		reverse_proxy arl-dashboard:5173 {
-			flush_interval -1
-		}
-	}
-	handle /v1/* {
-		reverse_proxy arl-gateway:8080 {
-			flush_interval -1
-		}
-	}
-	handle /health {
-		reverse_proxy arl-gateway:8080
-	}
-	handle /api/* {
-		reverse_proxy arl-gateway:8080 {
-			flush_interval -1
-		}
-	}
-	handle /metrics {
-		reverse_proxy arl-gateway:8080
-	}
-	handle /callback {
-		reverse_proxy arl-gateway:8080
-	}
-
-	@grafana path /grafana /grafana/*
-	handle @grafana {
-		reverse_proxy arl-grafana:3000
-	}
-	handle_path /rl/* {
-		reverse_proxy arl-rl-dashboard:8080
-	}
-	handle {
-		reverse_proxy arl-dashboard:5173
-	}
-}
-
-# --- IP/local access (HTTP, port 9000) ---
 :9000 {
 	handle /ws {
 		reverse_proxy arl-gateway:8080 {

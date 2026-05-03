@@ -26,7 +26,7 @@ Complete reference for all data structures, Redis keys, API endpoints, and state
 | AnthropicDirectURL | string | ANTHROPIC_DIRECT_URL | `https://api.anthropic.com` |
 | StreamTimeout | duration | STREAM_TIMEOUT | 300s |
 | ModelLimits | map[string]int | UPSTREAM_MODEL_LIMITS | `glm-5.1:1,glm-5-turbo:1,...` |
-| VisionModelLimits | map[string]int | - | (empty) |
+| VisionModelLimits | map[string]int | UPSTREAM_VISION_MODEL_LIMITS | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3` |
 | DefaultLimit | int | UPSTREAM_DEFAULT_LIMIT | 3 |
 | GlobalLimit | int | UPSTREAM_GLOBAL_LIMIT | 9 |
 | UpstreamMaxRetries | int | UPSTREAM_MAX_RETRIES | 3 |
@@ -65,6 +65,11 @@ Complete reference for all data structures, Redis keys, API endpoints, and state
 | GLMMode | bool | GLM_MODE | true |
 | CLISidecarURL | string | CLI_SIDECAR_URL | `http://127.0.0.1:8081` |
 | CLISidecarEnabled | bool | CLI_SIDECAR_ENABLED | true |
+| ZAIOpenAIURL | string | ZAI_OPENAI_URL | `https://api.z.ai/api/paas/v4/chat/completions` |
+| ZAIOpenAIModels | map[string]bool | ZAI_OPENAI_MODELS | (empty) |
+| ZAIWebEnabled | bool | ZAI_WEB_ENABLED | false |
+| ZAIWebToken | string | ZAI_WEB_TOKEN | (empty) |
+| ZAIWebModels | []string | ZAI_WEB_MODELS | (empty) |
 
 ### 1.2 ModelPrice struct
 
@@ -234,21 +239,35 @@ type RoutingDecision struct {
 
 ### 4.2 Provider Route Table
 
-| ProviderID | Format | AuthMode | URL Suffix | ModelOverride | MaxTokens |
-|------------|--------|----------|------------|---------------|-----------|
-| anthropic | anthropic | api_key | `/v1/messages` | - | 0 |
-| claude-oauth | anthropic | api_key | `/v1/messages?beta=true` | - | 0 |
-| claude | anthropic | api_key | `/v1/messages?beta=true` | - | 0 |
-| zai | anthropic | api_key | `/v1/messages` | - | 0 |
-| openai | openai | bearer | `/v1/chat/completions` | - | 0 |
-| copilot | openai | bearer | `/v1/chat/completions` | - | 0 |
-| openrouter | openai | bearer | `/v1/chat/completions` | - | 0 |
-| qwen | openai | bearer | `/compatible-mode/v1/chat/completions` | - | 0 |
-| gemini | gemini | api_key | (dynamic URL) | - | 0 |
-| gemini-oauth | gemini | bearer | (dynamic URL) | - | 0 |
-| deepseek | openai | bearer | `/v1/chat/completions` | - | 0 |
-| kimi | openai | bearer | `/v1/chat/completions` | - | 0 |
-| lotus | openai | bearer | `/v1/chat/completions` | `"default"` | 4096 |
+| ProviderID | Format | AuthMode | URL Suffix | ModelOverride | MaxTokens | MaxContinuations | ToolMode |
+|------------|--------|----------|------------|---------------|-----------|-----------------|----------|
+| anthropic | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
+| claude-oauth | anthropic | api_key | `/v1/messages?beta=true` | - | 0 | 0 | - |
+| claude | anthropic | api_key | `/v1/messages?beta=true` | - | 0 | 0 | - |
+| zai | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
+| openai | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| copilot | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| openrouter | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| qwen | openai | bearer | `/compatible-mode/v1/chat/completions` | - | 0 | 0 | - |
+| gemini | gemini | api_key | (dynamic URL) | - | 0 | 0 | - |
+| gemini-oauth | gemini | bearer | (dynamic URL) | - | 0 | 0 | - |
+| deepseek | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| kimi | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| lotus | openai | bearer | `/v1/chat/completions` | `"default"` | 4096 | 3 | native |
+| huggingface | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| ollama | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| agy | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
+| cursor | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| codebuddy | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| kilo | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+
+Claude-oauth/claude extra headers (injected by route table):
+- `anthropic-beta: claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24`
+- `x-app: cli`, `User-Agent: claude-cli/2.1.123 (external, cli)`
+- Various `X-Stainless-*` headers for API compatibility
+
+OpenRouter extra headers:
+- `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit`
 
 ### 4.3 Model Routing Rules
 
@@ -261,8 +280,18 @@ type RoutingDecision struct {
 | `glm-` | zai |
 | `qwen-` | qwen |
 | `or-` | openrouter |
+| `anthropic/` | anthropic, openrouter (fallback) |
+| `openai/` | openrouter |
+| `google/` | openrouter |
+| `meta/` | openrouter |
+| `deepseek/` | openrouter |
+| `qwen/` | openrouter |
 | `deepseek-` | deepseek |
 | `kimi-` | kimi |
+| `huggingface/` | huggingface |
+| `ollama` | ollama |
+| `agy-` | agy |
+| `lotus-` | lotus |
 
 ---
 
@@ -491,6 +520,27 @@ type HealthCheck struct {
 }
 ```
 
+### 10.3 DetailedHealthResponse struct
+
+```go
+type DetailedHealthResponse struct {
+    Status    string        `json:"status"`
+    Checks    []HealthCheck `json:"checks"`
+    Timestamp string        `json:"timestamp"`
+    Uptime    int64         `json:"uptimeSeconds"`
+}
+```
+
+### 10.4 FixResponse struct
+
+```go
+type FixResponse struct {
+    CheckID string `json:"checkId"`
+    Status  string `json:"status"`
+    Message string `json:"message"`
+}
+```
+
 ---
 
 ## 11. Config API Data Model
@@ -558,7 +608,7 @@ type WSEvent struct {
 }
 ```
 
-Event types: `anomaly-detected`, `request-error`, `request-completed`, `quota-warning`, `ratelimit-updated`.
+Event types: `config-changed`, `request-completed`, `request-error`, `anomaly-detected`, `quota-warning`, `ratelimit-updated`.
 
 ---
 
@@ -759,25 +809,23 @@ All keys use the `arl:` prefix (except legacy `profile:` and `usage:` patterns).
 
 ### 16.2 Token Storage (`arl:tokens:{provider}:{accountID}`)
 
-**Value**: JSON-serialized `TokenInfo` struct (see Section 5).
+**Value**: JSON-serialized `TokenInfo` struct (see Section 3.1).
 
 ```
 Key:   arl:tokens:anthropic:acc_abc123
 Value: {
-  "accountID": "acc_abc123",
-  "provider": "anthropic",
-  "authType": "oauth",
-  "accessToken": "sk-ant-...",
-  "refreshToken": "...",
-  "expiresAt": 1700000000,
-  "scopes": ["chat"],
+  "access_token": "sk-ant-...",
+  "refresh_token": "...",
+  "expiry_date": "2026-05-03T12:00:00Z",
   "email": "user@example.com",
-  "status": "active",
-  "lastRefresh": 1699999000,
-  "tier": "pro",
-  "rateLimit": {"rpm": 40, "tpm": 80000},
-  "lastUsed": 1699999500,
-  "labels": ["team-a"]
+  "account_id": "acc_abc123",
+  "provider": "anthropic",
+  "project_id": "",
+  "tier": "oauth",
+  "paused": false,
+  "is_default": false,
+  "created_at": "2026-01-15T08:30:00Z",
+  "scopes": "user:inference,user:profile"
 }
 ```
 

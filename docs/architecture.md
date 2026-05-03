@@ -900,7 +900,7 @@ arl-gateway (:8080)
         |-- selectVisionModel():
         |     score = totalBase64KB + (imageCount * 300)
         |     score <= 2000 && count < 3 -> glm-4.6v (10 slots)
-        |     score > 2000 || count >= 3 -> glm-4.6v-flashx (3 slots)
+        |     score > 2000 || count >= 3 -> glm-4.6v (heavy payload)
         |
         ProxyNativeVision()
           -> anthropicToZhipu() format conversion
@@ -995,8 +995,6 @@ zhipuToAnthropic():
 |-------|--------|--------|-------|
 | glm-4.6v | 10 | Available | Recommended, default for most requests |
 | glm-4.5v | 10 | Available | Good quality, same capacity |
-| glm-4.6v-flashx | 3 | Available | Auto-selected for heavy payloads (score > 2000 or count >= 3) |
-| glm-4.6v-flash | 1 | Available | Fast, not auto-selected (limited capacity) |
 
 ### Vision Model Auto-Select
 
@@ -1007,7 +1005,7 @@ analyzeImagePayload(payload) -> (totalBase64Bytes, imageCount)
 selectVisionModel(totalBytes, imageCount):
   score = totalBase64KB + (imageCount * 300)
   if score > 2000 or imageCount >= 3:
-    return "glm-4.6v-flashx"   // 3 slots, fastest for heavy payloads
+    return "glm-4.6v"            // best quality for heavy payloads
   return "glm-4.6v"            // 10 slots, best quality for normal payloads
 ```
 
@@ -1886,7 +1884,7 @@ Models grouped by major version for proactive distribution and intelligent fallb
 ```
 Series 5 (preferred): glm-5.1(1), glm-5-turbo(1), glm-5(2)  = 4 slots
 Series 4 (fallback):  glm-4.7(2), glm-4.6(3), glm-4.5(10)  = 15 slots
-Vision:               glm-4.6v(10), glm-4.5v(10), glm-4.6v-flashx(3), glm-4.6v-flash(1) = 24 slots
+Vision:               glm-4.6v(10), glm-4.5v(10) = 20 slots
 Global cap: 9 concurrent
 ```
 

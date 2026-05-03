@@ -2,11 +2,13 @@
 
 ## Setup
 
+### GLM Mode (Z.AI)
+
 Edit `~/.claude/settings.json`:
 
 ```json
 {
-  "ANTHROPIC_BASE_URL": "http://localhost:8080",
+  "ANTHROPIC_BASE_URL": "http://localhost:9000",
   "ANTHROPIC_AUTH_TOKEN": "your-glm-api-key"
 }
 ```
@@ -14,26 +16,56 @@ Edit `~/.claude/settings.json`:
 > **ANTHROPIC_AUTH_TOKEN** is required because the gateway uses the `x-api-key` header for identity + rate limiting.
 > Claude Code sends this value as the `x-api-key` header automatically.
 
-## Architecture — Direct vs Gateway
+### Claude OAuth Mode (Transparent Passthrough)
 
-**Direct (no gateway):**
+Edit `~/.claude/settings.json`:
 
+```json
+{
+  "ANTHROPIC_BASE_URL": "http://localhost:9000",
+  "ANTHROPIC_API_KEY": "arl_your-profile-token"
+}
 ```
-Claude Code ──POST /v1/messages──▶ api.z.ai/api/anthropic
-(ANTHROPIC_BASE_URL)
+
+Or set environment variables:
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:9000
+export ANTHROPIC_API_KEY=arl_your-profile-token
+claude
 ```
 
-**Through Gateway:**
+## Architecture
+
+### GLM Mode (Transparent Proxy)
 
 ```
 Claude Code ──POST /v1/messages──▶ Gateway :8080 ──transparent──▶ api.z.ai/api/anthropic
 (ANTHROPIC_BASE_URL)
 ```
 
-**User experience is identical** — Gateway is a transparent proxy:
+### Claude OAuth Mode (Profile Routing + Billing Injection)
+
+```
+Claude Code ──POST /v1/messages──▶ Gateway :8080
+(ANTHROPIC_API_KEY=arl_*)         │
+                                  ├─ ResolveProfileToken() -> profile -> claude-oauth
+                                  ├─ Get OAuth token from Redis (sk-ant-oat01-*)
+                                  ├─ Transparent mode: fix headers (Bearer, oauth-2025-04-20)
+                                  ├─ Go billing injection -> api.anthropic.com
+                                  │   (fallback: Sidecar -> Direct proxy)
+                                  └─ Privacy masking (PasteGuard)
+```
+
+**User experience is identical** -- Gateway is a transparent proxy for GLM mode:
 - Does not decode/re-encode request/response
 - Forwards every byte directly
 - Does not touch any fields (tools, tool_choice, messages, content, headers)
+
+For Claude OAuth mode, the gateway:
+- Injects billing header for Claude Code rate limit bucket
+- Applies privacy masking on request body
+- Manages OAuth token lifecycle (refresh, rotation)
 
 ## Claude Code Tool Loop
 
@@ -90,33 +122,60 @@ Claude Code ──POST /v1/messages──▶ Gateway :8080 ──transparent─�
 | **Multi-turn conversation** | Yes | Full message history sent in each request |
 | **Extended thinking** | Yes | It's a content block type — gateway forwards without modification |
 
-## What Gateway Does (Rate Limit Check)
+## What Gateway Does (Messages Handler)
 
 ```
-Request comes in
-│
-├─ Extract API key from header (x-api-key / Authorization: Bearer)
-├─ Call Rate Limiter: POST /api/ratelimit/check {key: "api-key-hash"}
-│   ├─ Pass: forward request to upstream unmodified
-│   └─ Fail: return 429 (Anthropic error format) immediately
-│
-├─ X-Profile header (if present):
-│   ├─ Load profile from Redis
-│   ├─ Use target provider + token from provider pool
-│   ├─ Skip key pool + model fallback logic
-│   └─ Proxy directly to provider upstream
-│
-├─ Per-Model Upstream Limiter (Gateway + Worker)
-│   ├─ Extract model from request body
-│   ├─ Try to acquire slot for requested model (non-blocking)
-│   ├─ Full → try fallback models automatically
-│   │   Priority: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6 → glm-4.5 (5.x always first)
-│   ├─ All models full → wait until slot available
-│   ├─ RPM Limiter: controls req/min speed per provider
-│   └─ If fallback → change model in body before forwarding
-│   19 model slots (global cap 15): glm-5.1(1) + glm-5-turbo(1) + glm-5(2) + glm-4.7(2) + glm-4.6(3) + glm-4.5(10)
-│
-└─ Response: forward directly to client unmodified
+Request comes in (POST /v1/messages)
+|
++- Parse body, extract model name
+|
++- Provider resolver: match model prefix to route table
+|   +- claude-* -> claude-oauth (round-robin) -> anthropic
+|   +- glm-* -> zai
+|   +- gemini-* -> gemini-oauth -> gemini
+|   +- gpt-*/o3-*/o4-* -> openai
+|   +- or-* -> openrouter
+|
++- Transparent passthrough detection:
+|   +- Client sends Bearer sk-ant-oat01-* -> transparent mode
+|   +- Transparent: skip optimizer/masking, forward headers as-is
+|   +- Non-transparent: apply prompt injection, smart max_tokens, strip fields
+|
++- Profile detection (arl_ token / X-Profile header):
+|   +- Load profile from Redis
+|   +- Use target provider + token from provider pool
+|   +- Override model, base URL, auth mode from profile
+|
++- Per-Model Upstream Limiter
+|   +- Try to acquire slot for requested model (non-blocking)
+|   +- Full -> try fallback models automatically
+|   +- Prevent cross-provider fallback (claude <-> glm blocked)
+|   +- Adaptive limiter with probe multiplier
+|
++- Token optimization pipeline (13 optimizers, text-only)
+|   +- Budget level estimation (0/1/2 based on context usage)
+|   +- OptimizeSystemPrompt + OptimizeMessages
+|
++- Privacy masking (PasteGuard, text-only)
+|   +- Detect secrets -> mask with placeholders
+|   +- Detect PII (email, phone) -> mask with placeholders
+|
++- Image detection:
+|   +- Has images -> skip optimizer + privacy (avoid corrupting base64/URLs)
+|   +- Auto-select vision model (glm-4.6v or glm-4.5v)
+|
++- Format-aware proxy:
+|   +- FormatAnthropic -> Anthropic proxy (with billing injection for OAuth)
+|   +- FormatOpenAI -> OpenAI proxy (with continuation + tool mode support)
+|   +- FormatGemini -> CodeAssist proxy or Gemini API proxy
+|   +- ZAI Web chat proxy (free access models)
+|
++- Feedback loop (post-response):
+    +- Adaptive limiter feedback (RTT, status code)
+    +- Key pool 429/success tracking
+    +- Anomaly detection (z-score based)
+    +- Rate limit utilization capture from response headers
+    +- Usage recording (Prometheus + Redis)
 ```
 
 ## Known Limitations
@@ -131,8 +190,8 @@ Request comes in
 ## Testing
 
 ```bash
-# Non-streaming
-curl -X POST http://localhost:8080/v1/messages \
+# Non-streaming (GLM)
+curl -X POST http://localhost:9000/v1/messages \
   -H "x-api-key: YOUR_GLM_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
@@ -143,7 +202,7 @@ curl -X POST http://localhost:8080/v1/messages \
   }'
 
 # Streaming
-curl -X POST http://localhost:8080/v1/messages \
+curl -X POST http://localhost:9000/v1/messages \
   -H "x-api-key: YOUR_GLM_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \
@@ -154,8 +213,19 @@ curl -X POST http://localhost:8080/v1/messages \
     "messages": [{"role": "user", "content": "Hello!"}]
   }'
 
-# With tools (same as what Claude Code actually sends)
-curl -X POST http://localhost:8080/v1/messages \
+# Claude OAuth (transparent passthrough via profile)
+curl -X POST http://localhost:9000/v1/messages \
+  -H "x-api-key: arl_your-profile-token" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 100,
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+
+# With tools (same as what Claude Code sends)
+curl -X POST http://localhost:9000/v1/messages \
   -H "x-api-key: YOUR_GLM_KEY" \
   -H "anthropic-version: 2023-06-01" \
   -H "content-type: application/json" \

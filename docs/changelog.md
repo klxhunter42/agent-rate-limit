@@ -381,8 +381,7 @@ Gateway วิเคราะห์ image payload (total base64 bytes + count) �
 
 - Scoring: `score = totalBase64KB + (imageCount * 300)`
 - score <= 2000 && count < 3 -> `glm-4.6v` (10 slots, best quality)
-- score > 2000 || count >= 3 -> `glm-4.6v-flashx` (3 slots, fastest)
-- `glm-4.6v-flash` (1 slot) ไม่ถูก auto-select -- capacity จำกัดเกินไป
+- score > 2000 || count >= 3 -> `glm-4.6v` (heavy payload fallback)
 
 **ไฟล์:** `api-gateway/handler/handler.go`
 
@@ -406,8 +405,6 @@ Vision models เพิ่มเข้า `UPSTREAM_MODEL_LIMITS`:
 
 - glm-4.6v: 10 slots
 - glm-4.5v: 10 slots
-- glm-4.6v-flashx: 3 slots
-- glm-4.6v-flash: 1 slot
 
 **ไฟล์:** `api-gateway/config/config.go`
 
@@ -431,7 +428,7 @@ Gateway ตรวจจับ image content ใน request อัตโนมั
 - Auto-detect image content in messages
 - Format conversion: Anthropic Messages API <-> Zhipu OpenAI API (both directions)
 - Content filtering: strip server_tool_use blocks, convert image format
-- Supported models: glm-4.6v, glm-4.5v, glm-4.6v-flash, glm-4.6v-flashx
+- Supported models: glm-4.6v, glm-4.5v
 
 **ไฟล์:** `api-gateway/handler/handler.go`, `api-gateway/proxy/anthropic.go`, `api-gateway/config/config.go`
 

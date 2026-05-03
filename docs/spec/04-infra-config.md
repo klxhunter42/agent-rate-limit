@@ -20,7 +20,7 @@ The gateway entry point (`api-gateway/main.go`) initializes components in this e
 9. **Proxy handlers** - AnthropicProxy, GeminiCodeAssistProxy, OpenAIProxy, GeminiAPIProxy
 10. **Adaptive limiter** - per-model concurrency with `AdaptiveLimiter`; probe multiplier for ceiling discovery
 11. **Key pool** - `proxy.NewKeyPool()` for multi-key round-robin rotation with per-key RPM budgets
-12. **Provider registry** - 17 built-in providers (Z.AI, Anthropic, Claude OAuth, OpenAI, Gemini, Gemini OAuth, Copilot, OpenRouter, Qwen, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo, Lotus)
+12. **Provider registry** - 18 built-in providers (Z.AI, Anthropic, Claude OAuth, OpenAI, Gemini, Gemini OAuth, Copilot, OpenRouter, Qwen, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo, Lotus); plus custom providers loaded from Redis
 13. **Token store** - Redis-backed OAuth token persistence with provider rename migration
 14. **Auth handler** - device code, auth code (PKCE), API key, session cookie flows
 15. **Token refresh worker** - 30-min refresh cycle, immediate refresh on startup, auto-cleanup of expired tokens
@@ -85,15 +85,15 @@ All config via environment variables, parsed at startup with fallback defaults.
 | `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | string | Direct Anthropic API URL |
 | `STREAM_TIMEOUT` | `300s` | duration | SSE streaming timeout |
 | `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,...` | map | Per-model concurrency limits |
-| `UPSTREAM_VISION_MODEL_LIMITS` | (empty) | map | Per-model vision concurrency limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `3` | int | Default per-model concurrency |
+| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3` | map | Per-model vision concurrency limits |
+| `UPSTREAM_DEFAULT_LIMIT` | `3` | int | Default per-model concurrency (docker-compose overrides to 1) |
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | int | Total concurrent upstream requests |
 | `UPSTREAM_MAX_RETRIES` | `3` | int | Max retries on 429 |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | duration | Base backoff for retry |
 | `UPSTREAM_API_KEYS` | (empty) | csv | API keys for rotation pool |
 | `UPSTREAM_RPM_LIMIT` | `40` | int | Per-key RPM budget |
 | `UPSTREAM_PROBE_MULTIPLIER` | `5` | int | Adaptive limit probe multiplier |
-| `MODEL_PRICING` | `glm-5.1:1.4:4.4,...` | map | Per-model USD per 1M tokens (input:output) |
+| `MODEL_PRICING` | `glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,...` | map | Per-model USD per 1M tokens (input:output) |
 | `NATIVE_VISION_URL` | `https://open.bigmodel.cn/...` | string | Zhipu native vision endpoint |
 | `IP_WHITELIST` | (empty) | csv | Whitelisted IPs/CIDRs |
 | `IP_BLACKLIST` | (empty) | csv | Blacklisted IPs/CIDRs |
@@ -119,6 +119,26 @@ All config via environment variables, parsed at startup with fallback defaults.
 | `QUOTA_REDIS_MIN_IDLE` | `2` | int | Quota Redis min idle |
 | `PROVIDER_MODEL_PREFIXES` | `zai:glm-;anthropic:claude-;...` | string | Provider model prefix mapping |
 | `DASHBOARD_API_KEY` | (empty) | string | Optional dashboard auth key |
+| `ZAIOpenAIURL` | `https://api.z.ai/api/paas/v4/chat/completions` | string | Z.AI OpenAI-compatible endpoint |
+| `ZAIOpenAIModels` | (empty) | map | Models to route through Z.AI OpenAI endpoint |
+| `ZAIWebEnabled` | `false` | bool | Enable Z.AI web chat routing |
+| `ZAIWebToken` | (empty) | string | JWT Bearer token for chat.z.ai |
+| `ZAIWebModels` | (empty) | csv | Models to route through chat.z.ai |
+| `ENABLE_AUTO_TRUNCATE` | `true` | bool | Auto-truncation recovery |
+| `TRANSIENT_RETRY_MAX` | `3` | int | Max retries on transient errors |
+| `PASTEGUARD_ENABLED` | `true` | bool | Enable PasteGuard pipeline |
+| `PASTEGUARD_SECRETS_ENABLED` | `true` | bool | Enable secrets detection |
+| `PASTEGUARD_PII_ENABLED` | `true` | bool | Enable PII detection |
+| `PASTEGUARD_SECRET_ENTITIES` | (empty) | csv | Custom secret entity types |
+| `PASTEGUARD_PII_ENTITIES` | (empty) | csv | Custom PII entity types |
+| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | int | Max chars to scan for PII/secrets |
+| `GEMINI_OAUTH_CLIENT_ID` | (empty) | string | Gemini OAuth client ID |
+| `GEMINI_OAUTH_CLIENT_SECRET` | (empty) | string | Gemini OAuth client secret |
+| `LOTUS_UPSTREAM_BASE` | `https://api-cpxis.lotuss.com/llm` | string | Lotus LLM upstream base |
+| `LOTUS_API_KEYS` | (empty) | csv | Lotus API keys |
+| `DASHBOARD_URL` | (empty) | string | Dashboard URL for OAuth callbacks |
+| `OAUTH_CALLBACK_BASE` | (empty) | string | OAuth callback base URL |
+| `SIDECAR_PORT` | `8081` | string | Sidecar listen port |
 
 ### 2.2 Parsing Functions
 
@@ -386,7 +406,7 @@ When running in Docker, use `CLAUDE_CODE_SIMPLE=1` environment variable instead 
 | **Models** | `pages/models/` | Model listing and status |
 | **Model Limits** | `pages/model-limits/` | Adaptive limiter status, per-model concurrency, override controls |
 | **Key Pool** | `pages/key-pool/` | API key health indicators, pool summary, per-key RPM tracking |
-| **Providers** | `pages/providers/` | 17+ provider cards with connect dialogs (API Key, OAuth, Device Code, Session Cookie), account management, custom providers |
+| **Providers** | `pages/providers/` | 18+ provider cards with connect dialogs (API Key, OAuth, Device Code, Session Cookie), account management, custom providers |
 | **Profiles** | `pages/profiles/` | Per-profile usage tracking |
 | **Quota** | `pages/quota/` | Daily budget, utilization percentage |
 | **Privacy** | `pages/privacy/` | PasteGuard metrics: masked requests, secrets by type, PII by type, mask duration P95 |
@@ -419,13 +439,12 @@ When running in Docker, use `CLAUDE_CODE_SIMPLE=1` environment variable instead 
 ### 6.4 WebSocket Events
 
 Real-time events pushed from gateway to dashboard:
-- `config-changed` - .env file modified
-- Key cooldown events
-- Override changes
-- Anomaly alerts
-- Connection status
-- OAuth events
-- Token refresh notifications
+- `config-changed` - .env file modified (broadcast by config watcher)
+- `request-completed` - request finished processing
+- `request-error` - request failed
+- `anomaly-detected` - Z-score anomaly detected
+- `quota-warning` - quota threshold exceeded
+- `ratelimit-updated` - rate limit state changed
 
 ### 6.5 Dashboard Auth
 
@@ -490,30 +509,44 @@ All metrics use namespace `api_gateway`. Exposed at `/metrics` and `/api/metrics
 ```yaml
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
   external_labels:
     cluster: agent-rate-limit
+    replica: '1'
 
 scrape_configs:
   - job_name: api-gateway
     metrics_path: /metrics
-    targets: [arl-gateway:8080]
+    static_configs:
+      - targets: ['arl-gateway:8080']
     scrape_interval: 10s
 
   - job_name: ai-worker
-    targets: [arl-worker:9090]
+    static_configs:
+      - targets: ['arl-worker:9090']
     scrape_interval: 10s
 
   - job_name: rate-limiter
     metrics_path: /actuator/prometheus
-    targets: [arl-rate-limiter:8080]
+    static_configs:
+      - targets: ['arl-rate-limiter:8080']
     scrape_interval: 10s
 
+  # Dragonfly does not expose Prometheus metrics on port 6379 (Redis protocol).
+  # Enable Dragonfly's --metrics flag or use redis_exporter as a sidecar.
+  # - job_name: dragonfly
+  #   static_configs:
+  #     - targets: ['arl-dragonfly:6379']
+  #   scrape_interval: 10s
+
   - job_name: otel-collector
-    targets: [arl-otel:8889]
+    static_configs:
+      - targets: ['arl-otel:8889']
     scrape_interval: 10s
 
   - job_name: prometheus
-    targets: [localhost:9090]
+    static_configs:
+      - targets: ['localhost:9090']
 ```
 
 ### 7.3 Grafana Dashboards
@@ -682,7 +715,7 @@ Workers accept keys for multiple providers:
 
 ## 11. Provider Ecosystem
 
-### 11.1 Built-in Providers (17)
+### 11.1 Built-in Providers (18)
 
 | ID | Name | Auth Type | Upstream |
 |---|---|---|---|
@@ -724,6 +757,18 @@ Configured via `PROVIDER_MODEL_PREFIXES`:
 ```
 zai:glm-;anthropic:claude-;claude:claude-;openai:gpt-,o3,o4-;gemini:gemini-;gemini-oauth:gemini-;openrouter:or-;qwen:qwen-
 ```
+
+Additional model routing rules (not in prefix config, handled in resolver):
+- `anthropic/` -> anthropic, openrouter (fallback)
+- `openai/` -> openrouter
+- `google/` -> openrouter
+- `meta/` -> openrouter
+- `deepseek/` -> openrouter
+- `qwen/` -> openrouter
+- `huggingface/` -> huggingface
+- `ollama` -> ollama
+- `agy-` -> agy
+- `lotus-` -> lotus
 
 Routes requests to the correct provider based on model name prefix.
 
