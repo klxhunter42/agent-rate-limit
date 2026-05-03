@@ -26,8 +26,8 @@ services:
     environment:
       <<: *common-env
       SERVER_PORT: ":8080"
-      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:9000}
-      OAUTH_CALLBACK_BASE: ${OAUTH_CALLBACK_BASE:-http://127.0.0.1:9000}
+      DASHBOARD_URL: ${DASHBOARD_URL:-https://ai.klxhub.com}
+      OAUTH_CALLBACK_BASE: ${OAUTH_CALLBACK_BASE:-https://ai.klxhub.com}
       GLOBAL_RATE_LIMIT: ${GLOBAL_RATE_LIMIT:-100}
       AGENT_RATE_LIMIT: ${AGENT_RATE_LIMIT:-5}
       WORKER_POOL_SIZE: ${WORKER_POOL_SIZE:-100}
@@ -361,6 +361,10 @@ services:
     depends_on:
       arl-gateway:
         condition: service_healthy
+    environment:
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
+      VITE_HMR_HOST: ${VITE_HMR_HOST:-}
+      VITE_HMR_PORT: ${VITE_HMR_PORT:-443}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:5173"]
       interval: 10s
@@ -448,7 +452,8 @@ services:
     container_name: arl-proxy
     restart: always
     ports:
-      - "${PROXY_PORT:-9000}:${PROXY_PORT:-9000}"
+      - "443:443"
+      - "9000:9000"
     volumes:
       - ./docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
     environment:
@@ -460,7 +465,7 @@ services:
       arl-dashboard:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PROXY_PORT:-9000}/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
       interval: 10s
       timeout: 5s
       retries: 3

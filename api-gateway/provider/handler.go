@@ -193,6 +193,135 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, dashboardURL+"/admin?auth_success=1", http.StatusTemporaryRedirect)
 }
 
+// HandleCallbackPost handles POST /v1/auth/{provider}/callback for manual code exchange
+// from remote dashboard users who paste the callback URL.
+func (h *AuthHandler) HandleCallbackPost(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	pc, ok := h.registry.Get(providerID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown provider"})
+		return
+	}
+
+	var body struct {
+		Code        string `json:"code"`
+		State       string `json:"state"`
+		RedirectURL string `json:"redirect_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if body.Code == "" || body.State == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "code and state required"})
+		return
+	}
+
+	h.mu.Lock()
+	session, exists := h.sessions[body.State]
+	if exists {
+		session.Token = nil
+	}
+	h.mu.Unlock()
+
+	if !exists {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown state"})
+		return
+	}
+
+	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:9000")
+	token, err := HandleCallbackWithPKCE(r.Context(), pc, body.Code, body.State, callbackBase, session.PKCEVerifier)
+	if err != nil {
+		slog.Error("callback post failed", "provider", pc.ID, "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "token exchange failed: " + err.Error()})
+		return
+	}
+
+	if err := h.store.Store(*token); err != nil {
+		slog.Error("store token from callback post failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "store failed"})
+		return
+	}
+
+	h.mu.Lock()
+	session.Token = token
+	h.mu.Unlock()
+
+	slog.Info("auth callback post success", "provider", pc.ID, "account_id", token.AccountID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"account": tokenToAccountInfo(token),
+	})
+}
+
+// HandleClaudeCallbackPost handles POST /callback for manual Claude OAuth code exchange.
+func (h *AuthHandler) HandleClaudeCallbackPost(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code  string `json:"code"`
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if body.Code == "" || body.State == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "code and state required"})
+		return
+	}
+
+	h.mu.Lock()
+	session, exists := h.sessions[body.State]
+	if exists {
+		session.Token = nil
+	}
+	h.mu.Unlock()
+
+	if !exists {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown state"})
+		return
+	}
+
+	callbackBase := envOr("OAUTH_CALLBACK_BASE", "http://127.0.0.1:9000")
+	pc, ok := h.registry.Get("claude-oauth")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no claude provider configured"})
+		return
+	}
+
+	token, err := HandleCallbackWithPKCE(r.Context(), pc, body.Code, body.State, callbackBase, session.PKCEVerifier)
+	if err != nil {
+		slog.Error("claude callback post failed", "error", err)
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "token exchange failed: " + err.Error()})
+		return
+	}
+
+	if err := h.store.Store(*token); err != nil {
+		slog.Error("store claude token post failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "store failed"})
+		return
+	}
+
+	h.mu.Lock()
+	session.Token = token
+	h.mu.Unlock()
+
+	slog.Info("claude auth callback post success", "account_id", token.AccountID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"account": tokenToAccountInfo(token),
+	})
+}
+
+func tokenToAccountInfo(t *TokenInfo) map[string]any {
+	return map[string]any{
+		"id":       t.AccountID,
+		"email":    t.Email,
+		"provider": t.Provider,
+		"tier":     t.Tier,
+		"paused":   t.Paused,
+	}
+}
+
 // HandleClaudeCallback handles the /callback route for Claude OAuth loopback redirect.
 func (h *AuthHandler) HandleClaudeCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
@@ -700,6 +829,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/{provider}/start-url", h.StartAuthURL)
 		r.Post("/auth/{provider}/register", h.RegisterAPIKey)
 		r.Get("/auth/{provider}/callback", h.HandleCallback)
+		r.Post("/auth/{provider}/callback", h.HandleCallbackPost)
 		r.Get("/auth/{provider}/status", h.PollStatus)
 		r.Post("/auth/{provider}/cancel", h.CancelAuth)
 		r.Get("/auth/accounts", h.ListAccounts)

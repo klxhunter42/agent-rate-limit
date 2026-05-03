@@ -22,7 +22,6 @@ import { LogsPage } from '@/pages/logs';
 import { ModelsPage } from '@/pages/models';
 import { ProfilesPage } from '@/pages/profiles';
 import { QuotaPage } from '@/pages/quota';
-import { DebugMetricsPage } from '@/pages/debug';
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { open, close } = useCommandPalette();
@@ -62,7 +61,6 @@ export default function App() {
                       <Route path="/models" element={<ModelsPage />} />
                       <Route path="/profiles" element={<ProfilesPage />} />
                       <Route path="/quota" element={<QuotaPage />} />
-<Route path="/debug" element={<DebugMetricsPage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
