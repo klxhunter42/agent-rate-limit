@@ -116,6 +116,12 @@ type Config struct {
 	// CLI sidecar for billing header injection (Node.js proxy).
 	CLISidecarURL     string
 	CLISidecarEnabled bool
+
+	// MCP proxy for Z.AI remote MCP servers (GLM mode only).
+	MCPEnabled         bool
+	MCPCacheTTL        time.Duration
+	MCPMaxRetries      int
+	MCPRateLimitPerMin int
 }
 
 // ModelPrice holds per-token pricing for cost calculation.
@@ -208,6 +214,12 @@ func Load() *Config {
 		// CLI sidecar.
 		CLISidecarURL:     envOr("CLI_SIDECAR_URL", "http://127.0.0.1:8081"),
 		CLISidecarEnabled: envBoolOr("CLI_SIDECAR_ENABLED", true),
+
+		// MCP proxy (GLM mode only).
+		MCPEnabled:         envBoolOr("MCP_ENABLED", true),
+		MCPCacheTTL:        envDurationOr("MCP_CACHE_TTL", 1*time.Hour),
+		MCPMaxRetries:      envIntOr("MCP_MAX_RETRIES", 2),
+		MCPRateLimitPerMin: envIntOr("MCP_RATE_LIMIT_PER_MIN", 30),
 	}
 }
 

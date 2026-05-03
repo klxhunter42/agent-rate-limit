@@ -54,6 +54,11 @@ type Metrics struct {
 	BillingPathLatency   *prometheus.HistogramVec
 	WasteFindings        *prometheus.CounterVec
 	WasteTokensWasted    *prometheus.CounterVec
+	MCPCallsTotal        *prometheus.CounterVec
+	MCPCallDuration      *prometheus.HistogramVec
+	MCPCacheHits         *prometheus.CounterVec
+	MCPCacheMisses       *prometheus.CounterVec
+	MCPQuotaUsage        *prometheus.GaugeVec
 	registry             *prometheus.Registry
 	queueDepthFn         func() float64
 	pricing              map[string]modelPrice
@@ -257,6 +262,33 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "waste_tokens_wasted_total",
 			Help:      "Total tokens identified as wasted by detector.",
 		}, []string{"detector"}),
+
+		MCPCallsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "mcp_calls_total",
+			Help:      "Total MCP proxy calls by server, tool, and status.",
+		}, []string{"server", "tool", "status"}),
+		MCPCallDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "mcp_call_duration_seconds",
+			Help:      "Duration of MCP proxy calls by server and tool.",
+			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		}, []string{"server", "tool"}),
+		MCPCacheHits: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "mcp_cache_hits_total",
+			Help:      "Total MCP cache hits by server and tool.",
+		}, []string{"server", "tool"}),
+		MCPCacheMisses: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "mcp_cache_misses_total",
+			Help:      "Total MCP cache misses by server and tool.",
+		}, []string{"server", "tool"}),
+		MCPQuotaUsage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "mcp_quota_usage",
+			Help:      "Current MCP call count in the rate-limit window by account.",
+		}, []string{"account_id"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -296,6 +328,11 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.BillingPathLatency,
 		m.WasteFindings,
 		m.WasteTokensWasted,
+		m.MCPCallsTotal,
+		m.MCPCallDuration,
+		m.MCPCacheHits,
+		m.MCPCacheMisses,
+		m.MCPQuotaUsage,
 	)
 
 	return m
@@ -541,10 +578,10 @@ func (m *Metrics) SeedMockCategory(category string) {
 
 func (m *Metrics) seedOptimizers() {
 	techniques := []struct {
-		name string
+		name       string
 		charsSaved float64
-		runs int
-		duration float64
+		runs       int
+		duration   float64
 	}{
 		{"chunker", 128000, 320, 0.012},
 		{"delta", 86400, 210, 0.008},
@@ -573,7 +610,7 @@ func (m *Metrics) seedOptimizers() {
 
 func (m *Metrics) seedBudget() {
 	models := []struct {
-		name string
+		name  string
 		level float64
 	}{
 		{"glm-5.1", 0},
@@ -590,9 +627,9 @@ func (m *Metrics) seedBudget() {
 
 func (m *Metrics) seedWaste() {
 	detectors := []struct {
-		name string
+		name     string
 		findings int
-		tokens float64
+		tokens   float64
 	}{
 		{"repetition", 120, 8400},
 		{"padding", 85, 5600},

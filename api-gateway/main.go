@@ -137,6 +137,13 @@ func main() {
 	// --- Token Optimizers (13 packages, all off by default) ---
 	// Shared Redis client for optimizer packages.
 	optRdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	// MCP proxy for Z.AI remote MCP servers (GLM mode only).
+	var mcpProxy *proxy.MCPProxy
+	if cfg.GLMMode && cfg.MCPEnabled {
+		mcpProxy = proxy.NewMCPProxy(cfg, m, keyPool, optRdb)
+		slog.Info("mcp proxy enabled", "servers", len(proxy.MCPServers), "cache_ttl", cfg.MCPCacheTTL, "rate_limit_per_min", cfg.MCPRateLimitPerMin)
+	}
+
 
 	optChunker := chunker.New(m.Registry(), optRdb)
 	optPacker := packer.New(m.Registry())
@@ -206,7 +213,7 @@ func main() {
 		optCache.StartEvictionLoop(bgCtx)
 	}
 
-	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers, zaiWebProxy)
+	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers, zaiWebProxy, mcpProxy)
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)
@@ -311,13 +318,13 @@ func main() {
 	r.Get("/v1/logs/errors", h.GetErrorLogs)
 	r.Get("/v1/logs/errors/count", h.GetErrorLogCount)
 
-		// ZAI web chat token management + media generation.
-		if cfg.ZAIWebEnabled && zaiWebProxy != nil {
-			r.Get("/v1/zaiweb/status", h.ZAIWebStatus)
-			r.Post("/v1/zaiweb/token", h.ZAIWebSetToken)
-			r.Post("/v1/images/generations", h.ZAIWebImageGenerate)
-			r.Post("/v1/audio/tts", h.ZAIWebAudioTTS)
-		}
+	// ZAI web chat token management + media generation.
+	if cfg.ZAIWebEnabled && zaiWebProxy != nil {
+		r.Get("/v1/zaiweb/status", h.ZAIWebStatus)
+		r.Post("/v1/zaiweb/token", h.ZAIWebSetToken)
+		r.Post("/v1/images/generations", h.ZAIWebImageGenerate)
+		r.Post("/v1/audio/tts", h.ZAIWebAudioTTS)
+	}
 	r.Get("/v1/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ua := r.UserAgent()
 		if strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli") {
@@ -366,6 +373,13 @@ func main() {
 	r.HandleFunc("/api/claude_code/policy_limits", h.AnthropicPassthrough)
 	r.HandleFunc("/api/claude_code/settings", h.AnthropicPassthrough)
 	r.HandleFunc("/v1/mcp_servers", h.AnthropicPassthrough)
+
+	// MCP proxy routes (GLM mode only).
+	if cfg.GLMMode && cfg.MCPEnabled {
+		r.Post("/mcp/{server}", h.MCPProxyHandle)
+		r.Get("/mcp", h.MCPListServers)
+		slog.Info("mcp routes registered")
+	}
 
 	// New handler routes
 	profileHandler.Routes()(r)
