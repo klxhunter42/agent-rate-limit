@@ -18,7 +18,6 @@ import {
   Play,
   Square,
   Database,
-  Trash2,
   RefreshCw,
   Search,
   AlertTriangle,
@@ -31,8 +30,16 @@ const SEVERITY_COLORS: Record<string, string> = {
   high: 'bg-red-500/10 text-red-500 border-red-500/20',
 };
 
+const CATEGORIES = [
+  { key: 'all', label: 'All' },
+  { key: 'optimizer', label: 'Optimizer' },
+  { key: 'waste', label: 'Waste' },
+  { key: 'budget', label: 'Budget' },
+] as const;
+
 export function DebugMetricsPage() {
   const [loopRunning, setLoopRunning] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [findings, setFindings] = useState<WasteFinding[]>([]);
   const [metricsText, setMetricsText] = useState('');
   const [metricsFilter, setMetricsFilter] = useState('');
@@ -51,8 +58,8 @@ export function DebugMetricsPage() {
   const handleSeed = async () => {
     setLoading(p => ({ ...p, seed: true }));
     try {
-      await seedMockData();
-      toast.success('Mock data seeded');
+      await seedMockData(selectedCategory);
+      toast.success(`Mock data seeded (${selectedCategory})`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Seed failed');
     } finally {
@@ -127,10 +134,23 @@ export function DebugMetricsPage() {
             <Database className="h-4 w-4" /> Mock Data Controls
           </CardTitle>
           <CardDescription>
-            Seed one batch of mock data or start/stop a continuous loop (5s interval) for Grafana timeseries panels
+            Seed mock data by category, or start/stop a continuous loop (5s) for Grafana timeseries panels
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">Category:</span>
+            {CATEGORIES.map(c => (
+              <Button
+                key={c.key}
+                size="sm"
+                variant={selectedCategory === c.key ? 'default' : 'outline'}
+                onClick={() => setSelectedCategory(c.key)}
+              >
+                {c.label}
+              </Button>
+            ))}
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <Button onClick={handleSeed} disabled={loading.seed} variant="outline">
               <Database className="h-4 w-4 mr-1" /> Seed Once
