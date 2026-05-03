@@ -204,8 +204,11 @@ docker-compose ps    # all services should show Up (healthy)
 ```json
 // ~/.claude/settings.json
 {
-  "ANTHROPIC_BASE_URL": "http://localhost:9000",
-  "ANTHROPIC_AUTH_TOKEN": "your-api-key"
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
+    "ANTHROPIC_API_KEY": "arl_your-profile-token"
+  }
 }
 ```
 
