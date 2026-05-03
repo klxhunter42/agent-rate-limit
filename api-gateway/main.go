@@ -99,7 +99,7 @@ func main() {
 	geminiCodeAssistProxy := proxy.NewGeminiCodeAssistProxy(m, cfg.GeminiCodeAssistEndpoint, cfg.GeminiDefaultModel)
 	openAIProxy := proxy.NewOpenAIProxy(cfg, m)
 	geminiAPIProxy := proxy.NewGeminiAPIProxy(cfg, m)
-	modelLimiter := middleware.NewAdaptiveLimiter(cfg.ModelLimits, cfg.DefaultLimit, cfg.GlobalLimit, cfg.ProbeMultiplier)
+	modelLimiter := middleware.NewAdaptiveLimiter(cfg.ModelLimits, cfg.VisionModelLimits, cfg.DefaultLimit, cfg.GlobalLimit, cfg.ProbeMultiplier)
 	middleware.SetModelPriority(config.ParseModelPriority(cfg.ModelPriority))
 	keyPool := proxy.NewKeyPool(cfg.UpstreamAPIKeys, cfg.UpstreamRPMLimit)
 

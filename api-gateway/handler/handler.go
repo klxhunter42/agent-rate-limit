@@ -1058,10 +1058,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
 		imgBytes, imgCount := analyzeImagePayload(payload)
-		// Models with native image support (glm-5.1, glm-4.6v, etc.) route
-		// through the standard Anthropic-compatible endpoint (api.z.ai).
-		// Only use ProxyNativeVision (open.bigmodel.cn) for text-only models
-		// that need vision auto-selection.
 		if !isNativeImageModel(selectedModel) {
 			visionModel := selectVisionModel(imgBytes, imgCount)
 			if visionModel != selectedModel {
@@ -1078,16 +1074,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					body, _ = json.Marshal(bodyMap)
 				}
 			}
-			slog.Info("routing to native vision endpoint", "model", selectedModel)
-			if err := h.proxy.ProxyNativeVision(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-				slog.Error("vision proxy error", "error", err, "model", selectedModel)
-				h.metrics.IncError("upstream")
-				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
-			}
-			return
 		}
-		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel)
-	} else if hasImages && decision != nil {
+		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+		opts := &proxy.ProxyOptions{
+			AuthMode:         decision.AuthMode,
+			UpstreamOverride: decision.UpstreamURL,
+			ExtraHeaders:     decision.ExtraHeaders,
+			OnAuthError:      oauthRefreshFn,
+			OnRateLimitError: rotateAccountFn,
+			Transparent:      transparent,
+		}
+		if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
+			slog.Error("vision proxy error", "error", err, "model", selectedModel)
+			h.metrics.IncError("upstream")
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
+		}
+		return	} else if hasImages && decision != nil {
 		// Non-GLM models with images: re-resolve for the vision model and use normal routing.
 		visionDecision := decision
 		if selectedModel != requestedModel && h.resolver != nil {

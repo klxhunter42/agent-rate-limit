@@ -31,6 +31,7 @@ type Config struct {
 	// Map of model name → max concurrent requests to upstream.
 	// If a model is not in this map, DefaultLimit is used.
 	ModelLimits  map[string]int
+	VisionModelLimits map[string]int
 	DefaultLimit int
 	GlobalLimit  int // total concurrent upstream requests across all models
 
