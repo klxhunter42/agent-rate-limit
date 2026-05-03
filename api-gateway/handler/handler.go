@@ -1100,13 +1100,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
-		// Strip unsupported params that cause Z.AI error 1210 with images
+		// Strip unsupported params + convert URL images to base64 for Z.AI
 		if isNativeImageModel(selectedModel) {
 			var bm map[string]any
 			if json.Unmarshal(body, &bm) == nil {
 				delete(bm, "tools")
 				delete(bm, "tool_choice")
 				delete(bm, "thinking")
+				bm = convertURLImagesToBase64(bm)
 				if nb, err := json.Marshal(bm); err == nil {
 					body = nb
 				}
@@ -1769,6 +1770,57 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 
 // isNativeImageModel returns true if the model natively supports image input
 // and should not be overridden by vision auto-selection.
+
+// convertURLImagesToBase64 downloads URL-based images and converts to base64 inline.
+// Z.AI cannot fetch Anthropic signed URLs, so we must convert them.
+func convertURLImagesToBase64(payload map[string]any) map[string]any {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return payload
+	}
+	for _, msg := range msgs {
+		mm, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		blocks, ok := mm["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range blocks {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cb["type"] != "image" {
+				continue
+			}
+			src, ok := cb["source"].(map[string]any)
+			if !ok || src["type"] != "url" {
+				continue
+			}
+			imgURL, _ := src["url"].(string)
+			if imgURL == "" {
+				continue
+			}
+			if b64 := proxy.FetchImageAsBase64(imgURL); b64 != "" {
+				parts := strings.SplitN(b64, ";base64,", 2)
+				if len(parts) == 2 {
+					cb["source"] = map[string]any{
+						"type":       "base64",
+						"media_type": strings.TrimPrefix(parts[0], "data:"),
+						"data":       parts[1],
+					}
+					slog.Info("converted url image to base64", "url_len", len(imgURL), "b64_len", len(parts[1]))
+				}
+			} else {
+				slog.Warn("failed to fetch url image for base64 conversion", "url", imgURL[:min(80, len(imgURL))])
+			}
+		}
+	}
+	return payload
+}
+
 func isNativeImageModel(model string) bool {
 	switch model {
 	case "glm-5.1", "glm-4.6v", "glm-4.5v":
