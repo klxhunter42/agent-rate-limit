@@ -1495,8 +1495,7 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 	}
 }
 
-// filterUnsupportedContent removes unsupported content block types from messages
-// and rewrites Anthropic image format to GLM-compatible format.
+// filterUnsupportedContent removes unsupported content block types from messages.
 func filterUnsupportedContent(payload map[string]any) {
 	msgs, ok := payload["messages"].([]any)
 	if !ok {
@@ -1521,9 +1520,6 @@ func filterUnsupportedContent(payload map[string]any) {
 			t, _ := cb["type"].(string)
 			if unsupportedContentTypes[t] {
 				continue
-			}
-			if t == "image" {
-				rewriteImageToGLMFormat(cb)
 			}
 			filtered = append(filtered, cb)
 		}
