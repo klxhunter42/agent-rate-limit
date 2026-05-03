@@ -37,7 +37,7 @@ Complete reference for all data structures, Redis keys, API endpoints, and state
 | PromptInjectionText | string | PROMPT_INJECTION_TEXT | (multi-line default) |
 | EnableAutoTruncate | bool | ENABLE_AUTO_TRUNCATE | true |
 | TransientRetryMax | int | TRANSIENT_RETRY_MAX | 3 |
-| UpstreamAPIKeys | []string | UPSTREAM_API_KEYS | (empty) |
+| UpstreamAPIKeys | []string | ZAI_API_KEYS | (empty) |
 | UpstreamRPMLimit | int | UPSTREAM_RPM_LIMIT | 40 |
 | ProbeMultiplier | int | UPSTREAM_PROBE_MULTIPLIER | 5 |
 | ModelPricing | map[string]ModelPrice | MODEL_PRICING | (see defaults) |

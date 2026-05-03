@@ -41,11 +41,29 @@ spec:
               value: "ai_jobs"
             - name: OTLP_ENDPOINT
               value: "{{ .Release.Name }}-otel-collector:4317"
-            - name: UPSTREAM_API_KEYS
+            - name: ZAI_API_KEYS
               valueFrom:
                 secretKeyRef:
                   name: ai-gateway-secrets
                   key: upstream-api-keys
+                  optional: true
+            - name: LOTUS_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: lotus-api-keys
+                  optional: true
+            - name: GEMINI_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: gemini-oauth-client-id
+                  optional: true
+            - name: GEMINI_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-secrets
+                  key: gemini-oauth-client-secret
                   optional: true
             {{- include "ai-gateway.envVars" .Values.gateway.env | nindent 12 }}
           resources:

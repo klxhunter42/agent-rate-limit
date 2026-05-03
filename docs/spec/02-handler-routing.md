@@ -97,10 +97,10 @@ Authentication is resolved through a priority chain with multiple fallback paths
 2. Profile passthrough auth -> client's own Bearer/x-api-key forwarded
 3. Profile account pool -> token from profile's selected account IDs
 4. Profile default token -> GetDefault(provider) from TokenStore
-5. Profile key pool fallback -> decision.APIKey from env UPSTREAM_API_KEYS
+5. Profile key pool fallback -> decision.APIKey from env ZAI_API_KEYS
 6. Transparent OAuth token -> client's own sk-ant-oat01- or Bearer token
 7. Stored OAuth token -> resolver decision's APIKey (claude-oauth passthrough)
-8. Key pool -> h.keyPool.Acquire() (GLM mode, UPSTREAM_API_KEYS from env)
+8. Key pool -> h.keyPool.Acquire() (GLM mode, ZAI_API_KEYS from env)
 9. Raw header fallback -> x-api-key or Authorization: Bearer from request
 ```
 
@@ -227,7 +227,7 @@ X-Profile header present?
 
 **Default Token** (no accountIds, no passthroughAuth):
 - Uses `TokenStore.GetDefault(provider)` for the target provider
-- Falls back to key pool (UPSTREAM_API_KEYS env) if no stored token
+- Falls back to key pool (ZAI_API_KEYS env) if no stored token
 
 ### 3.5 GLM Mode vs Profile Requirement
 
@@ -237,7 +237,7 @@ if profileName == "" && !h.cfg.GLMMode {
 }
 ```
 
-- **GLM mode** (`GLM_MODE=true`): No profile required, uses env `UPSTREAM_API_KEYS`
+- **GLM mode** (`GLM_MODE=true`): No profile required, uses env `ZAI_API_KEYS`
 - **Non-GLM mode**: Profile is mandatory (X-Profile header or arl_ token)
 
 ### 3.6 Model Mapping for Target
@@ -478,7 +478,7 @@ On 2xx:
 ### 5.3 Key Pool (Per-Key RPM)
 
 ```
-NewKeyPool(UPSTREAM_API_KEYS, UPSTREAM_RPM_LIMIT)
+NewKeyPool(ZAI_API_KEYS, UPSTREAM_RPM_LIMIT)
 ```
 
 **Selection strategies**:
@@ -489,7 +489,7 @@ NewKeyPool(UPSTREAM_API_KEYS, UPSTREAM_RPM_LIMIT)
 
 **Cooldown**: On 429, key enters 10s cooldown. `Acquire()` waits via `sync.Cond` for cooldown expiry.
 
-**Passthrough mode**: When `UPSTREAM_API_KEYS` is empty, `Acquire()` returns `("", true)` and the caller uses the client's own key.
+**Passthrough mode**: When `ZAI_API_KEYS` is empty, `Acquire()` returns `("", true)` and the caller uses the client's own key.
 
 ### 5.4 Login Rate Limiter
 
@@ -1320,7 +1320,7 @@ All relevant env vars for the handler/routing layer:
 | `SERVER_PORT` | `:8080` | Listen address |
 | `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Z.AI upstream |
 | `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Anthropic upstream |
-| `UPSTREAM_API_KEYS` | (empty) | Comma-separated key pool |
+| `ZAI_API_KEYS` | (empty) | Comma-separated key pool |
 | `UPSTREAM_RPM_LIMIT` | `40` | Per-key RPM budget |
 | `UPSTREAM_MAX_RETRIES` | `3` | Retry count on 429 |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff |

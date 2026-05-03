@@ -31,37 +31,27 @@ gateway:
       memory: "1Gi"
       cpu: "2"
   env:
-    SERVER_PORT: ":8080"
     GLOBAL_RATE_LIMIT: "100"
     AGENT_RATE_LIMIT: "5"
-    WORKER_POOL_SIZE: "100"
-    REDIS_POOL_SIZE: "50"
-    REDIS_MIN_IDLE_CONNS: "10"
     UPSTREAM_URL: "https://api.z.ai/api/anthropic"
-    STREAM_TIMEOUT: "300s"
     UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
-    UPSTREAM_DEFAULT_LIMIT: "2"
-    UPSTREAM_GLOBAL_LIMIT: "15"
+    UPSTREAM_VISION_MODEL_LIMITS: "glm-5.1:5,glm-4.6v:5,glm-4.5v:3"
+    UPSTREAM_DEFAULT_LIMIT: "1"
+    UPSTREAM_GLOBAL_LIMIT: "9"
     UPSTREAM_MAX_RETRIES: "3"
-    UPSTREAM_RETRY_BACKOFF: "500ms"
+    UPSTREAM_RPM_LIMIT: "40"
     ENABLE_PROMPT_INJECTION: "true"
     ENABLE_RESPONSE_TRIM: "true"
     ENABLE_SMART_MAX_TOKENS: "true"
-    UPSTREAM_RPM_LIMIT: "40"
-    UPSTREAM_PROBE_MULTIPLIER: "5"
-    MODEL_PRICING: "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8"
     PASTEGUARD_ENABLED: "true"
-    PASTEGUARD_SECRETS_ENABLED: "true"
-    PASTEGUARD_MAX_SCAN_CHARS: "200000"
     PASTEGUARD_PII_ENABLED: "true"
-    PASTEGUARD_PII_SCORE_THRESHOLD: "0.7"
-    PASTEGUARD_PII_LANGUAGE: "en"
     GLM_MODE: "false"
-    ANTHROPIC_API_VERSION: "2023-06-01"
-    MODEL_PRIORITY: "glm-5.1:100,glm-5-turbo:90,glm-5:80,glm-4.7:70,glm-4.6:60,glm-4.5:50"
-    PROVIDER_MODEL_PREFIXES: "zai:glm-;anthropic:claude-;claude:claude-;openai:gpt-,o3,o4-;gemini:gemini-;gemini-oauth:gemini-;openrouter:or-;qwen:qwen-"
   hpa:
     enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
 worker:
   enabled: true
@@ -83,12 +73,10 @@ worker:
   env:
     WORKER_CONCURRENCY: "50"
     MAX_RETRIES: "3"
-    BASE_BACKOFF: "1.0"
-    RESULT_TTL: "600"
-    METRICS_PORT: "9090"
     UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
-    UPSTREAM_DEFAULT_LIMIT: "2"
-    UPSTREAM_GLOBAL_LIMIT: "15"
+    UPSTREAM_VISION_MODEL_LIMITS: "glm-5.1:5,glm-4.6v:5,glm-4.5v:3"
+    UPSTREAM_DEFAULT_LIMIT: "1"
+    UPSTREAM_GLOBAL_LIMIT: "9"
     PROVIDER_RPM_LIMITS: "glm:5"
 
 rateLimiter:
@@ -215,7 +203,7 @@ otelCollector:
       cpu: "1"
 
 presidio:
-  enabled: true
+  enabled: false
   replicaCount: 1
   image:
     repository: mcr.microsoft.com/presidio-analyzer
@@ -266,7 +254,7 @@ rlDashboard:
       cpu: "500m"
 
 proxy:
-  enabled: false
+  enabled: true
   replicaCount: 2
   image:
     repository: caddy
@@ -290,7 +278,25 @@ secrets:
   anthropicApiKeys: ""
   geminiApiKeys: ""
   openrouterApiKeys: ""
+  lotusApiKeys: ""
   geminiOAuthClientId: ""
   geminiOAuthClientSecret: ""
   grafanaAdminPassword: "devopscore"
   dashboardApiKey: ""
+
+sidecar:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: earth4242/ai-sidecar
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 8081
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"

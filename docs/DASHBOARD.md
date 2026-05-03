@@ -144,7 +144,7 @@ http://localhost:8080/admin
 | Error Rate | percentage, เหลือง > 0%, แดง > 10% |
 | Status | health indicator (active/cooldown/error) |
 
-**Passthrough Mode:** เมื่อไม่มี keys ใน pool (`UPSTREAM_API_KEYS` ว่าง):
+**Passthrough Mode:** เมื่อไม่มี keys ใน pool (`ZAI_API_KEYS` ว่าง):
 - แสดง icon + "Passthrough mode" message
 - Client keys ถูก forward ไป upstream โดยตรง
 
@@ -468,7 +468,7 @@ Dashboard ไม่มี WebSocket. ทุกอย่างเป็น pollin
 DASHBOARD_API_KEY=your-secret-key    # เปิด auth mode, ว่าง = no auth
 
 # Upstream key pool (sync proxy path)
-UPSTREAM_API_KEYS=key1,key2,key3     # comma-separated, ว่าง = passthrough
+ZAI_API_KEYS=key1,key2,key3     # comma-separated, ว่าง = passthrough
 UPSTREAM_RPM_LIMIT=40                # RPM limit ต่อ key
 
 # Model concurrency

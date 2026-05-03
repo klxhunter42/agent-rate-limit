@@ -202,7 +202,7 @@ Multi-key rotation for providers with per-key RPM limits.
 
 | Variable | Default | Description |
 |---|---|---|
-| `UPSTREAM_API_KEYS` | (empty) | Comma-separated API keys |
+| `ZAI_API_KEYS` | (empty) | Comma-separated API keys |
 | `UPSTREAM_RPM_LIMIT` | `40` | Per-key requests per minute |
 
 ---

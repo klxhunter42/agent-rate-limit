@@ -264,7 +264,7 @@ Hub-based broadcast: all connected clients receive events. Ping/pong keepalive (
 | `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive probe ceiling multiplier (initial * this = maxLimit) |
 | `UPSTREAM_MAX_RETRIES` | `3` | Max retry attempts on upstream 429/503 |
 | `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff between retries (quadratic: base * attempt^2, capped at 5min) |
-| `UPSTREAM_API_KEYS` | | Upstream API keys (replaces `GLM_API_KEYS`/`GLM_ENDPOINT` for sync proxy) |
+| `ZAI_API_KEYS` | | Upstream API keys (replaces `GLM_API_KEYS`/`GLM_ENDPOINT` for sync proxy) |
 | `READ_TIMEOUT` | `5s` | HTTP read timeout |
 | `OTLP_ENDPOINT` | `otel-collector:4317` | OTel collector |
 | `REDIS_POOL_SIZE` | `50` | Connection pool size |
@@ -821,7 +821,7 @@ This is the only modification to the request body — all other fields (tools, m
 
 ### Key Pool (Gateway-managed upstream keys)
 
-The gateway can manage a pool of upstream API keys (`UPSTREAM_API_KEYS`) with per-key RPM tracking and automatic cooldown on 429/overloaded errors.
+The gateway can manage a pool of upstream API keys (`ZAI_API_KEYS`) with per-key RPM tracking and automatic cooldown on 429/overloaded errors.
 
 **Key pool RPM leak prevention**: `keyPool.Acquire()` is called **after** body validation and JSON parsing in the Messages handler. This ensures RPM budget is not wasted on malformed or oversized requests.
 

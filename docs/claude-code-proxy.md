@@ -543,7 +543,7 @@ curl -X POST http://localhost:8080/v1/messages \
 
 ---
 
-*Transparent Proxy v2.7 -- profile-based routing, quota enforcement, usage recording integration, 6 WebSocket event types, Z.AI pricing update (19 models), UPSTREAM_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*
+*Transparent Proxy v2.7 -- profile-based routing, quota enforcement, usage recording integration, 6 WebSocket event types, Z.AI pricing update (19 models), ZAI_API_KEYS replacing GLM_API_KEYS/GLM_ENDPOINT*
 
 ### Claude Code + Profile (Docker container with Haiku)
 

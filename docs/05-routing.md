@@ -38,13 +38,13 @@ The token/apiKey used for the upstream request depends on profile configuration:
 | `accountIds` populated | `tokenStore.GetFromPool(provider, accountIds)` - round-robin among selected accounts |
 | `passthroughAuth = true` | Client's own `Authorization: Bearer` or `x-api-key` header (strips `arl_` prefix) |
 | No accountIds, no passthrough | `tokenStore.GetDefault(provider)` - default token for the provider |
-| No stored token for provider | `decision.APIKey` from resolver (key pool / UPSTREAM_API_KEYS) |
+| No stored token for provider | `decision.APIKey` from resolver (key pool / ZAI_API_KEYS) |
 
 ### Profile Requirement by Mode
 
 | Mode | Profile Required | Auth Method |
 |------|:----------------:|-------------|
-| GLM Mode (`GLM_MODE=true`) | No | Uses `UPSTREAM_API_KEYS` from env |
+| GLM Mode (`GLM_MODE=true`) | No | Uses `ZAI_API_KEYS` from env |
 | Multi-provider mode (`GLM_MODE=false`) | Yes | `X-Profile` header or `arl_*` token |
 
 ---

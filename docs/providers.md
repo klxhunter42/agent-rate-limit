@@ -78,7 +78,7 @@ Gateway จัดการ key เองจาก pool. Client ไม่ต้�
 ```bash
 # Go Gateway sync path
 UPSTREAM_URL=https://api.z.ai/api/anthropic
-UPSTREAM_API_KEYS=key1,key2,key3
+ZAI_API_KEYS=key1,key2,key3
 UPSTREAM_RPM_LIMIT=40
 ```
 
@@ -90,9 +90,9 @@ Key pool เลือก key ที่มี RPM budget เหลือมาก
 Client ส่ง API key เองผ่าน header. Gateway ส่งต่อไปยัง upstream โดยไม่เปลี่ยนแปลง.
 
 ```bash
-# ไม่ตั้ง UPSTREAM_API_KEYS จะเป็น passthrough อัตโนมัติ
+# ไม่ตั้ง ZAI_API_KEYS จะเป็น passthrough อัตโนมัติ
 UPSTREAM_URL=https://api.z.ai/api/anthropic
-UPSTREAM_API_KEYS=
+ZAI_API_KEYS=
 ```
 
 Client ต้องส่ง header:
@@ -113,16 +113,16 @@ API ของ Z.ai เข้ากันได้กับ Anthropic SDK (Anthro
 ### Setup
 
 ```bash
-# Sync proxy path (Gateway): use UPSTREAM_API_KEYS + UPSTREAM_URL
+# Sync proxy path (Gateway): use ZAI_API_KEYS + UPSTREAM_URL
 UPSTREAM_URL=https://api.z.ai/api/anthropic
-UPSTREAM_API_KEYS=your-zai-key-1,your-zai-key-2
+ZAI_API_KEYS=your-zai-key-1,your-zai-key-2
 
 # Async path (Worker): use GLM_API_KEYS + GLM_ENDPOINT (unchanged)
 GLM_ENDPOINT=https://api.z.ai/api/anthropic
 GLM_API_KEYS=your-zai-key-1,your-zai-key-2
 ```
 
-> **Note**: `GLM_API_KEYS` and `GLM_ENDPOINT` have been removed from the sync proxy path. The gateway now uses `UPSTREAM_API_KEYS` and `UPSTREAM_URL` exclusively for the sync proxy. The worker async path still uses `GLM_API_KEYS`/`GLM_ENDPOINT` independently.
+> **Note**: `GLM_API_KEYS` and `GLM_ENDPOINT` have been removed from the sync proxy path. The gateway now uses `ZAI_API_KEYS` and `UPSTREAM_URL` exclusively for the sync proxy. The worker async path still uses `GLM_API_KEYS`/`GLM_ENDPOINT` independently.
 
 ### How to get API key
 
@@ -141,7 +141,7 @@ GLM_API_KEYS=your-zai-key-1,your-zai-key-2
 
 ```bash
 UPSTREAM_URL=https://api.z.ai/api/anthropic
-UPSTREAM_API_KEYS=your-zai-key-1,your-zai-key-2
+ZAI_API_KEYS=your-zai-key-1,your-zai-key-2
 ```
 
 ### Dashboard registration
@@ -669,7 +669,7 @@ UPSTREAM_URL=https://api.z.ai/api/anthropic
 STREAM_TIMEOUT=300s
 
 # Key pool for sync proxy (ถ้าว่าง = passthrough mode)
-UPSTREAM_API_KEYS=zai-key-1,zai-key-2
+ZAI_API_KEYS=zai-key-1,zai-key-2
 UPSTREAM_RPM_LIMIT=40
 
 # Per-model concurrency
@@ -681,7 +681,7 @@ UPSTREAM_GLOBAL_LIMIT=9
 PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50,gemini:15,openrouter:30
 
 # --- GLM / Z.ai (Primary - async/worker path) ---
-# NOTE: Sync proxy uses UPSTREAM_API_KEYS + UPSTREAM_URL above
+# NOTE: Sync proxy uses ZAI_API_KEYS + UPSTREAM_URL above
 GLM_API_KEYS=your-glm-key
 GLM_ENDPOINT=https://api.z.ai/api/anthropic
 
