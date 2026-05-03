@@ -524,6 +524,35 @@ func convertImageBlock(cb map[string]any) map[string]any {
 	return map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}
 }
 
+// CountImageBlocks counts the number of image content blocks in a payload.
+func CountImageBlocks(payload map[string]any) int {
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return 0
+	}
+	count := 0
+	for _, msg := range msgs {
+		mm, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		blocks, ok := mm["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range blocks {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cb["type"] == "image" {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 // FetchImageAsBase64 downloads an image URL and converts it to a base64 data URI.
 func FetchImageAsBase64(imgURL string) string {
 	resp, err := imageClient.Get(imgURL)
@@ -1564,6 +1593,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
 		filteredBlocks := make(map[int]bool)
+	var sidecarInputTokens, sidecarOutputTokens int
 
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -1571,6 +1601,30 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 			if unmasker != nil {
 				if strings.HasPrefix(line, "data: ") {
 					data := line[6:]
+		// Track token usage from SSE events.
+		if strings.Contains(data, "message_start") {
+			var msg struct {
+				Message struct {
+					Usage struct {
+						InputTokens              int `json:"input_tokens"`
+						CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+						CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+					} `json:"usage"`
+				} `json:"message"`
+			}
+			if json.Unmarshal([]byte(data), &msg) == nil {
+				sidecarInputTokens = msg.Message.Usage.InputTokens + msg.Message.Usage.CacheCreationInputTokens + msg.Message.Usage.CacheReadInputTokens
+			}
+		} else if strings.Contains(data, "message_delta") {
+			var msg struct {
+				Usage struct {
+					OutputTokens int `json:"output_tokens"`
+				} `json:"usage"`
+			}
+			if json.Unmarshal([]byte(data), &msg) == nil && msg.Usage.OutputTokens > 0 {
+				sidecarOutputTokens = msg.Usage.OutputTokens
+			}
+		}
 
 					if strings.Contains(data, `"content_block_delta"`) {
 						var evt struct {
@@ -1605,6 +1659,15 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							}
 						}
 					} else if strings.Contains(data, `"content_block_stop"`) {
+	if sidecarInputTokens > 0 || sidecarOutputTokens > 0 {
+		p.metrics.RecordTokens(r.Context(), model, sidecarInputTokens, sidecarOutputTokens)
+		slog.Debug("sidecar stream token usage",
+			"model", model,
+			"input", sidecarInputTokens,
+			"output", sidecarOutputTokens,
+		)
+	}
+
 						if remaining := unmasker.Flush(); remaining != "" {
 							escaped, _ := json.Marshal(remaining)
 							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
@@ -1618,33 +1681,33 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 				}
 			}
 
+			// Filter out server_tool_use and server_tool_result content blocks BEFORE writing
+			if strings.HasPrefix(line, "data: ") {
+				data := line[6:]
+				if strings.Contains(data, `"content_block_start"`) {
+					var cbs struct {
+						Index int `json:"index"`
+						ContentBlock struct {
+							Type string `json:"type"`
+						} `json:"content_block"`
+					}
+					if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
+						filteredBlocks[cbs.Index] = true
+						slog.Debug("sidecar: filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
+						continue
+					}
+				}
+				if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
+					var idxEvt struct {
+						Index int `json:"index"`
+					}
+					if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
+						continue
+					}
+				}
+			}
+
 			fmt.Fprintln(w, line)
-		// Filter out server_tool_use and server_tool_result content blocks
-		// (same as relayStreamWithTracking, prevents SSE line overflow from large tool results)
-		if strings.HasPrefix(line, "data: ") {
-			data := line[6:]
-			if strings.Contains(data, `"content_block_start"`) {
-				var cbs struct {
-					Index       int `json:"index"`
-					ContentBlock struct {
-						Type string `json:"type"`
-					} `json:"content_block"`
-				}
-				if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
-					filteredBlocks[cbs.Index] = true
-					slog.Debug("sidecar: filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
-					continue
-				}
-			}
-			if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
-				var idxEvt struct {
-					Index int `json:"index"`
-				}
-				if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
-					continue
-				}
-			}
-		}
 
 			if flusher != nil {
 				flusher.Flush()
@@ -1668,6 +1731,22 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+	}
+
+	// Track token usage for non-stream sidecar responses.
+	var nsUsage struct {
+		Usage struct {
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		} `json:"usage"`
+	}
+	if json.Unmarshal(respBody, &nsUsage) == nil {
+		totalInput := nsUsage.Usage.InputTokens + nsUsage.Usage.CacheCreationInputTokens + nsUsage.Usage.CacheReadInputTokens
+		if totalInput > 0 || nsUsage.Usage.OutputTokens > 0 {
+			p.metrics.RecordTokens(r.Context(), model, totalInput, nsUsage.Usage.OutputTokens)
+		}
 	}
 
 	w.Write(respBody)
@@ -1704,19 +1783,26 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	tokenTracked := false
 	var usage struct {
 		Usage struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
+			InputTokens              int `json:"input_tokens"`
+			OutputTokens             int `json:"output_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 		} `json:"usage"`
 	}
-	if json.Unmarshal(body, &usage) == nil && (usage.Usage.InputTokens > 0 || usage.Usage.OutputTokens > 0) {
-		p.metrics.RecordTokens(resp.Request.Context(), model, usage.Usage.InputTokens, usage.Usage.OutputTokens)
-		slog.Info("token usage",
-			"model", model,
-			"input", usage.Usage.InputTokens,
-			"output", usage.Usage.OutputTokens,
-			"format", "anthropic",
-		)
-		tokenTracked = true
+	if json.Unmarshal(body, &usage) == nil {
+		totalInput := usage.Usage.InputTokens + usage.Usage.CacheCreationInputTokens + usage.Usage.CacheReadInputTokens
+		if totalInput > 0 || usage.Usage.OutputTokens > 0 {
+			p.metrics.RecordTokens(resp.Request.Context(), model, totalInput, usage.Usage.OutputTokens)
+			slog.Info("token usage",
+				"model", model,
+				"input", totalInput,
+				"output", usage.Usage.OutputTokens,
+				"cache_creation", usage.Usage.CacheCreationInputTokens,
+				"cache_read", usage.Usage.CacheReadInputTokens,
+				"format", "anthropic",
+			)
+			tokenTracked = true
+		}
 	}
 
 	if !tokenTracked {
@@ -1956,12 +2042,17 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			var msg struct {
 				Message struct {
 					Usage struct {
-						InputTokens int `json:"input_tokens"`
+						InputTokens              int `json:"input_tokens"`
+						CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+						CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 					} `json:"usage"`
 				} `json:"message"`
 			}
-			if json.Unmarshal([]byte(data), &msg) == nil && msg.Message.Usage.InputTokens > 0 {
-				inputTokens = msg.Message.Usage.InputTokens
+			if json.Unmarshal([]byte(data), &msg) == nil {
+				total := msg.Message.Usage.InputTokens + msg.Message.Usage.CacheCreationInputTokens + msg.Message.Usage.CacheReadInputTokens
+				if total > 0 {
+					inputTokens = total
+				}
 			}
 		} else if strings.Contains(data, `"message_delta"`) {
 			var msg struct {
