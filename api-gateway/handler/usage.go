@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -133,7 +134,7 @@ func (u *UsageHandler) RecordProfileUsage(profile, model string, inputTokens, ou
 	pipe.Exec(ctx)
 }
 
-// RecordProfileAccountUsage increments usage counters scoped to profile+account+model.
+// // RecordProfileAccountUsage increments usage counters scoped to profile+account+model.
 // Enables per-API-key breakdown under a profile.
 func (u *UsageHandler) RecordProfileAccountUsage(profile, accountID, model string, inputTokens, outputTokens int, cost float64) {
 	ctx := context.Background()
@@ -154,9 +155,11 @@ func (u *UsageHandler) RecordProfileAccountUsage(profile, accountID, model strin
 	}
 
 	pipe.Expire(ctx, dailyKey, 35*24*time.Hour)
-	pipe.Expire(ctx, summaryKey, 0)
+	// summary has no expiry
 
-	pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		slog.Error("RecordProfileAccountUsage pipeline failed", "error", err, "profile", profile, "account", accountID, "model", model)
+	}
 }
 
 // RecordAccountUsage increments usage counters for an account+model.
@@ -224,7 +227,6 @@ func (u *UsageHandler) ProfileKeysUsage(w http.ResponseWriter, r *http.Request) 
 		if strings.HasSuffix(key, ":models") {
 			continue
 		}
-		// Extract accountID: usage:profile:{name}:account:{accountId}:summary
 		rest := strings.TrimPrefix(key, prefix)
 		parts := strings.SplitN(rest, ":", 2)
 		if len(parts) < 2 {
