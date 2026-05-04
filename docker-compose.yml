@@ -325,6 +325,7 @@ services:
       dockerfile: Dockerfile
     container_name: arl-rl-dashboard
     restart: always
+  profiles: ["rl-dashboard"]
     depends_on:
       arl-rate-limiter:
         condition: service_healthy
