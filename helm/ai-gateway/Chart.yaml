@@ -2,7 +2,7 @@ apiVersion: v2
 name: ai-gateway
 description: Full-stack AI Gateway with rate limiting, multi-provider proxy, and monitoring
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "1.1.0"
 keywords:
   - ai-gateway

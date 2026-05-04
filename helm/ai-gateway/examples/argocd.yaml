@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/klxhunter42/agent-rate-limit.git
-    targetRevision: main
+    targetRevision: "0.3.0"
     path: helm/ai-gateway
     helm:
       # Option 1: inline overrides
@@ -19,20 +19,20 @@ spec:
         gateway:
           replicaCount: 2
           image:
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
         worker:
           replicaCount: 2
           image:
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
         rateLimiter:
           image:
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
         dashboard:
           image:
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
         sidecar:
           image:
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
         secrets:
           glmApiKeys: "your-api-key-here"
           grafanaAdminPassword: "changeme"
@@ -75,7 +75,7 @@ spec:
             tag: main
           - env: production
             replicas: 3
-            tag: v1.0.0
+            tag: "" # defaults to .Chart.AppVersion
   template:
     metadata:
       name: "ai-gateway-{{env}}"
