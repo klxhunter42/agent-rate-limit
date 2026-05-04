@@ -4,7 +4,7 @@ import * as authApi from '@/lib/auth-api';
 interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (apiKey: string) => Promise<boolean>;
+  login: (password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -32,9 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const loginFn = useCallback(async (apiKey: string): Promise<boolean> => {
+  const loginFn = useCallback(async (password: string): Promise<boolean> => {
     try {
-      const res = await authApi.login(apiKey);
+      const res = await authApi.login(password);
       if (res.status === 'authenticated') {
         setIsAuthenticated(true);
         return true;

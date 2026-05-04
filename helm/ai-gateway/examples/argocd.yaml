@@ -34,7 +34,6 @@ spec:
           image:
             tag: "" # defaults to .Chart.AppVersion
         secrets:
-          glmApiKeys: "your-api-key-here"
           grafanaAdminPassword: "changeme"
 
       # Option 2: reference a separate values file in the repo

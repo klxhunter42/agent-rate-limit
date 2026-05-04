@@ -45,11 +45,7 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
-        - name: LOTUS_API_KEYS
-          valueFrom:
-            secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "lotus-api-keys" "value" .Values.secrets.lotusApiKeys) | nindent 14 }}
-        - name: GEMINI_OAUTH_CLIENT_ID
+                - name: GEMINI_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-id" "value" .Values.secrets.geminiOAuthClientId) | nindent 14 }}
@@ -57,11 +53,7 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 14 }}
-        - name: DASHBOARD_PASSWORD
-          valueFrom:
-            secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 14 }}
-{{- include "ai-gateway.envVars" .Values.gateway.env | nindent 8 }}
+        {{- include "ai-gateway.envVars" .Values.gateway.env | nindent 8 }}
         resources:
 {{- toYaml .Values.gateway.resources | nindent 12 }}
         readinessProbe:

@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Gauge,
@@ -15,6 +15,7 @@ import {
   Box,
   UserCircle,
   PieChart,
+ LogOut,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -32,6 +33,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { PrivacyToggle } from '@/components/shared/privacy-toggle';
 import { useDashboard } from '@/contexts/dashboard-context';
+import { useAuth } from '@/contexts/auth-context';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 
@@ -55,6 +57,8 @@ const NAV_ITEMS = [
 export function AppSidebar() {
   const location = useLocation();
   const { lastRefresh, health } = useDashboard();
+ const { logout } = useAuth();
+ const navigate = useNavigate();
   const [dark, setDark] = useState(() => {
     const stored = localStorage.getItem('theme');
     return stored ? stored === 'dark' : true;
@@ -125,6 +129,9 @@ export function AppSidebar() {
             {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
           <PrivacyToggle />
+ <Button variant="ghost" size="icon" onClick={async () => { await logout(); navigate("/login"); }} className="h-8 w-8" title="Logout">
+  <LogOut className="h-4 w-4" />
+ </Button>
           <SidebarTrigger className="h-8 w-8" />
         </div>
       </SidebarFooter>

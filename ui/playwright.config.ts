@@ -10,8 +10,17 @@ export default defineConfig({
   retries: isCI ? 2 : 0,
   workers: isCI ? 1 : undefined,
   reporter: 'list',
-  use: {
-    baseURL,
-    trace: 'on-first-retry',
-  },
+  projects: [
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    {
+      name: 'tests',
+      testMatch: /.*\.spec\.ts/,
+      dependencies: ['setup'],
+      use: {
+        baseURL,
+        trace: 'on-first-retry',
+        storageState: '.auth.json',
+      },
+    },
+  ],
 });

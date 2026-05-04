@@ -170,11 +170,11 @@ export async function fetchRateLimits(): Promise<RateLimitStatus[]> {
   }
 }
 
-export async function login(apiKey: string): Promise<{ status: string }> {
+export async function login(password: string): Promise<{ status: string }> {
   const res = await fetch('/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: apiKey }),
+    body: JSON.stringify({ password }),
   });
   if (!res.ok) throw new Error(`login: ${res.status}`);
   return res.json();

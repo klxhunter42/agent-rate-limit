@@ -37,11 +37,7 @@ spec:
         env:
         - name: REDIS_URL
           value: "redis://{{ .Release.Name }}-dragonfly:6379"
-        - name: GLM_API_KEYS
-          valueFrom:
-            secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "glm-api-keys" "value" .Values.secrets.glmApiKeys) | nindent 14 }}
-        - name: OPENAI_API_KEYS
+                - name: OPENAI_API_KEYS
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "openai-api-keys" "value" .Values.secrets.openaiApiKeys) | nindent 14 }}
@@ -57,11 +53,7 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "openrouter-api-keys" "value" .Values.secrets.openrouterApiKeys) | nindent 14 }}
-        - name: LOTUS_API_KEYS
-          valueFrom:
-            secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "lotus-api-keys" "value" .Values.secrets.lotusApiKeys) | nindent 14 }}
-{{- include "ai-gateway.envVars" .Values.worker.env | nindent 8 }}
+        {{- include "ai-gateway.envVars" .Values.worker.env | nindent 8 }}
         resources:
 {{- toYaml .Values.worker.resources | nindent 12 }}
         readinessProbe:
