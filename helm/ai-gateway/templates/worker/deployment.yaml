@@ -37,7 +37,7 @@ spec:
         env:
         - name: REDIS_URL
           value: "redis://{{ .Release.Name }}-dragonfly:6379"
-                - name: OPENAI_API_KEYS
+        - name: OPENAI_API_KEYS
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "openai-api-keys" "value" .Values.secrets.openaiApiKeys) | nindent 14 }}
@@ -53,7 +53,7 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "openrouter-api-keys" "value" .Values.secrets.openrouterApiKeys) | nindent 14 }}
-        {{- include "ai-gateway.envVars" .Values.worker.env | nindent 8 }}
+{{- include "ai-gateway.envVars" .Values.worker.env | trim | nindent 8 }}
         resources:
 {{- toYaml .Values.worker.resources | nindent 12 }}
         readinessProbe:

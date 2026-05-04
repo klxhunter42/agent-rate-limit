@@ -35,7 +35,7 @@ spec:
               value: "{{ .Release.Name }}-dragonfly"
             - name: SPRING_DATA_REDIS_PORT
               value: "6379"
-            {{- include "ai-gateway.envVars" .Values.rateLimiter.env | nindent 12 }}
+            {{- include "ai-gateway.envVars" .Values.rateLimiter.env | trim | nindent 12 }}
           resources:
             {{- toYaml .Values.rateLimiter.resources | nindent 12 }}
           startupProbe:
