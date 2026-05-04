@@ -70,7 +70,7 @@
       "type": "stat",
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 3 },
       "targets": [
-        { "expr": "sum(increase(api_gateway_rate_limit_hits_total[$__range]))", "legendFormat": "Gateway", "refId": "A" },
+        { "expr": "sum(increase(api_gateway_upstream_429_total[$__range]))", "legendFormat": "Gateway", "refId": "A" },
         { "expr": "sum(increase(ai_worker_rate_limit_hits_total[$__range]))", "legendFormat": "Worker", "refId": "B" }
       ],
       "fieldConfig": { "defaults": { "color": { "fixedColor": "orange", "mode": "fixed" } } }

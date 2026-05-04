@@ -80,7 +80,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_requests_total[$__range]))",
+          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path!~"/metrics|/health"}[$__range]))",
           "legendFormat": "requests",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
@@ -208,7 +208,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
       "targets": [
         {
-          "expr": "sum by (profile) (increase(api_gateway_profile_token_input_total[$__rate_interval]))",
+          "expr": "sum by (profile) (increase(api_gateway_token_input_total[$__rate_interval]))",
           "legendFormat": "{{profile}}",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
@@ -230,7 +230,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "targets": [
         {
-          "expr": "sum by (profile) (increase(api_gateway_profile_token_output_total[$__rate_interval]))",
+          "expr": "sum by (profile) (increase(api_gateway_token_output_total[$__rate_interval]))",
           "legendFormat": "{{profile}}",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
@@ -252,14 +252,14 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 31 },
       "targets": [
         {
-          "expr": "sum by (profile, model) (increase(api_gateway_profile_token_input_total[$__range]))",
+          "expr": "sum by (profile, model) (increase(api_gateway_token_input_total[$__range]))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         },
         {
-          "expr": "sum by (profile, model) (increase(api_gateway_profile_token_output_total[$__range]))",
+          "expr": "sum by (profile, model) (increase(api_gateway_token_output_total[$__range]))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -293,7 +293,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "targets": [
         {
-          "expr": "sum by (account_id) (increase(api_gateway_account_token_input_total[$__rate_interval]))",
+          "expr": "sum by (account_id) (increase(api_gateway_token_input_total[$__rate_interval]))",
           "legendFormat": "{{account_id}}",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
@@ -315,7 +315,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "targets": [
         {
-          "expr": "sum by (account_id) (increase(api_gateway_account_token_output_total[$__rate_interval]))",
+          "expr": "sum by (account_id) (increase(api_gateway_token_output_total[$__rate_interval]))",
           "legendFormat": "{{account_id}}",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
@@ -337,14 +337,14 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
       "targets": [
         {
-          "expr": "sum by (account_id, model) (increase(api_gateway_account_token_input_total[$__range]))",
+          "expr": "sum by (account_id, model) (increase(api_gateway_token_input_total[$__range]))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         },
         {
-          "expr": "sum by (account_id, model) (increase(api_gateway_account_token_output_total[$__range]))",
+          "expr": "sum by (account_id, model) (increase(api_gateway_token_output_total[$__range]))",
           "legendFormat": "",
           "format": "table",
           "instant": true,
@@ -422,12 +422,12 @@
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 65 },
       "targets": [
         {
-          "expr": "sum by (account_id) (rate(api_gateway_account_token_input_total[$__rate_interval]))",
+          "expr": "sum by (account_id) (rate(api_gateway_token_input_total[$__rate_interval]))",
           "legendFormat": "{{account_id}} in",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         },
         {
-          "expr": "sum by (account_id) (rate(api_gateway_account_token_output_total[$__rate_interval]))",
+          "expr": "sum by (account_id) (rate(api_gateway_token_output_total[$__rate_interval]))",
           "legendFormat": "{{account_id}} out",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
