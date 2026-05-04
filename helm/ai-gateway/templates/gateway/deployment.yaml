@@ -5,98 +5,90 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "gateway") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 4 }}
 spec:
   replicas: {{ .Values.gateway.replicaCount }}
   selector:
     matchLabels:
-      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 6 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 8 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 8 }}
       annotations:
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
     spec:
-      {{- with .Values.global.imagePullSecrets }}
+{{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
-      {{- end }}
+{{- end }}
       securityContext:
-        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+{{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
       containers:
-        - name: gateway
-          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
-          ports:
-            - containerPort: 8080
-              name: http
-          securityContext:
-            {{- include "ai-gateway.securityContext" . | nindent 12 }}
-          env:
-            - name: REDIS_ADDR
-              value: "{{ .Release.Name }}-dragonfly:6379"
-            - name: RATE_LIMITER_ADDR
-              value: "http://{{ .Release.Name }}-rate-limiter:8080"
-            - name: QUEUE_NAME
-              value: "ai_jobs"
-            - name: OTLP_ENDPOINT
-              value: "{{ .Release.Name }}-otel-collector:4317"
-            - name: ZAI_API_KEYS
-              valueFrom:
-                secretKeyRef:
-                  name: ai-gateway-secrets
-                  key: upstream-api-keys
-                  optional: true
-            - name: LOTUS_API_KEYS
-              valueFrom:
-                secretKeyRef:
-                  name: ai-gateway-secrets
-                  key: lotus-api-keys
-                  optional: true
-            - name: GEMINI_OAUTH_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ai-gateway-secrets
-                  key: gemini-oauth-client-id
-                  optional: true
-            - name: GEMINI_OAUTH_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ai-gateway-secrets
-                  key: gemini-oauth-client-secret
-                  optional: true
-            {{- include "ai-gateway.envVars" .Values.gateway.env | nindent 12 }}
-          resources:
-            {{- toYaml .Values.gateway.resources | nindent 12 }}
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-      volumes:
+      - name: gateway
+        image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+        ports:
+        - containerPort: 8080
+          name: http
+        securityContext:
+{{- include "ai-gateway.securityContext" . | nindent 12 }}
+        env:
+        - name: REDIS_ADDR
+          value: "{{ .Release.Name }}-dragonfly:6379"
+        - name: RATE_LIMITER_ADDR
+          value: "http://{{ .Release.Name }}-rate-limiter:8080"
+        - name: QUEUE_NAME
+          value: "ai_jobs"
+        - name: OTLP_ENDPOINT
+          value: "{{ .Release.Name }}-otel-collector:4317"
+        - name: ZAI_API_KEYS
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
+        - name: LOTUS_API_KEYS
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "lotus-api-keys" "value" .Values.secrets.lotusApiKeys) | nindent 14 }}
+        - name: GEMINI_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-id" "value" .Values.secrets.geminiOAuthClientId) | nindent 14 }}
+        - name: GEMINI_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 14 }}
+{{- include "ai-gateway.envVars" .Values.gateway.env | nindent 8 }}
+        resources:
+{{- toYaml .Values.gateway.resources | nindent 12 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
         - name: tmp
-          emptyDir: {}
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 20 }}
-                topologyKey: kubernetes.io/hostname
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 20 }}
+              topologyKey: kubernetes.io/hostname
 {{- end }}
