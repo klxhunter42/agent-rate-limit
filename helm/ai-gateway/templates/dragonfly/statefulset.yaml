@@ -5,67 +5,72 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
 spec:
   serviceName: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}-headless
   replicas: {{ .Values.dragonfly.replicaCount }}
   selector:
     matchLabels:
-      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 6 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 8 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 8 }}
     spec:
-      {{- with .Values.global.imagePullSecrets }}
+{{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
-      {{- end }}
+{{- end }}
       securityContext:
-        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+{{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
       containers:
-        - name: dragonfly
-          image: "{{ .Values.dragonfly.image.repository }}:{{ .Values.dragonfly.image.tag }}"
-          imagePullPolicy: {{ .Values.dragonfly.image.pullPolicy }}
-          ports:
-            - containerPort: 6379
-              name: redis
-          args:
-            - "--maxmemory={{ .Values.dragonfly.args.maxMemory }}"
-            - "--proactor_threads={{ .Values.dragonfly.args.proactorThreads }}"
-            - "--cache_mode={{ .Values.dragonfly.args.cacheMode }}"
-            - "--tcp_keepalive={{ .Values.dragonfly.args.tcpKeepalive }}"
-            - "--pipeline_squash={{ .Values.dragonfly.args.pipelineSquash }}"
-          resources:
-            {{- toYaml .Values.dragonfly.resources | nindent 12 }}
-          readinessProbe:
-            exec:
-              command: ["redis-cli", "ping"]
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            timeoutSeconds: 3
-          livenessProbe:
-            exec:
-              command: ["redis-cli", "ping"]
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-          volumeMounts:
-            - name: data
-              mountPath: /data
-  {{- if .Values.dragonfly.persistence.enabled }}
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-        labels:
-          {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 10 }}
-      spec:
-        accessModes:
-          - {{ .Values.dragonfly.persistence.accessMode | default "ReadWriteOnce" }}
-        {{- if .Values.dragonfly.persistence.storageClassName }}
-        storageClassName: {{ .Values.dragonfly.persistence.storageClassName }}
-        {{- end }}
+      - name: dragonfly
+        image: "{{ .Values.dragonfly.image.repository }}:{{ .Values.dragonfly.image.tag }}"
+        imagePullPolicy: {{ .Values.dragonfly.image.pullPolicy }}
+        ports:
+        - containerPort: 6379
+          name: redis
+        args:
+        - "--maxmemory={{ .Values.dragonfly.args.maxMemory }}"
+        - "--proactor_threads={{ .Values.dragonfly.args.proactorThreads }}"
+        - "--cache_mode={{ .Values.dragonfly.args.cacheMode }}"
+        - "--tcp_keepalive={{ .Values.dragonfly.args.tcpKeepalive }}"
+        - "--pipeline_squash={{ .Values.dragonfly.args.pipelineSquash }}"
         resources:
-          requests:
-            storage: {{ .Values.dragonfly.persistence.size }}
-  {{- end }}
+{{- toYaml .Values.dragonfly.resources | nindent 12 }}
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /data
+{{- if not .Values.dragonfly.persistence.enabled }}
+      volumes:
+      - name: data
+        emptyDir: {}
+{{- end }}
+{{- if .Values.dragonfly.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 10 }}
+    spec:
+      accessModes:
+      - {{ .Values.dragonfly.persistence.accessMode | default "ReadWriteOnce" }}
+{{- if .Values.dragonfly.persistence.storageClassName }}
+      storageClassName: {{ .Values.dragonfly.persistence.storageClassName }}
+{{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.dragonfly.persistence.size }}
+{{- end }}
 {{- end }}
