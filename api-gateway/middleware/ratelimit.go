@@ -95,8 +95,16 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip rate limiting for internal endpoints.
 		if r.URL.Path == "/metrics" || r.URL.Path == "/api/metrics" || r.URL.Path == "/health" || r.URL.Path == "/ws" ||
-		strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" ||
-		r.URL.Path == "/login" || r.URL.Path == "/callback" {
+			strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" ||
+			r.URL.Path == "/login" || r.URL.Path == "/callback" || r.URL.Path == "/" ||
+			strings.HasPrefix(r.URL.Path, "/v1/limiter") || strings.HasPrefix(r.URL.Path, "/v1/routing") ||
+			strings.HasPrefix(r.URL.Path, "/v1/logs") || strings.HasPrefix(r.URL.Path, "/v1/models") ||
+			strings.HasPrefix(r.URL.Path, "/v1/zaiweb") || strings.HasPrefix(r.URL.Path, "/v1/waste") ||
+			strings.HasPrefix(r.URL.Path, "/v1/mock") || strings.HasPrefix(r.URL.Path, "/v1/overview") ||
+			strings.HasPrefix(r.URL.Path, "/v1/config") || strings.HasPrefix(r.URL.Path, "/v1/profile") ||
+			strings.HasPrefix(r.URL.Path, "/v1/usage") || strings.HasPrefix(r.URL.Path, "/v1/quota") ||
+			strings.HasPrefix(r.URL.Path, "/v1/results") ||
+			r.URL.Path == "/mcp" {
 			next.ServeHTTP(w, r)
 			return
 		}
