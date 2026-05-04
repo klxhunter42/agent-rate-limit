@@ -64,6 +64,21 @@
       }
     },
     {
+      "title": "PII Detection Method",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 26 },
+      "targets": [
+        { "expr": "vector(1)", "legendFormat": "Regex (<1ms)", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "super-light-green", "mode": "fixed" },
+          "mappings": [{ "type": "value", "options": { "1": { "text": "Regex (<1ms)", "index": 0 } } }],
+          "thresholds": { "steps": [{ "color": "green", "value": null }] }
+        }
+      }
+    },
+    {
       "title": "Secrets Detected by Type",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
@@ -90,11 +105,21 @@
           "color": { "mode": "palette-classic" },
           "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 40, "showPoints": "never", "spanNulls": true, "stacking": { "mode": "normal" } },
           "unit": "ops"
-        }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "EMAIL_ADDRESS" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "PHONE_NUMBER" }, "properties": [{ "id": "color", "value": { "fixedColor": "super-light-green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "CREDIT_CARD" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "SSN" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "IBAN" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "IP_ADDRESS" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "THAI_NATIONAL_ID" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "THAI_PHONE" }, "properties": [{ "id": "color", "value": { "fixedColor": "lightblue", "mode": "fixed" } }] }
+        ]
       },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }, "tooltip": { "mode": "multi" } },
       "targets": [
-        { "expr": "sum by (type) (rate(api_gateway_pii_detected_total[$__rate_interval]))", "legendFormat": "{{type}}", "refId": "A" }
+        { "expr": "sum by (entity_type) (rate(api_gateway_pii_detected_total[$__rate_interval]))", "legendFormat": "{{entity_type}}", "refId": "A" }
       ]
     },
     {
@@ -180,9 +205,21 @@
       "type": "barchart",
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 26 },
       "targets": [
-        { "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[24h])))", "legendFormat": "{{type}}", "refId": "A" }
+        { "expr": "topk(10, sum by (entity_type) (increase(api_gateway_pii_detected_total[24h])))", "legendFormat": "{{entity_type}}", "refId": "A" }
       ],
-      "fieldConfig": { "defaults": { "decimals": 0 } },
+      "fieldConfig": {
+        "defaults": { "decimals": 0 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "EMAIL_ADDRESS" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "PHONE_NUMBER" }, "properties": [{ "id": "color", "value": { "fixedColor": "super-light-green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "CREDIT_CARD" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "SSN" }, "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "IBAN" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "IP_ADDRESS" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "THAI_NATIONAL_ID" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "THAI_PHONE" }, "properties": [{ "id": "color", "value": { "fixedColor": "lightblue", "mode": "fixed" } }] }
+        ]
+      },
       "options": { "orientation": "horizontal", "groupWidth": 0.7, "barWidth": 0.5 }
     }
   ],

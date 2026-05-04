@@ -1,0 +1,185 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Claude OAuth Billing Path",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "title": "Billing Path Distribution",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count[$__range]))", "legendFormat": "{{path}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "go_direct" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "sidecar" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "direct" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "billing_rejected" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut" }
+    },
+    {
+      "title": "Request Rate by Billing Path",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 1 },
+      "targets": [
+        { "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))", "legendFormat": "{{path}}", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "go_direct" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "sidecar" }, "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "billing_rejected" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }
+        ]
+      }
+    },
+    {
+      "title": "Billing Path Total (Last 1h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range]))", "legendFormat": "Go Direct", "refId": "A" },
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"sidecar\"}[$__range]))", "legendFormat": "Sidecar", "refId": "B" },
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"billing_rejected\"}[$__range]))", "legendFormat": "Rejected", "refId": "C" }
+      ],
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Rejected" }, "properties": [{ "id": "thresholds", "value": { "steps": [{ "color": "red", "value": null }, { "color": "dark-red", "value": 10 }] } }] }
+        ]
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "title": "Go Direct Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "targets": [
+        { "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_request_latency_seconds_count{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100", "legendFormat": "", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 90 }] }
+        }
+      },
+      "options": { "showThresholdLabels": false, "showThresholdMarkers": true }
+    },
+    {
+      "title": "Billing Path Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 15, "y": 5 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p50 {{path}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p95 {{path}}", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))", "legendFormat": "p99 {{path}}", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Per-Profile Usage",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "collapsed": false
+    },
+    {
+      "title": "Requests by Profile & Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "sum by (profile, model) (rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__rate_interval]))", "legendFormat": "{{profile}} / {{model}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } }
+    },
+    {
+      "title": "Token Usage by Profile (OAuth)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "expr": "sum by (profile, model) (rate(api_gateway_token_input_total[$__rate_interval]))", "legendFormat": "{{profile}}/{{model}} in", "refId": "A" },
+        { "expr": "sum by (profile, model) (rate(api_gateway_token_output_total[$__rate_interval]))", "legendFormat": "{{profile}}/{{model}} out", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "tokps" } }
+    },
+    {
+      "title": "Upstream Health",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "collapsed": false
+    },
+    {
+      "title": "429 Rate Limit Hits",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])", "legendFormat": "429/s", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 30 }, "color": { "fixedColor": "red", "mode": "fixed" } } }
+    },
+    {
+      "title": "Upstream Retries",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 23 },
+      "targets": [
+        { "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval])", "legendFormat": "retries/s", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 30 }, "color": { "fixedColor": "orange", "mode": "fixed" } } }
+    },
+    {
+      "title": "TTFB by Model (Streaming)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))", "legendFormat": "p50 {{model}}", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))", "legendFormat": "p95 {{model}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Cost Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "collapsed": false
+    },
+    {
+      "title": "Profile Cost (USD)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        { "expr": "sum by (profile) (rate(api_gateway_cost_total[$__rate_interval])) * 3600", "legendFormat": "{{profile}} $/hr", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } }
+    },
+    {
+      "title": "Cost by Model",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        { "expr": "sum by (model) (rate(api_gateway_cost_total[$__rate_interval])) * 3600", "legendFormat": "{{model}} $/hr", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4 } }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["claude-oauth", "billing", "api-gateway"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Claude OAuth Billing Path",
+  "uid": "claude-oauth-billing",
+  "version": 1
+}
