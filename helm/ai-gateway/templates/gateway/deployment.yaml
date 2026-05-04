@@ -57,7 +57,7 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 14 }}
-      {{- include "ai-gateway.envVars" .Values.gateway.env | nindent 8 }}
+      {{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 8 }}
         resources:
 {{- toYaml .Values.gateway.resources | nindent 12 }}
         readinessProbe:

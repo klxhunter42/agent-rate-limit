@@ -1,22 +1,22 @@
 {{- define "ai-gateway.envVars" -}}
-{{- range $key, $val := . }}
+{{- range $key, $val := . -}}
 - name: {{ $key }}
   value: {{ $val | quote }}
-{{- end }}
-{{- end }}
+{{ end -}}
+{{- end -}}
 
 {{- define "ai-gateway.envFromSecrets" -}}
-{{- range $envName, $ref := . }}
+{{- range $envName, $ref := . -}}
 - name: {{ $envName }}
   valueFrom:
     secretKeyRef:
       name: {{ $ref.secret }}
       key: {{ $ref.key }}
-      {{- if $ref.optional }}
+{{- if $ref.optional }}
       optional: true
-      {{- end }}
-{{- end }}
-{{- end }}
+{{- end -}}
+{{ end -}}
+{{- end -}}
 
 {{- define "ai-gateway.secretKeyRef" -}}
 {{- $secretName := "ai-gateway-secrets" -}}
@@ -28,4 +28,4 @@
 name: {{ $secretName }}
 key: {{ $secretKey }}
 optional: true
-{{- end }}
+{{- end -}}

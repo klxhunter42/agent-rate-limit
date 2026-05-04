@@ -36,7 +36,7 @@ spec:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "grafana-admin-password" "value" .Values.grafana.adminPassword) | nindent 14 }}
         - name: GF_SERVER_ROOT_URL
           value: "%(protocol)s://%(domain)s/grafana"
-{{- include "ai-gateway.envVars" .Values.grafana.env | nindent 8 }}
+{{- include "ai-gateway.envVars" .Values.grafana.env | trim | nindent 8 }}
         resources:
 {{- toYaml .Values.grafana.resources | nindent 12 }}
         readinessProbe:
