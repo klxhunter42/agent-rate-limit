@@ -5,16 +5,21 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "proxy") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "proxy") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "proxy") | nindent 4 }}
 data:
   Caddyfile: |
     http://:9000 {
-      handle /v1/* {
+      handle /ws {
         reverse_proxy {{ .Release.Name }}-gateway:8080 {
           flush_interval -1
         }
       }
-      handle /api/* {
+      handle /hmr {
+        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+          flush_interval -1
+        }
+      }
+      handle /v1/* {
         reverse_proxy {{ .Release.Name }}-gateway:8080 {
           flush_interval -1
         }
@@ -22,13 +27,15 @@ data:
       handle /health {
         reverse_proxy {{ .Release.Name }}-gateway:8080
       }
+      handle /api/* {
+        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+          flush_interval -1
+        }
+      }
       handle /metrics {
         reverse_proxy {{ .Release.Name }}-gateway:8080
       }
       handle /callback {
-        reverse_proxy {{ .Release.Name }}-gateway:8080
-      }
-      handle /ws {
         reverse_proxy {{ .Release.Name }}-gateway:8080
       }
       @grafana path /grafana /grafana/*
@@ -39,7 +46,7 @@ data:
         reverse_proxy {{ .Release.Name }}-rl-dashboard:8080
       }
       handle {
-        reverse_proxy {{ .Release.Name }}-dashboard:80
+        reverse_proxy {{ .Release.Name }}-gateway:8080
       }
     }
 {{- end }}

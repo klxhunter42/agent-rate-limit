@@ -5,7 +5,7 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-provisioning
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
 data:
   datasources.yml: |
     apiVersion: 1
@@ -29,5 +29,5 @@ data:
         options:
           path: /etc/grafana/provisioning/dashboards
           foldersFromFilesStructure: false
-  {{- (.Files.Glob "files/dashboards/*.json").AsConfig | nindent 2 }}
+{{- (.Files.Glob "files/dashboards/*.json").AsConfig | nindent 2 }}
 {{- end }}
