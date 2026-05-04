@@ -49,7 +49,12 @@ func NewAuthHandler(store *TokenStore, registry *Registry) *AuthHandler {
 		store:    store,
 		registry: registry,
 		sessions: make(map[string]*AuthSession),
-		apiKey:   os.Getenv("DASHBOARD_API_KEY"),
+		apiKey: func() string {
+			if p := os.Getenv("DASHBOARD_PASSWORD"); p != "" {
+				return p
+			}
+			return os.Getenv("DASHBOARD_API_KEY")
+		}(),
 	}
 }
 
@@ -668,15 +673,15 @@ func (h *AuthHandler) DashboardLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		APIKey string `json:"api_key"`
+		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
 		return
 	}
 
-	if req.APIKey != h.apiKey {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid api key"})
+	if req.Password != h.apiKey {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid password"})
 		return
 	}
 
@@ -762,7 +767,7 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 		secret = req.SessionCookie
 	}
 	if secret == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "api_key or session_cookie required"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password or session_cookie required"})
 		return
 	}
 

@@ -185,8 +185,8 @@
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/admin` | Management dashboard SPA (requires DASHBOARD_API_KEY) |
-| `GET` | `/admin/*` | SPA sub-routes (fallback to index.html) |
+| `GET` | `/` | Management dashboard SPA (requires DASHBOARD_PASSWORD) |
+| `GET` | `/*` | SPA sub-routes (fallback to index.html) |
 | `GET` | `/assets/*` | Static assets (JS, CSS) |
 
 ### WebSocket

@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginFn = useCallback(async (apiKey: string): Promise<boolean> => {
     try {
       const res = await authApi.login(apiKey);
-      if (res.success) {
+      if (res.status === 'authenticated') {
         setIsAuthenticated(true);
         return true;
       }

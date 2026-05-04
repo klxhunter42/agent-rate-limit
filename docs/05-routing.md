@@ -57,7 +57,7 @@ The token/apiKey used for the upstream request depends on profile configuration:
 Profile create form requires only **name** + **target provider**:
 
 ```
-Dashboard UI: /admin/profiles -> New
+Dashboard UI: /profiles -> New
 1. Name: profile name (required)
 2. Target: select provider from dropdown (required)
 3. Account Pool: select accounts to use (optional, empty = use default)

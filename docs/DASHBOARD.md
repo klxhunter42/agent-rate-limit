@@ -1,6 +1,6 @@
 # Dashboard Guide / คู่มือ Dashboard
 
-ARL Dashboard เป็น React SPA (Vite + shadcn/ui + Recharts) ให้บริการที่ `/admin` โดย Go gateway.
+ARL Dashboard เป็น React SPA (Vite + shadcn/ui + Recharts) ให้บริการที่ `/` โดย Go gateway.
 Poll backend endpoints ทุก 5 วินาที. ไม่มี WebSocket, ไม่มี server-side historical queries.
 
 Stack: React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Lucide icons, React Router
@@ -9,20 +9,20 @@ Stack: React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui, Recharts, Lucide ico
 
 ## Access / การเข้าถึง
 
-Dashboard ให้บริการที่ path `/admin` ของ gateway (default port 8080):
+Dashboard ให้บริการที่ path `/` ของ gateway (default port 8080):
 
 ```
-http://localhost:8080/admin
+http://localhost:8080/
 ```
 
 ### Authentication
 
-ถ้าตั้ง `DASHBOARD_API_KEY` env var, dashboard จะเปิด auth mode:
+ถ้าตั้ง `DASHBOARD_PASSWORD` env var, dashboard จะเปิด auth mode:
 - Login page จะแสดงก่อนเข้า dashboard
 - Auth ใช้ cookie-based session
 - Endpoints: `POST /v1/auth/login`, `POST /v1/auth/logout`, `GET /v1/auth/check`
 
-ถ้าไม่ตั้ง `DASHBOARD_API_KEY` = เข้าได้เลยไม่ต้อง login.
+ถ้าไม่ตั้ง `DASHBOARD_PASSWORD` = เข้าได้เลยไม่ต้อง login.
 
 ---
 
@@ -465,7 +465,7 @@ Dashboard ไม่มี WebSocket. ทุกอย่างเป็น pollin
 
 ```bash
 # Dashboard auth (optional)
-DASHBOARD_API_KEY=your-secret-key    # เปิด auth mode, ว่าง = no auth
+DASHBOARD_PASSWORD=your-secret-key    # เปิด auth mode, ว่าง = no auth
 
 # Upstream key pool (sync proxy path)
 ZAI_API_KEYS=key1,key2,key3     # comma-separated, ว่าง = passthrough

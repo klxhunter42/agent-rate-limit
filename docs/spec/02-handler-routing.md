@@ -1298,7 +1298,7 @@ Applied to all requests:
 
 ### 11.17 Dashboard Auth
 
-Dashboard endpoints protected by `DASHBOARD_API_KEY` env:
+Dashboard endpoints protected by `DASHBOARD_PASSWORD` env:
 - Checks `x-api-key` header
 - Falls back to `arl_session` cookie
 - Disabled when key is empty

@@ -137,7 +137,7 @@ The following middleware runs on every request (in order):
 | `Logging` | `middleware/logging.go` | No |
 | `Metrics.Middleware` | `metrics/metrics.go` | Yes: `request_latency_seconds`, `active_connections` |
 | `RateLimiter.Middleware` | `middleware/ratelimit.go` | Yes: `rate_limit_hits_total` |
-| `DashboardAuth` (on `/admin/*`) | `middleware/dashboard-auth.go` | No |
+| `DashboardAuth` (on dashboard routes) | `middleware/dashboard-auth.go` | No |
 
 ---
 

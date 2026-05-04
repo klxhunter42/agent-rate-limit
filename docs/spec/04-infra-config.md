@@ -118,7 +118,7 @@ All config via environment variables, parsed at startup with fallback defaults.
 | `QUOTA_REDIS_POOL_SIZE` | `5` | int | Quota Redis pool size |
 | `QUOTA_REDIS_MIN_IDLE` | `2` | int | Quota Redis min idle |
 | `PROVIDER_MODEL_PREFIXES` | `zai:glm-;anthropic:claude-;...` | string | Provider model prefix mapping |
-| `DASHBOARD_API_KEY` | (empty) | string | Optional dashboard auth key |
+| `DASHBOARD_PASSWORD` | (empty) | string | Optional dashboard auth key |
 | `ZAIOpenAIURL` | `https://api.z.ai/api/paas/v4/chat/completions` | string | Z.AI OpenAI-compatible endpoint |
 | `ZAIOpenAIModels` | (empty) | map | Models to route through Z.AI OpenAI endpoint |
 | `ZAIWebEnabled` | `false` | bool | Enable Z.AI web chat routing |
@@ -416,7 +416,7 @@ When running in Docker, use `CLAUDE_CODE_SIMPLE=1` environment variable instead 
 | **Settings** | `pages/settings/` | Language, polling interval, theme, notification preferences, history retention |
 | **Controls** | `pages/controls/` | Manual controls for limiter, mock data |
 | **Debug** | `pages/debug/` | Debug/mock data controls |
-| **Login** | `pages/login/` | Dashboard auth (DASHBOARD_API_KEY) |
+| **Login** | `pages/login/` | Dashboard auth (DASHBOARD_PASSWORD) |
 
 ### 6.3 API Layer (`src/lib/`)
 
@@ -448,9 +448,9 @@ Real-time events pushed from gateway to dashboard:
 
 ### 6.5 Dashboard Auth
 
-Optional auth via `DASHBOARD_API_KEY` env var:
+Optional auth via `DASHBOARD_PASSWORD` env var:
 - Login endpoint: `POST /v1/auth/login` with `{api_key}`
-- Auth middleware wraps `/admin/*` routes
+- Auth middleware wraps dashboard routes
 - Session managed via signed cookies (session secret in `config/session_secret`)
 
 ---
@@ -590,7 +590,7 @@ For testing Grafana dashboards without live traffic:
 1. **UI build**: `cd ui && bun run build` (Vite + TypeScript)
 2. **Output**: `ui/dist/` directory
 3. **Go embed**: `api-gateway/main.go` contains `//go:embed all:static` directive
-4. **Static serving**: Embedded FS served at `/admin`, `/admin/*` (SPA fallback), `/assets/*`
+4. **Static serving**: Embedded FS served at `/`, `/*` (SPA fallback), `/assets/*`
 
 ### 8.2 Docker Build (Multi-stage)
 

@@ -221,7 +221,7 @@ That's it. Claude Code works as-is -- tools, streaming, multi-turn conversations
 
 | Dashboard | URL |
 |-----------|-----|
-| Admin UI | `http://localhost:9000/admin` |
+| Admin UI | `http://localhost:9000/` |
 | Grafana | `http://localhost:9000/grafana` |
 | Health | `http://localhost:9000/health` |
 | Metrics | `http://localhost:9000/metrics` |

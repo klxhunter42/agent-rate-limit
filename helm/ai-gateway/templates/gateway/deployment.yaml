@@ -57,6 +57,10 @@ spec:
           valueFrom:
             secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 14 }}
+        - name: DASHBOARD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 14 }}
 {{- include "ai-gateway.envVars" .Values.gateway.env | nindent 8 }}
         resources:
 {{- toYaml .Values.gateway.resources | nindent 12 }}

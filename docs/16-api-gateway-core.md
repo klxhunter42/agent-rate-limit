@@ -209,7 +209,7 @@ type Handler struct {
 | * | `/v1/profiles/*` | Profile CRUD | Profile management |
 | * | `/v1/usage/*` | Usage analytics | Usage tracking endpoints |
 | * | `/v1/quota/*` | Quota enforcement | Quota check/endpoints |
-| GET | `/admin`, `/admin/*` | Static SPA | Dashboard UI (Vite build) |
+| GET | `/`, `/*` | Static SPA | Dashboard UI (Vite build) |
 | GET | `/metrics`, `/api/metrics` | Prometheus | Metrics scrape endpoint |
 
 ### 3.3 Messages() - Primary Endpoint
@@ -706,7 +706,7 @@ Watches `.env` file via `fsnotify`. Debounced (500ms). Calls callback on key cha
 
 **File:** `middleware/dashboard-auth.go` (~38 lines)
 
-Checks `x-api-key` header or `arl_session` cookie. If `DASHBOARD_API_KEY` env var is empty, all requests pass through (auth disabled). Applied to `/admin/*` routes only.
+Checks `x-api-key` header or `arl_session` cookie. If `DASHBOARD_PASSWORD` env var is empty, all requests pass through (auth disabled). Applied to dashboard routes.
 
 ### 5.12 LoginLimiter
 
@@ -807,7 +807,7 @@ All config loaded from environment variables with sensible defaults for containe
 | `MCP_CACHE_TTL` | `1h` | MCP response cache TTL |
 | `MCP_MAX_RETRIES` | `2` | MCP max retries |
 | `MCP_RATE_LIMIT_PER_MIN` | `30` | MCP per-account rate limit |
-| `DASHBOARD_API_KEY` | (empty) | Dashboard auth API key |
+| `DASHBOARD_PASSWORD` | (empty) | Dashboard auth API key |
 | `DASHBOARD_URL` | `https://ai.klxhub.com` | Dashboard public URL |
 | `OAUTH_CALLBACK_BASE` | `https://ai.klxhub.com` | OAuth callback base URL |
 | `PASTEGUARD_ENABLED` | `true` | Privacy masking toggle |

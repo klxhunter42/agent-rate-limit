@@ -354,12 +354,12 @@ Gateway provider registry ขยายจาก 5 เป็น 17 providers:
 
 ### เพิ่ม: Dashboard SPA (UI)
 
-Embedded Vite-built React SPA served from `/admin/*`:
+Embedded Vite-built React SPA served from `/`:
 
-- `/admin` - Dashboard SPA entry point (optional auth via `DASHBOARD_API_KEY`)
-- `/admin/profiles` - Profile CRUD management
-- `/admin/quota` - Quota tracking per provider/account
-- `/admin/settings` - Server Config, Thinking Config, Global Env sections
+- `/` - Dashboard SPA entry point (optional auth via `DASHBOARD_PASSWORD`)
+- `/profiles` - Profile CRUD management
+- `/quota` - Quota tracking per provider/account
+- `/settings` - Server Config, Thinking Config, Global Env sections
 
 **UI Components/Hooks:**
 - `usage-api-section.tsx` - Usage analytics from backend API

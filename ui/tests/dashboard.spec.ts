@@ -1,5 +1,25 @@
 import { test, expect } from '@playwright/test';
 
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || 'klxhunter';
+
+test.beforeEach(async ({ page }) => {
+  const res = await page.request.post('/v1/auth/login', {
+    data: { password: DASHBOARD_PASSWORD },
+  });
+  if (!res.ok()) throw new Error(`Login failed: ${res.status()}`);
+});
+
+test.describe('Login', () => {
+  test('login page renders with dark theme', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.getByText('ARL Gateway')).toBeVisible();
+    await expect(page.getByPlaceholder('Enter dashboard password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    expect(isDark).toBe(true);
+  });
+});
+
 test.describe('Navigation', () => {
   test('sidebar has all nav items', async ({ page }) => {
     await page.goto('/');

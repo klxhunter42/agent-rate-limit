@@ -91,7 +91,7 @@
 │    │                                                             │
 │    ├─ Static Dashboard SPA (embedded Vite build)                 │
 │    │                                                             │
-│    └─ Admin routes /admin/* (with optional auth)                 │
+│    └─ Dashboard routes / (with optional auth)                 │
 │                                                                  │
 │  Observability                                                   │
 │    arl-otel (:4317/4318) ──▶ arl-prometheus ──▶ arl-grafana    │

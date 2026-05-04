@@ -323,7 +323,7 @@ cp .env.example .env
 | `GEMINI_OAUTH_CLIENT_SECRET` | `` | Google OAuth client secret |
 | `LOTUS_UPSTREAM_BASE` | `https://api-cpxis.lotuss.com/llm` | Lotus LLM endpoint |
 | `LOTUS_API_KEYS` | `` | Lotus API keys |
-| `DASHBOARD_API_KEY` | `` | API key for /admin/* routes (empty = no auth) |
+| `DASHBOARD_PASSWORD` | `` | Dashboard auth password (empty = no auth) |
 
 ### Dragonfly
 
@@ -420,7 +420,7 @@ docker-compose up -d --build
 
 # 4. Monitor
 # Gateway Health: http://localhost:9000/health
-# Admin Dashboard: http://localhost:9000/admin
+# Admin Dashboard: http://localhost:9000/
 # Prometheus: http://localhost:9000/metrics
 ```
 

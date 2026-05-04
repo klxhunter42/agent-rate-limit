@@ -134,7 +134,7 @@ The sidecar is enabled by default (`CLI_SIDECAR_ENABLED=true`) and runs a Node.j
 | `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent upstream requests |
 | `CLI_SIDECAR_ENABLED` | `true` | Enable Node.js billing sidecar |
 | `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
-| `DASHBOARD_API_KEY` | - | Dashboard auth key (empty = no auth) |
+| `DASHBOARD_PASSWORD` | - | Dashboard auth key (empty = no auth) |
 | `GLOBAL_RATE_LIMIT` | `100` | Global rate limit |
 | `AGENT_RATE_LIMIT` | `5` | Per-agent rate limit |
 

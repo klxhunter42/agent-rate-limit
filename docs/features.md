@@ -353,7 +353,7 @@ Detects and masks secrets and PII in requests, restores in streaming responses.
 | Anomaly Detection | Welford's Z-score on latency, spike/drop/sustained | `ANOMALY_COOLDOWN_SEC`, `ANOMALY_Z_THRESHOLD` |
 | Structured Logging | JSON: method, path, status, duration_ms, agent_id | always on |
 | Runtime Metrics | Go goroutines, heap, GC, stack; Dragonfly health | 10s collection |
-| Dashboard Auth | x-api-key or arl_session cookie | `DASHBOARD_API_KEY` |
+| Dashboard Auth | x-api-key or arl_session cookie | `DASHBOARD_PASSWORD` |
 | Login Limiter | 5 attempts per 15 min per IP | always on |
 | Config Watcher | fsnotify on .env, WebSocket broadcast | always on |
 
@@ -543,7 +543,7 @@ All metrics under namespace `api_gateway`.
 ### Static Dashboard
 
 - Embedded Vite SPA via `//go:embed all:static`
-- SPA fallback for `/admin/*` sub-routes
+- SPA fallback for dashboard sub-routes
 - Real-time config changes via WebSocket
 
 ---
