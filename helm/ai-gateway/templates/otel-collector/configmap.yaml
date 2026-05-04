@@ -28,7 +28,7 @@ data:
       prometheus:
         endpoint: 0.0.0.0:8889
         namespace: "agent_rate_limit"
-      logging:
+      debug:
         verbosity: normal
 
     service:
@@ -36,7 +36,7 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [logging]
+          exporters: [debug]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
