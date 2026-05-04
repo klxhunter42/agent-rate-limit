@@ -53,6 +53,8 @@ jobs:
         run: sleep 10
 
       - uses: actions/checkout@v5
+        with:
+          clean: false
 
       - name: Docker meta
         id: meta
