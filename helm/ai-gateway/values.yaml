@@ -34,33 +34,15 @@ gateway:
     GLOBAL_RATE_LIMIT: "100"
     AGENT_RATE_LIMIT: "5"
     UPSTREAM_URL: "https://api.z.ai/api/anthropic"
-    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
-    UPSTREAM_VISION_MODEL_LIMITS: "glm-5.1:5,glm-4.6v:5,glm-4.5v:3"
-    UPSTREAM_DEFAULT_LIMIT: "1"
-    UPSTREAM_GLOBAL_LIMIT: "9"
-    UPSTREAM_MAX_RETRIES: "3"
-    UPSTREAM_RPM_LIMIT: "40"
-    ENABLE_PROMPT_INJECTION: "true"
-    ENABLE_RESPONSE_TRIM: "true"
-    ENABLE_SMART_MAX_TOKENS: "true"
-    PASTEGUARD_ENABLED: "true"
-    PASTEGUARD_PII_ENABLED: "true"
     GLM_MODE: "false"
     SERVER_PORT: ":8080"
-    DASHBOARD_URL: ""
     OAUTH_CALLBACK_BASE: ""
     WORKER_POOL_SIZE: "100"
     REDIS_POOL_SIZE: "50"
     REDIS_MIN_IDLE_CONNS: "10"
     STREAM_TIMEOUT: "300s"
-    UPSTREAM_RETRY_BACKOFF: "500ms"
-    UPSTREAM_PROBE_MULTIPLIER: "5"
-    MODEL_PRICING: "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8"
-    PASTEGUARD_SECRETS_ENABLED: "true"
-    PASTEGUARD_SECRET_ENTITIES: ""
-    PASTEGUARD_MAX_SCAN_CHARS: "200000"
-    PASTEGUARD_PII_ENTITIES: ""
-    LOTUS_UPSTREAM_BASE: "https://api-cpxis.lotuss.com/llm"
+    PASTEGUARD_ENABLED: "true"
+    PASTEGUARD_PII_ENABLED: "true"
     CLI_SIDECAR_ENABLED: "true"
     CLI_SIDECAR_URL: "http://127.0.0.1:8081"
     SIDECAR_PORT: "8081"
@@ -91,9 +73,6 @@ worker:
   env:
     WORKER_CONCURRENCY: "50"
     MAX_RETRIES: "3"
-    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10,claude-sonnet-4-6:5,claude-opus-4-7:2,claude-haiku-4-5:10"
-    UPSTREAM_DEFAULT_LIMIT: "3"
-    UPSTREAM_GLOBAL_LIMIT: "15"
     PROVIDER_RPM_LIMITS: "glm:5,anthropic:40"
 
 rateLimiter:
@@ -168,9 +147,9 @@ prometheus:
     enabled: true
     storageClassName: ""
     size: 50Gi
-  retention:
-    time: "30d"
-    size: "10GB"
+    retention:
+      time: "30d"
+      size: "10GB"
 
 grafana:
   enabled: true
@@ -196,9 +175,9 @@ grafana:
     GF_LOG_LEVEL: "warn"
     GF_AUTH_ANONYMOUS_ENABLED: "false"
     GF_SERVER_SERVE_FROM_SUB_PATH: "true"
-  adminPassword:
-    secret: ai-gateway-secrets
-    key: grafana-admin-password
+    adminPassword:
+      secret: ai-gateway-secrets
+      key: grafana-admin-password
 
 otelCollector:
   enabled: true
@@ -218,43 +197,6 @@ otelCollector:
     limits:
       memory: "512Mi"
       cpu: "1"
-
-presidio:
-  enabled: false
-  replicaCount: 1
-  image:
-    repository: mcr.microsoft.com/presidio-analyzer
-    tag: "2.2.362"
-    pullPolicy: IfNotPresent
-  service:
-    port: 3000
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "250m"
-    limits:
-      memory: "2Gi"
-      cpu: "2"
-
-dashboard:
-  enabled: true
-  replicaCount: 1
-  image:
-    repository: ghcr.io/klxhunter42/ai-dashboard
-    tag: ""
-    pullPolicy: IfNotPresent
-  service:
-    port: 80
-  resources:
-    requests:
-      memory: "64Mi"
-      cpu: "100m"
-    limits:
-      memory: "256Mi"
-      cpu: "500m"
-
-rlDashboard:
-  enabled: false
 
 proxy:
   enabled: true
@@ -276,21 +218,18 @@ proxy:
 secrets:
   create: true
   # Each value supports string (managed secret) or object (external secret):
-  #   anthropicApiKeys: "sk-xxx"
-  #   anthropicApiKeys:
-  #     secret: my-vault-secrets
-  #     key: anthropic-key
+  # anthropicApiKeys: "sk-xxx"
+  # anthropicApiKeys:
+  #   secret: my-vault-secrets
+  #   key: anthropic-key
   upstreamApiKeys: ""
-  glmApiKeys: ""
   openaiApiKeys: ""
   anthropicApiKeys: ""
   geminiApiKeys: ""
   openrouterApiKeys: ""
-  lotusApiKeys: ""
   geminiOAuthClientId: ""
   geminiOAuthClientSecret: ""
   grafanaAdminPassword: "devopscore"
-  dashboardPassword: ""
 
 sidecar:
   enabled: true

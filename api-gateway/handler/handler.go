@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -423,24 +424,42 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		clampMaxTokens(payload, requestedModel)
 	}
 
-	// Profile-based routing: check X-Profile header or arl_* API token.
+	// Profile-based routing: arl_* token or validated X-Profile header
 	var profileOverride *Profile
-	profileName := r.Header.Get("X-Profile")
-	if profileName == "" && h.profileRedis != nil {
-		// Check if the auth token is a profile API token.
+	var profileName string
+	if h.profileRedis != nil {
 		authKey := r.Header.Get("x-api-key")
 		if authKey == "" {
 			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
 				authKey = strings.TrimPrefix(ah, "Bearer ")
 			}
 		}
+		// arl_ tokens resolve to a profile directly (validated by Redis lookup)
 		if strings.HasPrefix(authKey, "arl_") {
 			if resolved, err := ResolveProfileToken(h.profileRedis, authKey); err == nil && resolved != "" {
 				profileName = resolved
 			}
 		}
+		// X-Profile header: validate against profile's stored API key
+		if profileName == "" {
+			if xProfile := r.Header.Get("X-Profile"); xProfile != "" {
+				if p, perr := getProfile(r.Context(), h.profileRedis, xProfile); perr == nil && p != nil {
+					if p.APIKey != "" && hmac.Equal([]byte(authKey), []byte(p.APIKey)) {
+						profileName = xProfile
+						profileOverride = p
+					} else if p.APIKey == "" {
+						profileName = xProfile
+						profileOverride = p
+					} else {
+						slog.Warn("profile API key mismatch", "profile", xProfile, "remote", r.RemoteAddr)
+						writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid API key for profile: " + xProfile})
+						return
+					}
+				}
+			}
+		}
 	}
-	if profileName != "" && h.profileRedis != nil {
+	if profileName != "" && h.profileRedis != nil && profileOverride == nil {
 		if p, perr := getProfile(r.Context(), h.profileRedis, profileName); perr == nil && p != nil {
 			profileOverride = p
 			if p.Model != "" {
