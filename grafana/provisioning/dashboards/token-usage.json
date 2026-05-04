@@ -80,7 +80,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path!~"/metrics|/health"}[$__range]))",
+          "expr": "sum(increase(api_gateway_request_latency_seconds_count[$__range]))",
           "legendFormat": "requests",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
