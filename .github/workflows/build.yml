@@ -50,7 +50,7 @@ jobs:
       contents: read
     steps:
       - name: Wait for previous runs to cancel
-        run: sleep 10
+        run: sleep 30
 
       - uses: actions/checkout@v5
         with:
