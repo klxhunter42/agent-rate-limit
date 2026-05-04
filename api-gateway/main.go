@@ -4,12 +4,12 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"io"
 	"strings"
 	"syscall"
 	"time"
@@ -145,7 +145,6 @@ func main() {
 		slog.Info("mcp proxy enabled", "servers", len(proxy.MCPServers), "cache_ttl", cfg.MCPCacheTTL, "rate_limit_per_min", cfg.MCPRateLimitPerMin)
 	}
 
-
 	optChunker := chunker.New(m.Registry(), optRdb)
 	optPacker := packer.New(m.Registry())
 	optDisclosure := disclosure.New(m.Registry(), optRdb)
@@ -191,7 +190,7 @@ func main() {
 		}
 		if aid := handler.AccountIDFromContext(ctx); aid != "" {
 			usageHandler.RecordAccountUsage(aid, model, input, output, cost)
-		m.RecordAccountUsage(aid, model, input, output)
+			m.RecordAccountUsage(aid, model, input, output)
 		}
 		sessionID := "default"
 		if pn := handler.ProfileNameFromContext(ctx); pn != "" {
@@ -392,6 +391,12 @@ func main() {
 
 	// Dashboard SPA at / (client-side auth handles redirect)
 	r.Handle("/assets/*", fileServer)
+	r.Get("/favicon.svg", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fileServer.ServeHTTP(w, r)
+	}))
+	r.Get("/favicon.ico", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/favicon.svg", http.StatusMovedPermanently)
+	}))
 	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fileServer.ServeHTTP(w, r)
 	}))
