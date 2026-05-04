@@ -5,7 +5,7 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "otel-collector") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "otel-collector") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "otel-collector") | nindent 4 }}
 data:
   config.yaml: |
     receivers:
@@ -26,15 +26,17 @@ data:
 
     exporters:
       prometheus:
-        endpoint: "0.0.0.0:8889"
+        endpoint: 0.0.0.0:8889
         namespace: "agent_rate_limit"
+      logging:
+        verbosity: normal
 
     service:
       pipelines:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [prometheus]
+          exporters: [logging]
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
