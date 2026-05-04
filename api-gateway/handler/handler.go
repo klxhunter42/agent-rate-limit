@@ -1103,15 +1103,15 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
 		// Strip tools/tool_choice for multi-image requests (Z.AI error 1210).
-	if isNativeImageModel(selectedModel) {
-		var bm map[string]any
-		if json.Unmarshal(body, &bm) == nil {
-			bm = convertURLImagesToBase64(bm)
-			if nb, err := json.Marshal(bm); err == nil {
-				body = nb
+		if isNativeImageModel(selectedModel) {
+			var bm map[string]any
+			if json.Unmarshal(body, &bm) == nil {
+				bm = convertURLImagesToBase64(bm)
+				if nb, err := json.Marshal(bm); err == nil {
+					body = nb
+				}
 			}
 		}
-	}
 		opts := &proxy.ProxyOptions{
 			AuthMode:         decision.AuthMode,
 			UpstreamOverride: decision.UpstreamURL,
