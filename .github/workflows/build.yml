@@ -22,8 +22,8 @@ jobs:
       matrix:
         include:
           - name: gateway
-            ctx: ./api-gateway
-            file: Dockerfile
+            ctx: .
+            file: api-gateway/Dockerfile
             img: ai-gateway
           - name: worker
             ctx: ./ai-worker
