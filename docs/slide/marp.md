@@ -1482,7 +1482,7 @@ Gateway   -> pass-through only
 | POST | <code>/v1/limiter-override</code> | Pin/clear model limit |
 | GET | <code>/ws</code> | WebSocket (6 event types) |
 | POST | <code>/v1/auth/*</code> | OAuth + API key auth flows |
-| GET | <code>/admin/*</code> | Dashboard SPA |
+| GET | <code>/</code> | Dashboard SPA |
 
 ---
 

@@ -320,7 +320,7 @@ cp .env.example .env
 | `OAUTH_CALLBACK_BASE` | `https://ai.klxhub.com` | OAuth callback base URL |
 | `GEMINI_OAUTH_CLIENT_ID` | `` | Google OAuth client ID |
 | `GEMINI_OAUTH_CLIENT_SECRET` | `` | Google OAuth client secret |
-| `DASHBOARD_API_KEY` | `` | API key for /admin/* routes (empty = no auth) |
+| `DASHBOARD_PASSWORD` | `` | Dashboard auth password (empty = no auth) |
 
 ### Dragonfly
 
@@ -417,7 +417,7 @@ docker-compose up -d --build
 
 # 4. Monitor
 # Gateway Health: http://localhost:9000/health
-# Admin Dashboard: http://localhost:9000/admin
+# Admin Dashboard: http://localhost:9000/
 # Prometheus: http://localhost:9000/metrics
 ```
 

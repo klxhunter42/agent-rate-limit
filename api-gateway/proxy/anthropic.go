@@ -24,7 +24,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 )
 
-const maxSSELineSize = 256 * 1024 // 256KB max per SSE line
+const maxSSELineSize = 8 * 1024 * 1024 // 8MB - covers large base64 images in Z.AI built-in tool results
 
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
 var allowedResponseHeaders = map[string]bool{
@@ -2067,7 +2067,17 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("stream read error: %w", err)
+		// Graceful close: emit closing SSE events so client doesn't see "Unexpected EOF"
+		slog.Warn("anthropic stream scanner error, emitting closing events", "error", err)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
+		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		return nil
 	}
 
 	// Emit any remaining unmasker buffer as a final content_block_delta.
@@ -2241,4 +2251,3 @@ func truncate(s string, n int) string {
 	}
 	return s[:n]
 }
-

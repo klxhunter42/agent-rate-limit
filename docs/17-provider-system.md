@@ -687,11 +687,11 @@ Sessions are stored in-memory (`map[string]*AuthSession`) protected by `sync.Mut
 
 ### Dashboard Authentication
 
-If `DASHBOARD_API_KEY` env var is set:
+If `DASHBOARD_PASSWORD` env var is set:
 - Login via `POST /auth/login` with `{api_key: "..."}` sets an `arl_session` cookie
 - Auth check supports both `x-api-key` header and `arl_session` cookie
 - Cookie: HttpOnly, SameSite=Lax, 30-day max age
-- If `DASHBOARD_API_KEY` is empty, all requests are treated as authenticated
+- If `DASHBOARD_PASSWORD` is empty, all requests are treated as authenticated
 
 ### Account Cascade on Deletion
 
@@ -875,7 +875,7 @@ When a custom provider is deleted:
 | `COPILOT_CLIENT_ID` | `Iv1.b507a08c87ecfe98` | GitHub Copilot client ID |
 | `OAUTH_CALLBACK_BASE` | `http://127.0.0.1:9000` | OAuth redirect URI base |
 | `DASHBOARD_URL` | `http://localhost:8082` | Dashboard URL for redirects |
-| `DASHBOARD_API_KEY` | (empty) | Dashboard auth key |
+| `DASHBOARD_PASSWORD` | (empty) | Dashboard auth key |
 | `REDIS_ADDR` | `dragonfly:6379` | Redis connection |
 | `GLM_MODE` | `true` | Enable Z.AI features |
 

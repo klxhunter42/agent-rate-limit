@@ -221,7 +221,7 @@ Pages:
 - Health & Limiter: 6 health checks, adaptive limit override, thinking budget, live config editing
 
 Tech: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts
-Served at `/admin` with cookie-based auth via DASHBOARD_API_KEY.
+Served at `/` with cookie-based auth via DASHBOARD_PASSWORD.
 
 Key flow monitor: SVG visualization showing accounts -> gateway -> providers with hover-highlight.
 
@@ -263,7 +263,7 @@ Identity: x-api-key or Authorization header for /v1/messages, arl_* prefix auto-
 ### Slide 18: Docker Deployment
 
 Show docker-compose.yml structure:
-- arl-gateway (Go, port 8080, env: REDIS_ADDR, GLM_MODE=false, DASHBOARD_API_KEY)
+- arl-gateway (Go, port 8080, env: REDIS_ADDR, GLM_MODE=false, DASHBOARD_PASSWORD)
 - dragonfly (6G, 4 threads, cache mode, pipeline squash)
 - arl-worker (Python, 50 coroutines)
 - prometheus (scrape gateway metrics)
@@ -273,7 +273,7 @@ Quick start:
 ```bash
 git clone <repo> && cd agent-rate-limit
 docker compose up -d
-open http://localhost:8080/admin  # Configure providers
+open http://localhost:8080/  # Configure providers
 # Add Claude OAuth account, Add OpenAI key, Create profile
 # Edit ~/.claude/settings.json -> Done!
 ```

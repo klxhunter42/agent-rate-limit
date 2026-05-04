@@ -3,7 +3,7 @@
 # Architecture: Client -> API Gateway (Go) -> Rate Limiter -> Dragonfly -> Python Workers -> AI Provider
 #
 # External ports:  arl-proxy (9000)
-# Internal only:   arl-gateway, arl-grafana, arl-rl-dashboard, arl-dashboard, arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
+# Internal only:   arl-gateway, arl-grafana, arl-rl-dashboard, arl-rate-limiter, arl-dragonfly, arl-worker, arl-prometheus, arl-otel
 # =============================================================================
 
 version: "3.9"
@@ -63,6 +63,7 @@ services:
       CLI_SIDECAR_ENABLED: ${CLI_SIDECAR_ENABLED:-true}
       CLI_SIDECAR_URL: ${CLI_SIDECAR_URL:-http://127.0.0.1:8081}
       SIDECAR_PORT: ${SIDECAR_PORT:-8081}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
     depends_on:
       arl-dragonfly:
         condition: service_healthy
@@ -344,49 +345,6 @@ services:
     networks:
       - arl-network
 
-  # --- Dashboard UI (React / Vite / Bun) ---
-  arl-dashboard:
-    platform: ${DOCKER_PLATFORM:-linux/arm64}
-    build:
-      context: ./ui
-      dockerfile: Dockerfile.dev
-    container_name: arl-dashboard
-    restart: always
-    volumes:
-      - ./ui/src:/app/src:ro
-      - ./ui/public:/app/public:ro
-      - ./ui/index.html:/app/index.html:ro
-      - ./ui/vite.config.ts:/app/vite.config.ts:ro
-      - ./ui/tsconfig.json:/app/tsconfig.json:ro
-      - ./ui/tsconfig.app.json:/app/tsconfig.app.json:ro
-    depends_on:
-      arl-gateway:
-        condition: service_healthy
-    environment:
-      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
-      VITE_HMR_HOST: ${VITE_HMR_HOST:-}
-      VITE_HMR_PORT: ${VITE_HMR_PORT:-443}
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:5173"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: "2.0"
-        reservations:
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks:
-      - arl-network
-
   # --- Presidio PII Analyzer (legacy, replaced by regex; opt-in via --profile pii) ---
   arl-presidio:
     image: mcr.microsoft.com/presidio-analyzer:2.2.362
@@ -461,8 +419,6 @@ services:
       PROXY_PORT: "${PROXY_PORT:-9000}"
     depends_on:
       arl-gateway:
-        condition: service_healthy
-      arl-dashboard:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]

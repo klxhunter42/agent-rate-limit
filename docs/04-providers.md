@@ -148,7 +148,7 @@ In GLM mode, unknown models fall back to `zai`.
 
 ## Adding Provider via OAuth (Dashboard UI)
 
-1. Open `http://localhost:8080/admin`
+1. Open `http://localhost:8080/`
 2. Go to Providers or Accounts page
 3. Select provider (e.g., `claude-oauth`, `gemini-oauth`, `copilot`)
 4. Click "Start Auth" and follow on-screen steps

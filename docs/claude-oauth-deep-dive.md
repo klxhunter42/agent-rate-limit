@@ -669,7 +669,7 @@ curl -X POST http://GATEWAY:9000/v1/profiles \
 
 ### Step 3: สร้าง profile API token
 
-ผ่าน Dashboard UI: `/admin/profiles` → profile name → Generate API Key
+ผ่าน Dashboard UI: `/profiles` → profile name → Generate API Key
 
 หรือ API:
 

@@ -1,9 +1,15 @@
 package proxy
 
 import (
+	"bufio"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 )
 
 // --- trimVerbose ---
@@ -452,4 +458,75 @@ func mustMarshal(v any) []byte {
 		panic(err)
 	}
 	return b
+}
+
+// TestGracefulStreamCloseOnScannerError verifies that when the SSE scanner fails
+// (e.g. a line exceeds maxSSELineSize), the relay emits closing events instead
+// of returning an error that leaves the client with "Unexpected EOF".
+func TestGracefulStreamCloseOnScannerError(t *testing.T) {
+	hugePayload := strings.Repeat("x", maxSSELineSize+1)
+
+	pr, pw := io.Pipe()
+	go func() {
+		pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"glm-4v\",\"stop_reason\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n"))
+		pw.Write([]byte("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n"))
+		pw.Write([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n\n"))
+		// This line exceeds scanner buffer -> triggers scanner.Err()
+		pw.Write([]byte("data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"partial_json\":\"" + hugePayload + "\"}}\n\n"))
+		pw.Close()
+	}()
+
+	p := NewAnthropicProxy(nil, metrics.New(func() float64 { return 0 }, nil))
+
+	fakeResp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(pr),
+		Request:    &http.Request{Method: "POST"},
+	}
+
+	w := httptest.NewRecorder()
+	w.WriteHeader(200) // simulate headers already sent (streaming)
+
+	err := p.relayStreamWithTracking(w, fakeResp, "glm-4v", nil, 0, nil)
+
+	// Should NOT return error - graceful close returns nil
+	if err != nil {
+		t.Errorf("relayStreamWithTracking returned error: %v", err)
+	}
+
+	body := w.Body.String()
+
+	if !strings.Contains(body, "message_stop") {
+		t.Errorf("response missing message_stop event (graceful close)\ngot:\n%s", body)
+	}
+	if !strings.Contains(body, "message_delta") {
+		t.Errorf("response missing message_delta event\ngot:\n%s", body)
+	}
+	if !strings.Contains(body, "message_start") {
+		t.Errorf("response missing message_start event\ngot:\n%s", body)
+	}
+	if !strings.Contains(body, "hello") {
+		t.Errorf("response missing content before scanner error\ngot:\n%s", body)
+	}
+}
+
+// TestScannerHandlesLargeServerToolResult verifies that lines up to maxSSELineSize
+// can be read without scanner errors (Z.AI analyze_image large results).
+func TestScannerHandlesLargeServerToolResult(t *testing.T) {
+	largePayload := strings.Repeat("x", maxSSELineSize-100)
+	line := "data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"partial_json\":\"" + largePayload + "\"}}\n\n"
+
+	pr, pw := io.Pipe()
+	go func() {
+		pw.Write([]byte(line))
+		pw.Close()
+	}()
+
+	scanner := bufio.NewScanner(pr)
+	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+	if !scanner.Scan() {
+		t.Errorf("scanner failed on line of %d bytes: %v", len(line), scanner.Err())
+	}
 }

@@ -131,14 +131,14 @@ Accessed via Caddy reverse proxy. No external port mapped.
 
 | Method | URL | Notes |
 |--------|-----|-------|
-| Embedded (Go binary) | `http://localhost:8080/admin` | Static files embedded via `go:embed` from `api-gateway/static/` |
-| Docker Compose | `http://localhost:9000/admin` | Via Caddy reverse proxy |
+| Embedded (Go binary) | `http://localhost:8080/` | Static files embedded via `go:embed` from `api-gateway/static/` |
+| Docker Compose | `http://localhost:9000/` | Via Caddy reverse proxy |
 | Standalone container | `http://arl-dashboard:5173` | Hot-reload dev container (internal) |
 | Dev mode (hot reload) | `http://localhost:5173` | `cd ui && bun run dev` |
 
 ### Authentication
 
-Dashboard auth is controlled by `DASHBOARD_API_KEY` env var:
+Dashboard auth is controlled by `DASHBOARD_PASSWORD` env var:
 - **Empty**: No auth required (open access)
 - **Set**: Requires `x-api-key` header or `arl_session` cookie matching the key
 

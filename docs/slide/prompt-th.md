@@ -221,7 +221,7 @@ Read/Edit/Bash/Write, Streaming SSE, Extended thinking, Image/Vision, MCP Server
 - Health & Limiter: 6 health checks, override adaptive limit, thinking budget, live config editing
 
 Tech: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts
-ให้บริการที่ `/admin` พร้อม cookie-based auth ผ่าน DASHBOARD_API_KEY
+ให้บริการที่ `/` พร้อม cookie-based auth ผ่าน DASHBOARD_PASSWORD
 
 Key flow monitor: SVG visualization แสดง accounts -> gateway -> providers พร้อม hover-highlight
 
@@ -263,7 +263,7 @@ Identity: x-api-key หรือ Authorization header สำหรับ /v1/mes
 ### Slide 18: Docker Deployment
 
 แสดงโครงสร้าง docker-compose.yml:
-- arl-gateway (Go, port 8080, env: REDIS_ADDR, GLM_MODE=false, DASHBOARD_API_KEY)
+- arl-gateway (Go, port 8080, env: REDIS_ADDR, GLM_MODE=false, DASHBOARD_PASSWORD)
 - dragonfly (6G, 4 threads, cache mode, pipeline squash)
 - arl-worker (Python, 50 coroutines)
 - prometheus (scrape gateway metrics)
@@ -273,7 +273,7 @@ Quick start:
 ```bash
 git clone <repo> && cd agent-rate-limit
 docker compose up -d
-open http://localhost:8080/admin  # ตั้งค่า providers
+open http://localhost:8080/  # ตั้งค่า providers
 # เพิ่ม Claude OAuth account, เพิ่ม OpenAI key, สร้าง profile
 # แก้ ~/.claude/settings.json -> เสร็จ!
 ```

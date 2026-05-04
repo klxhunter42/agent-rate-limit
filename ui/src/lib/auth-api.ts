@@ -114,7 +114,7 @@ export async function registerAPIKey(provider: string, apiKey: string): Promise<
   const res = await fetch(`/v1/auth/${provider}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey }),
+    body: JSON.stringify({ password: apiKey }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -170,11 +170,11 @@ export async function fetchRateLimits(): Promise<RateLimitStatus[]> {
   }
 }
 
-export async function login(apiKey: string): Promise<{ success: boolean }> {
+export async function login(apiKey: string): Promise<{ status: string }> {
   const res = await fetch('/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey }),
+    body: JSON.stringify({ password: apiKey }),
   });
   if (!res.ok) throw new Error(`login: ${res.status}`);
   return res.json();

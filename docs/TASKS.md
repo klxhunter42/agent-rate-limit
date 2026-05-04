@@ -20,7 +20,7 @@ Reference: CCS (`/repo/`) gap analysis vs ARL current state
 
 ### A2. Activate Dead Code
 - [x] Wire `AnomalyDetector.Record()` in `handler/handler.go` (calls on every request RTT)
-- [x] Mount `DashboardAuth` middleware in `main.go` for `/admin/*` routes (behind DASHBOARD_API_KEY env)
+- [x] Mount `DashboardAuth` middleware in `main.go` for dashboard routes (behind DASHBOARD_PASSWORD env)
 - [x] Mount `IPFilter` in `main.go` (behind IP_WHITELIST/IP_BLACKLIST env vars, fail-open)
 - **Files:** edit `handler/handler.go`, `main.go`
 

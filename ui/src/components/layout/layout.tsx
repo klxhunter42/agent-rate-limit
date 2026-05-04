@@ -1,11 +1,12 @@
 import { Suspense, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from './app-sidebar';
 import { Toaster } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { wsEmit } from '@/lib/ws-events';
+import { useAuth } from '@/contexts/auth-context';
 
 function WSBridge() {
   const { lastEvent } = useWebSocket();
@@ -25,6 +26,11 @@ function PageLoader() {
 }
 
 export function Layout() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return <PageLoader />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
   return (
     <SidebarProvider>
       <AppSidebar />

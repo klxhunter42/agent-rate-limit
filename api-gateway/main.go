@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"io"
 	"strings"
 	"syscall"
 	"time"
@@ -301,12 +302,6 @@ func main() {
 	r.Get("/callback", authHandler.HandleClaudeCallback)
 	r.Post("/callback", authHandler.HandleClaudeCallbackPost)
 
-	// Dashboard auth middleware (for /admin/* routes)
-	dashAPIKey := os.Getenv("DASHBOARD_API_KEY")
-	if dashAPIKey != "" {
-		slog.Info("dashboard auth enabled")
-	}
-
 	// Routes
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Post("/v1/messages", h.Messages)
@@ -395,20 +390,21 @@ func main() {
 	staticSub, _ := fs.Sub(staticFS, "static")
 	fileServer := http.FileServer(http.FS(staticSub))
 
-	// Admin routes with optional auth
-	adminGroup := r.With(middleware.DashboardAuth(dashAPIKey))
-	adminGroup.Get("/admin", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
-	}))
-	adminGroup.Get("/admin/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// SPA fallback: serve index.html for any sub-route
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
-	}))
+	// Dashboard SPA at / (client-side auth handles redirect)
 	r.Handle("/assets/*", fileServer)
+	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fileServer.ServeHTTP(w, r)
+	}))
 	r.Handle("/metrics", m.Handler())
 	r.Handle("/api/metrics", m.Handler())
+	// SPA fallback: serve index.html for all unmatched routes (client-side routing)
+	indexHTML, _ := staticSub.Open("index.html")
+	indexBytes, _ := io.ReadAll(indexHTML)
+	r.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write(indexBytes)
+	}))
 
 	// --- Server ---
 	// WriteTimeout is 0 to allow long-lived SSE streaming connections.

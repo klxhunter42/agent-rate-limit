@@ -14,7 +14,7 @@
 		}
 	}
 	handle /hmr {
-		reverse_proxy arl-dashboard:5173 {
+		reverse_proxy arl-gateway:8080 {
 			flush_interval -1
 		}
 	}
@@ -45,6 +45,6 @@
 		reverse_proxy arl-rl-dashboard:8080
 	}
 	handle {
-		reverse_proxy arl-dashboard:5173
+		reverse_proxy arl-gateway:8080
 	}
 }
