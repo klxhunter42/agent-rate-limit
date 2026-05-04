@@ -16,9 +16,9 @@ spec:
       labels:
 {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 8 }}
     spec:
-{{- with .Values.global.imagePullSecrets }}
+      {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
-{{- end }}
+      {{- end }}
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
         fsGroup: 472
@@ -54,18 +54,28 @@ spec:
         volumeMounts:
         - name: provisioning
           mountPath: /etc/grafana/provisioning
+          readOnly: true
         - name: data
           mountPath: /var/lib/grafana
       volumes:
       - name: provisioning
         configMap:
           name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-provisioning
-{{- if .Values.grafana.persistence.enabled }}
+          items:
+          - key: datasources.yml
+            path: datasources/datasources.yml
+          - key: dashboards.yml
+            path: dashboards/dashboards.yml
+          {{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
+          - key: {{ base $path }}
+            path: dashboards/{{ base $path }}
+          {{- end }}
+      {{- if .Values.grafana.persistence.enabled }}
       - name: data
         persistentVolumeClaim:
           claimName: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}
-{{- else }}
+      {{- else }}
       - name: data
         emptyDir: {}
-{{- end }}
+      {{- end }}
 {{- end }}
