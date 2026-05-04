@@ -22,8 +22,6 @@ spec:
 {{- end }}
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
-        runAsUser: 999
-        fsGroup: 999
       containers:
       - name: dragonfly
         image: "{{ .Values.dragonfly.image.repository }}:{{ .Values.dragonfly.image.tag }}"
