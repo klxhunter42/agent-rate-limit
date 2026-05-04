@@ -18,7 +18,7 @@ gateway:
   enabled: true
   replicaCount: 2
   image:
-    repository: earth4242/ai-gateway
+    repository: ghcr.io/klxhunter42/ai-gateway
     tag: ""
     pullPolicy: IfNotPresent
   service:
@@ -57,7 +57,7 @@ worker:
   enabled: true
   replicaCount: 2
   image:
-    repository: earth4242/ai-worker
+    repository: ghcr.io/klxhunter42/ai-worker
     tag: ""
     pullPolicy: IfNotPresent
   service:
@@ -83,7 +83,7 @@ rateLimiter:
   enabled: true
   replicaCount: 2
   image:
-    repository: earth4242/distributed-rate-limiter
+    repository: ghcr.io/klxhunter42/distributed-rate-limiter
     tag: ""
     pullPolicy: IfNotPresent
   service:
@@ -223,7 +223,7 @@ dashboard:
   enabled: true
   replicaCount: 2
   image:
-    repository: earth4242/ai-dashboard
+    repository: ghcr.io/klxhunter42/ai-dashboard
     tag: ""
     pullPolicy: IfNotPresent
   service:
@@ -274,7 +274,7 @@ sidecar:
   enabled: true
   replicaCount: 1
   image:
-    repository: earth4242/ai-sidecar
+    repository: ghcr.io/klxhunter42/ai-sidecar
     tag: ""
     pullPolicy: IfNotPresent
   service:

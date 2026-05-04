@@ -1,0 +1,111 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-gateway
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: ai-gateway
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/klxhunter42/agent-rate-limit.git
+    targetRevision: main
+    path: helm/ai-gateway
+    helm:
+      # Option 1: inline overrides
+      valuesObject:
+        global:
+          namespace: ai-gateway
+        gateway:
+          replicaCount: 2
+          image:
+            tag: v1.0.0
+        worker:
+          replicaCount: 2
+          image:
+            tag: v1.0.0
+        rateLimiter:
+          image:
+            tag: v1.0.0
+        dashboard:
+          image:
+            tag: v1.0.0
+        sidecar:
+          image:
+            tag: v1.0.0
+        secrets:
+          glmApiKeys: "your-api-key-here"
+          grafanaAdminPassword: "changeme"
+
+      # Option 2: reference a separate values file in the repo
+      # valueFiles:
+      #   - values.yaml
+      #   - env/prod.yaml
+
+      # Option 3: override specific values (merges with values.yaml)
+      # parameters:
+      #   - name: gateway.image.tag
+      #     value: v1.0.0
+      #   - name: global.namespace
+      #     value: ai-gateway
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-gateway
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+# App-of-apps pattern for multi-environment
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ai-gateway-envs
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: staging
+            replicas: 1
+            tag: main
+          - env: production
+            replicas: 3
+            tag: v1.0.0
+  template:
+    metadata:
+      name: "ai-gateway-{{env}}"
+      labels:
+        app.kubernetes.io/name: ai-gateway
+        env: "{{env}}"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/klxhunter42/agent-rate-limit.git
+        targetRevision: main
+        path: helm/ai-gateway
+        helm:
+          parameters:
+            - name: global.namespace
+              value: "ai-gateway-{{env}}"
+            - name: gateway.replicaCount
+              value: "{{replicas}}"
+            - name: gateway.image.tag
+              value: "{{tag}}"
+            - name: worker.replicaCount
+              value: "{{replicas}}"
+            - name: worker.image.tag
+              value: "{{tag}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "ai-gateway-{{env}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

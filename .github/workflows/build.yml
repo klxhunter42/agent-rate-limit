@@ -49,11 +49,14 @@ jobs:
       packages: write
       contents: read
     steps:
+      - name: Wait for previous runs to cancel
+        run: sleep 10
+
       - uses: actions/checkout@v5
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.img }}
           tags: |
