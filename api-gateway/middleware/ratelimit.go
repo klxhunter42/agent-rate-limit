@@ -88,23 +88,30 @@ func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 	return result.Allowed
 }
 
+// isRateLimitedPath returns true only for AI proxy endpoints that consume
+// upstream tokens and should be rate limited.
+func isRateLimitedPath(path string) bool {
+	switch {
+	case strings.HasPrefix(path, "/v1/messages") && !strings.HasPrefix(path, "/v1/messages/count"):
+		return true
+	case path == "/v1/chat/completions":
+		return true
+	case strings.HasPrefix(path, "/mcp/"):
+		return true
+	case strings.HasPrefix(path, "/api/claude_code/"):
+		return true
+	case strings.HasPrefix(path, "/v1/mcp_servers"):
+		return true
+	}
+	return false
+}
+
 // Middleware returns an HTTP middleware that enforces both global and per-agent
 // rate limits by calling the distributed-rate-limiter service.
 // Checks run in parallel to reduce latency.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip rate limiting for internal endpoints.
-		if r.URL.Path == "/metrics" || r.URL.Path == "/api/metrics" || r.URL.Path == "/health" || r.URL.Path == "/ws" ||
-			strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" ||
-			r.URL.Path == "/login" || r.URL.Path == "/callback" || r.URL.Path == "/" ||
-			strings.HasPrefix(r.URL.Path, "/v1/limiter") || strings.HasPrefix(r.URL.Path, "/v1/routing") ||
-			strings.HasPrefix(r.URL.Path, "/v1/logs") || strings.HasPrefix(r.URL.Path, "/v1/models") ||
-			strings.HasPrefix(r.URL.Path, "/v1/zaiweb") || strings.HasPrefix(r.URL.Path, "/v1/waste") ||
-			strings.HasPrefix(r.URL.Path, "/v1/mock") || strings.HasPrefix(r.URL.Path, "/v1/overview") ||
-			strings.HasPrefix(r.URL.Path, "/v1/config") || strings.HasPrefix(r.URL.Path, "/v1/profile") ||
-			strings.HasPrefix(r.URL.Path, "/v1/usage") || strings.HasPrefix(r.URL.Path, "/v1/quota") ||
-			strings.HasPrefix(r.URL.Path, "/v1/results") ||
-			r.URL.Path == "/mcp" {
+		if !isRateLimitedPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
