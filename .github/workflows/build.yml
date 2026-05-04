@@ -49,12 +49,10 @@ jobs:
       packages: write
       contents: read
     steps:
-      - name: Wait for previous runs to cancel
-        run: sleep 30
-
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 1
 
       - name: Docker meta
         id: meta
