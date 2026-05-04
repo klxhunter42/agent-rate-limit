@@ -117,7 +117,7 @@ dragonfly:
       memory: "8Gi"
       cpu: "2"
   persistence:
-    enabled: true
+    enabled: false
     storageClassName: ""
     size: 20Gi
   args:
@@ -144,7 +144,7 @@ prometheus:
       memory: "2Gi"
       cpu: "2"
   persistence:
-    enabled: true
+    enabled: false
     storageClassName: ""
     size: 50Gi
     retention:
@@ -168,7 +168,7 @@ grafana:
       memory: "1Gi"
       cpu: "2"
   persistence:
-    enabled: true
+    enabled: false
     storageClassName: ""
     size: 10Gi
   env:
@@ -230,6 +230,7 @@ secrets:
   geminiOAuthClientId: ""
   geminiOAuthClientSecret: ""
   grafanaAdminPassword: "devopscore"
+  dashboardPassword: ""
 
 sidecar:
   enabled: true
