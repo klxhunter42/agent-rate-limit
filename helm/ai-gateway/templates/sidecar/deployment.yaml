@@ -39,6 +39,18 @@ spec:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
         resources:
 {{- toYaml .Values.sidecar.resources | nindent 12 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 15
         volumeMounts:
         - name: tmp
           mountPath: /tmp
