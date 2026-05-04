@@ -40,15 +40,13 @@ spec:
         resources:
 {{- toYaml .Values.sidecar.resources | nindent 12 }}
         readinessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: 8081
           initialDelaySeconds: 15
           periodSeconds: 10
           timeoutSeconds: 3
         livenessProbe:
-          httpGet:
-            path: /health
+          tcpSocket:
             port: 8081
           initialDelaySeconds: 30
           periodSeconds: 15
