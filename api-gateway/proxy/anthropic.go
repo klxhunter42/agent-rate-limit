@@ -2265,6 +2265,31 @@ func (p *AnthropicProxy) SendBatchRequest(ctx context.Context, apiKey string, bo
 	req.Header.Set("anthropic-version", p.cfg.AnthropicVersion)
 	req.ContentLength = int64(len(body))
 
+	// Debug: log body structure keys and thinking status
+	var dbg map[string]any
+	if json.Unmarshal(body, &dbg) == nil {
+		hasThinking := dbg["thinking"] != nil
+		hasTools := dbg["tools"] != nil
+		hasToolChoice := dbg["tool_choice"] != nil
+		msgCount := 0
+		imgCount := 0
+		if msgs, ok := dbg["messages"].([]any); ok {
+			msgCount = len(msgs)
+			for _, m := range msgs {
+				if mm, ok := m.(map[string]any); ok {
+					if blocks, ok := mm["content"].([]any); ok {
+						for _, b := range blocks {
+							if cb, ok := b.(map[string]any); ok && cb["type"] == "image" {
+								imgCount++
+							}
+						}
+					}
+				}
+			}
+		}
+		slog.Info("batch request debug", "thinking", hasThinking, "tools", hasTools, "tool_choice", hasToolChoice, "msgs", msgCount, "images", imgCount, "body_len", len(body), "model", model)
+	}
+
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("batch upstream call: %w", err)
@@ -2363,9 +2388,10 @@ func BuildBatchBody(payload map[string]any, batch []map[string]any, nonImages []
 	// Force non-streaming for internal batch requests
 	bm["stream"] = false
 
-	// Strip tools/tool_choice but keep thinking
+	// Strip tools/tool_choice/thinking for batch requests (Z.AI 1210 with any multi-image)
 	delete(bm, "tools")
 	delete(bm, "tool_choice")
+	delete(bm, "thinking")
 
 	// Rebuild last user message content
 	msgs := bm["messages"].([]any)
