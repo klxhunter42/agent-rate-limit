@@ -24,9 +24,9 @@
       "type": "stat",
       "gridPos": { "h": 9, "w": 8, "x": 16, "y": 0 },
       "targets": [
-        { "expr": "sum(ai_worker_jobs_processed_total) or on() vector(0)", "legendFormat": "Processed", "refId": "A" },
-        { "expr": "sum(ai_worker_jobs_failed_total) or on() vector(0)", "legendFormat": "Failed", "refId": "B" },
-        { "expr": "sum(ai_worker_jobs_retried_total) or on() vector(0)", "legendFormat": "Retried", "refId": "C" }
+        { "expr": "sum(increase(ai_worker_jobs_processed_total[$__range])) or on() vector(0)", "legendFormat": "Processed", "refId": "A" },
+        { "expr": "sum(increase(ai_worker_jobs_failed_total[$__range])) or on() vector(0)", "legendFormat": "Failed", "refId": "B" },
+        { "expr": "sum(increase(ai_worker_jobs_retried_total[$__range])) or on() vector(0)", "legendFormat": "Retried", "refId": "C" }
       ],
       "fieldConfig": {
         "defaults": { "noValue": "0", "color": { "mode": "palette-classic" } },
@@ -76,7 +76,7 @@
       "type": "stat",
       "gridPos": { "h": 8, "w": 4, "x": 16, "y": 9 },
       "targets": [
-        { "expr": "sum(ai_worker_rate_limit_hits_total) or on() vector(0)", "legendFormat": "Total", "refId": "A" }
+        { "expr": "sum(increase(ai_worker_rate_limit_hits_total[$__range])) or on() vector(0)", "legendFormat": "Total", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "noValue": "0", "color": { "fixedColor": "orange", "mode": "fixed" } } }
     },
@@ -85,7 +85,7 @@
       "type": "stat",
       "gridPos": { "h": 8, "w": 4, "x": 20, "y": 9 },
       "targets": [
-        { "expr": "sum(ai_worker_provider_errors_total) or on() vector(0)", "legendFormat": "Errors", "refId": "A" }
+        { "expr": "sum(increase(ai_worker_provider_errors_total[$__range])) or on() vector(0)", "legendFormat": "Errors", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "noValue": "0", "color": { "fixedColor": "red", "mode": "fixed" } } }
     },
