@@ -21,8 +21,6 @@ spec:
 {{- end }}
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
-        runAsUser: 65534
-        fsGroup: 65534
       containers:
       - name: prometheus
         image: "{{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}"

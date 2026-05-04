@@ -21,6 +21,8 @@ app.kubernetes.io/component: {{ .component }}
 
 {{- define "ai-gateway.podSecurityContext" -}}
 runAsNonRoot: true
+runAsUser: 65534
+fsGroup: 65534
 seccompProfile:
   type: RuntimeDefault
 {{- end }}
