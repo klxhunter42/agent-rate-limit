@@ -21,8 +21,6 @@ spec:
 {{- end }}
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
-        runAsUser: 65532
-        fsGroup: 65532
       containers:
       - name: proxy
         image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag }}"

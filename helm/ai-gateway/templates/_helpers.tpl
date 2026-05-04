@@ -20,17 +20,12 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{- define "ai-gateway.podSecurityContext" -}}
-runAsNonRoot: true
-runAsUser: 65534
-fsGroup: 65534
 seccompProfile:
   type: RuntimeDefault
 {{- end }}
 
 {{- define "ai-gateway.securityContext" -}}
-runAsNonRoot: true
 allowPrivilegeEscalation: false
-readOnlyRootFilesystem: true
 capabilities:
   drop:
     - ALL
