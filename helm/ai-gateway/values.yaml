@@ -91,11 +91,10 @@ worker:
   env:
     WORKER_CONCURRENCY: "50"
     MAX_RETRIES: "3"
-    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10"
-    UPSTREAM_VISION_MODEL_LIMITS: "glm-5.1:5,glm-4.6v:5,glm-4.5v:3"
-    UPSTREAM_DEFAULT_LIMIT: "1"
-    UPSTREAM_GLOBAL_LIMIT: "9"
-    PROVIDER_RPM_LIMITS: "glm:5"
+    UPSTREAM_MODEL_LIMITS: "glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10,claude-sonnet-4-6:5,claude-opus-4-7:2,claude-haiku-4-5:10"
+    UPSTREAM_DEFAULT_LIMIT: "3"
+    UPSTREAM_GLOBAL_LIMIT: "15"
+    PROVIDER_RPM_LIMITS: "glm:5,anthropic:40"
 
 rateLimiter:
   enabled: true
@@ -276,6 +275,11 @@ proxy:
 
 secrets:
   create: true
+  # Each value supports string (managed secret) or object (external secret):
+  #   anthropicApiKeys: "sk-xxx"
+  #   anthropicApiKeys:
+  #     secret: my-vault-secrets
+  #     key: anthropic-key
   upstreamApiKeys: ""
   glmApiKeys: ""
   openaiApiKeys: ""

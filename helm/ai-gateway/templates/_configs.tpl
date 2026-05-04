@@ -17,3 +17,15 @@
       {{- end }}
 {{- end }}
 {{- end }}
+
+{{- define "ai-gateway.secretKeyRef" -}}
+{{- $secretName := "ai-gateway-secrets" -}}
+{{- $secretKey := .key -}}
+{{- if kindIs "map" .value -}}
+{{- $secretName = .value.secret -}}
+{{- $secretKey = .value.key -}}
+{{- end -}}
+name: {{ $secretName }}
+key: {{ $secretKey }}
+optional: true
+{{- end }}

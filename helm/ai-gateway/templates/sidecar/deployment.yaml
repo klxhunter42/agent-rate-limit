@@ -5,60 +5,58 @@ metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "sidecar") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 4 }}
 spec:
   replicas: {{ .Values.sidecar.replicaCount }}
   selector:
     matchLabels:
-      {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 6 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 8 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "sidecar") | nindent 8 }}
     spec:
-      {{- with .Values.global.imagePullSecrets }}
+{{- with .Values.global.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
-      {{- end }}
+{{- end }}
       securityContext:
-        {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+{{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
       containers:
-        - name: sidecar
-          image: "{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.sidecar.image.pullPolicy }}
-          ports:
-            - containerPort: 8081
-              name: http
-          securityContext:
-            {{- include "ai-gateway.securityContext" . | nindent 12 }}
-          env:
-            - name: SIDECAR_PORT
-              value: "8081"
-            - name: ZAI_API_KEYS
-              valueFrom:
-                secretKeyRef:
-                  name: ai-gateway-secrets
-                  key: upstream-api-keys
-                  optional: true
-          resources:
-            {{- toYaml .Values.sidecar.resources | nindent 12 }}
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8081
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8081
-            initialDelaySeconds: 10
-            periodSeconds: 15
-            timeoutSeconds: 5
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
-      volumes:
+      - name: sidecar
+        image: "{{ .Values.sidecar.image.repository }}:{{ .Values.sidecar.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.sidecar.image.pullPolicy }}
+        ports:
+        - containerPort: 8081
+          name: http
+        securityContext:
+{{- include "ai-gateway.securityContext" . | nindent 12 }}
+        env:
+        - name: SIDECAR_PORT
+          value: "8081"
+        - name: ZAI_API_KEYS
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
+        resources:
+{{- toYaml .Values.sidecar.resources | nindent 12 }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+        volumeMounts:
         - name: tmp
-          emptyDir: {}
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
 {{- end }}
