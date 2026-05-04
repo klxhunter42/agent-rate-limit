@@ -94,22 +94,23 @@
 
 | # | Document | Lines | Description |
 |---|----------|-------|-------------|
-| 01 | [API Gateway Core](01-api-gateway-core.md) | 1,086 | Main entry, HTTP handler (30+ routes), proxy layer (8 types), middleware chain (14), config (50+ env vars), request flow diagrams |
-| 02 | [Provider System](02-provider-system.md) | 1,031 | 19 built-in providers, resolver algorithm, OAuth flows (PKCE), token refresh (30min cycle), Redis key schema, 22 HTTP endpoints |
-| 03 | [Token Pipeline](03-token-pipeline.md) | 775 | Chunker (Rabin-Karp), tokenizer (content-aware estimation), packer (knapsack), delta (LCS), summarizer, waste (7 heuristics), prefetcher (Markov), warmstart (cosine sim) |
-| 04 | [Rate Limiting](04-rate-limiting.md) | 633 | Bandit (LinUCB), sketch (SimHash), queue (Dragonfly), caveman (4-tier injection), adaptive limiter (Envoy gradient), 3-layer architecture |
-| 05 | [Cache, Privacy, Filter](05-cache-privacy-filter.md) | 682 | Cache (ROI eviction), PasteGuard (secrets + PII masking), filter (intent classification), disclosure (progressive), integration diagram |
-| 06 | [AI Worker](06-ai-worker.md) | 561 | Python worker, Dragonfly producer/consumer, 6 providers, key manager, retry with backoff, 10 Prometheus metrics |
-| 07 | [Distributed Rate Limiter](07-distributed-rate-limiter.md) | 1,118 | Java/Spring Boot, 5 rate limiting algorithms, Redis Lua scripts, 30+ endpoints, K8s HPA/PDB |
-| 08 | [UI Dashboard](08-ui-dashboard.md) | 1,014 | Vite + React 19 SPA, 14 pages, 4 context providers, 12 hooks, polling + WebSocket, Prometheus analytics |
-| 09 | [Infra & Deployment](09-infra-deployment.md) | 1,095 | Docker Compose (13 services), Helm chart (12 components), observability stack (Prometheus/OTEL/Grafana), CI/CD, sidecar, 80+ env vars |
-| 10 | [OAuth, Metrics, Improvements](10-oauth-metrics-improvements.md) | 999 | OAuth PKCE flow (28 requests), 42+ metrics catalog, 7 improvement projects, billing path routing, integration diagrams |
+| 15 | [System Index](15-SYSTEM-INDEX.md) | 130 | Master index + full system architecture diagram |
+| 16 | [API Gateway Core](16-api-gateway-core.md) | 1,086 | Main entry, HTTP handler (30+ routes), proxy layer (8 types), middleware chain (14), config (50+ env vars), request flow diagrams |
+| 17 | [Provider System](17-provider-system.md) | 1,031 | 19 built-in providers, resolver algorithm, OAuth flows (PKCE), token refresh (30min cycle), Redis key schema, 22 HTTP endpoints |
+| 18 | [Token Pipeline](18-token-pipeline.md) | 775 | Chunker (Rabin-Karp), tokenizer (content-aware estimation), packer (knapsack), delta (LCS), summarizer, waste (7 heuristics), prefetcher (Markov), warmstart (cosine sim) |
+| 19 | [Rate Limiting](19-rate-limiting.md) | 633 | Bandit (LinUCB), sketch (SimHash), queue (Dragonfly), caveman (4-tier injection), adaptive limiter (Envoy gradient), 3-layer architecture |
+| 20 | [Cache, Privacy, Filter](20-cache-privacy-filter.md) | 682 | Cache (ROI eviction), PasteGuard (secrets + PII masking), filter (intent classification), disclosure (progressive), integration diagram |
+| 21 | [AI Worker](21-ai-worker.md) | 561 | Python worker, Dragonfly producer/consumer, 6 providers, key manager, retry with backoff, 10 Prometheus metrics |
+| 22 | [Distributed Rate Limiter](22-distributed-rate-limiter.md) | 1,118 | Java/Spring Boot, 5 rate limiting algorithms, Redis Lua scripts, 30+ endpoints, K8s HPA/PDB |
+| 23 | [UI Dashboard](23-ui-dashboard.md) | 1,014 | Vite + React 19 SPA, 14 pages, 4 context providers, 12 hooks, polling + WebSocket, Prometheus analytics |
+| 24 | [Infra & Deployment](24-infra-deployment.md) | 1,095 | Docker Compose (13 services), Helm chart (12 components), observability stack (Prometheus/OTEL/Grafana), CI/CD, sidecar, 80+ env vars |
+| 25 | [OAuth, Metrics, Improvements](25-oauth-metrics-improvements.md) | 999 | OAuth PKCE flow (28 requests), 42+ metrics catalog, 7 improvement projects, billing path routing, integration diagrams |
 
 ### Thai Summary
 
 | File | Description |
 |------|-------------|
-| [token-optimization-th.md](../token-optimization-th.md) | สรุปภาษาไทย 16 module + pipeline flow diagram + 3-layer rate limiting |
+| [token-optimization-th.md](token-optimization-th.md) | สรุปภาษาไทย 16 module + pipeline flow diagram + 3-layer rate limiting |
 
 ---
 
