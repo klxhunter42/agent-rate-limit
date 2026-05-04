@@ -143,13 +143,13 @@ prometheus:
     limits:
       memory: "2Gi"
       cpu: "2"
+  retention:
+    time: "30d"
+    size: "10GB"
   persistence:
     enabled: false
     storageClassName: ""
     size: 50Gi
-    retention:
-      time: "30d"
-      size: "10GB"
 
 grafana:
   enabled: true
