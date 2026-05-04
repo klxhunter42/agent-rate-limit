@@ -16,7 +16,7 @@ istio:
 
 gateway:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ghcr.io/klxhunter42/ai-gateway
     tag: ""
@@ -46,6 +46,24 @@ gateway:
     PASTEGUARD_ENABLED: "true"
     PASTEGUARD_PII_ENABLED: "true"
     GLM_MODE: "false"
+    SERVER_PORT: ":8080"
+    DASHBOARD_URL: ""
+    OAUTH_CALLBACK_BASE: ""
+    WORKER_POOL_SIZE: "100"
+    REDIS_POOL_SIZE: "50"
+    REDIS_MIN_IDLE_CONNS: "10"
+    STREAM_TIMEOUT: "300s"
+    UPSTREAM_RETRY_BACKOFF: "500ms"
+    UPSTREAM_PROBE_MULTIPLIER: "5"
+    MODEL_PRICING: "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8"
+    PASTEGUARD_SECRETS_ENABLED: "true"
+    PASTEGUARD_SECRET_ENTITIES: ""
+    PASTEGUARD_MAX_SCAN_CHARS: "200000"
+    PASTEGUARD_PII_ENTITIES: ""
+    LOTUS_UPSTREAM_BASE: "https://llm.internal/custom/llm"
+    CLI_SIDECAR_ENABLED: "true"
+    CLI_SIDECAR_URL: "http://127.0.0.1:8081"
+    SIDECAR_PORT: "8081"
   hpa:
     enabled: false
     minReplicas: 2
@@ -55,7 +73,7 @@ gateway:
 
 worker:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ghcr.io/klxhunter42/ai-worker
     tag: ""
@@ -81,7 +99,7 @@ worker:
 
 rateLimiter:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ghcr.io/klxhunter42/distributed-rate-limiter
     tag: ""
@@ -98,7 +116,7 @@ rateLimiter:
   env:
     SPRING_PROFILES_ACTIVE: "docker"
     SERVER_PORT: "8080"
-    JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat"
+    JAVA_OPTS: "-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication"
     RATE_LIMITER_CAPACITY: "1000"
     RATE_LIMITER_REFILL_RATE: "100"
     RATE_LIMITER_REFILL_PERIOD_SECONDS: "1"
@@ -221,7 +239,7 @@ presidio:
 
 dashboard:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: ghcr.io/klxhunter42/ai-dashboard
     tag: ""
@@ -241,7 +259,7 @@ rlDashboard:
 
 proxy:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: caddy
     tag: "2-alpine"
