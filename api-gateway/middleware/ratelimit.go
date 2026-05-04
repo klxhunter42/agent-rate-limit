@@ -94,7 +94,9 @@ func (rl *RateLimiter) check(ctx context.Context, key string, tokens int) bool {
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip rate limiting for internal endpoints.
-		if r.URL.Path == "/metrics" || r.URL.Path == "/api/metrics" || r.URL.Path == "/health" || r.URL.Path == "/ws" {
+		if r.URL.Path == "/metrics" || r.URL.Path == "/api/metrics" || r.URL.Path == "/health" || r.URL.Path == "/ws" ||
+		strings.HasPrefix(r.URL.Path, "/assets/") || r.URL.Path == "/favicon.svg" ||
+		r.URL.Path == "/login" || r.URL.Path == "/callback" {
 			next.ServeHTTP(w, r)
 			return
 		}
