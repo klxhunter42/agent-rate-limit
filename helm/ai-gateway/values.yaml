@@ -179,6 +179,23 @@ grafana:
       secret: ai-gateway-secrets
       key: grafana-admin-password
 
+presidio:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/klxhunter42/presidio-analyzer
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 3000
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+
 otelCollector:
   enabled: true
   replicaCount: 1
