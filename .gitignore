@@ -21,4 +21,4 @@ ui/test-results/
 api-gateway/static/assets/
 api-gateway/vendor/
 
-# *flow* -- too broad, blocks .github/workflows
+analysis-oauth-flow.md
