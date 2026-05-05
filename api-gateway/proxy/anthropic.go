@@ -1878,8 +1878,17 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 			filtered := make([]any, 0, len(content))
 			for _, block := range content {
 				if cb, ok := block.(map[string]any); ok {
-					if t, _ := cb["type"].(string); t == "server_tool_use" || t == "server_tool_result" {
+					t, _ := cb["type"].(string)
+					if t == "server_tool_use" || t == "server_tool_result" {
 						continue
+					}
+					// Strip raw <tool_use> XML from GLM text blocks.
+					if strings.HasPrefix(model, "glm-") && t == "text" {
+						if txt, _ := cb["text"].(string); txt != "" {
+							if clean := toolUseBlockRe.ReplaceAllString(txt, ""); clean != txt {
+								cb["text"] = clean
+							}
+						}
 					}
 				}
 				filtered = append(filtered, block)
@@ -1931,6 +1940,10 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
 	filteredBlocks := make(map[int]bool)
+	var toolStripper *toolUseStripper
+	if strings.HasPrefix(model, "glm-") {
+		toolStripper = &toolUseStripper{}
+	}
 
 	for scanner.Scan() {
 		if !ttfbRecorded {
@@ -1994,6 +2007,36 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					unmaskHits++
 					line = "data: " + unmasked
 				}
+			}
+		}
+
+		// Strip raw <tool_use> XML that GLM models emit as plain text.
+		if toolStripper != nil && strings.Contains(data, "content_block_delta") {
+			var evt struct {
+				Type  string `json:"type"`
+				Index int    `json:"index"`
+				Delta struct {
+					Type string `json:"type"`
+					Text string `json:"text,omitempty"`
+				} `json:"delta"`
+			}
+			if json.Unmarshal([]byte(data), &evt) == nil && evt.Delta.Text != "" {
+				clean := toolStripper.Feed(evt.Delta.Text)
+				if clean == "" {
+					continue
+				}
+				if clean != evt.Delta.Text {
+					evt.Delta.Text = clean
+					if newData, err := json.Marshal(evt); err == nil {
+						line = "data: " + string(newData)
+					}
+				}
+			}
+		}
+		if toolStripper != nil && strings.Contains(data, "content_block_stop") {
+			if remaining := toolStripper.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 			}
 		}
 
