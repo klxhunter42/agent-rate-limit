@@ -94,7 +94,6 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		if isDup && saved > 0 {
 			m.RecordOptimization("sketch_dedup", saved)
 			m.RecordOptimizationDuration("sketch", time.Since(start).Seconds())
-			totalSaved += saved
 		}
 	}
 
@@ -152,10 +151,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	}
 
 	if totalSaved > 0 {
-		tokensSaved := totalSaved / 4
-		m.RecordTokensSaved(tokensSaved)
-		// Rough cost estimate: $3/M input tokens average across providers.
-		costSavings := float64(tokensSaved) * 3.0 / 1_000_000
+		tokensSaved := float64(totalSaved) / 4.0
+		m.RecordTokensSaved(int(tokensSaved + 0.5))
+		costSavings := tokensSaved * 3.0 / 1_000_000
 		m.RecordCostSavings(costSavings)
 	}
 

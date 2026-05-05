@@ -1606,6 +1606,9 @@ func filterUnsupportedContent(payload map[string]any) {
 			if unsupportedContentTypes[t] {
 				continue
 			}
+			if t == "image" {
+				rewriteImageToGLMFormat(cb)
+			}
 			filtered = append(filtered, cb)
 		}
 		m["content"] = filtered
