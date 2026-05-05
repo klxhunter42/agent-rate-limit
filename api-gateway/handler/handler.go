@@ -418,10 +418,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// 	requestedModel = "claude-haiku-4-5-20251001"
 	// 	payload["model"] = requestedModel
 	// }
-	// Clamp max_tokens to upstream model's hard limit.
-	if !transparent {
-		clampMaxTokens(payload, requestedModel)
-	}
+	// Clamp max_tokens to upstream model's hard limit (always, even in transparent mode,
+	// to prevent 400 errors from Anthropic when max_tokens exceeds model limits).
+	clampMaxTokens(payload, requestedModel)
 
 	// Profile-based routing: arl_* token or validated X-Profile header
 	var profileOverride *Profile
