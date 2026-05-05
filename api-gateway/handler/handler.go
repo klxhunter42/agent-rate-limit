@@ -880,11 +880,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Re-encode payload after modifications
-	body, err = json.Marshal(payload)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-		return
+	// Re-encode payload after modifications.
+	// Skip for image requests to avoid re-marshaling large base64 payloads.
+	if !hasImages {
+		body, err = json.Marshal(payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+			return
+		}
 	}
 
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
@@ -1756,10 +1759,6 @@ func filterUnsupportedContent(payload map[string]any) {
 	}
 }
 
-// rewriteImageToGLMFormat converts Anthropic image blocks to GLM-compatible format.
-// Anthropic: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
-// Anthropic: {"type":"image","source":{"type":"url","url":"https://..."}}
-// GLM native: {"type":"image_url","image_url":{"url":"data:image/png;base64,..."}}
 func rewriteImageToGLMFormat(cb map[string]any) {
 	src, ok := cb["source"].(map[string]any)
 	if !ok {
@@ -1856,53 +1855,6 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 // isNativeImageModel returns true if the model natively supports image input
 // and should not be overridden by vision auto-selection.
 
-func convertURLImagesToBase64(payload map[string]any) map[string]any {
-	msgs, ok := payload["messages"].([]any)
-	if !ok {
-		return payload
-	}
-	for _, msg := range msgs {
-		mm, ok := msg.(map[string]any)
-		if !ok {
-			continue
-		}
-		blocks, ok := mm["content"].([]any)
-		if !ok {
-			continue
-		}
-		for _, block := range blocks {
-			cb, ok := block.(map[string]any)
-			if !ok {
-				continue
-			}
-			if cb["type"] != "image" {
-				continue
-			}
-			src, ok := cb["source"].(map[string]any)
-			if !ok || src["type"] != "url" {
-				continue
-			}
-			imgURL, _ := src["url"].(string)
-			if imgURL == "" {
-				continue
-			}
-			if b64 := proxy.FetchImageAsBase64(imgURL); b64 != "" {
-				parts := strings.SplitN(b64, ";base64,", 2)
-				if len(parts) == 2 {
-					cb["source"] = map[string]any{
-						"type":       "base64",
-						"media_type": strings.TrimPrefix(parts[0], "data:"),
-						"data":       parts[1],
-					}
-					slog.Info("converted url image to base64", "url_len", len(imgURL), "b64_len", len(parts[1]))
-				}
-			} else {
-				slog.Warn("failed to fetch url image for base64 conversion", "url", imgURL[:min(80, len(imgURL))])
-			}
-		}
-	}
-	return payload
-}
 
 func isNativeImageModel(model string) bool {
 	switch model {

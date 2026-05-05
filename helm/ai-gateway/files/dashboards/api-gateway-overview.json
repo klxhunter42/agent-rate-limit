@@ -55,7 +55,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
           "legendFormat": "{{method}} {{path}} {{status}}",
           "refId": "A"
         }
@@ -80,17 +80,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -112,7 +112,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_sum[$__rate_interval])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_sum[$__interval])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -169,7 +169,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_token_input_total[$__rate_interval])",
+          "expr": "rate(api_gateway_profile_token_input_total[$__interval])",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -191,7 +191,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_token_output_total[$__rate_interval])",
+          "expr": "rate(api_gateway_profile_token_output_total[$__interval])",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -214,7 +214,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_upstream_429_total[$__rate_interval]))",
+          "expr": "sum by (model) (rate(api_gateway_upstream_429_total[$__interval]))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -376,12 +376,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval])",
           "legendFormat": "Retries/s",
           "refId": "B"
         }
@@ -403,7 +403,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -425,7 +425,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_upstream_429_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval])) * 100",
+          "expr": "sum(rate(api_gateway_upstream_429_total[$__interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__interval])) * 100",
           "legendFormat": "error rate",
           "refId": "A"
         }
@@ -447,7 +447,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
           "legendFormat": "{{key}}",
           "refId": "A"
         }
@@ -474,7 +474,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_upstream_retries_total[$__rate_interval]))",
+          "expr": "sum by (model) (rate(api_gateway_upstream_retries_total[$__interval]))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -496,12 +496,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
           "legendFormat": "p95",
           "refId": "B"
         }
@@ -574,7 +574,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "sum by (profile) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
           "legendFormat": "{{profile}}",
           "refId": "A"
         }
@@ -599,12 +599,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_token_input_total[$__rate_interval]))",
+          "expr": "sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval]))",
           "legendFormat": "{{profile}} in",
           "refId": "A"
         },
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_token_output_total[$__rate_interval]))",
+          "expr": "sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval]))",
           "legendFormat": "{{profile}} out",
           "refId": "B"
         }
@@ -626,7 +626,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__rate_interval]))",
+          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__interval]))",
           "legendFormat": "{{profile}}",
           "refId": "A"
         }
@@ -659,7 +659,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total[$__rate_interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total[$__interval]))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -684,7 +684,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__rate_interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -709,7 +709,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -742,7 +742,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
           "legendFormat": "Avg",
           "refId": "A"
         }

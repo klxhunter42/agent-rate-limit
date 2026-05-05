@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -92,7 +92,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_savings_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -143,7 +143,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_runs_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -181,7 +181,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -283,7 +283,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total[$__interval]))",
           "refId": "A"
         }
       ],
@@ -333,7 +333,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_cost_savings_total[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_cost_savings_total[$__interval]))",
           "refId": "A"
         }
       ],
@@ -395,7 +395,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__rate_interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval]))",
           "refId": "A"
         }
       ],
@@ -419,7 +419,9 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["sum"]
+          "calcs": [
+            "sum"
+          ]
         }
       }
     },
@@ -475,7 +477,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__rate_interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))",
           "refId": "A"
         }
       ],
@@ -522,12 +524,12 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4",
+          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "legendFormat": "Without Optimization"
         },
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range]))) or on() vector(0)",
           "refId": "B",
           "legendFormat": "With Optimization"
         }
@@ -581,7 +583,9 @@
         "orientation": "horizontal",
         "displayMode": "gradient",
         "reduceOptions": {
-          "calcs": ["lastNotNull"]
+          "calcs": [
+            "lastNotNull"
+          ]
         }
       }
     },
@@ -600,7 +604,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__rate_interval])) / 4 / (sum(rate(api_gateway_profile_token_input_total[$__rate_interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__rate_interval])) / 4) * 100, 0, 100)",
+          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4 / (sum(rate(api_gateway_profile_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4) * 100, 0, 100)",
           "refId": "A"
         }
       ],
@@ -647,7 +651,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, technique) (rate(api_gateway_optimizer_duration_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, technique) (rate(api_gateway_optimizer_duration_seconds_bucket[$__interval])))",
           "refId": "A"
         }
       ],
@@ -665,7 +669,10 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "calcs": ["mean", "max"]
+          "calcs": [
+            "mean",
+            "max"
+          ]
         }
       }
     },
@@ -744,7 +751,9 @@
       "options": {
         "footer": {
           "show": true,
-          "reducer": ["sum"]
+          "reducer": [
+            "sum"
+          ]
         },
         "sortBy": [
           {
@@ -824,7 +833,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (severity) (rate(api_gateway_waste_scan_duration_seconds_count[$__rate_interval]))",
+          "expr": "sum by (severity) (rate(api_gateway_waste_scan_duration_seconds_count[$__interval]))",
           "refId": "A"
         }
       ],
@@ -860,7 +869,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (detector) (rate(api_gateway_waste_scan_duration_seconds_count[$__rate_interval]))",
+          "expr": "sum by (detector) (rate(api_gateway_waste_scan_duration_seconds_count[$__interval]))",
           "legendFormat": "scans",
           "refId": "A"
         }
@@ -885,7 +894,11 @@
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": ["api-gateway", "optimization", "executive"],
+  "tags": [
+    "api-gateway",
+    "optimization",
+    "executive"
+  ],
   "templating": {
     "list": []
   },

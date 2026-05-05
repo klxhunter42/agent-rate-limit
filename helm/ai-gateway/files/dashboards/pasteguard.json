@@ -184,7 +184,7 @@
       },
       "targets": [
         {
-          "expr": "clamp((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) / sum(increase(api_gateway_mask_requests_total[$__range])) * 100, 0, 100) or vector(100)",
+          "expr": "(clamp((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) / sum(increase(api_gateway_mask_requests_total[$__range])) * 100, 0, 100) or vector(100)) or on() vector(0)",
           "legendFormat": "Coverage",
           "refId": "A"
         }
@@ -324,17 +324,17 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_mask_requests_total[$__interval]))",
           "legendFormat": "Total",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))",
           "legendFormat": "Secrets Found",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))",
           "legendFormat": "PII Found",
           "refId": "C"
         }
@@ -507,7 +507,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (rate(api_gateway_pii_detected_total[$__rate_interval]))",
+          "expr": "sum by (type) (rate(api_gateway_pii_detected_total[$__interval]))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -825,7 +825,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__interval])))",
           "legendFormat": "{{phase}} p95",
           "refId": "A"
         }

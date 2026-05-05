@@ -300,12 +300,12 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[$__range]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"/v1/messages\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Sync",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(api_gateway_profile_requests_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_requests_total[$__range]))) or on() vector(0)",
           "legendFormat": "Async",
           "refId": "B"
         }

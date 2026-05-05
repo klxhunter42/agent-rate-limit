@@ -152,7 +152,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -224,17 +224,17 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Go Direct",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"sidecar\"}[$__range]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"sidecar\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Sidecar",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"billing_rejected\"}[$__range]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"billing_rejected\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Rejected",
           "refId": "C"
         }
@@ -298,7 +298,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_request_latency_seconds_count{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_request_latency_seconds_count{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100) or on() vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -342,17 +342,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p50 {{path}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p95 {{path}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "p99 {{path}}",
           "refId": "C"
         }
@@ -385,7 +385,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__rate_interval]))",
+          "expr": "sum by (profile, model) (rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__interval]))",
           "legendFormat": "{{profile}} / {{model}}",
           "refId": "A"
         }
@@ -410,12 +410,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_input_total[$__rate_interval]))",
+          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_input_total[$__interval]))",
           "legendFormat": "{{profile}}/{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_output_total[$__rate_interval]))",
+          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_output_total[$__interval]))",
           "legendFormat": "{{profile}}/{{model}} out",
           "refId": "B"
         }
@@ -448,7 +448,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
           "legendFormat": "429/s",
           "refId": "A"
         }
@@ -476,7 +476,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval])",
           "legendFormat": "retries/s",
           "refId": "A"
         }
@@ -504,12 +504,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
           "legendFormat": "p50 {{model}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
           "legendFormat": "p95 {{model}}",
           "refId": "B"
         }
@@ -542,7 +542,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__rate_interval])) * 3600",
+          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__interval])) * 3600",
           "legendFormat": "{{profile}} $/hr",
           "refId": "A"
         }
@@ -565,7 +565,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_profile_cost_total[$__rate_interval])) * 3600",
+          "expr": "sum by (model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }

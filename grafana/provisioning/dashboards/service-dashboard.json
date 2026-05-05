@@ -73,7 +73,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_requests_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_requests_total[$__range]))) or on() vector(0)",
           "legendFormat": "API Calls",
           "datasource": {
             "type": "prometheus",
@@ -122,7 +122,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_cost_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_cost_total[$__range]))) or on() vector(0)",
           "legendFormat": "USD",
           "datasource": {
             "type": "prometheus",
@@ -182,7 +182,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_savings_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range]))) or on() vector(0)",
           "legendFormat": "Saved",
           "datasource": {
             "type": "prometheus",
@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -301,7 +301,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range]))) or on() vector(0)",
           "legendFormat": "Input",
           "datasource": {
             "type": "prometheus",
@@ -350,7 +350,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_output_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_token_output_total[$__range]))) or on() vector(0)",
           "legendFormat": "Output",
           "datasource": {
             "type": "prometheus",
@@ -410,7 +410,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4",
+          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
           "legendFormat": "Without Optimization",
           "datasource": {
             "type": "prometheus",
@@ -418,7 +418,7 @@
           }
         },
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range]))) or on() vector(0)",
           "legendFormat": "With Optimization",
           "datasource": {
             "type": "prometheus",
@@ -599,7 +599,7 @@
     },
     {
       "type": "barchart",
-      "title": "Top 5 Services by Cost",
+      "title": "Top 6 Services by Cost",
       "description": "Highest spending service profiles",
       "gridPos": {
         "h": 9,
@@ -609,7 +609,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(5, sum by (profile) (increase(api_gateway_profile_cost_total[$__range]))))",
+          "expr": "sort_desc(topk(6, sum by (profile) (increase(api_gateway_profile_cost_total[$__range]))))",
           "legendFormat": "{{profile}}",
           "datasource": {
             "type": "prometheus",
@@ -647,7 +647,7 @@
     },
     {
       "type": "barchart",
-      "title": "Top 5 Profiles by Usage",
+      "title": "Top 6 Profiles by Usage",
       "description": "Most active profiles by combined token consumption (input + output)",
       "gridPos": {
         "h": 9,
@@ -657,7 +657,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(5, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range]))))",
+          "expr": "sort_desc(topk(6, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range]))))",
           "legendFormat": "{{profile}}",
           "datasource": {
             "type": "prometheus",

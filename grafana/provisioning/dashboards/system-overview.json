@@ -229,12 +229,12 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_upstream_429_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_upstream_429_total[$__range]))) or on() vector(0)",
           "legendFormat": "Gateway",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(api_gateway_upstream_429_total[$__range]))",
+          "expr": "(sum(increase(api_gateway_upstream_429_total[$__range]))) or on() vector(0)",
           "legendFormat": "Worker",
           "refId": "B"
         }
@@ -301,7 +301,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "sum(rate(api_gateway_request_latency_seconds_count[$__interval]))",
           "legendFormat": "requests/s",
           "refId": "A"
         }
@@ -323,12 +323,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_requests_total[$__rate_interval])",
+          "expr": "rate(api_gateway_profile_requests_total[$__interval])",
           "legendFormat": "Processed",
           "refId": "A"
         },
         {
-          "expr": "rate(ai_worker_jobs_failed_total[$__rate_interval])",
+          "expr": "rate(ai_worker_jobs_failed_total[$__interval])",
           "legendFormat": "Failed",
           "refId": "B"
         }
@@ -350,7 +350,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
           "legendFormat": "gateway p95",
           "refId": "A"
         }
@@ -372,12 +372,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval])",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval])",
           "legendFormat": "Retries/s",
           "refId": "B"
         }
