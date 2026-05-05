@@ -1632,7 +1632,7 @@ var modelMaxTokens = map[string]int{
 	"glm-4.5-x":                 4096,
 	"glm-4.5-air":               4096,
 	"glm-4.5-airx":              4096,
-	"glm-4.6v":                  4096,
+	"glm-4.6v":                  8192,
 	"glm-4.5v":                  4096,
 	"glm-z1-air":                8192,
 	"glm-z1-airx":               16384,
