@@ -775,94 +775,95 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Re-encode modified payload
-	body, err = json.Marshal(payload)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-		return
-	}
-
-	// Skip optimizer and privacy masking for image requests — URLs/base64 get corrupted
-	if !hasImages {
-		// Run token optimization pipeline on system prompt
-		if h.optimizers != nil {
-			budgetLevel := 0
-			if sys, ok := payload["system"]; ok {
-				var sysText string
-				switch v := sys.(type) {
-				case string:
-					sysText = v
-				case []any:
-					parts := make([]string, 0, len(v))
-					for _, item := range v {
-						if m, ok := item.(map[string]any); ok {
-							if t, ok := m["text"].(string); ok {
-								parts = append(parts, t)
-							}
-						}
-					}
-					sysText = strings.Join(parts, "\n\n")
-				}
-				if sysText != "" {
-					cap := tokenizer.GetModelCapabilities(selectedModel)
-					sysTokens := tokenizer.QuickEstimateTokens(sysText)
-					msgTokens := 0
-					if msgs, ok := payload["messages"].([]any); ok {
-						for _, msg := range msgs {
-							msgTokens += proxy.EstimateMessageTokens(msg)
-						}
-					}
-					totalTokens := sysTokens + msgTokens
-					pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
-					if pctUsed >= 0.8 {
-						budgetLevel = 2
-						h.metrics.SetBudgetLevel(selectedModel, 2)
-					} else if pctUsed >= 0.6 {
-						budgetLevel = 1
-						h.metrics.SetBudgetLevel(selectedModel, 1)
-					} else {
-						h.metrics.SetBudgetLevel(selectedModel, 0)
-					}
-					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
-					if optimized != sysText {
-						payload["system"] = optimized
-					}
-				}
-			}
-		}
-
-		// Run token optimization on message content
-		if h.optimizers != nil {
-			if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
-				h.optimizers.OptimizeMessages(msgs, h.metrics)
-			}
-		}
-
-		// Re-encode after optimization
+		// Re-encode payload after modifications
 		body, err = json.Marshal(payload)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
 			return
 		}
 
-		// Privacy masking: detect and mask secrets/PII before proxying
-		if h.privacy != nil {
-			maskResult, _ = h.privacy.MaskRequest(body)
-			if maskResult != nil {
-				body = maskResult.MaskedBody
-				slog.Info("privacy mask applied",
-					"has_secrets", maskResult.HasSecrets,
-					"has_pii", maskResult.HasPII,
-					"secrets_count", len(maskResult.SecretsCtx.Mapping),
-					"pii_count", len(maskResult.PIICtx.Mapping),
-				)
-			} else {
-				slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+		// Optimizer + privacy masking for all modes (including transparent claude-oauth).
+		// Skip only for image requests (base64/URLs get corrupted).
+		if !hasImages {
+			// Run token optimization pipeline on system prompt
+			if h.optimizers != nil {
+				budgetLevel := 0
+				if sys, ok := payload["system"]; ok {
+					var sysText string
+					switch v := sys.(type) {
+					case string:
+						sysText = v
+					case []any:
+						parts := make([]string, 0, len(v))
+						for _, item := range v {
+							if m, ok := item.(map[string]any); ok {
+								if t, ok := m["text"].(string); ok {
+									parts = append(parts, t)
+								}
+							}
+						}
+						sysText = strings.Join(parts, "\n\n")
+					}
+					if sysText != "" {
+						cap := tokenizer.GetModelCapabilities(selectedModel)
+						sysTokens := tokenizer.QuickEstimateTokens(sysText)
+						msgTokens := 0
+						if msgs, ok := payload["messages"].([]any); ok {
+							for _, msg := range msgs {
+								msgTokens += proxy.EstimateMessageTokens(msg)
+							}
+						}
+						totalTokens := sysTokens + msgTokens
+						pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
+						if pctUsed >= 0.8 {
+							budgetLevel = 2
+							h.metrics.SetBudgetLevel(selectedModel, 2)
+						} else if pctUsed >= 0.6 {
+							budgetLevel = 1
+							h.metrics.SetBudgetLevel(selectedModel, 1)
+						} else {
+							h.metrics.SetBudgetLevel(selectedModel, 0)
+						}
+						optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
+						if optimized != sysText {
+							payload["system"] = optimized
+						}
+					}
+				}
 			}
+
+			// Run token optimization on message content
+			if h.optimizers != nil {
+				if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
+					h.optimizers.OptimizeMessages(msgs, h.metrics)
+				}
+			}
+
+			// Re-encode after optimization
+			body, err = json.Marshal(payload)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+				return
+			}
+
+			// Privacy masking: detect and mask secrets/PII before proxying
+			if h.privacy != nil {
+				maskResult, _ = h.privacy.MaskRequest(body)
+				if maskResult != nil {
+					body = maskResult.MaskedBody
+					slog.Info("privacy mask applied",
+						"has_secrets", maskResult.HasSecrets,
+						"has_pii", maskResult.HasPII,
+						"secrets_count", len(maskResult.SecretsCtx.Mapping),
+						"pii_count", len(maskResult.PIICtx.Mapping),
+					)
+				} else {
+					slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
+				}
+			}
+		} else {
+			slog.Info("optimizer and privacy skipped", "reason", "image_request")
 		}
-	} else {
-		slog.Info("optimizer and privacy skipped", "reason", "image_request")
-	}
 
 	isStream, _ := payload["stream"].(bool)
 
