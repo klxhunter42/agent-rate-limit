@@ -1213,9 +1213,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				var bodyMap map[string]any
 				if json.Unmarshal(body, &bodyMap) == nil {
 					bodyMap["model"] = selectedModel
-					// Z.AI requires stream:true for vision models.
 					if bodyMap["stream"] == nil || bodyMap["stream"] == false {
 						bodyMap["stream"] = true
+					}
+					// Clamp max_tokens to vision model's limit.
+					if mt, ok := bodyMap["max_tokens"].(float64); ok {
+						modelMaxTokensMu.RLock()
+						if limit, found := modelMaxTokens[selectedModel]; found && mt > float64(limit) {
+							slog.Info("vision max_tokens clamped", "original", int(mt), "clamped", limit, "model", selectedModel)
+							bodyMap["max_tokens"] = limit
+						}
+						modelMaxTokensMu.RUnlock()
 					}
 					body, _ = json.Marshal(bodyMap)
 				}
