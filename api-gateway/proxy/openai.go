@@ -400,6 +400,23 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	}
 
 	anthropicResp := OpenAIToAnthropic(openaiResp, model, toolMode)
+
+	// Strip <tool_use> XML blocks from GLM model text responses.
+	if strings.HasPrefix(model, "glm-") {
+		if contentArr, ok := anthropicResp["content"].([]any); ok {
+			for i, block := range contentArr {
+				if cb, ok := block.(map[string]any); ok {
+					if t, _ := cb["type"].(string); t == "text" {
+						if text, _ := cb["text"].(string); text != "" {
+							cb["text"] = toolUseBlockRe.ReplaceAllString(text, "")
+						}
+					}
+				}
+				contentArr[i] = block
+			}
+		}
+	}
+
 	respBody, _ := json.Marshal(anthropicResp)
 
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
@@ -447,6 +464,10 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 	contentBlockIdx := 0   // current Anthropic content block index
 	var textBlockOpen bool // true while a text content block is open
 	var toolBlockOpen bool // true while a tool_use content block is open
+	var stripper *toolUseStripper
+	if strings.HasPrefix(model, "glm-") {
+		stripper = &toolUseStripper{}
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -459,6 +480,14 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 			slog.Info("openai stream completed", "model", model, "output_tokens", outputTokens, "input_tokens", inputTokens, "stop_reason", stopReason, "continuation", isContinuation)
 
 			if started && (stopReason != "max_tokens" || isFinal) {
+				// Flush remaining tool_use stripper buffer.
+				if stripper != nil && textBlockOpen {
+					if remaining := stripper.Flush(); remaining != "" {
+						escaped, _ := json.Marshal(remaining)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+						accumulatedText += remaining
+					}
+				}
 				// Flush remaining unmasker buffer before closing events.
 				if unmasker != nil && textBlockOpen {
 					if remaining := unmasker.Flush(); remaining != "" {
@@ -590,6 +619,13 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 		accumulatedText += text
 		outputTokens++
 
+		if stripper != nil {
+			text = stripper.Feed(text)
+			if text == "" {
+				continue
+			}
+		}
+
 		if unmasker != nil {
 			text = unmasker.ProcessChunk(text)
 		}
@@ -606,6 +642,13 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 
 	// If stream ended without [DONE] (upstream disconnect/error), emit closing events.
 	if started && !doneReceived {
+		if stripper != nil && textBlockOpen {
+			if remaining := stripper.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+				accumulatedText += remaining
+			}
+		}
 		if unmasker != nil && textBlockOpen {
 			if remaining := unmasker.Flush(); remaining != "" {
 				escaped, _ := json.Marshal(remaining)
