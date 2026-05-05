@@ -34,6 +34,9 @@ var (
 	xmlTagPrefixes = []string{
 		"<tool_call", "<tool_response", "<tool_use", "<tool_result",
 		"<directive", "<system", "<thinking", "<action", "<execute",
+
+		// HTML tags that need buffering for cross-chunk conversion.
+		"<details", "<summary",
 	}
 
 	// htmlDetailTagRe converts GLM <details><summary> HTML to markdown.
@@ -78,10 +81,11 @@ func hasOpenTag(s string) bool {
 func (s *toolUseStripper) Feed(text string) string {
 	s.buf.WriteString(text)
 	content := s.buf.String()
-	clean := xmlBlockRe.ReplaceAllString(content, "")
-	clean = htmlDetailTagRe.ReplaceAllString(clean, "")
-	clean = htmlSummaryTagRe.ReplaceAllString(clean, "**$1**\n")
-	if hasOpenTag(clean) {
+
+	// Check for open tags BEFORE applying HTML regexes that would remove them.
+	// This ensures <details>/<summary> are buffered across chunks.
+	if hasOpenTag(content) {
+		clean := xmlBlockRe.ReplaceAllString(content, "")
 		for _, prefix := range xmlTagPrefixes {
 			if idx := strings.LastIndex(clean, prefix); idx >= 0 {
 				s.buf.Reset()
@@ -91,11 +95,17 @@ func (s *toolUseStripper) Feed(text string) string {
 			}
 		}
 	}
-	if idx := partialTagEnd(clean); idx >= 0 {
+	if idx := partialTagEnd(content); idx >= 0 {
+		clean := xmlBlockRe.ReplaceAllString(content, "")
 		s.buf.Reset()
 		s.buf.WriteString(clean[idx:])
 		return clean[:idx]
 	}
+
+	// All tags are complete - apply full conversion.
+	clean := xmlBlockRe.ReplaceAllString(content, "")
+	clean = htmlDetailTagRe.ReplaceAllString(clean, "")
+	clean = htmlSummaryTagRe.ReplaceAllString(clean, "**$1**\n")
 	s.buf.Reset()
 	return clean
 }
