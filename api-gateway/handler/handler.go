@@ -1112,13 +1112,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// All Z.AI vision requests use OpenAI endpoint; Anthropic-compatible
-		// endpoint does not support image content blocks (returns error 1210).
-		slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
-		if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
-			slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
-			h.metrics.IncError("upstream")
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai vision proxy error: " + err.Error()})
+		// glm-4.6v uses Anthropic-compatible endpoint (same billing pool as text).
+		// Only non-native models needing OpenAI format go through openaiProxy.
+		if isNativeImageModel(selectedModel) {
+			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
+				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
+				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
+			}
+		} else {
+			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
+				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
+				h.metrics.IncError("upstream")
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai vision proxy error: " + err.Error()})
+			}
 		}
 		return
 	} else if hasImages && decision != nil {
