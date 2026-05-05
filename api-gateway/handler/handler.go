@@ -759,9 +759,24 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			"model_selected", selectedModel,
 			"stream", payload["stream"],
 			"has_system", payload["system"] != nil,
-			"msg_count", func() int { if msgs, ok := payload["messages"].([]any); ok { return len(msgs) }; return 0 }(),
-			"provider", func() string { if decision != nil { return decision.ProviderID }; return "" }(),
-			"auth_mode", func() string { if decision != nil { return decision.AuthMode }; return "" }(),
+			"msg_count", func() int {
+				if msgs, ok := payload["messages"].([]any); ok {
+					return len(msgs)
+				}
+				return 0
+			}(),
+			"provider", func() string {
+				if decision != nil {
+					return decision.ProviderID
+				}
+				return ""
+			}(),
+			"auth_mode", func() string {
+				if decision != nil {
+					return decision.AuthMode
+				}
+				return ""
+			}(),
 			"headers", map[string][]string(r.Header),
 		)
 		if rawDump, err := json.Marshal(payload); err == nil {
@@ -846,7 +861,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("debug content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
 	}
-
 
 	// --- Image detection runs first; optimizer and privacy skip image requests ---
 
@@ -1234,12 +1248,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if isNativeImageModel(selectedModel) {
 			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body),
 				"req_headers", map[string]string{
-					"content-type": r.Header.Get("Content-Type"),
+					"content-type":      r.Header.Get("Content-Type"),
 					"anthropic-version": r.Header.Get("anthropic-version"),
-					"anthropic-beta": r.Header.Get("anthropic-beta"),
-					"x-app": r.Header.Get("x-app"),
-					"user-agent": r.Header.Get("User-Agent"),
-					"auth_mode": func() string { if decision != nil { return decision.AuthMode }; return "" }(),
+					"anthropic-beta":    r.Header.Get("anthropic-beta"),
+					"x-app":             r.Header.Get("x-app"),
+					"user-agent":        r.Header.Get("User-Agent"),
+					"auth_mode": func() string {
+						if decision != nil {
+							return decision.AuthMode
+						}
+						return ""
+					}(),
 					"session_id": r.Header.Get("X-Claude-Code-Session-Id"),
 				},
 			)
@@ -1647,6 +1666,7 @@ const fallbackMaxTokens = 4096
 // unsupportedContentTypes are Anthropic-specific block types that GLM does not handle.
 var unsupportedContentTypes = map[string]bool{
 	"server_tool_use": true,
+	"thinking":        true,
 }
 
 // unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
