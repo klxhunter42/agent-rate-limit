@@ -48,7 +48,7 @@ services:
       ZAI_API_KEYS: ${ZAI_API_KEYS:-${GLM_API_KEYS:-}}
       UPSTREAM_RPM_LIMIT: ${UPSTREAM_RPM_LIMIT:-40}
       UPSTREAM_PROBE_MULTIPLIER: ${UPSTREAM_PROBE_MULTIPLIER:-5}
-      MODEL_PRICING: ${MODEL_PRICING:-glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8}
+      MODEL_PRICING: ${MODEL_PRICING:-glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,claude-opus-4-7:15:75,claude-sonnet-4-6:3:15,claude-sonnet-4-20250514:3:15,claude-haiku-4-5-20251001:0.8:4,claude-opus-4-20250115:15:75}
       PASTEGUARD_ENABLED: ${PASTEGUARD_ENABLED:-true}
       PASTEGUARD_SECRETS_ENABLED: ${PASTEGUARD_SECRETS_ENABLED:-true}
       PASTEGUARD_SECRET_ENTITIES: ${PASTEGUARD_SECRET_ENTITIES:-}
@@ -269,10 +269,13 @@ services:
     restart: always
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
       GF_LOG_LEVEL: "warn"
       GF_SERVER_ROOT_URL: ${PROXY_SCHEME:-http}://${EXTERNAL_HOST:-localhost}:${PROXY_PORT:-9000}/grafana
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DATABASE_BUSY_TIMEOUT: "5000"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/service-dashboard.json
     volumes:
       - arl-grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning

@@ -6,7 +6,26 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "title": "Executive Overview",
+      "url": "/d/arl-service-dashboard",
+      "type": "link",
+      "icon": "dashboard"
+    },
+    {
+      "title": "Billing Path",
+      "url": "/d/claude-oauth-billing",
+      "type": "link",
+      "icon": "dollar-sign"
+    },
+    {
+      "title": "Usage Monitor",
+      "url": "/d/arl-token-usage",
+      "type": "link",
+      "icon": "bar-chart"
+    }
+  ],
   "panels": [
     {
       "title": "AI API Cost Estimator",
@@ -19,7 +38,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "## AI API Cost Estimator\n| Model | Input (per 1M tokens) | Output (per 1M tokens) |\n|-------|----------------------|------------------------|\n| glm-5.1 | $1.40 | $4.40 |\n| glm-5-turbo | $1.20 | $4.00 |\n| glm-5 | $1.00 | $3.20 |\n| glm-4.7 / glm-4.6 / glm-4.5 | $0.60 | $2.20 |\n| glm-4.7-flashx | $0.07 | $0.40 |\n| glm-4.5-x | $2.20 | $8.90 |\n| glm-4.5-air | $0.20 | $1.10 |\n| glm-4.5-airx | $1.10 | $4.50 |"
+        "content": "## AI API Pricing Reference\n\n### Claude Models (Anthropic)\n| Model | Input (per 1M units) | Output (per 1M units) |\n|-------|----------------------|------------------------|\n| Claude Opus 4 | $15.00 | $75.00 |\n| Claude Sonnet 4 | $3.00 | $15.00 |\n| Claude Haiku 4.5 | $0.80 | $4.00 |\n\n### Z.AI Models (GLM)\n| Model | Input (per 1M units) | Output (per 1M units) |\n|-------|----------------------|------------------------|\n| Z.AI 5.1 | $1.40 | $4.40 |\n| Z.AI 5 Turbo | $1.20 | $4.00 |\n| Z.AI 5 | $1.00 | $3.20 |\n| Z.AI 4.7 / 4.6 / 4.5 | $0.60 | $2.20 |\n| Z.AI 4.7 Flash | $0.07 | $0.40 |\n| Z.AI 4.5 X | $2.20 | $8.90 |\n| Z.AI 4.5 Air | $0.20 | $1.10 |\n| Z.AI 4.5 AirX | $1.10 | $4.50 |"
       }
     },
     {
@@ -33,7 +52,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_total[$__range])) or vector(0)",
+          "expr": "sum(increase(api_gateway_profile_cost_total[$__range])) or vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -66,7 +85,7 @@
       }
     },
     {
-      "title": "Est. Cost from Tokens",
+      "title": "Est. Cost from API Usage",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -76,7 +95,7 @@
       },
       "targets": [
         {
-          "expr": "((sum(increase(api_gateway_token_input_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 1.0 + (sum(increase(api_gateway_token_output_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 3.2 + (sum(increase(api_gateway_token_input_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 0.6 + (sum(increase(api_gateway_token_output_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.07 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.4 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 8.9 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 0.2 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 4.5) / 1000000",
+          "expr": "((sum(increase(api_gateway_profile_token_input_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 1.0 + (sum(increase(api_gateway_profile_token_output_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 3.2 + (sum(increase(api_gateway_profile_token_input_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 0.6 + (sum(increase(api_gateway_profile_token_output_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.07 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.4 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 8.9 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 0.2 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 4.5\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 75\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 3\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 0.8\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 4) / 1000000",
           "legendFormat": "Est. Total",
           "refId": "A"
         }
@@ -109,7 +128,7 @@
       }
     },
     {
-      "title": "Input Tokens",
+      "title": "Input Units",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -119,7 +138,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_token_input_total[$__range])) > 0 or on() vector(0)",
+          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range])) > 0 or on() vector(0)",
           "legendFormat": "Input",
           "refId": "A"
         }
@@ -135,7 +154,7 @@
       }
     },
     {
-      "title": "Output Tokens",
+      "title": "Output Units",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -145,7 +164,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_token_output_total[$__range])) > 0 or on() vector(0)",
+          "expr": "sum(increase(api_gateway_profile_token_output_total[$__range])) > 0 or on() vector(0)",
           "legendFormat": "Output",
           "refId": "A"
         }
@@ -202,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[1h])) or vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_profile_cost_total[1h])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -219,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[$__range])) or vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_profile_cost_total[$__range])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -238,7 +257,7 @@
       }
     },
     {
-      "title": "Token Usage by Model",
+      "title": "API Usage by Model",
       "type": "barchart",
       "gridPos": {
         "h": 8,
@@ -248,12 +267,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__range]))",
+          "expr": "sum by (model) (increase(api_gateway_profile_token_input_total[$__range]))",
           "legendFormat": "{{model}} input",
           "refId": "A"
         },
         {
-          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__range]))",
+          "expr": "sum by (model) (increase(api_gateway_profile_token_output_total[$__range]))",
           "legendFormat": "{{model}} output",
           "refId": "B"
         }
@@ -286,7 +305,7 @@
           "refId": "A"
         },
         {
-          "expr": "sum(increase(ai_worker_jobs_processed_total[$__range]))",
+          "expr": "sum(increase(api_gateway_profile_requests_total[$__range]))",
           "legendFormat": "Async",
           "refId": "B"
         }
@@ -309,7 +328,7 @@
       }
     },
     {
-      "title": "Model Fallback Distribution",
+      "title": "Billing Path Distribution",
       "type": "barchart",
       "gridPos": {
         "h": 4,
@@ -319,8 +338,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (selected) (increase(api_gateway_model_fallback_total[$__range]))",
-          "legendFormat": "{{selected}}",
+          "expr": "sum by (path) (increase(api_gateway_billing_path_requests_total[$__range]))",
+          "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],
@@ -338,8 +357,9 @@
   ],
   "schemaVersion": 39,
   "tags": [
-    "agent-rate-limit",
-    "cost"
+    "api-gateway",
+    "cost",
+    "executive"
   ],
   "templating": {
     "list": []
@@ -351,5 +371,7 @@
   "refresh": "60s",
   "title": "Cost Calculator & Savings",
   "uid": "arl-cost",
-  "version": 5
+  "version": 5,
+  "timezone": "browser",
+  "description": "AI API cost estimation, pricing reference, and spend analysis."
 }

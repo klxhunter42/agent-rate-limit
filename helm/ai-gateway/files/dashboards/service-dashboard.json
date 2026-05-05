@@ -1,0 +1,1104 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "uid": "arl-service-dashboard",
+  "title": "AI Platform - Executive Overview",
+  "tags": [
+    "api-gateway",
+    "executive",
+    "service"
+  ],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "description": "Executive dashboard for AI platform cost, usage, and optimization metrics.",
+  "links": [
+    {
+      "title": "Operations",
+      "url": "/d/arl-gw-overview",
+      "type": "link",
+      "icon": "server"
+    },
+    {
+      "title": "Privacy",
+      "url": "/d/arl-pasteguard",
+      "type": "link",
+      "icon": "shield"
+    },
+    {
+      "title": "Cost",
+      "url": "/d/arl-cost",
+      "type": "link",
+      "icon": "calculator"
+    },
+    {
+      "title": "Usage",
+      "url": "/d/arl-token-usage",
+      "type": "link",
+      "icon": "bar-chart"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false,
+      "panel": {
+        "title": "Key Metrics"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "API Calls",
+      "description": "Total requests processed in the selected period",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_profile_requests_total[$__range]))",
+          "legendFormat": "API Calls",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "super-light-blue",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#3b82f6",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area",
+        "colorMode": "background_solid"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total Cost",
+      "description": "Estimated cost of API usage in the selected period",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_profile_cost_total[$__range]))",
+          "legendFormat": "USD",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "USD",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#22c55e",
+                "value": null
+              },
+              {
+                "color": "#eab308",
+                "value": 10
+              },
+              {
+                "color": "#f97316",
+                "value": 50
+              },
+              {
+                "color": "#ef4444",
+                "value": 100
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area",
+        "colorMode": "background_solid"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cost Savings",
+      "description": "Estimated savings from the optimization pipeline",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_cost_savings_total[$__range]))",
+          "legendFormat": "Saved",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "USD",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#86efac",
+                "value": null
+              },
+              {
+                "color": "#22c55e",
+                "value": 0.01
+              },
+              {
+                "color": "#15803d",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area",
+        "colorMode": "background_solid"
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Optimization Rate",
+      "description": "How much the optimization pipeline reduces API costs. Higher is better.",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 50,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#6b7280",
+                "value": null
+              },
+              {
+                "color": "#86efac",
+                "value": 5
+              },
+              {
+                "color": "#22c55e",
+                "value": 10
+              },
+              {
+                "color": "#15803d",
+                "value": 20
+              },
+              {
+                "color": "#166534",
+                "value": 30
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "API Units Processed",
+      "description": "Total input units consumed (after optimization)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range]))",
+          "legendFormat": "Input",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "purple",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#a855f7",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area",
+        "colorMode": "background_solid"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "API Units Generated",
+      "description": "Total output units produced",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_profile_token_output_total[$__range]))",
+          "legendFormat": "Output",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "dark-purple",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#7c3aed",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "graphMode": "area",
+        "colorMode": "background_solid"
+      }
+    },
+    {
+      "type": "row",
+      "title": "",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false
+    },
+    {
+      "type": "bargauge",
+      "title": "Before vs After Optimization",
+      "description": "Shows estimated API unit consumption before and after the optimization pipeline. The difference represents cost savings.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4",
+          "legendFormat": "Without Optimization",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range]))",
+          "legendFormat": "With Optimization",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Without Optimization"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#f97316",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "With Optimization"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#22c55e",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10,
+        "namePlacement": "auto",
+        "valueMode": "text"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cost Over Time by Service",
+      "description": "Cumulative cost breakdown by service profile over the selected period",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "sum by (profile) (increase(api_gateway_profile_cost_total[$__interval]))",
+          "legendFormat": "{{profile}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "USD",
+          "decimals": 4,
+          "custom": {
+            "fillOpacity": 25,
+            "gradientMode": "scheme",
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": true,
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Usage Trend",
+      "description": "API units consumed over time by service profile",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "sum by (profile) (increase(api_gateway_profile_token_input_total[$__interval]))",
+          "legendFormat": "{{profile}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 20,
+            "gradientMode": "scheme",
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 1,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": true,
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "collapsed": false
+    },
+    {
+      "type": "barchart",
+      "title": "Top 5 Services by Cost",
+      "description": "Highest spending service profiles",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(topk(5, sum by (profile) (increase(api_gateway_profile_cost_total[$__range]))))",
+          "legendFormat": "{{profile}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "USD",
+          "decimals": 2,
+          "color": {
+            "fixedColor": "#f97316",
+            "mode": "fixed"
+          },
+          "links": [
+            {
+              "title": "View billing details",
+              "url": "/d/claude-oauth-billing?var-profile=${__field.labels.profile}"
+            }
+          ]
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.5,
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Top 5 Profiles by Usage",
+      "description": "Most active profiles by combined token consumption (input + output)",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 15
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(topk(5, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range]))))",
+          "legendFormat": "{{profile}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "#3b82f6",
+            "mode": "fixed"
+          },
+          "links": [
+            {
+              "title": "View usage details",
+              "url": "/d/arl-token-usage?var-profile=${__field.labels.profile}"
+            }
+          ]
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.5,
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Cost by AI Model",
+      "description": "Cost distribution across different AI models",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 15
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_profile_cost_total[$__range]))",
+          "legendFormat": "{{model}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "USD",
+          "decimals": 4,
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [],
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "API Calls by Service",
+      "description": "Request volume over time, stacked by service profile",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "targets": [
+        {
+          "expr": "sum by (profile) (increase(api_gateway_profile_requests_total[$__interval]))",
+          "legendFormat": "{{profile}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 30,
+            "gradientMode": "scheme",
+            "stacking": {
+              "mode": "normal"
+            },
+            "lineWidth": 0,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": true,
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Savings Over Time",
+      "description": "Estimated API units saved by the optimization pipeline",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4",
+          "legendFormat": "Units Saved",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "custom": {
+            "fillOpacity": 40,
+            "gradientMode": "scheme",
+            "stacking": {
+              "mode": "none"
+            },
+            "lineWidth": 2,
+            "color": {
+              "fixedColor": "#22c55e",
+              "mode": "fixed"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#22c55e",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "collapsed": false
+    },
+    {
+      "type": "table",
+      "title": "Service Usage Detail",
+      "description": "Breakdown of all service profiles with cost, usage, and model details",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "targets": [
+        {
+          "expr": "sum by (profile, model) (increase(api_gateway_profile_requests_total[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (profile, model) (increase(api_gateway_profile_token_input_total[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (profile, model) (increase(api_gateway_profile_token_output_total[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (profile, model) (increase(api_gateway_profile_cost_total[$__range]))",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value #A": "API Calls",
+              "Value #B": "Input Units",
+              "Value #C": "Output Units",
+              "Value #D": "Cost (USD)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "filterable": true,
+            "inspect": false
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cost (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "USD"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "#f97316",
+                      "value": 1
+                    },
+                    {
+                      "color": "#ef4444",
+                      "value": 10
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "profile"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "model"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 250
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "API Calls"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Input Units"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Output Units"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": true
+        },
+        "sortBy": [
+          {
+            "displayName": "Cost (USD)",
+            "desc": true
+          }
+        ],
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

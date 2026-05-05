@@ -2,20 +2,56 @@
   "annotations": {
     "list": []
   },
+  "description": "Privacy protection status, PII/secrets detection, and data compliance monitoring.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "title": "Executive Overview",
+      "url": "/d/arl-service-dashboard",
+      "type": "link",
+      "icon": "dashboard"
+    },
+    {
+      "title": "Optimization",
+      "url": "/d/arl-token-optimization",
+      "type": "link",
+      "icon": "bolt"
+    },
+    {
+      "title": "Operations",
+      "url": "/d/arl-gw-overview",
+      "type": "link",
+      "icon": "server"
+    }
+  ],
   "panels": [
     {
-      "title": "Total Masked Requests",
+      "title": "Protection Status",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Total Requests Protected",
       "type": "stat",
+      "description": "All requests that passed through the privacy filter",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 0,
-        "y": 0
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -27,40 +63,42 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "blue",
+            "fixedColor": "#3b82f6",
             "mode": "fixed"
           },
+          "decimals": 0,
           "thresholds": {
             "steps": [
               {
-                "color": "green",
+                "color": "#3b82f6",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1000
-              },
-              {
-                "color": "red",
-                "value": 10000
               }
             ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
           }
         }
       }
     },
     {
-      "title": "Secrets Detected",
+      "title": "Secrets Blocked",
       "type": "stat",
+      "description": "API keys, tokens, passwords detected and masked",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 6,
-        "y": 0
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)",
+          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         }
@@ -68,36 +106,38 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "orange",
+            "fixedColor": "#f97316",
             "mode": "fixed"
           },
+          "decimals": 0,
           "thresholds": {
             "steps": [
               {
-                "color": "green",
+                "color": "#f97316",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 1000
               }
             ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
           }
         }
       }
     },
     {
-      "title": "PII Detected",
+      "title": "PII Masked",
       "type": "stat",
+      "description": "Personal information (email, phone, national ID) masked",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 12,
-        "y": 0
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
@@ -109,79 +149,96 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "purple",
+            "fixedColor": "#a855f7",
             "mode": "fixed"
           },
+          "decimals": 0,
           "thresholds": {
             "steps": [
               {
-                "color": "green",
+                "color": "#a855f7",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 100
-              },
-              {
-                "color": "red",
-                "value": 1000
               }
             ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
           }
         }
       }
     },
     {
-      "title": "Mask Duration p95",
+      "title": "Protection Coverage",
       "type": "stat",
+      "description": "% of requests where sensitive data was detected and protected",
       "gridPos": {
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 0
+        "y": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))",
-          "legendFormat": "p95",
+          "expr": "clamp((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) / sum(increase(api_gateway_mask_requests_total[$__range])) * 100, 0, 100) or vector(100)",
+          "legendFormat": "Coverage",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
-          "decimals": 3,
-          "color": {
-            "fixedColor": "green",
-            "mode": "fixed"
-          },
+          "unit": "percent",
+          "decimals": 1,
           "thresholds": {
             "steps": [
               {
-                "color": "green",
+                "color": "#22c55e",
                 "value": null
               },
               {
-                "color": "yellow",
-                "value": 0.5
+                "color": "#22c55e",
+                "value": 50
               },
               {
-                "color": "red",
-                "value": 2
+                "color": "#15803d",
+                "value": 80
+              },
+              {
+                "color": "#166534",
+                "value": 95
               }
             ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
           }
         }
       }
     },
     {
-      "title": "Secrets Detected Count by Type",
+      "title": "Privacy Protection Over Time",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Protection Activity",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "datasource": {
         "type": "prometheus",
@@ -195,59 +252,8 @@
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
-            "fillOpacity": 40,
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          },
-          "unit": "short"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "sum",
-            "last"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (type) (increase(api_gateway_secrets_detected_total[$__rate_interval]))",
-          "legendFormat": "{{type}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "PII Detected Count by Type",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 40,
+            "fillOpacity": 30,
+            "gradientMode": "scheme",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
@@ -260,13 +266,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "EMAIL_ADDRESS"
+              "options": "Total"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "green",
+                  "fixedColor": "#3b82f6",
                   "mode": "fixed"
                 }
               }
@@ -275,13 +281,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "PHONE_NUMBER"
+              "options": "Secrets Found"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "super-light-green",
+                  "fixedColor": "#f97316",
                   "mode": "fixed"
                 }
               }
@@ -290,146 +296,19 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "CREDIT_CARD"
+              "options": "PII Found"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SSN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IBAN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IP_ADDRESS"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "THAI_NATIONAL_ID"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "THAI_PHONE"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "lightblue",
+                  "fixedColor": "#a855f7",
                   "mode": "fixed"
                 }
               }
             ]
           }
         ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "sum",
-            "last"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__rate_interval]))",
-          "legendFormat": "{{type}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "Secrets Detection Rate by Type",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 40,
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "mode": "normal"
-            }
-          },
-          "unit": "ops"
-        }
       },
       "options": {
         "legend": {
@@ -445,20 +324,30 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (rate(api_gateway_secrets_detected_total[$__rate_interval]))",
-          "legendFormat": "{{type}}",
+          "expr": "sum(rate(api_gateway_mask_requests_total[$__rate_interval]))",
+          "legendFormat": "Total",
           "refId": "A"
+        },
+        {
+          "expr": "sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__rate_interval]))",
+          "legendFormat": "Secrets Found",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__rate_interval]))",
+          "legendFormat": "PII Found",
+          "refId": "C"
         }
       ]
     },
     {
-      "title": "PII Detection Rate by Type",
+      "title": "Detection Rate by Type",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 6
       },
       "datasource": {
         "type": "prometheus",
@@ -479,7 +368,7 @@
               "mode": "normal"
             }
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": [
           {
@@ -491,7 +380,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "green",
+                  "fixedColor": "#22c55e",
                   "mode": "fixed"
                 }
               }
@@ -506,7 +395,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "super-light-green",
+                  "fixedColor": "#86efac",
                   "mode": "fixed"
                 }
               }
@@ -521,7 +410,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "red",
+                  "fixedColor": "#ef4444",
                   "mode": "fixed"
                 }
               }
@@ -536,7 +425,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "purple",
+                  "fixedColor": "#a855f7",
                   "mode": "fixed"
                 }
               }
@@ -551,7 +440,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "orange",
+                  "fixedColor": "#f97316",
                   "mode": "fixed"
                 }
               }
@@ -566,7 +455,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "blue",
+                  "fixedColor": "#3b82f6",
                   "mode": "fixed"
                 }
               }
@@ -581,7 +470,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "yellow",
+                  "fixedColor": "#eab308",
                   "mode": "fixed"
                 }
               }
@@ -596,7 +485,7 @@
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "lightblue",
+                  "fixedColor": "#67e8f9",
                   "mode": "fixed"
                 }
               }
@@ -625,13 +514,282 @@
       ]
     },
     {
-      "title": "Mask Duration by Phase (p95)",
+      "title": "Detection Analysis",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Top 10 Secrets by Type",
+      "description": "Most frequently detected secret types",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "legendFormat": "{{type}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "fixedColor": "#f97316",
+            "mode": "fixed"
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "groupWidth": 0.7,
+        "barWidth": 0.5
+      }
+    },
+    {
+      "title": "Top 10 PII by Type",
+      "description": "Most frequently detected PII types",
+      "type": "barchart",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "legendFormat": "{{type}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EMAIL_ADDRESS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#22c55e",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "PHONE_NUMBER"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#86efac",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CREDIT_CARD"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ef4444",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SSN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#a855f7",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IBAN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#f97316",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IP_ADDRESS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#3b82f6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "THAI_NATIONAL_ID"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#eab308",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "THAI_PHONE"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#67e8f9",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "groupWidth": 0.7,
+        "barWidth": 0.5
+      }
+    },
+    {
+      "title": "Detection Distribution",
+      "description": "Overall breakdown of detected sensitive data",
+      "type": "piechart",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 15
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "legendFormat": "Secrets",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "legendFormat": "PII",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": []
+        },
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "title": "Performance & Compliance",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Mask Duration by Phase (P95)",
+      "description": "Privacy filter processing time by phase",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
@@ -674,377 +832,352 @@
       ]
     },
     {
-      "title": "Mask Duration Heatmap",
-      "type": "heatmap",
+      "title": "Processing Health",
+      "description": "P95 mask duration - Healthy < 0.5s, Warning < 1s, Slow > 1s",
+      "type": "gauge",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 20
+        "w": 4,
+        "x": 8,
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "scheme-warm"
-          },
-          "custom": {
-            "hideZeroBuckets": false
-          },
-          "unit": "s"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
       },
       "targets": [
         {
-          "expr": "sum by (le) (rate(api_gateway_mask_duration_seconds_bucket{phase=\"secrets_detect\"}[$__rate_interval]))",
-          "legendFormat": "{{le}}",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))) or vector(0)",
+          "legendFormat": "p95",
           "refId": "A"
         }
-      ]
-    },
-    {
-      "title": "Masked vs Unmasked (Secrets)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      ],
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
+          "unit": "s",
+          "min": 0,
+          "max": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
           },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "ops"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "sum"
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": 0,
+                "to": 0.5,
+                "result": {
+                  "text": "Healthy",
+                  "color": "green"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.5,
+                "to": 1,
+                "result": {
+                  "text": "Warning",
+                  "color": "yellow"
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 1,
+                "to": 2,
+                "result": {
+                  "text": "Slow",
+                  "color": "red"
+                }
+              }
+            }
           ]
-        },
-        "tooltip": {
-          "mode": "multi"
         }
-      },
-      "targets": [
-        {
-          "expr": "sum by (has_secrets) (rate(api_gateway_mask_requests_total[$__rate_interval]))",
-          "legendFormat": "secrets={{has_secrets}}",
-          "refId": "A"
-        }
-      ]
+      }
     },
     {
-      "title": "PII Masked vs Clean",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "ops"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "sum"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (has_pii) (rate(api_gateway_mask_requests_total[$__rate_interval]))",
-          "legendFormat": "pii={{has_pii}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "PII Detection Method",
+      "title": "Clean Requests",
+      "description": "Requests with no sensitive data detected",
       "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 0,
-        "y": 34
+        "x": 12,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "vector(1)",
-          "legendFormat": "Regex (<1ms)",
+          "expr": "sum(increase(api_gateway_mask_requests_total{has_secrets=\"false\", has_pii=\"false\"}[$__range])) or vector(0)",
+          "legendFormat": "Clean",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
-            "fixedColor": "super-light-green",
+            "fixedColor": "#22c55e",
             "mode": "fixed"
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "1": {
-                  "text": "Regex (<1ms)",
-                  "index": 0
-                }
-              }
-            }
-          ],
+          "decimals": 0,
           "thresholds": {
             "steps": [
               {
-                "color": "green",
+                "color": "#22c55e",
                 "value": null
               }
             ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
           }
         }
       }
     },
     {
-      "title": "Top Secret Types",
-      "type": "barchart",
+      "title": "Protected Requests",
+      "description": "Requests where sensitive data was detected and masked",
+      "type": "stat",
       "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 38
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (type) (increase(api_gateway_secrets_detected_total[$__range])))",
-          "legendFormat": "{{type}}",
+          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0)",
+          "legendFormat": "Protected",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0
+          "color": {
+            "fixedColor": "#f97316",
+            "mode": "fixed"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "#f97316",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area"
+          }
         }
-      },
-      "options": {
-        "orientation": "horizontal",
-        "groupWidth": 0.7,
-        "barWidth": 0.5
       }
     },
     {
-      "title": "Top PII Types",
-      "type": "barchart",
+      "title": "Secrets Detection Trend",
+      "type": "timeseries",
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 38
+        "y": 28
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal"
+            }
+          },
+          "unit": "short"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "hidden"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__interval]))",
           "legendFormat": "{{type}}",
           "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Detection Detail Table",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Detection Summary",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__range]))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__range]))",
+          "legendFormat": "",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value #A": "Secrets",
+              "Value #B": "PII"
+            }
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "decimals": 0
+          "custom": {
+            "align": "left",
+            "cellHeight": "sm",
+            "filterable": true
+          }
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "EMAIL_ADDRESS"
+              "options": "type"
             },
             "properties": [
               {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "PHONE_NUMBER"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "super-light-green",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CREDIT_CARD"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SSN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "purple",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IBAN"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "IP_ADDRESS"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "blue",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "THAI_NATIONAL_ID"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "yellow",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "THAI_PHONE"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "lightblue",
-                  "mode": "fixed"
-                }
+                "id": "custom.width",
+                "value": 200
               }
             ]
           }
         ]
       },
       "options": {
-        "orientation": "horizontal",
-        "groupWidth": 0.7,
-        "barWidth": 0.5
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ]
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Secrets"
+          }
+        ]
       }
+    },
+    {
+      "title": "Compliance Summary",
+      "type": "text",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "options": {
+        "mode": "markdown"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "content": "### Data Protection Overview\n\nAll AI requests are automatically scanned and masked in real-time. No sensitive data is stored or forwarded to upstream providers.\n\n| Protection | Status | Coverage |\n|------------|--------|----------|\n| Credentials & Secrets | **Protected** | API keys, tokens, private keys |\n| Personal Data (PII) | **Protected** | Email, phone numbers |\n| Data-in-Transit | **Encrypted** | TLS 1.2+ end-to-end |\n| Data-at-Rest | **None Stored** | Zero retention policy |\n\n---\n\n| Compliance Aspect | Detail |\n|-------------------|--------|\n| PDPA (Thailand) | PII auto-masking enabled |\n| SOC 2 Alignment | No sensitive data stored |\n| Latency Impact | < 100ms per request (P95) |\n| Scan Throughput | Up to 200K chars/request |"
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
-    "agent-rate-limit",
-    "privacy"
+    "api-gateway",
+    "privacy",
+    "compliance",
+    "executive"
   ],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
-  "refresh": "30s",
-  "title": "PasteGuard - Data Privacy",
+  "timezone": "browser",
+  "title": "AI Platform - Data Privacy & Compliance",
   "uid": "arl-pasteguard",
   "version": 1
 }

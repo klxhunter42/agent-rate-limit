@@ -276,9 +276,9 @@ curl -X POST https://api.anthropic.com/v1/messages \
 ┌──────────────────────────────────────────────────────────────┐
 │ x-anthropic-billing-header เป็น RESERVED KEYWORD             │
 │                                                              │
-│ ✅ CLI ตัวจริง: ใช้ได้ (Anthropic allowlist ตาม TLS FP)       │
-│ ❌ curl/Go/Python: ใช้ไม่ได้ (reserved keyword → 400)         │
-│ ❌ Gateway (Go): ใช้ไม่ได้ (same 400 error)                   │
+│ ✅ CLI ตัวจริง: ใช้ได้ (Anthropic allowlist ตาม TLS FP)      │
+│ ❌ curl/Go/Python: ใช้ไม่ได้ (reserved keyword → 400)        │
+│ ❌ Gateway (Go): ใช้ไม่ได้ (same 400 error)                  │
 │                                                              │
 │ ข้อสรุป: Anthropic ตรวจสอบ TLS fingerprint ของ caller        │
 │ เฉพาะ official CLI client เท่านั้นที่สามารถ inject ได้       │

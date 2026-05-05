@@ -1,11 +1,12 @@
 apiVersion: 1
 providers:
-  - name: default
+  - name: ai-platform
     orgId: 1
-    folder: ""
+    folder: AI Platform
     type: file
     disableDeletion: false
     editable: true
+    updateFolderAge: true
     options:
       path: /etc/grafana/provisioning/dashboards
       foldersFromFilesStructure: false
