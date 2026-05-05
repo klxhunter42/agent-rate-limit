@@ -1095,7 +1095,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
 		imgBytes, imgCount := analyzeImagePayload(payload)
-		if !isNativeImageModel(selectedModel) && !h.cfg.ZAIOpenAIModels[selectedModel] {
+		if !h.cfg.ZAIOpenAIModels[selectedModel] {
 			visionModel := selectVisionModel(imgBytes, imgCount)
 			if visionModel != selectedModel {
 				slog.Info("vision model auto-selected",
@@ -1112,41 +1112,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// Route ZAI OpenAI-format vision models through OpenAI endpoint.
-		if h.cfg.ZAIOpenAIModels[selectedModel] {
-			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
-			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
-				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
-				h.metrics.IncError("upstream")
-				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai vision proxy error: " + err.Error()})
-			}
-			return
-		}
-
-		slog.Info("vision via anthropic-compatible endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
-		// Convert URL images to base64 for Z.AI (it cannot fetch Anthropic signed URLs).
-		// Strip tools/tool_choice for multi-image requests (Z.AI error 1210).
-		if isNativeImageModel(selectedModel) {
-			var bm map[string]any
-			if json.Unmarshal(body, &bm) == nil {
-				bm = convertURLImagesToBase64(bm)
-				if nb, err := json.Marshal(bm); err == nil {
-					body = nb
-				}
-			}
-		}
-		opts := &proxy.ProxyOptions{
-			AuthMode:         decision.AuthMode,
-			UpstreamOverride: decision.UpstreamURL,
-			ExtraHeaders:     decision.ExtraHeaders,
-			OnAuthError:      oauthRefreshFn,
-			OnRateLimitError: rotateAccountFn,
-			Transparent:      transparent,
-		}
-		if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
-			slog.Error("vision proxy error", "error", err, "model", selectedModel)
+		// All Z.AI vision requests use OpenAI endpoint; Anthropic-compatible
+		// endpoint does not support image content blocks (returns error 1210).
+		slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+		if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
+			slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
 			h.metrics.IncError("upstream")
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai vision proxy error: " + err.Error()})
 		}
 		return
 	} else if hasImages && decision != nil {
@@ -1614,9 +1586,8 @@ func filterUnsupportedContent(payload map[string]any) {
 			if unsupportedContentTypes[t] {
 				continue
 			}
-			if t == "image" {
-				rewriteImageToGLMFormat(cb)
-			}
+			// Image blocks kept in Anthropic format; OpenAI path converts via convertImageBlock,
+			// Anthropic-compatible endpoint receives them as-is.
 			filtered = append(filtered, cb)
 		}
 		m["content"] = filtered
