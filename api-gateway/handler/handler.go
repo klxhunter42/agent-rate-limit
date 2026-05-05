@@ -1890,23 +1890,8 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 
 			origW := meta.Size.Width
 			origH := meta.Size.Height
-			if origW <= maxDimension && origH <= maxDimension {
-				continue
-			}
-
-			newW := maxDimension
-			newH := maxDimension
-			if origW > origH {
-				newH = origH * maxDimension / origW
-			} else {
-				newW = origW * maxDimension / origH
-			}
 
 			newImage, err := img.Process(bimg.Options{
-				Width:   newW,
-				Height:  newH,
-				Crop:    false,
-				Enlarge: false,
 				Quality: quality,
 				Type:    bimg.WEBP,
 			})
@@ -1925,7 +1910,7 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 				"compressed_bytes", len(newData),
 				"saved", len(data)-len(newData),
 				"original_size", fmt.Sprintf("%dx%d", origW, origH),
-				"new_size", fmt.Sprintf("%dx%d", newW, newH),
+				"new_size", fmt.Sprintf("%dx%d", origW, origH),
 			)
 		}
 	}
