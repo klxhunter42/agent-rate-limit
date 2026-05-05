@@ -2100,12 +2100,27 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 		} else if strings.Contains(data, `"message_delta"`) {
 			var msg struct {
+				Delta struct {
+					StopReason string `json:"stop_reason"`
+				} `json:"delta"`
 				Usage struct {
 					OutputTokens int `json:"output_tokens"`
 				} `json:"usage"`
 			}
-			if json.Unmarshal([]byte(data), &msg) == nil && msg.Usage.OutputTokens > 0 {
-				outputTokens = msg.Usage.OutputTokens
+			if json.Unmarshal([]byte(data), &msg) == nil {
+				if msg.Usage.OutputTokens > 0 {
+					outputTokens = msg.Usage.OutputTokens
+				}
+				if toolStripper != nil && msg.Delta.StopReason != "" {
+					slog.Info("glm stop_reason", "stop_reason", msg.Delta.StopReason, "model", model)
+					if msg.Delta.StopReason == "tool_use" {
+						msg.Delta.StopReason = "end_turn"
+						if newData, err := json.Marshal(msg); err == nil {
+							line = "data: " + string(newData)
+						}
+						slog.Info("glm stop_reason rewritten to end_turn")
+					}
+				}
 			}
 		}
 	}
