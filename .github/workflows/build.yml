@@ -17,7 +17,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   changes:
@@ -31,23 +30,43 @@ jobs:
       sidecar: ${{ steps.filter.outputs.sidecar }}
     steps:
       - uses: actions/checkout@v5
-      - uses: step-security/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            gateway:
-              - api-gateway/**
-              - ui/**
-            worker:
-              - ai-worker/**
-            rate-limiter:
-              - distributed-rate-limiter/**
-            dashboard:
-              - ui/**
-            rl-dashboard:
-              - distributed-rate-limiter/examples/web-dashboard/**
-            sidecar:
-              - api-gateway/sidecar/**
+          fetch-depth: 2
+      - name: Detect changes
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger: mark all as changed, build job handles filtering
+            echo "gateway=true" >> "$GITHUB_OUTPUT"
+            echo "worker=true" >> "$GITHUB_OUTPUT"
+            echo "rate-limiter=true" >> "$GITHUB_OUTPUT"
+            echo "dashboard=true" >> "$GITHUB_OUTPUT"
+            echo "rl-dashboard=true" >> "$GITHUB_OUTPUT"
+            echo "sidecar=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Tag push: build everything
+            echo "gateway=true" >> "$GITHUB_OUTPUT"
+            echo "worker=true" >> "$GITHUB_OUTPUT"
+            echo "rate-limiter=true" >> "$GITHUB_OUTPUT"
+            echo "dashboard=true" >> "$GITHUB_OUTPUT"
+            echo "rl-dashboard=true" >> "$GITHUB_OUTPUT"
+            echo "sidecar=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Push to main: detect changed paths
+          DIFF=$(git diff --name-only HEAD~1 HEAD)
+          check() {
+            local pattern="$1"
+            if echo "$DIFF" | grep -qE "$pattern"; then echo "true"; else echo "false"; fi
+          }
+          echo "gateway=$(check '^(api-gateway|ui)/')" >> "$GITHUB_OUTPUT"
+          echo "worker=$(check '^ai-worker/')" >> "$GITHUB_OUTPUT"
+          echo "rate-limiter=$(check '^distributed-rate-limiter/')" >> "$GITHUB_OUTPUT"
+          echo "dashboard=$(check '^ui/')" >> "$GITHUB_OUTPUT"
+          echo "rl-dashboard=$(check '^distributed-rate-limiter/examples/web-dashboard/')" >> "$GITHUB_OUTPUT"
+          echo "sidecar=$(check '^api-gateway/sidecar/')" >> "$GITHUB_OUTPUT"
 
   build:
     needs: changes
