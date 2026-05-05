@@ -4,7 +4,7 @@
 # =============================================================================
 
 # --- UI build stage ---
-FROM oven/bun:1 AS ui-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1 AS ui-builder
 WORKDIR /build/ui
 COPY ui/package.json ui/bun.lock ./
 RUN bun install --frozen-lockfile
@@ -29,7 +29,7 @@ RUN CGO_ENABLED=0 go build \
  -o /bin/api-gateway .
 
 # --- Runtime stage ---
-FROM alpine:3.20
+FROM --platform=$TARGETPLATFORM alpine:3.20
 
 RUN apk --no-cache add ca-certificates curl nodejs && \
  addgroup -S gateway && adduser -S gateway -G gateway
