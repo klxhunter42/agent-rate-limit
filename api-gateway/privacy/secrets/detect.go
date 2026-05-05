@@ -45,7 +45,21 @@ func DefaultDetector() *SecretDetector {
 		string(EntityAPIKeyGitLab),
 		string(EntityJWTToken),
 		string(EntityBearerToken),
+		string(EntityEnvPassword),
+		string(EntityEnvSecret),
+		string(EntityConnString),
 		string(EntityThaiID),
+		string(EntityAPIKeyGCP),
+		string(EntityAPIKeyTencent),
+		string(EntityAPIKeyAlibaba),
+		string(EntityAPIKeySlack),
+		string(EntityAPIKeyStripe),
+		string(EntityAPIKeySendGrid),
+		string(EntityEnvToken),
+		string(EntityEnvCredential),
+		string(EntityBasicAuthURL),
+		string(EntityVaultToken),
+		string(EntityAzureCredential),
 	}, 200000)
 }
 

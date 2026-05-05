@@ -125,9 +125,6 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 			}
 		case "IP_ADDRESS":
 			for _, m := range ipv4Regex.FindAllStringIndex(text, -1) {
-				if overlapsURL(urlSpans, m[0], m[1]) {
-					continue
-				}
 				entities = append(entities, masking.PIIEntity{
 					EntityType: "IP_ADDRESS",
 					Start:      m[0],

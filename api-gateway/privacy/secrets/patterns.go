@@ -5,18 +5,29 @@ import "regexp"
 type EntityType string
 
 const (
-	EntityOpenSSHKey   EntityType = "OPENSSH_PRIVATE_KEY"
-	EntityPEMKey       EntityType = "PEM_PRIVATE_KEY"
-	EntityAPIKeySK     EntityType = "API_KEY_SK"
-	EntityAPIKeyAWS    EntityType = "API_KEY_AWS"
-	EntityAPIKeyGitHub EntityType = "API_KEY_GITHUB"
-	EntityAPIKeyGitLab EntityType = "API_KEY_GITLAB"
-	EntityJWTToken     EntityType = "JWT_TOKEN"
-	EntityBearerToken  EntityType = "BEARER_TOKEN"
-	EntityEnvPassword  EntityType = "ENV_PASSWORD"
-	EntityEnvSecret    EntityType = "ENV_SECRET"
-	EntityConnString   EntityType = "CONNECTION_STRING"
-	EntityThaiID       EntityType = "THAI_NATIONAL_ID"
+	EntityOpenSSHKey      EntityType = "OPENSSH_PRIVATE_KEY"
+	EntityPEMKey          EntityType = "PEM_PRIVATE_KEY"
+	EntityAPIKeySK        EntityType = "API_KEY_SK"
+	EntityAPIKeyAWS       EntityType = "API_KEY_AWS"
+	EntityAPIKeyGitHub    EntityType = "API_KEY_GITHUB"
+	EntityAPIKeyGitLab    EntityType = "API_KEY_GITLAB"
+	EntityJWTToken        EntityType = "JWT_TOKEN"
+	EntityBearerToken     EntityType = "BEARER_TOKEN"
+	EntityEnvPassword     EntityType = "ENV_PASSWORD"
+	EntityEnvSecret       EntityType = "ENV_SECRET"
+	EntityConnString      EntityType = "CONNECTION_STRING"
+	EntityThaiID          EntityType = "THAI_NATIONAL_ID"
+	EntityAPIKeyGCP       EntityType = "API_KEY_GCP"
+	EntityAPIKeyTencent   EntityType = "API_KEY_TENCENT"
+	EntityAPIKeyAlibaba   EntityType = "API_KEY_ALIBABA"
+	EntityAPIKeySlack     EntityType = "API_KEY_SLACK"
+	EntityAPIKeyStripe    EntityType = "API_KEY_STRIPE"
+	EntityAPIKeySendGrid  EntityType = "API_KEY_SENDGRID"
+	EntityEnvToken        EntityType = "ENV_TOKEN"
+	EntityEnvCredential   EntityType = "ENV_CREDENTIAL"
+	EntityBasicAuthURL    EntityType = "BASIC_AUTH_URL"
+	EntityVaultToken      EntityType = "VAULT_TOKEN"
+	EntityAzureCredential EntityType = "AZURE_CREDENTIAL"
 )
 
 type patternSpec struct {
@@ -42,11 +53,33 @@ var allPatterns = []patternSpec{
 	{EntityBearerToken, regexp.MustCompile(`(?i)Bearer\s+[a-zA-Z0-9._-]{40,}`)},
 
 	// Environment variables
-	{EntityEnvPassword, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|_PWD)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?`)},
+	{EntityEnvPassword, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|PASSWD|_PWD|_PASS)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?`)},
 	{EntityEnvSecret, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*_SECRET\s*[=:]\s*['"]?[^\s'"]{8,}['"]?`)},
 
 	// Connection strings
 	{EntityConnString, regexp.MustCompile(`(?i)(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+`)},
+
+	// Cloud provider keys (prefixed, near-zero false positive)
+	{EntityAPIKeyGCP, regexp.MustCompile(`AIza[0-9A-Za-z_-]{35}`)},
+	{EntityAPIKeyTencent, regexp.MustCompile(`AKID[A-Za-z0-9]{32}`)},
+	{EntityAPIKeyAlibaba, regexp.MustCompile(`LTAI[A-Za-z0-9]{12,20}`)},
+
+	// SaaS platform tokens (prefixed)
+	{EntityAPIKeySlack, regexp.MustCompile(`xox[bapors]-[a-zA-Z0-9-]{10,}`)},
+	{EntityAPIKeyStripe, regexp.MustCompile(`(?:sk|rk)_live_[a-zA-Z0-9]{24,}`)},
+	{EntityAPIKeySendGrid, regexp.MustCompile(`SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}`)},
+
+	// Context-aware: token/key assignments (variable name or dict key + long value)
+	{EntityEnvToken, regexp.MustCompile(`(?i)(?:\btoken\b|[A-Za-z_][A-Za-z0-9_]*_TOKEN)['"]?\s*[=:]\s*['"][a-zA-Z0-9_.+/=-]{16,}['"]`)},
+	// Context-aware: client ID / CID / access key assignments
+	{EntityEnvCredential, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*(?:CLIENT_ID|_CID|_ACCESS_KEY)['"]?\s*[=:]\s*['"][a-zA-Z0-9_.-]{10,}['"]`)},
+
+	// HTTP Basic Auth in URLs (user:pass@host)
+	{EntityBasicAuthURL, regexp.MustCompile(`(?i)[a-z][a-z0-9+\-.]*://[^\s:/'"]{2,}:[^\s@/'"]{4,}@[^\s'"]+`)},
+	// HashiCorp Vault token (hvs. prefix)
+	{EntityVaultToken, regexp.MustCompile(`hvs\.[a-zA-Z0-9_-]{24,}`)},
+	// Azure client secret / tenant ID (UUID with Azure keyword context)
+	{EntityAzureCredential, regexp.MustCompile(`(?i)(?:AZURE|TENANT|AAD)[A-Za-z_]*(?:SECRET|KEY|PASSWORD|TOKEN|ID)\s*[=:]\s*['"][a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}['"]`)},
 
 	// Local PII (entities not covered by Presidio)
 	{EntityThaiID, regexp.MustCompile(`\b[1-8]\d{12}\b`)},

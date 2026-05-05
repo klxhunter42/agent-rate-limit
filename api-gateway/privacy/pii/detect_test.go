@@ -120,11 +120,15 @@ func TestRegexDetector_Detect(t *testing.T) {
 		}
 	})
 
-	t.Run("IP in URL not detected", func(t *testing.T) {
+	t.Run("IP in URL still detected", func(t *testing.T) {
 		result := d.Detect("https://192.168.1.1:8080/api/v1/messages")
+		found := false
 		for _, e := range result.Entities {
-			assert.NotEqual(t, "IP_ADDRESS", e.EntityType, "IP should not be detected inside URL")
+			if e.EntityType == "IP_ADDRESS" {
+				found = true
+			}
 		}
+		assert.True(t, found, "IP inside URL should still be detected")
 	})
 
 	t.Run("phone outside URL still detected", func(t *testing.T) {

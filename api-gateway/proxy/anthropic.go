@@ -1971,42 +1971,6 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		}
 	}
 
-	// Convert GLM <details><summary> HTML to markdown.
-	if strings.HasPrefix(model, "glm-") {
-		body = convertHTMLDetails(body)
-	}
-
-	// Filter out server_tool_use content blocks from non-stream response.
-	var respObj map[string]any
-	if json.Unmarshal(body, &respObj) == nil {
-		if content, ok := respObj["content"].([]any); ok {
-			filtered := make([]any, 0, len(content))
-			for _, block := range content {
-				if cb, ok := block.(map[string]any); ok {
-					t, _ := cb["type"].(string)
-					if t == "server_tool_use" || t == "server_tool_result" {
-						continue
-					}
-					// Strip raw <tool_use> XML from GLM text blocks.
-					if strings.HasPrefix(model, "glm-") && t == "text" {
-						if txt, _ := cb["text"].(string); txt != "" {
-							if clean := toolUseBlockRe.ReplaceAllString(txt, ""); clean != txt {
-								cb["text"] = clean
-							}
-						}
-					}
-				}
-				filtered = append(filtered, block)
-			}
-			if len(filtered) != len(content) {
-				respObj["content"] = filtered
-				if newBody, err := json.Marshal(respObj); err == nil {
-					body = newBody
-				}
-			}
-		}
-	}
-
 	// Validate JSON before writing to client. If upstream sent truncated JSON
 	// (e.g. connection reset mid-body), wrap it in a valid error response so
 	// the client gets parseable JSON instead of "Unexpected EOF".
@@ -2066,12 +2030,6 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
-	var lastOpenBlockIndex = -1
-	filteredBlocks := make(map[int]bool)
-	var toolStripper *toolUseStripper
-	if strings.HasPrefix(model, "glm-") {
-		toolStripper = &toolUseStripper{}
-	}
 
 	for scanner.Scan() {
 		if !ttfbRecorded {
@@ -2138,35 +2096,6 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 		}
 
-		// Strip raw <tool_use> XML that GLM models emit as plain text.
-		if toolStripper != nil && strings.Contains(data, "content_block_delta") {
-			var evt struct {
-				Type  string `json:"type"`
-				Index int    `json:"index"`
-				Delta struct {
-					Type string `json:"type"`
-					Text string `json:"text,omitempty"`
-				} `json:"delta"`
-			}
-			if json.Unmarshal([]byte(data), &evt) == nil && evt.Delta.Text != "" {
-				clean := toolStripper.Feed(evt.Delta.Text)
-				if clean == "" {
-					continue
-				}
-				if clean != evt.Delta.Text {
-					evt.Delta.Text = clean
-					if newData, err := json.Marshal(evt); err == nil {
-						line = "data: " + string(newData)
-					}
-				}
-			}
-		}
-		if toolStripper != nil && strings.Contains(data, "content_block_stop") {
-			if remaining := toolStripper.Flush(); remaining != "" {
-				escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			}
-		}
 
 		// Flush unmasker buffer at content block boundaries to prevent
 		// cross-block contamination (e.g. text buffer leaking into thinking).
@@ -2174,50 +2103,8 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			if remaining := unmasker.Flush(); remaining != "" {
 				escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-				unmaskHits++
-			}
-		}
-
-		// Filter out server_tool_use and server_tool_result content blocks from upstream response.
-		// Z.AI includes these (e.g. built-in webReader) but the result payload can exceed
-		// the SSE line scanner limit and cause JSON parse errors.
-		// Track block indices to also skip their delta/stop events.
-		if strings.Contains(data, `"content_block_start"`) {
-			var cbs struct {
-				Index        int `json:"index"`
-				ContentBlock struct {
-					Type string `json:"type"`
-				} `json:"content_block"`
-			}
-			if json.Unmarshal([]byte(data), &cbs) == nil {
-				lastOpenBlockIndex = cbs.Index
-				if cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result" {
-					filteredBlocks[cbs.Index] = true
-					slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
-					continue
 				}
 			}
-		}
-		if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
-			var idxEvt struct {
-				Index int `json:"index"`
-			}
-			if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
-				if strings.Contains(data, `"content_block_stop"`) {
-					lastOpenBlockIndex = -1
-				}
-				continue
-			}
-		}
-		// Track content_block_stop to know when blocks are closed cleanly.
-		if strings.Contains(data, `"content_block_stop"`) {
-			var idxEvt struct {
-				Index int `json:"index"`
-			}
-			if json.Unmarshal([]byte(data), &idxEvt) == nil && idxEvt.Index == lastOpenBlockIndex {
-				lastOpenBlockIndex = -1
-			}
-		}
 
 		// Relay to client.
 		fmt.Fprintln(w, line)
@@ -2254,15 +2141,8 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				if msg.Usage.OutputTokens > 0 {
 					outputTokens = msg.Usage.OutputTokens
 				}
-				if toolStripper != nil && msg.Delta.StopReason != "" {
+				if msg.Delta.StopReason != "" {
 					slog.Info("glm stop_reason", "stop_reason", msg.Delta.StopReason, "model", model)
-					if msg.Delta.StopReason == "tool_use" {
-						msg.Delta.StopReason = "end_turn"
-						if newData, err := json.Marshal(msg); err == nil {
-							line = "data: " + string(newData)
-						}
-						slog.Info("glm stop_reason rewritten to end_turn")
-					}
 				}
 			}
 		}
@@ -2270,23 +2150,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	if err := scanner.Err(); err != nil {
 		isClientGone := ctx.Err() != nil
-		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "open_block", lastOpenBlockIndex, "elapsed", time.Since(streamStart).Round(time.Millisecond))
+		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "elapsed", time.Since(streamStart).Round(time.Millisecond))
 		if isClientGone {
 			return nil
 		}
-		// Flush toolStripper buffer before closing.
-		if toolStripper != nil {
-			if remaining := toolStripper.Flush(); remaining != "" {
-				escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", max(lastOpenBlockIndex, 0), string(escaped))
-			}
-		}
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
-		}
-		// Close any open content block before sending message-level events.
-		if lastOpenBlockIndex >= 0 {
-			fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":%d}\n\n", lastOpenBlockIndex)
 		}
 		fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
