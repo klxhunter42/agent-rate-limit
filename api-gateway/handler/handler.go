@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -878,6 +882,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				return "none"
 			}(),
 		)
+
+		// Compress large base64 images (>500KB base64 data) before dispatch.
+		// Only compresses images exceeding 1024px on any dimension.
+		if decision != nil && decision.ProviderID == "zai" {
+			const (
+				imgCompressThreshold = 500 * 1024 // 500KB of base64 data
+				imgMaxDimension      = 1024
+				imgJPEGQuality       = 85
+			)
+			if n, saved := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
+				slog.Info("large images compressed", "count", n, "bytes_saved", saved)
+			}
+		}
 	}
 
 	// Re-encode payload after modifications.
@@ -1246,43 +1263,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// glm-4.6v uses Anthropic-compatible endpoint (same billing pool as text).
-		// Only non-native models needing OpenAI format go through openaiProxy.
+		// Vision via Z.AI proxy.
 		if isNativeImageModel(selectedModel) {
-			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body),
-				"req_headers", map[string]string{
-					"content-type":      r.Header.Get("Content-Type"),
-					"anthropic-version": r.Header.Get("anthropic-version"),
-					"anthropic-beta":    r.Header.Get("anthropic-beta"),
-					"x-app":             r.Header.Get("x-app"),
-					"user-agent":        r.Header.Get("User-Agent"),
-					"auth_mode": func() string {
-						if decision != nil {
-							return decision.AuthMode
-						}
-						return ""
-					}(),
-					"session_id": r.Header.Get("X-Claude-Code-Session-Id"),
-				},
-			)
-			bodyPreview := string(body[:min(2000, len(body))])
-			slog.Info("vision body preview", "body_preview", bodyPreview)
-			if h.cfg.DebugMode {
-				var dbgMap map[string]any
-				if json.Unmarshal(body, &dbgMap) == nil {
-					var keys []string
-					for k := range dbgMap {
-						keys = append(keys, k)
-					}
-					slog.Info("debug vision body keys", "top_keys", keys, "stream", dbgMap["stream"], "max_tokens", dbgMap["max_tokens"], "model", dbgMap["model"], "has_system", dbgMap["system"] != nil)
-				}
-			}
+			slog.Info("vision via zai proxy", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, true, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
 			}
-		} else {
 			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
 				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
@@ -1842,6 +1830,123 @@ func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int
 	return totalBytes, imageCount
 }
 
+// compressLargeImages walks the payload and compresses base64 images that exceed
+// compressThreshold bytes of raw base64 data. Compressed images are resized to
+// maxDimension on their longest side and re-encoded as JPEG at the specified quality.
+// Returns the number of images compressed and bytes saved.
+func compressLargeImages(payload map[string]any, compressThreshold int, maxDimension int, jpegQuality int) (compressed int, savedBytes int) {
+	const (
+		maxDimensionDefault = 1024
+		jpegQualityDefault  = 85
+	)
+	if maxDimension <= 0 {
+		maxDimension = maxDimensionDefault
+	}
+	if jpegQuality <= 0 || jpegQuality > 100 {
+		jpegQuality = jpegQualityDefault
+	}
+
+	msgs, ok := payload["messages"].([]any)
+	if !ok {
+		return 0, 0
+	}
+	for _, msg := range msgs {
+		m, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+		content, ok := m["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, block := range content {
+			cb, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			t, _ := cb["type"].(string)
+			if t != "image" {
+				continue
+			}
+			src, ok := cb["source"].(map[string]any)
+			if !ok {
+				continue
+			}
+			mediaType, _ := src["media_type"].(string)
+			data, _ := src["data"].(string)
+			if data == "" || len(data) < compressThreshold {
+				continue
+			}
+			decoded, err := base64.StdEncoding.DecodeString(data)
+			if err != nil {
+				decoded, err = base64.RawStdEncoding.DecodeString(data)
+				if err != nil {
+					slog.Debug("image base64 decode failed, skip", "media_type", mediaType, "error", err)
+					continue
+				}
+			}
+
+			img, _, err := image.Decode(bytes.NewReader(decoded))
+			if err != nil {
+				slog.Debug("image decode failed, skip", "media_type", mediaType, "error", err)
+				continue
+			}
+
+			bounds := img.Bounds()
+			origW := bounds.Dx()
+			origH := bounds.Dy()
+			if origW <= maxDimension && origH <= maxDimension {
+				continue
+			}
+
+			var newW, newH int
+			if origW > origH {
+				newW = maxDimension
+				newH = origH * maxDimension / origW
+			} else {
+				newH = maxDimension
+				newW = origW * maxDimension / origH
+			}
+
+			resized := resizeImage(img, newW, newH)
+
+			var buf bytes.Buffer
+			if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: jpegQuality}); err != nil {
+				slog.Debug("jpeg encode failed, skip", "error", err)
+				continue
+			}
+
+			newData := base64.StdEncoding.EncodeToString(buf.Bytes())
+			src["data"] = newData
+			src["media_type"] = "image/jpeg"
+			compressed++
+			savedBytes += len(data) - len(newData)
+			slog.Info("image compressed",
+				"original_bytes", len(data),
+				"compressed_bytes", len(newData),
+				"saved", len(data)-len(newData),
+				"original_size", fmt.Sprintf("%dx%d", origW, origH),
+				"new_size", fmt.Sprintf("%dx%d", newW, newH),
+			)
+		}
+	}
+	return compressed, savedBytes
+}
+
+// resizeImage performs a bilinear resize using stdlib only.
+func resizeImage(img image.Image, w, h int) image.Image {
+	srcBounds := img.Bounds()
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			srcX := srcBounds.Min.X + (x*srcBounds.Dx())/w
+			srcY := srcBounds.Min.Y + (y*srcBounds.Dy())/h
+			dst.Set(x, y, img.At(srcX, srcY))
+		}
+	}
+	return dst
+}
+
 // selectVisionModel chooses the best vision model based on total image payload
 // size and count. Uses a score combining both factors:
 //
@@ -1854,7 +1959,6 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 
 // isNativeImageModel returns true if the model natively supports image input
 // and should not be overridden by vision auto-selection.
-
 
 func isNativeImageModel(model string) bool {
 	switch model {

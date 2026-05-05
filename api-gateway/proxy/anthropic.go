@@ -250,122 +250,6 @@ func HasImageContent(payload map[string]any) bool {
 	return false
 }
 
-// ProxyNativeVision sends a vision request to the native Zhipu API endpoint.
-// It converts Anthropic format to OpenAI/Zhipu format and converts the response back.
-func (p *AnthropicProxy) ProxyNativeVision(w http.ResponseWriter, r *http.Request, apiKey string, body []byte, model string, isStream bool, feedback FeedbackFunc, maskResult *privacy.MaskResult) error {
-	// Convert Anthropic payload to Zhipu OpenAI format.
-	zhipuReq, err := AnthropicToOpenAI(body, model, p.metrics, "")
-	if err != nil {
-		return fmt.Errorf("convert to zhipu format: %w", err)
-	}
-
-	zhipuBody, err := json.Marshal(zhipuReq)
-	if err != nil {
-		return fmt.Errorf("marshal zhipu request: %w", err)
-	}
-
-	// Debug: log converted payload structure (truncate base64 data).
-	debugReq := make(map[string]any)
-	for k, v := range zhipuReq {
-		debugReq[k] = v
-	}
-	if msgs, ok := debugReq["messages"].([]map[string]any); ok {
-		debugMsgs := make([]map[string]any, len(msgs))
-		for i, m := range msgs {
-			dm := map[string]any{"role": m["role"]}
-			switch c := m["content"].(type) {
-			case string:
-				if len(c) > 200 {
-					dm["content"] = c[:200] + "...(truncated)"
-				} else {
-					dm["content"] = c
-				}
-			case []map[string]any:
-				parts := make([]map[string]any, len(c))
-				for j, p := range c {
-					dp := map[string]any{"type": p["type"]}
-					if p["type"] == "text" {
-						if t, ok := p["text"].(string); ok && len(t) > 100 {
-							dp["text"] = t[:100] + "...(truncated)"
-						} else {
-							dp["text"] = p["text"]
-						}
-					} else if p["type"] == "image_url" {
-						if iu, ok := p["image_url"].(map[string]any); ok {
-							if u, ok := iu["url"].(string); ok && len(u) > 80 {
-								dp["image_url"] = u[:80] + "...(truncated)"
-							} else {
-								dp["image_url"] = iu["url"]
-							}
-						}
-					}
-					parts[j] = dp
-				}
-				dm["content_type"] = fmt.Sprintf("[]map (%d parts)", len(c))
-				dm["content_preview"] = parts
-			default:
-				dm["content_type"] = fmt.Sprintf("%T", c)
-			}
-			debugMsgs[i] = dm
-		}
-		debugReq["messages"] = debugMsgs
-	}
-	slog.Info("vision request payload debug", "payload", debugReq)
-
-	upstreamURL := p.cfg.NativeVisionURL
-
-	// Estimate input tokens for budget tracking.
-	estInput := tokenizer.EstimateTokens(string(body))
-	modelCap := tokenizer.GetModelCapabilities(model)
-	slog.Debug("vision request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "provider", modelCap.Provider)
-
-	for attempt := 0; attempt <= p.cfg.UpstreamMaxRetries; attempt++ {
-		if attempt > 0 {
-			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
-			if backoff > 5*time.Minute {
-				backoff = 5 * time.Minute
-			}
-			slog.Warn("vision upstream 429, retrying", "attempt", attempt, "backoff", backoff)
-			select {
-			case <-time.After(backoff):
-			case <-r.Context().Done():
-				return fmt.Errorf("request cancelled during retry: %w", r.Context().Err())
-			}
-		}
-
-		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(zhipuBody))
-		if err != nil {
-			return fmt.Errorf("create vision request: %w", err)
-		}
-		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-		httpReq.ContentLength = int64(len(zhipuBody))
-
-		start := time.Now()
-		resp, err := p.client.Do(httpReq)
-		rtt := time.Since(start)
-		if err != nil {
-			return fmt.Errorf("vision upstream call failed: %w", err)
-		}
-
-		isLastAttempt := attempt == p.cfg.UpstreamMaxRetries
-		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
-			feedback(resp.StatusCode, rtt, resp.Header)
-		}
-
-		if resp.StatusCode == 429 && attempt < p.cfg.UpstreamMaxRetries {
-			resp.Body.Close()
-			p.metrics.Inc429()
-			continue
-		}
-
-		// Convert Zhipu response back to Anthropic format.
-		return p.convertOpenAIResponse(w, resp, model, isStream, maskResult)
-	}
-
-	return fmt.Errorf("vision upstream returned no response after %d retries", p.cfg.UpstreamMaxRetries)
-}
-
 // AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
 // Z.AI vision API only accepts "user" and "assistant" roles, so system prompts are prepended
 // to the first user message. Unsupported content types (server_tool_use, tool_use, etc.) are filtered.
@@ -1993,6 +1877,9 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		return nil
 	}
 
+	// Filter server_tool_use and server_tool_result blocks from response content.
+	body = filterServerToolBlocks(body)
+
 	// Write headers only after body is fully buffered so errors above can still
 	// return a proper JSON error to the caller without "headers already sent".
 	copyResponseHeaders(w, resp)
@@ -2030,6 +1917,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
+	filteredBlocks := make(map[int]bool)
 
 	for scanner.Scan() {
 		if !ttfbRecorded {
@@ -2037,6 +1925,32 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			ttfbRecorded = true
 		}
 		line := scanner.Text()
+
+		// Filter out server_tool_use and server_tool_result content blocks.
+		if strings.HasPrefix(line, "data: ") {
+			data := line[6:]
+			if strings.Contains(data, `"content_block_start"`) {
+				var cbs struct {
+					Index        int `json:"index"`
+					ContentBlock struct {
+						Type string `json:"type"`
+					} `json:"content_block"`
+				}
+				if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
+					filteredBlocks[cbs.Index] = true
+					slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
+					continue
+				}
+			}
+			if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
+				var idxEvt struct {
+					Index int `json:"index"`
+				}
+				if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
+					continue
+				}
+			}
+		}
 
 		// Parse SSE data lines for unmasking and token tracking.
 		if !strings.HasPrefix(line, "data: ") {
@@ -2096,15 +2010,14 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 		}
 
-
 		// Flush unmasker buffer at content block boundaries to prevent
 		// cross-block contamination (e.g. text buffer leaking into thinking).
 		if unmasker != nil && strings.Contains(data, `"content_block_stop"`) {
 			if remaining := unmasker.Flush(); remaining != "" {
 				escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-				}
 			}
+		}
 
 		// Relay to client.
 		fmt.Fprintln(w, line)
@@ -2193,6 +2106,37 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 // convertHTMLDetails converts <details><summary> HTML in text content blocks to markdown.
 // Only applied for GLM models that emit these tags as formatting noise.
+// filterServerToolBlocks removes server_tool_use and server_tool_result content blocks
+// from a non-stream response body so the client never sees "Unsupported content type" warnings.
+func filterServerToolBlocks(body []byte) []byte {
+	var resp map[string]any
+	if json.Unmarshal(body, &resp) != nil {
+		return body
+	}
+	content, ok := resp["content"].([]any)
+	if !ok {
+		return body
+	}
+	filtered := make([]any, 0, len(content))
+	for _, block := range content {
+		if m, ok := block.(map[string]any); ok {
+			if t, _ := m["type"].(string); t == "server_tool_use" || t == "server_tool_result" {
+				continue
+			}
+		}
+		filtered = append(filtered, block)
+	}
+	if len(filtered) == len(content) {
+		return body
+	}
+	resp["content"] = filtered
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
 func convertHTMLDetails(body []byte) []byte {
 	var resp map[string]any
 	if json.Unmarshal(body, &resp) != nil {

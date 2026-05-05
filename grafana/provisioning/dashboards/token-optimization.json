@@ -181,7 +181,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -524,12 +524,12 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "legendFormat": "Without Optimization"
         },
         {
-          "expr": "(sum(increase(api_gateway_profile_token_input_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
           "refId": "B",
           "legendFormat": "With Optimization"
         }
@@ -604,7 +604,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4 / (sum(rate(api_gateway_profile_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4) * 100, 0, 100)",
+          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4) * 100, 0, 100)",
           "refId": "A"
         }
       ],

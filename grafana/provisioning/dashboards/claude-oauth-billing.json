@@ -385,8 +385,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__interval]))",
-          "legendFormat": "{{profile}} / {{model}}",
+          "expr": "sum(rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__interval]))",
+          "legendFormat": "requests",
           "refId": "A"
         }
       ],
@@ -410,13 +410,13 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_input_total[$__interval]))",
-          "legendFormat": "{{profile}}/{{model}} in",
+          "expr": "sum by (model) (rate(api_gateway_token_input_total[$__interval]))",
+          "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "sum by (profile, model) (rate(api_gateway_profile_token_output_total[$__interval]))",
-          "legendFormat": "{{profile}}/{{model}} out",
+          "expr": "sum by (model) (rate(api_gateway_token_output_total[$__interval]))",
+          "legendFormat": "{{model}} out",
           "refId": "B"
         }
       ],
@@ -542,8 +542,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__interval])) * 3600",
-          "legendFormat": "{{profile}} $/hr",
+          "expr": "sum by (model) (rate(api_gateway_cost_total[$__interval])) * 3600",
+          "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }
       ],
@@ -565,7 +565,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600",
+          "expr": "sum by (model) (rate(api_gateway_cost_total[$__interval])) * 3600",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }

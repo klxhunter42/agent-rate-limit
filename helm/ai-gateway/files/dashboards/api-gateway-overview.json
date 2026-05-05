@@ -169,7 +169,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_token_input_total[$__interval])",
+          "expr": "rate(api_gateway_token_input_total[$__interval])",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -191,7 +191,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_token_output_total[$__interval])",
+          "expr": "rate(api_gateway_token_output_total[$__interval])",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -214,8 +214,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_upstream_429_total[$__interval]))",
-          "legendFormat": "{{model}}",
+          "expr": "sum(rate(api_gateway_upstream_429_total[$__interval]))",
+          "legendFormat": "429s/s",
           "refId": "A"
         }
       ],
@@ -277,7 +277,7 @@
       "targets": [
         {
           "expr": "api_gateway_adaptive_limit",
-          "legendFormat": "{{model}}",
+          "legendFormat": "{{status}}",
           "refId": "A"
         }
       ]
@@ -474,8 +474,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_upstream_retries_total[$__interval]))",
-          "legendFormat": "{{model}}",
+          "expr": "sum(rate(api_gateway_upstream_retries_total[$__interval]))",
+          "legendFormat": "Retries/s",
           "refId": "A"
         }
       ],
@@ -564,7 +564,7 @@
       "collapsed": false
     },
     {
-      "title": "Requests by Profile",
+      "title": "Requests by Status",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -574,8 +574,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
-          "legendFormat": "{{profile}}",
+          "expr": "sum by (status) (rate(api_gateway_request_latency_seconds_count{path!~\"/health|/metrics\"}[$__interval]))",
+          "legendFormat": "{{status}}",
           "refId": "A"
         }
       ],
@@ -589,7 +589,7 @@
       }
     },
     {
-      "title": "API Units by Profile",
+      "title": "API Units by Model",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -599,13 +599,13 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval]))",
-          "legendFormat": "{{profile}} in",
+          "expr": "sum by (model) (rate(api_gateway_token_input_total[$__interval]))",
+          "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval]))",
-          "legendFormat": "{{profile}} out",
+          "expr": "sum by (model) (rate(api_gateway_token_output_total[$__interval]))",
+          "legendFormat": "{{model}} out",
           "refId": "B"
         }
       ],
@@ -616,7 +616,7 @@
       }
     },
     {
-      "title": "Cost by Profile",
+      "title": "Cost by Model",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -626,8 +626,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (profile) (rate(api_gateway_profile_cost_total[$__interval]))",
-          "legendFormat": "{{profile}}",
+          "expr": "sum by (model) (rate(api_gateway_cost_total[$__interval]))",
+          "legendFormat": "{{model}}",
           "refId": "A"
         }
       ],

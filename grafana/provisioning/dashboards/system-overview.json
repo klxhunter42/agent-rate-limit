@@ -323,7 +323,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_profile_requests_total[$__interval])",
+          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval])",
           "legendFormat": "Processed",
           "refId": "A"
         },

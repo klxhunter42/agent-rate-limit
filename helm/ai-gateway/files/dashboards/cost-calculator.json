@@ -52,7 +52,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_cost_total[$__range])) or vector(0)",
+          "expr": "sum(increase(api_gateway_cost_total[$__range])) or vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -95,7 +95,7 @@
       },
       "targets": [
         {
-          "expr": "((sum(increase(api_gateway_profile_token_input_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 1.0 + (sum(increase(api_gateway_profile_token_output_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 3.2 + (sum(increase(api_gateway_profile_token_input_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 0.6 + (sum(increase(api_gateway_profile_token_output_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.07 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.4 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 8.9 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 0.2 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_profile_token_input_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_profile_token_output_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 4.5\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 75\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 3\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_profile_token_input_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 0.8\n+ (sum(increase(api_gateway_profile_token_output_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 4) / 1000000",
+          "expr": "((sum(increase(api_gateway_token_input_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 1.0 + (sum(increase(api_gateway_token_output_total{model=~\"glm-5.1|glm-5-turbo|glm-5\"}[$__range])) or vector(0)) * 3.2 + (sum(increase(api_gateway_token_input_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 0.6 + (sum(increase(api_gateway_token_output_total{model=~\"glm-4.7|glm-4.6|glm-4.5\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.07 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.7-flashx\"}[$__range])) or vector(0)) * 0.4 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 2.2 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-x\"}[$__range])) or vector(0)) * 8.9 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 0.2 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-air\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_token_input_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 1.1 + (sum(increase(api_gateway_token_output_total{model=\"glm-4.5-airx\"}[$__range])) or vector(0)) * 4.5\n+ (sum(increase(api_gateway_token_input_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_token_output_total{model=~\"claude-opus-4.*\"}[$__range])) or vector(0)) * 75\n+ (sum(increase(api_gateway_token_input_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 3\n+ (sum(increase(api_gateway_token_output_total{model=~\"claude-sonnet-4.*\"}[$__range])) or vector(0)) * 15\n+ (sum(increase(api_gateway_token_input_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 0.8\n+ (sum(increase(api_gateway_token_output_total{model=~\"claude-haiku-4.*\"}[$__range])) or vector(0)) * 4) / 1000000",
           "legendFormat": "Est. Total",
           "refId": "A"
         }
@@ -138,7 +138,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_input_total[$__range])) > 0 or on() vector(0)",
+          "expr": "sum(increase(api_gateway_token_input_total[$__range])) > 0 or on() vector(0)",
           "legendFormat": "Input",
           "refId": "A"
         }
@@ -164,7 +164,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_profile_token_output_total[$__range])) > 0 or on() vector(0)",
+          "expr": "sum(increase(api_gateway_token_output_total[$__range])) > 0 or on() vector(0)",
           "legendFormat": "Output",
           "refId": "A"
         }
@@ -221,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_profile_cost_total[1h])) or vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_cost_total[1h])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_profile_cost_total[$__range])) or vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_cost_total[$__range])) or vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -267,12 +267,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_profile_token_input_total[$__range]))",
+          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__range]))",
           "legendFormat": "{{model}} input",
           "refId": "A"
         },
         {
-          "expr": "sum by (model) (increase(api_gateway_profile_token_output_total[$__range]))",
+          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__range]))",
           "legendFormat": "{{model}} output",
           "refId": "B"
         }
@@ -305,7 +305,7 @@
           "refId": "A"
         },
         {
-          "expr": "(sum(increase(api_gateway_profile_requests_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count[$__range]))) or on() vector(0)",
           "legendFormat": "Async",
           "refId": "B"
         }
