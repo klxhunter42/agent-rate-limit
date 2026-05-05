@@ -1626,6 +1626,11 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 		}
 		delete(payload, f)
 	}
+	// Strip tools/tool_choice for GLM models (Z.AI rejects them with error 1210).
+	if strings.HasPrefix(model, "glm-") {
+		delete(payload, "tools")
+		delete(payload, "tool_choice")
+	}
 	// Strip thinking params for models that don't support extended thinking.
 	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
 		delete(payload, "thinking")

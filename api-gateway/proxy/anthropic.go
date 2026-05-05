@@ -488,7 +488,8 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 	}
 	if stream, ok := src["stream"].(bool); ok {
 		result["stream"] = stream
-		if stream {
+		// Z.AI does not support stream_options (error 1210).
+		if stream && !strings.HasPrefix(model, "glm-") {
 			result["stream_options"] = map[string]any{"include_usage": true}
 		}
 	}

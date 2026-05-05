@@ -31,17 +31,17 @@
 A **self-hosted AI gateway** that sits between your AI clients (Claude Code, CI/CD, agent frameworks) and 18 AI providers. One endpoint, automatic fallback, built-in rate limiting, token optimization, and privacy masking.
 
 ```
-Your Agents                    Agent Rate Limit                     AI Providers
-┌──────────┐                  ┌─────────────────┐                 ┌──────────┐
-│Claude Code│ ─── Anthropic ─▶│                 │── Anthropic ──▶│ Z.AI     │
-│CI/CD     │ ─── OpenAI ────▶│  API Gateway    │── OpenAI ─────▶│ OpenAI   │
-│Batch Jobs│ ─── Async ─────▶│  (Go / chi)     │── Gemini ─────▶│ Claude   │
-│Web Chat  │ ─── REST ──────▶│                 │── Bearer ─────▶│ Gemini   │
-└──────────┘                  │  Optimizer      │                 │ OpenRouter│
-                              │  PasteGuard     │                 │ Qwen     │
-                              │  Vision Router  │                 │ DeepSeek │
-                              └─────────────────┘                 │ + 10 more│
-                                                                  └──────────┘
+Your Agents                    Agent Rate Limit                   AI Providers
+┌───────────┐                 ┌─────────────────┐                ┌───────────┐
+│Claude Code│ ─── Anthropic ─▶│                 │── Anthropic ──▶│ Z.AI      │
+│CI/CD      │ ─── OpenAI ────▶│  API Gateway    │── OpenAI ─────▶│ OpenAI    │
+│Batch Jobs │ ─── Async ─────▶│  (Go / chi)     │── Gemini ─────▶│ Claude    │
+│Web Chat   │ ─── REST ──────▶│                 │── Bearer ─────▶│ Gemini    │
+└───────────┘                 │  Optimizer      │                │ OpenRouter│
+                              │  PasteGuard     │                │ Qwen      │
+                              │  Vision Router  │                │ DeepSeek  │
+                              └─────────────────┘                │ + 10 more │
+                                                                 └───────────┘
 ```
 
 <br/>
