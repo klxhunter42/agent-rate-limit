@@ -1420,6 +1420,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		}
 		lastErrBody = errBody
 		lastErrStatus = resp.StatusCode
+		if resp.StatusCode >= 400 {
+			slog.Warn("upstream error response", "status", resp.StatusCode, "model", model,
+				"body", string(errBody[:min(500, len(errBody))]))
+		}
 
 		// If billing was injected and upstream rejected with reserved keyword,
 		// return early so handler can fall back to sidecar.

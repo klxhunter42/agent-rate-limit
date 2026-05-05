@@ -736,3 +736,186 @@ func TestSelectVisionModel(t *testing.T) {
 		})
 	}
 }
+
+func TestStripUnsupportedFields_GLMMustRemoveOutputConfig(t *testing.T) {
+	payload := map[string]any{
+		"model":    "glm-5.1",
+		"messages": []any{},
+		"system":   "you are helpful",
+		// Fields Claude Code sends that Z.AI rejects with 1210.
+		"tools":          []any{},
+		"tool_choice":    "auto",
+		"thinking":       map[string]any{"type": "enabled", "budget_tokens": 5000},
+		"budget_tokens":  5000,
+		"effort":         "high",
+		"stream_options": map[string]any{"include_usage": true},
+		"metadata":       map[string]any{"user_id": "abc"},
+		"output_config":  map[string]any{"effort": "high"},
+		"max_tokens":     4096,
+	}
+
+	stripUnsupportedFields(payload, false, "glm-5.1")
+
+	// All these must be gone for GLM models.
+	removed := []string{"tools", "tool_choice", "thinking", "budget_tokens",
+		"effort", "stream_options", "metadata", "output_config"}
+	for _, f := range removed {
+		_, exists := payload[f]
+		assert.False(t, exists, "field %q should be stripped for glm-5.1", f)
+	}
+
+	// These must survive.
+	assert.Equal(t, "glm-5.1", payload["model"])
+	assert.Equal(t, 4096, payload["max_tokens"])
+}
+
+func TestStripUnsupportedFields_NonGLMKeepsFields(t *testing.T) {
+	payload := map[string]any{
+		"model":         "claude-sonnet-4-6",
+		"output_config": map[string]any{"effort": "high"},
+		"thinking":      map[string]any{"type": "enabled"},
+	}
+
+	stripUnsupportedFields(payload, false, "claude-sonnet-4-6")
+
+	_, hasOC := payload["output_config"]
+	_, hasThinking := payload["thinking"]
+	assert.True(t, hasOC, "output_config should survive for non-GLM models")
+	assert.True(t, hasThinking, "thinking should survive for non-GLM models")
+}
+
+func TestFilterUnsupportedContent_StripsServerToolUseFromMessages(t *testing.T) {
+	payload := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "text", "text": "hello"},
+					map[string]any{"type": "server_tool_use", "id": "st_1", "name": "web_search", "input": map[string]any{}},
+				},
+			},
+		},
+	}
+
+	filterUnsupportedContent(payload)
+
+	msgs := payload["messages"].([]any)
+	content := msgs[0].(map[string]any)["content"].([]any)
+	assert.Len(t, content, 1, "server_tool_use should be removed from messages")
+	assert.Equal(t, "text", content[0].(map[string]any)["type"])
+}
+
+func TestFilterUnsupportedContent_StripsCacheControlFromSystem(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{
+				"type":          "text",
+				"text":          "you are helpful",
+				"cache_control": map[string]any{"type": "ephemeral"},
+			},
+		},
+		"messages": []any{},
+	}
+
+	filterUnsupportedContent(payload)
+
+	sys := payload["system"].([]any)
+	block := sys[0].(map[string]any)
+	_, hasCC := block["cache_control"]
+	assert.False(t, hasCC, "cache_control should be stripped from system blocks")
+	assert.Equal(t, "you are helpful", block["text"])
+}
+
+func TestFilterUnsupportedContent_StripsCacheControlFromMessages(t *testing.T) {
+	payload := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{
+						"type":          "text",
+						"text":          "prompt",
+						"cache_control": map[string]any{"type": "ephemeral"},
+					},
+				},
+			},
+		},
+	}
+
+	filterUnsupportedContent(payload)
+
+	msgs := payload["messages"].([]any)
+	content := msgs[0].(map[string]any)["content"].([]any)
+	block := content[0].(map[string]any)
+	_, hasCC := block["cache_control"]
+	assert.False(t, hasCC, "cache_control should be stripped from message blocks")
+}
+
+func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
+	// Simulates what VSCode Claude Code panel sends: system with cache_control,
+	// messages with server_tool_use and cache_control, plus unsupported top-level fields.
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{
+				"type":          "text",
+				"text":          "long system prompt...",
+				"cache_control": map[string]any{"type": "ephemeral"},
+			},
+		},
+		"messages": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": "abc="}},
+					map[string]any{"type": "text", "text": "describe this", "cache_control": map[string]any{"type": "ephemeral"}},
+					map[string]any{"type": "server_tool_use", "id": "st_1", "name": "web_search", "input": map[string]any{}},
+				},
+			},
+			map[string]any{
+				"role": "assistant",
+				"content": []any{
+					map[string]any{"type": "server_tool_use", "id": "st_2", "name": "web_search", "input": map[string]any{"query": "test"}},
+					map[string]any{"type": "text", "text": "result", "cache_control": map[string]any{"type": "ephemeral"}},
+				},
+			},
+		},
+		"output_config":  map[string]any{"effort": "high"},
+		"tools":          []any{map[string]any{"name": "bash"}},
+		"thinking":       map[string]any{"type": "enabled", "budget_tokens": 5000},
+		"stream_options": map[string]any{"include_usage": true},
+		"metadata":       map[string]any{"user_id": "test"},
+		"model":          "glm-5.1",
+		"max_tokens":     8192,
+	}
+
+	// Apply both transformations like the real handler does.
+	stripUnsupportedFields(payload, false, "glm-5.1")
+	filterUnsupportedContent(payload)
+
+	// All unsupported top-level fields gone.
+	removed := []string{"output_config", "tools", "thinking", "stream_options", "metadata"}
+	for _, f := range removed {
+		_, exists := payload[f]
+		assert.False(t, exists, "field %q should be stripped", f)
+	}
+
+	// System block: cache_control stripped, text preserved.
+	sys := payload["system"].([]any)
+	sysBlock := sys[0].(map[string]any)
+	_, hasCC := sysBlock["cache_control"]
+	assert.False(t, hasCC, "system cache_control stripped")
+	assert.Equal(t, "long system prompt...", sysBlock["text"])
+
+	// User message: image kept, text kept, server_tool_use removed, cache_control stripped.
+	msgs := payload["messages"].([]any)
+	userContent := msgs[0].(map[string]any)["content"].([]any)
+	assert.Len(t, userContent, 2, "server_tool_use removed from user message")
+	assert.Equal(t, "image", userContent[0].(map[string]any)["type"])
+	_, hasTextCC := userContent[1].(map[string]any)["cache_control"]
+	assert.False(t, hasTextCC, "cache_control stripped from user text block")
+
+	// Assistant message: server_tool_use removed, text preserved.
+	assistantContent := msgs[1].(map[string]any)["content"].([]any)
+	assert.Len(t, assistantContent, 1, "server_tool_use removed from assistant message")
+	assert.Equal(t, "result", assistantContent[0].(map[string]any)["text"])
+}

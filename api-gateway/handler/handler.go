@@ -750,12 +750,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
 	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
 	stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
-	slog.Info("strip debug", "model", selectedModel, "has_effort", payload["effort"] != nil, "has_thinking", payload["thinking"] != nil, "has_budget", payload["budget_tokens"] != nil)
 
 	// Strip content block types unsupported by upstream (only needed for Z.AI).
 	if decision != nil && decision.ProviderID == "zai" {
 		filterUnsupportedContent(payload)
 	}
+
 
 	// --- Image detection runs first; optimizer and privacy skip image requests ---
 
@@ -1115,11 +1115,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// glm-4.6v uses Anthropic-compatible endpoint (same billing pool as text).
 		// Only non-native models needing OpenAI format go through openaiProxy.
 		if isNativeImageModel(selectedModel) {
-			keys := make([]string, 0)
-			for k := range payload {
-				keys = append(keys, k)
-			}
-			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body), "payload_keys", keys)
+			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
@@ -1538,9 +1534,7 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 		delete(payload, "effort")
 		delete(payload, "stream_options")
 		delete(payload, "metadata")
-		if oc, ok := payload["output_config"].(map[string]any); ok {
-			delete(oc, "effort")
-		}
+		delete(payload, "output_config")
 	}
 	// Strip thinking params for models that don't support extended thinking.
 	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
