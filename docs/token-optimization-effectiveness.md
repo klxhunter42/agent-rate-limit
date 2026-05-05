@@ -2,6 +2,10 @@
 
 Date: 2026-04-22
 
+> **Note**: Numbers below are from test fixtures (`effectiveness_test.go`), not production. For production metrics, see [19-optimizer-pipeline-reference.md](19-optimizer-pipeline-reference.md) - Production Measurement section.
+
+> **Full pipeline reference**: See [19-optimizer-pipeline-reference.md](19-optimizer-pipeline-reference.md) for all 14 stages.
+
 ---
 
 ## Measured Results (effectiveness_test.go)

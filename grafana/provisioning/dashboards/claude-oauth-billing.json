@@ -161,7 +161,9 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         },
         "overrides": [
@@ -394,7 +396,9 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -456,7 +460,9 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 30
+            "fillOpacity": 30,
+            "spanNulls": true,
+            "lineWidth": 2
           },
           "color": {
             "fixedColor": "red",
@@ -484,7 +490,9 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 30
+            "fillOpacity": 30,
+            "spanNulls": true,
+            "lineWidth": 2
           },
           "color": {
             "fixedColor": "orange",

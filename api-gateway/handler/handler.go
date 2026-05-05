@@ -8,10 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"image"
-	_ "image/gif"
-	"image/jpeg"
 	"io"
+
+	"github.com/h2non/bimg"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -1831,19 +1830,16 @@ func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int
 }
 
 // compressLargeImages walks the payload and compresses base64 images that exceed
-// compressThreshold bytes of raw base64 data. Compressed images are resized to
-// maxDimension on their longest side and re-encoded as JPEG at the specified quality.
-// Returns the number of images compressed and bytes saved.
-func compressLargeImages(payload map[string]any, compressThreshold int, maxDimension int, jpegQuality int) (compressed int, savedBytes int) {
-	const (
-		maxDimensionDefault = 1024
-		jpegQualityDefault  = 85
-	)
+// compressThreshold bytes of raw base64 data. Uses bimg (libvips) for high-quality
+// resize and WebP re-encoding. Compresses all images above threshold regardless
+// of whether the result is smaller.
+func compressLargeImages(payload map[string]any, compressThreshold int, maxDimension int, quality int) (compressed int, savedBytes int) {
+	const maxDimensionDefault = 1024
 	if maxDimension <= 0 {
 		maxDimension = maxDimensionDefault
 	}
-	if jpegQuality <= 0 || jpegQuality > 100 {
-		jpegQuality = jpegQualityDefault
+	if quality <= 0 || quality > 100 {
+		quality = 85
 	}
 
 	msgs, ok := payload["messages"].([]any)
@@ -1872,7 +1868,6 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			if !ok {
 				continue
 			}
-			mediaType, _ := src["media_type"].(string)
 			data, _ := src["data"].(string)
 			if data == "" || len(data) < compressThreshold {
 				continue
@@ -1881,44 +1876,48 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			if err != nil {
 				decoded, err = base64.RawStdEncoding.DecodeString(data)
 				if err != nil {
-					slog.Debug("image base64 decode failed, skip", "media_type", mediaType, "error", err)
+					slog.Debug("image base64 decode failed, skip", "error", err)
 					continue
 				}
 			}
 
-			img, _, err := image.Decode(bytes.NewReader(decoded))
+			img := bimg.NewImage(decoded)
+			meta, err := img.Metadata()
 			if err != nil {
-				slog.Debug("image decode failed, skip", "media_type", mediaType, "error", err)
+				slog.Debug("image metadata failed, skip", "error", err)
 				continue
 			}
 
-			bounds := img.Bounds()
-			origW := bounds.Dx()
-			origH := bounds.Dy()
+			origW := meta.Size.Width
+			origH := meta.Size.Height
 			if origW <= maxDimension && origH <= maxDimension {
 				continue
 			}
 
-			var newW, newH int
+			newW := maxDimension
+			newH := maxDimension
 			if origW > origH {
-				newW = maxDimension
 				newH = origH * maxDimension / origW
 			} else {
-				newH = maxDimension
 				newW = origW * maxDimension / origH
 			}
 
-			resized := resizeImage(img, newW, newH)
-
-			var buf bytes.Buffer
-			if err := jpeg.Encode(&buf, resized, &jpeg.Options{Quality: jpegQuality}); err != nil {
-				slog.Debug("jpeg encode failed, skip", "error", err)
+			newImage, err := img.Process(bimg.Options{
+				Width:   newW,
+				Height:  newH,
+				Crop:    false,
+				Enlarge: false,
+				Quality: quality,
+				Type:    bimg.WEBP,
+			})
+			if err != nil {
+				slog.Debug("bimg process failed, skip", "error", err)
 				continue
 			}
 
-			newData := base64.StdEncoding.EncodeToString(buf.Bytes())
+			newData := base64.StdEncoding.EncodeToString(newImage)
 			src["data"] = newData
-			src["media_type"] = "image/jpeg"
+			src["media_type"] = "image/webp"
 			compressed++
 			savedBytes += len(data) - len(newData)
 			slog.Info("image compressed",
@@ -1931,20 +1930,6 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 		}
 	}
 	return compressed, savedBytes
-}
-
-// resizeImage performs a bilinear resize using stdlib only.
-func resizeImage(img image.Image, w, h int) image.Image {
-	srcBounds := img.Bounds()
-	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			srcX := srcBounds.Min.X + (x*srcBounds.Dx())/w
-			srcY := srcBounds.Min.Y + (y*srcBounds.Dy())/h
-			dst.Set(x, y, img.At(srcX, srcY))
-		}
-	}
-	return dst
 }
 
 // selectVisionModel chooses the best vision model based on total image payload

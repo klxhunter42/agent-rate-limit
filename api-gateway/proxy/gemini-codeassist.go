@@ -129,10 +129,10 @@ func anthropicToGemini(payload map[string]any, defaultModel string, m ...*metric
 		optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
 		if met != nil {
 			if wsSaved > 0 {
-				met.RecordOptimization("whitespace", wsSaved)
+				met.RecordOptimization("whitespace", wsSaved, "input")
 			}
 			if dedupSaved > 0 {
-				met.RecordOptimization("dedup_sentences", dedupSaved)
+				met.RecordOptimization("dedup_sentences", dedupSaved, "input")
 			}
 		}
 		req.SystemInstruction = &geminiContent{
@@ -152,10 +152,10 @@ func anthropicToGemini(payload map[string]any, defaultModel string, m ...*metric
 			optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
 			if met != nil {
 				if wsSaved > 0 {
-					met.RecordOptimization("whitespace", wsSaved)
+					met.RecordOptimization("whitespace", wsSaved, "input")
 				}
 				if dedupSaved > 0 {
-					met.RecordOptimization("dedup_sentences", dedupSaved)
+					met.RecordOptimization("dedup_sentences", dedupSaved, "input")
 				}
 			}
 			req.SystemInstruction = &geminiContent{

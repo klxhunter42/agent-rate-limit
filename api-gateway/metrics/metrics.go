@@ -47,7 +47,7 @@ type Metrics struct {
 	OptimizerCharsSaved   *prometheus.CounterVec
 	OptimizerRuns         *prometheus.CounterVec
 	OptimizerDuration     *prometheus.HistogramVec
-	OptimizerTokensSaved  prometheus.Counter
+	OptimizerTokensSaved  *prometheus.CounterVec
 	ProfileOptimizerSaved *prometheus.CounterVec
 	BudgetLevel           *prometheus.GaugeVec
 	CostSavings           prometheus.Counter
@@ -209,7 +209,7 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Namespace: namespace,
 			Name:      "optimizer_chars_saved_total",
 			Help:      "Total characters saved by token optimization techniques.",
-		}, []string{"technique"}),
+		}, []string{"technique", "direction"}),
 
 		OptimizerRuns: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -249,11 +249,11 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
 		}, []string{"technique"}),
 
-		OptimizerTokensSaved: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: namespace,
-			Name:      "optimizer_tokens_saved_total",
-			Help:      "Total estimated tokens saved by optimization.",
-		}),
+	OptimizerTokensSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Name:      "optimizer_tokens_saved_total",
+		Help:      "Total estimated tokens saved by optimization.",
+	}, []string{"direction"}),
 
 		ProfileOptimizerSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -363,9 +363,9 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 }
 
 // RecordOptimization records characters saved and run count for an optimization technique.
-func (m *Metrics) RecordOptimization(technique string, charsSaved int) {
+func (m *Metrics) RecordOptimization(technique string, charsSaved int, direction string) {
 	if charsSaved > 0 {
-		m.OptimizerCharsSaved.WithLabelValues(technique).Add(float64(charsSaved))
+		m.OptimizerCharsSaved.WithLabelValues(technique, direction).Add(float64(charsSaved))
 	}
 	m.OptimizerRuns.WithLabelValues(technique).Inc()
 }
@@ -375,10 +375,11 @@ func (m *Metrics) RecordOptimizationDuration(technique string, seconds float64) 
 	m.OptimizerDuration.WithLabelValues(technique).Observe(seconds)
 }
 
-// RecordTokensSaved records total estimated tokens saved.
-func (m *Metrics) RecordTokensSaved(tokens int) {
+
+// RecordTokensSaved records total estimated tokens saved with direction label (input/output).
+func (m *Metrics) RecordTokensSaved(tokens int, direction string) {
 	if tokens > 0 {
-		m.OptimizerTokensSaved.Add(float64(tokens))
+		m.OptimizerTokensSaved.WithLabelValues(direction).Add(float64(tokens))
 	}
 }
 
@@ -637,7 +638,7 @@ func (m *Metrics) seedOptimizers() {
 		{"caveman", 54000, 88, 0.035},
 	}
 	for _, t := range techniques {
-		m.OptimizerCharsSaved.WithLabelValues(t.name).Add(t.charsSaved)
+		m.OptimizerCharsSaved.WithLabelValues(t.name, "input").Add(t.charsSaved)
 		for i := 0; i < t.runs; i++ {
 			m.OptimizerRuns.WithLabelValues(t.name).Inc()
 		}
@@ -645,7 +646,7 @@ func (m *Metrics) seedOptimizers() {
 		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 0.7)
 		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 1.4)
 	}
-	m.OptimizerTokensSaved.Add(42800)
+	m.OptimizerTokensSaved.WithLabelValues("input").Add(42800)
 	m.CostSavings.Add(3.47)
 }
 
@@ -733,7 +734,7 @@ func (m *Metrics) StartMockDataLoop(ctx context.Context) {
 			case <-ticker.C:
 				for _, t := range techniques {
 					if t.charsInc > 0 {
-						m.OptimizerCharsSaved.WithLabelValues(t.name).Add(t.charsInc)
+						m.OptimizerCharsSaved.WithLabelValues(t.name, "input").Add(t.charsInc)
 					}
 					for i := 0; i < t.runsInc; i++ {
 						m.OptimizerRuns.WithLabelValues(t.name).Inc()
@@ -741,7 +742,7 @@ func (m *Metrics) StartMockDataLoop(ctx context.Context) {
 					m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration)
 				}
 
-				m.OptimizerTokensSaved.Add(40)
+				m.OptimizerTokensSaved.WithLabelValues("input").Add(40)
 				m.CostSavings.Add(0.003)
 
 				severities := []string{"low", "medium", "high"}

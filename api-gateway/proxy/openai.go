@@ -425,8 +425,13 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	}
 
 	if p.cfg.EnableResponseTrim {
-		if trimmed := trimResponse(respBody); trimmed != nil {
+		if trimmed, charsSaved := trimResponse(respBody); trimmed != nil {
 			respBody = trimmed
+			if charsSaved > 0 {
+				p.metrics.RecordOptimization("response_trim", charsSaved, "output")
+				tokensSaved := int(float64(charsSaved) / 4.0)
+				p.metrics.RecordTokensSaved(tokensSaved, "output")
+			}
 		}
 	}
 

@@ -226,7 +226,7 @@ func TestTrimResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := trimResponse([]byte(tt.input))
+			result, _ := trimResponse([]byte(tt.input))
 			if tt.wantNil && result != nil {
 				t.Fatalf("expected nil, got %s", string(result))
 			}
@@ -433,7 +433,7 @@ func TestTrimResponseCoversAllPatterns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			body := `{"content":[{"type":"text","text":` +
 				string(mustMarshal(tt.input)) + `}]}`
-			result := trimResponse([]byte(body))
+			result, _ := trimResponse([]byte(body))
 			if result == nil {
 				if tt.input != tt.trimmed {
 					t.Fatalf("expected trim for %q but got nil", tt.input)

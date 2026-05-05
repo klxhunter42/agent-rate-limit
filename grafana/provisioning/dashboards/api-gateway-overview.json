@@ -64,7 +64,9 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -142,7 +144,9 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "fillOpacity": 30
+            "fillOpacity": 30,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -176,7 +180,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "cps"
+          "unit": "short"
         }
       }
     },
@@ -198,7 +202,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "cps"
+          "unit": "short"
         }
       }
     },
@@ -210,7 +214,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 38
       },
       "targets": [
         {
@@ -232,7 +236,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 46
       },
       "collapsed": false
     },
@@ -243,7 +247,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 47
       },
       "datasource": {
         "type": "prometheus",
@@ -256,7 +260,8 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "lineWidth": 2
           },
           "unit": "short"
         }
@@ -289,7 +294,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 47
       },
       "datasource": {
         "type": "prometheus",
@@ -361,7 +366,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 55
       },
       "collapsed": false
     },
@@ -372,7 +377,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 56
       },
       "targets": [
         {
@@ -399,7 +404,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 56
       },
       "targets": [
         {
@@ -421,7 +426,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 52
+        "y": 64
       },
       "targets": [
         {
@@ -443,7 +448,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 52
+        "y": 64
       },
       "targets": [
         {
@@ -470,7 +475,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 72
       },
       "targets": [
         {
@@ -492,7 +497,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 80
       },
       "targets": [
         {
@@ -519,7 +524,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 80
       },
       "targets": [
         {
@@ -559,7 +564,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 76
+        "y": 88
       },
       "collapsed": false
     },
@@ -570,7 +575,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 77
+        "y": 89
       },
       "targets": [
         {
@@ -583,7 +588,9 @@
         "defaults": {
           "unit": "reqps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -595,7 +602,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 77
+        "y": 89
       },
       "targets": [
         {
@@ -611,7 +618,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "cps"
+          "unit": "short"
         }
       }
     },
@@ -622,7 +629,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 77
+        "y": 89
       },
       "targets": [
         {
@@ -644,7 +651,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 97
       },
       "collapsed": false
     },
@@ -655,11 +662,11 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 86
+        "y": 98
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total[$__interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -668,7 +675,9 @@
         "defaults": {
           "unit": "chars/s",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -680,7 +689,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 86
+        "y": 98
       },
       "targets": [
         {
@@ -693,7 +702,9 @@
         "defaults": {
           "unit": "ops/s",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       }
@@ -705,11 +716,11 @@
         "h": 4,
         "w": 12,
         "x": 0,
-        "y": 94
+        "y": 106
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -738,11 +749,11 @@
         "h": 4,
         "w": 12,
         "x": 12,
-        "y": 94
+        "y": 106
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
           "legendFormat": "Avg",
           "refId": "A"
         }
@@ -760,6 +771,152 @@
                 "value": null
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Input Tokens Total",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__range]))",
+          "refId": "A",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "#3b82f6",
+            "mode": "fixed"
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        }
+      }
+    },
+    {
+      "title": "Output Tokens Total",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__range]))",
+          "refId": "A",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "#22c55e",
+            "mode": "fixed"
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        }
+      }
+    },
+    {
+      "title": "Input Tokens Cumulative",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__interval]))",
+          "refId": "A",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      }
+    },
+    {
+      "title": "Output Tokens Cumulative",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__interval]))",
+          "refId": "A",
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
           }
         }
       }

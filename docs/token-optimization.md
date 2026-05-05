@@ -3,6 +3,8 @@
 Date: 2026-04-21
 Source: 7 improvement projects analyzed (`improvements/` directory)
 
+> **Full pipeline reference**: See [19-optimizer-pipeline-reference.md](19-optimizer-pipeline-reference.md) for per-stage details, config, metrics, and savings data.
+
 ---
 
 ## Summary of Analyzed Projects

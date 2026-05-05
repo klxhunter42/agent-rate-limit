@@ -40,7 +40,7 @@
       "collapsed": false
     },
     {
-      "title": "Total Units Saved",
+      "title": "Input Tokens Optimized",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -48,13 +48,13 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
+        "w": 4,
         "x": 0,
         "y": 1
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -75,7 +75,47 @@
           }
         },
         "overrides": []
-      }
+      },
+      "description": "Total input tokens saved by the optimizer pipeline (all techniques). Optimizer only operates on the input/request side."
+    },
+    {
+      "title": "Output Tokens Optimized",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"output\"}[$__range]))) or on() vector(0)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "fixedColor": "#6b7280",
+            "mode": "fixed"
+          },
+          "custom": {
+            "colorMode": "background_solid",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "textMode": "auto",
+            "wideLayout": true
+          }
+        },
+        "overrides": []
+      },
+      "description": "Output tokens saved by response trimming (strips verbose filler from AI responses)."
     },
     {
       "title": "Cost Savings (USD)",
@@ -86,8 +126,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 5,
+        "w": 4,
+        "x": 8,
         "y": 1
       },
       "targets": [
@@ -137,8 +177,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 10,
+        "w": 4,
+        "x": 12,
         "y": 1
       },
       "targets": [
@@ -176,12 +216,12 @@
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 15,
+        "x": 16,
         "y": 1
       },
       "targets": [
         {
-          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -228,8 +268,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 19,
+        "w": 4,
+        "x": 20,
         "y": 1
       },
       "targets": [
@@ -283,7 +323,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total[$__interval]))",
+          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__interval]))",
           "refId": "A"
         }
       ],
@@ -296,7 +336,8 @@
             "fillOpacity": 30,
             "gradientMode": "scheme",
             "lineWidth": 2,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           }
         },
         "overrides": [
@@ -347,7 +388,8 @@
             "fillOpacity": 30,
             "gradientMode": "scheme",
             "lineWidth": 2,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           }
         },
         "overrides": [
@@ -395,7 +437,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval]))",
           "refId": "A"
         }
       ],
@@ -407,7 +449,8 @@
             },
             "fillOpacity": 30,
             "lineWidth": 1,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
@@ -440,7 +483,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))",
           "refId": "A",
           "instant": true,
           "format": "table"
@@ -489,7 +532,8 @@
             },
             "fillOpacity": 20,
             "lineWidth": 1,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
@@ -524,7 +568,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "legendFormat": "Without Optimization"
         },
@@ -604,7 +648,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4) * 100, 0, 100)",
+          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4) * 100, 0, 100)",
           "refId": "A"
         }
       ],
@@ -614,7 +658,8 @@
           "custom": {
             "fillOpacity": 30,
             "lineWidth": 2,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           }
         },
         "overrides": [
@@ -660,7 +705,8 @@
           "unit": "s",
           "custom": {
             "lineWidth": 1,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           }
         },
         "overrides": []
@@ -702,7 +748,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))",
           "refId": "A",
           "format": "table",
           "instant": true
@@ -845,7 +891,8 @@
             },
             "fillOpacity": 30,
             "lineWidth": 1,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
@@ -882,7 +929,8 @@
             },
             "fillOpacity": 30,
             "lineWidth": 1,
-            "showPoints": "auto"
+            "showPoints": "never",
+            "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"

@@ -351,8 +351,8 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 			slog.Debug("system prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved, "original_chars", len(systemText), "optimized_chars", len(dedupText))
 		}
 		if m != nil {
-			m.RecordOptimization("whitespace", wsSaved)
-			m.RecordOptimization("dedup", dedupSaved)
+			m.RecordOptimization("whitespace", wsSaved, "input")
+			m.RecordOptimization("dedup", dedupSaved, "input")
 		}
 		systemText = dedupText
 
@@ -1850,11 +1850,15 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 
 	// Trim verbose patterns after unmasking.
 	if p.cfg.EnableResponseTrim {
-		if trimmed := trimResponse(body); trimmed != nil {
+		if trimmed, charsSaved := trimResponse(body); trimmed != nil {
 			body = trimmed
+			if charsSaved > 0 {
+				p.metrics.RecordOptimization("response_trim", charsSaved, "output")
+				tokensSaved := int(float64(charsSaved) / 4.0)
+				p.metrics.RecordTokensSaved(tokensSaved, "output")
+			}
 		}
 	}
-
 	// Validate JSON before writing to client. If upstream sent truncated JSON
 	// (e.g. connection reset mid-body), wrap it in a valid error response so
 	// the client gets parseable JSON instead of "Unexpected EOF".
@@ -2178,18 +2182,20 @@ func convertHTMLDetails(body []byte) []byte {
 
 // trimResponse strips verbose patterns from text content blocks in a non-stream response.
 // Returns nil if trimming was skipped (invalid JSON or no changes).
-func trimResponse(body []byte) []byte {
+// Returns the trimmed bytes and number of chars saved if trimming occurred.
+func trimResponse(body []byte) ([]byte, int) {
 	var resp map[string]any
 	if json.Unmarshal(body, &resp) != nil {
-		return nil
+		return nil, 0
 	}
 
 	content, ok := resp["content"].([]any)
 	if !ok {
-		return nil
+		return nil, 0
 	}
 
 	modified := false
+	totalCharsSaved := 0
 	for i, block := range content {
 		cb, ok := block.(map[string]any)
 		if !ok || cb["type"] != "text" {
@@ -2201,11 +2207,11 @@ func trimResponse(body []byte) []byte {
 		}
 		trimmed := trimVerbose(text)
 		if trimmed != text {
-			// Validate trimmed text is still valid printable UTF-8
 			if !isValidUTF8String(trimmed) {
 				slog.Warn("trimmed text contains invalid UTF-8, skipping trim")
 				continue
 			}
+			totalCharsSaved += len(text) - len(trimmed)
 			cb["text"] = trimmed
 			content[i] = cb
 			modified = true
@@ -2213,15 +2219,15 @@ func trimResponse(body []byte) []byte {
 	}
 
 	if !modified {
-		return nil
+		return nil, 0
 	}
 
 	resp["content"] = content
 	result, err := json.Marshal(resp)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
-	return result
+	return result, totalCharsSaved
 }
 
 // trimVerbose removes common verbose prefixes and suffixes from AI response text.

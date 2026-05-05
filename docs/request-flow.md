@@ -60,10 +60,11 @@ Request enters handler
         |
         v
   Vision check:
-    - Images detected? -> select vision model (glm-5.1)
-    - Convert URL images to base64 (Z.AI vision requires base64)
-    - Convert Anthropic image format -> OpenAI image_url format
-    - Route to native vision endpoint (open.bigmodel.cn)
+ - Images detected? -> select vision model (glm-5.1)
+ - Large images (>500KB base64): compress with bimg/libvips
+   - Resize to max 1024px longest dimension (Lanczos3)
+   - Re-encode as WebP (better compression than JPEG/PNG)
+   - Applies to all large images regardless of source format
         |
         v
   Privacy masking (secrets + PII)

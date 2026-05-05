@@ -17,6 +17,7 @@ type Config struct {
 	Enabled  bool
 	Model    string
 	MaxRatio float64
+	Method   string // "firstsentence" or "textrank"
 }
 
 func envBoolOr(key string, fallback bool) bool {
@@ -42,6 +43,7 @@ func LoadConfig() Config {
 		Enabled:  envBoolOr("SUMMARIZER_ENABLED", true),
 		Model:    envOr("SUMMARIZER_MODEL", "glm-4.7-flashx"),
 		MaxRatio: envFloatOr("SUMMARIZER_MAX_RATIO", 0.3),
+		Method:   envOr("SUMMARIZER_METHOD", "textrank"),
 	}
 }
 
@@ -103,13 +105,19 @@ func (s *Summarizer) Summarize(ctx context.Context, content string, budgetLevel 
 
 	start := time.Now()
 
-	// Extractive summarization: keep first sentence of each paragraph
-	result := s.extractiveSummarize(content)
+	// Select summarization method
+	var result string
+	if s.cfg.Method == "textrank" {
+		result = s.textRankSummarize(content)
+	} else {
+		result = s.extractiveSummarize(content)
+	}
 
-	s.m.callsTotal.WithLabelValues("truncation").Inc()
-	s.m.duration.WithLabelValues("truncation").Observe(time.Since(start).Seconds())
+	method := s.cfg.Method
+	s.m.callsTotal.WithLabelValues(method).Inc()
+	s.m.duration.WithLabelValues(method).Observe(time.Since(start).Seconds())
 	saved := len(content) - len(result)
-	s.m.charsSaved.WithLabelValues("truncation").Add(float64(saved))
+	s.m.charsSaved.WithLabelValues(method).Add(float64(saved))
 
 	// Cache result
 	if s.rdb != nil && saved > 0 {

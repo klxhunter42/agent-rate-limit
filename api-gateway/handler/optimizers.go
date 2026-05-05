@@ -17,7 +17,10 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/compcache"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/toolcomp"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/toolfilter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
@@ -40,6 +43,9 @@ type Optimizers struct {
 	WarmStart  *warmstart.WarmStart
 	Caveman    *caveman.CavemanPipeline
 	TextComp   *textcomp.TextComp
+	ToolComp *toolcomp.ToolComp
+	ToolFilter *toolfilter.ToolFilter
+	CompCache *compcache.CompCache
 }
 
 // OptimizeSystemPrompt applies the full optimization pipeline to system prompt text.
@@ -57,7 +63,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		opt, saved := tokenizer.DeduplicateSemantic(text, 0.7)
 		if saved > 0 {
 			text = opt
-			m.RecordOptimization("semantic_dedup", saved)
+			m.RecordOptimization("semantic_dedup", saved, "input")
 			m.RecordOptimizationDuration("semantic_dedup", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -69,7 +75,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		opt, saved := o.Chunker.ChunkAndReorder(context.Background(), text)
 		if saved > 0 {
 			text = opt
-			m.RecordOptimization("chunker", saved)
+			m.RecordOptimization("chunker", saved, "input")
 			m.RecordOptimizationDuration("chunker", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -81,7 +87,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		encoded, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
 		if ok && saved > 0 {
 			text = encoded
-			m.RecordOptimization("delta", saved)
+			m.RecordOptimization("delta", saved, "input")
 			m.RecordOptimizationDuration("delta", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -92,7 +98,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		isDup, _, saved := o.Sketch.CheckAndStore(context.Background(), model, text)
 		if isDup && saved > 0 {
-			m.RecordOptimization("sketch_dedup", saved)
+			m.RecordOptimization("sketch_dedup", saved, "input")
 			m.RecordOptimizationDuration("sketch", time.Since(start).Seconds())
 		}
 	}
@@ -103,7 +109,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		opt, saved := o.Summarizer.Summarize(context.Background(), text, budgetLevel)
 		if saved > 0 {
 			text = opt
-			m.RecordOptimization("summarizer", saved)
+			m.RecordOptimization("summarizer", saved, "input")
 			m.RecordOptimizationDuration("summarizer", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -116,7 +122,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		opt, saved := o.Filter.FilterResponse(text, intent)
 		if saved > 0 {
 			text = opt
-			m.RecordOptimization("intent_filter", saved)
+			m.RecordOptimization("intent_filter", saved, "input")
 			m.RecordOptimizationDuration("intent_filter", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -128,7 +134,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		opt, saved := o.TextComp.Compress(text)
 		if saved > 0 {
 			text = opt
-			m.RecordOptimization("textcomp", saved)
+			m.RecordOptimization("textcomp", saved, "input")
 			m.RecordOptimizationDuration("textcomp", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -143,7 +149,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 				compressed, _ := o.Caveman.Compress("", tier)
 				if compressed != "" {
 					text = compressed
-					m.RecordOptimization("caveman", 0)
+					m.RecordOptimization("caveman", 0, "input")
 					m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 				}
 			}
@@ -152,7 +158,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 
 	if totalSaved > 0 {
 		tokensSaved := float64(totalSaved) / 4.0
-		m.RecordTokensSaved(int(tokensSaved + 0.5))
+		m.RecordTokensSaved(int(tokensSaved + 0.5), "input")
 		costSavings := tokensSaved * 3.0 / 1_000_000
 		m.RecordCostSavings(costSavings)
 	}
@@ -185,7 +191,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 					saved += s2
 				}
 				msgMap["content"] = optimized
-				m.RecordOptimization("message_text", saved)
+				m.RecordOptimization("message_text", saved, "input")
 			}
 			// TextComp on string message content
 			if o.TextComp != nil {
@@ -193,7 +199,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 					opt2, saved2 := o.TextComp.Compress(tc)
 					if saved2 > 0 {
 						msgMap["content"] = opt2
-						m.RecordOptimization("message_textcomp", saved2)
+						m.RecordOptimization("message_textcomp", saved2, "input")
 					}
 				}
 			}
@@ -224,7 +230,17 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 							saved += s2
 						}
 						blockMap[field] = optimized
-						m.RecordOptimization("message_block_"+blockType, saved)
+						m.RecordOptimization("message_block_"+blockType, saved, "input")
+					}
+				}
+				// ToolComp format-aware compression for tool_result blocks
+				if o.ToolComp != nil && blockType == "tool_result" {
+					if tc, ok := blockMap["content"].(string); ok && tc != "" {
+						opt, saved := o.ToolComp.Compress(tc)
+						if saved > 0 {
+							blockMap["content"] = opt
+							m.RecordOptimization("toolcomp", saved, "input")
+						}
 					}
 				}
 			}

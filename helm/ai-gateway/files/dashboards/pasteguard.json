@@ -258,7 +258,8 @@
             "spanNulls": true,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 2
           },
           "unit": "short"
         },
@@ -366,7 +367,8 @@
             "spanNulls": true,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 2
           },
           "unit": "short"
         },
@@ -805,7 +807,8 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "lineWidth": 2
           },
           "unit": "s"
         }
@@ -1024,7 +1027,8 @@
             "spanNulls": true,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "lineWidth": 2
           },
           "unit": "short"
         }

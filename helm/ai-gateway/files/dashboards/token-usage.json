@@ -260,7 +260,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -304,7 +306,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -420,7 +424,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -464,7 +470,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -572,7 +580,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -616,7 +626,9 @@
             "fillOpacity": 10,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -721,7 +733,9 @@
         "defaults": {
           "unit": "cps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -762,7 +776,9 @@
         "defaults": {
           "unit": "cps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },
@@ -811,7 +827,9 @@
         "defaults": {
           "unit": "cps",
           "custom": {
-            "fillOpacity": 10
+            "fillOpacity": 10,
+            "spanNulls": true,
+            "lineWidth": 2
           }
         }
       },

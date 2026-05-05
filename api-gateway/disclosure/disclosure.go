@@ -146,3 +146,51 @@ func (d *Disclosure) ftsExtract(content, query string, budget int) string {
 	}
 	return strings.Join(matched, "\n\n")
 }
+
+// BudgetAwareEscalate applies progressive disclosure based on budget level.
+// Green: pass through. Yellow: L2 for large content (>2000 chars). Red: L1 for >1000, L2 for 500-1000.
+func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, budgetLevel int) (string, int) {
+	fullLen := len(content)
+	if fullLen == 0 || !d.cfg.Enabled {
+		return content, 0
+	}
+
+	switch budgetLevel {
+	case 0: // green - pass through
+		return content, 0
+	case 1: // yellow - L2 for large content
+		if fullLen > 2000 {
+			l2Budget := d.cfg.L2Tokens * 8
+			if l2Budget > fullLen {
+				l2Budget = fullLen
+			}
+			truncated := content[:l2Budget]
+			saved := fullLen - len(truncated)
+			return truncated, saved
+		}
+		return content, 0
+	case 2: // red - aggressive truncation
+		if fullLen > 1000 {
+			l1Budget := d.cfg.L1Tokens * 4
+			if l1Budget > fullLen {
+				l1Budget = fullLen
+			}
+			truncated := content[:l1Budget]
+			saved := fullLen - len(truncated)
+			return truncated, saved
+		}
+		if fullLen > 500 {
+			l2Budget := d.cfg.L2Tokens * 6
+			if l2Budget > fullLen {
+				l2Budget = fullLen
+			}
+			truncated := content[:l2Budget]
+			saved := fullLen - len(truncated)
+			return truncated, saved
+		}
+		return content, 0
+	default:
+		return content, 0
+	}
+}
+

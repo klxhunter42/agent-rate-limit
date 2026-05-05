@@ -202,7 +202,8 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 20,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "lineWidth": 2
           },
           "unit": "currencyUSD"
         }

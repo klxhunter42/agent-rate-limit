@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -410,7 +410,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "legendFormat": "Without Optimization",
           "datasource": {
             "type": "prometheus",
@@ -786,7 +786,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 0,
+            "lineWidth": 2,
             "pointSize": 4,
             "showPoints": "never",
             "spanNulls": true,
@@ -822,7 +822,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4",
           "legendFormat": "Units Saved",
           "datasource": {
             "type": "prometheus",
@@ -847,7 +847,8 @@
             },
             "thresholdsStyle": {
               "mode": "off"
-            }
+            },
+            "spanNulls": true
           },
           "thresholds": {
             "mode": "absolute",

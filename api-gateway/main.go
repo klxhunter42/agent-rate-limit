@@ -41,6 +41,8 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/toolcomp"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/toolfilter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
 )
@@ -154,6 +156,9 @@ func main() {
 	optCaveman := caveman.New(m.Registry())
 	optTextComp := textcomp.New(textcomp.LoadConfig())
 
+	optToolComp := toolcomp.New(toolcomp.LoadConfig())
+	optToolFilter := toolfilter.New(toolfilter.LoadConfig())
+
 	optimizers := &handler.Optimizers{
 		Chunker:    optChunker,
 		Packer:     optPacker,
@@ -169,6 +174,8 @@ func main() {
 		WarmStart:  optWarmStart,
 		Caveman:    optCaveman,
 		TextComp:   optTextComp,
+	ToolComp: optToolComp,
+	ToolFilter: optToolFilter,
 	}
 
 	// Background optimizer goroutines.
