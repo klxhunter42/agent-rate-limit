@@ -1859,9 +1859,9 @@ func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int
 //
 //	score = totalBase64KB + (imageCount * 300)
 //
-// glm-4.6v is the default (10 slots, best quality) for all vision payloads.
+// glm-5.1 is the default for vision payloads (best quality, higher max_tokens).
 func selectVisionModel(totalBytes int, imageCount int) string {
-	return "glm-4.6v"
+	return "glm-5.1"
 }
 
 // isNativeImageModel returns true if the model natively supports image input
