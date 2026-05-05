@@ -94,12 +94,14 @@ jobs:
         id: should_build
         run: |
           skip=true
-          if [[ "${{ matrix.changed }}" == "true" ]]; then skip=false; fi
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            skip=false
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             svc="${{ inputs.service }}"
             if [[ -z "$svc" ]] || [[ "$svc" == "${{ matrix.name }}" ]]; then skip=false; fi
+          elif [[ "${{ matrix.changed }}" == "true" ]]; then
+            skip=false
           fi
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then skip=false; fi
           echo "skip=$skip" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v5
