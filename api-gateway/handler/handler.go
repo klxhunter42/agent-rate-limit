@@ -1573,23 +1573,12 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 	}
 }
 
-// filterUnsupportedContent removes unsupported content block types from messages.
+// filterUnsupportedContent removes unsupported content block types from messages
+// and strips cache_control from all blocks (Z.AI does not support it).
 func filterUnsupportedContent(payload map[string]any) {
-	msgs, ok := payload["messages"].([]any)
-	if !ok {
-		return
-	}
-	for _, msg := range msgs {
-		m, ok := msg.(map[string]any)
-		if !ok {
-			continue
-		}
-		content, ok := m["content"].([]any)
-		if !ok {
-			continue
-		}
-		filtered := make([]any, 0, len(content))
-		for _, block := range content {
+	strip := func(blocks []any) []any {
+		filtered := make([]any, 0, len(blocks))
+		for _, block := range blocks {
 			cb, ok := block.(map[string]any)
 			if !ok {
 				filtered = append(filtered, block)
@@ -1599,11 +1588,29 @@ func filterUnsupportedContent(payload map[string]any) {
 			if unsupportedContentTypes[t] {
 				continue
 			}
-			// Image blocks kept in Anthropic format; OpenAI path converts via convertImageBlock,
-			// Anthropic-compatible endpoint receives them as-is.
+			delete(cb, "cache_control")
 			filtered = append(filtered, cb)
 		}
-		m["content"] = filtered
+		return filtered
+	}
+
+	// Filter messages
+	msgs, ok := payload["messages"].([]any)
+	if ok {
+		for _, msg := range msgs {
+			m, ok := msg.(map[string]any)
+			if !ok {
+				continue
+			}
+			if content, ok := m["content"].([]any); ok {
+				m["content"] = strip(content)
+			}
+		}
+	}
+
+	// Filter system blocks (Claude Code sends system as array with cache_control)
+	if sys, ok := payload["system"].([]any); ok {
+		payload["system"] = strip(sys)
 	}
 }
 
