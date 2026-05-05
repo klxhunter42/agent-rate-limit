@@ -555,11 +555,11 @@ func TestFilterUnsupportedContentMultipleMessages(t *testing.T) {
 		map[string]any{"type": "text", "text": "result"},
 	}, m1["content"])
 
-	// Second message: all kept, base64 image converted to GLM format
+	// Second message: tool_result converted to text, image kept as-is
 	m2 := msgs[1].(map[string]any)
 	assert.Equal(t, []any{
-		map[string]any{"type": "tool_result", "tool_use_id": "tu_1", "content": "output"},
-		map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/jpeg;base64,/9j/4AAQSkZJRg=="}},
+		map[string]any{"type": "text", "text": "[Tool result]\noutput"},
+		map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/jpeg", "data": "/9j/4AAQSkZJRg=="}},
 	}, m2["content"])
 }
 

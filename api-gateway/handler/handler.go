@@ -1742,6 +1742,50 @@ func filterUnsupportedContent(payload map[string]any) {
 				continue
 			}
 			delete(cb, "cache_control")
+			// Convert tool_use/tool_result to plain text for Z.AI compatibility.
+			// Z.AI doesn't understand Anthropic tool block syntax since the
+			// tools definition is stripped. Converting to text preserves context.
+			switch t {
+			case "tool_use":
+				name, _ := cb["name"].(string)
+				inputJSON, _ := json.Marshal(cb["input"])
+				inputStr := string(inputJSON)
+				if len(inputStr) > 2000 {
+					inputStr = inputStr[:2000] + "...(truncated)"
+				}
+				filtered = append(filtered, map[string]any{
+					"type": "text",
+					"text": fmt.Sprintf("[Tool call: %s]\n%s", name, inputStr),
+				})
+				continue
+			case "tool_result":
+				var contentText string
+				if content, ok := cb["content"].([]any); ok {
+					var parts []string
+					for _, c := range content {
+						if cm, ok := c.(map[string]any); ok {
+							if txt, _ := cm["text"].(string); txt != "" {
+								parts = append(parts, txt)
+							}
+						}
+					}
+					contentText = strings.Join(parts, "\n")
+				} else if content, ok := cb["content"].(string); ok {
+					contentText = content
+				}
+				if len(contentText) > 2000 {
+					contentText = contentText[:2000] + "...(truncated)"
+				}
+				prefix := "[Tool result"
+				if isErr, _ := cb["is_error"].(bool); isErr {
+					prefix = "[Tool error"
+				}
+				filtered = append(filtered, map[string]any{
+					"type": "text",
+					"text": prefix + "]\n" + contentText,
+				})
+				continue
+			}
 			filtered = append(filtered, cb)
 		}
 		return filtered
