@@ -1115,7 +1115,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// glm-4.6v uses Anthropic-compatible endpoint (same billing pool as text).
 		// Only non-native models needing OpenAI format go through openaiProxy.
 		if isNativeImageModel(selectedModel) {
-			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			keys := make([]string, 0)
+			for k := range payload {
+				keys = append(keys, k)
+			}
+			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body), "payload_keys", keys)
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
