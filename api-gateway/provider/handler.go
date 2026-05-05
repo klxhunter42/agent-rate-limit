@@ -749,6 +749,11 @@ func (h *AuthHandler) RequireAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// Allow login page and auth API through without session.
+		if r.URL.Path == "/login" || r.URL.Path == "/callback" || strings.HasPrefix(r.URL.Path, "/v1/auth") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if r.Header.Get("x-api-key") == h.apiKey {
 			next.ServeHTTP(w, r)
 			return
