@@ -2209,11 +2209,15 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	}
 
 	if err := scanner.Err(); err != nil {
-		// Graceful close: emit closing SSE events so client doesn't see "Unexpected EOF"
-		slog.Warn("anthropic stream scanner error, emitting closing events", "error", err)
+		isClientGone := ctx.Err() != nil
+		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "elapsed", time.Since(streamStart).Round(time.Millisecond))
+		if isClientGone {
+			return nil
+		}
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
+		fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
 		fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 		if f, ok := w.(http.Flusher); ok {

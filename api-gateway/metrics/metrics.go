@@ -24,47 +24,48 @@ const namespace = "api_gateway"
 
 // Metrics holds all Prometheus instruments for the API gateway.
 type Metrics struct {
-	RequestLatency       *prometheus.HistogramVec
-	QueueDepth           prometheus.GaugeFunc
-	ErrorRate            *prometheus.CounterVec
-	RateLimitHits        *prometheus.CounterVec
-	ActiveConnections    prometheus.Gauge
-	TokenInput           *prometheus.CounterVec
-	TokenOutput          *prometheus.CounterVec
-	UpstreamRetries      prometheus.Counter
-	Upstream429          prometheus.Counter
-	AdaptiveLimit        *prometheus.GaugeVec
-	AdaptiveInFlight     *prometheus.GaugeVec
-	CostTotal            *prometheus.CounterVec
-	ModelFallback        *prometheus.CounterVec
-	TTFB                 *prometheus.HistogramVec
-	ProfileRequests      *prometheus.CounterVec
-	ProfileTokenIn       *prometheus.CounterVec
-	ProfileTokenOut      *prometheus.CounterVec
-	ProfileCost          *prometheus.CounterVec
-	AccountTokenIn  *prometheus.CounterVec
-	AccountTokenOut *prometheus.CounterVec
-	OptimizerCharsSaved  *prometheus.CounterVec
-	OptimizerRuns        *prometheus.CounterVec
-	OptimizerDuration    *prometheus.HistogramVec
-	OptimizerTokensSaved prometheus.Counter
-	BudgetLevel          *prometheus.GaugeVec
-	CostSavings          prometheus.Counter
-	ContextTruncations   *prometheus.CounterVec
-	TransientRetries     *prometheus.CounterVec
-	BillingPathRequests  *prometheus.CounterVec
-	BillingPathLatency   *prometheus.HistogramVec
-	WasteFindings        *prometheus.CounterVec
-	WasteTokensWasted    *prometheus.CounterVec
-	MCPCallsTotal        *prometheus.CounterVec
-	MCPCallDuration      *prometheus.HistogramVec
-	MCPCacheHits         *prometheus.CounterVec
-	MCPCacheMisses       *prometheus.CounterVec
-	MCPQuotaUsage        *prometheus.GaugeVec
-	registry             *prometheus.Registry
-	queueDepthFn         func() float64
-	pricing              map[string]modelPrice
-	usageRecorder        func(ctx context.Context, model string, input, output int, cost float64)
+	RequestLatency        *prometheus.HistogramVec
+	QueueDepth            prometheus.GaugeFunc
+	ErrorRate             *prometheus.CounterVec
+	RateLimitHits         *prometheus.CounterVec
+	ActiveConnections     prometheus.Gauge
+	TokenInput            *prometheus.CounterVec
+	TokenOutput           *prometheus.CounterVec
+	UpstreamRetries       prometheus.Counter
+	Upstream429           prometheus.Counter
+	AdaptiveLimit         *prometheus.GaugeVec
+	AdaptiveInFlight      *prometheus.GaugeVec
+	CostTotal             *prometheus.CounterVec
+	ModelFallback         *prometheus.CounterVec
+	TTFB                  *prometheus.HistogramVec
+	ProfileRequests       *prometheus.CounterVec
+	ProfileTokenIn        *prometheus.CounterVec
+	ProfileTokenOut       *prometheus.CounterVec
+	ProfileCost           *prometheus.CounterVec
+	AccountTokenIn        *prometheus.CounterVec
+	AccountTokenOut       *prometheus.CounterVec
+	OptimizerCharsSaved   *prometheus.CounterVec
+	OptimizerRuns         *prometheus.CounterVec
+	OptimizerDuration     *prometheus.HistogramVec
+	OptimizerTokensSaved  prometheus.Counter
+	ProfileOptimizerSaved *prometheus.CounterVec
+	BudgetLevel           *prometheus.GaugeVec
+	CostSavings           prometheus.Counter
+	ContextTruncations    *prometheus.CounterVec
+	TransientRetries      *prometheus.CounterVec
+	BillingPathRequests   *prometheus.CounterVec
+	BillingPathLatency    *prometheus.HistogramVec
+	WasteFindings         *prometheus.CounterVec
+	WasteTokensWasted     *prometheus.CounterVec
+	MCPCallsTotal         *prometheus.CounterVec
+	MCPCallDuration       *prometheus.HistogramVec
+	MCPCacheHits          *prometheus.CounterVec
+	MCPCacheMisses        *prometheus.CounterVec
+	MCPQuotaUsage         *prometheus.GaugeVec
+	registry              *prometheus.Registry
+	queueDepthFn          func() float64
+	pricing               map[string]modelPrice
+	usageRecorder         func(ctx context.Context, model string, input, output int, cost float64)
 }
 
 type modelPrice struct {
@@ -193,17 +194,16 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		}, []string{"profile", "model", "type"}),
 
 		AccountTokenIn: prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: namespace,
-		Name: "account_token_input_total",
-		Help: "Total input tokens consumed per account per model.",
-	}, []string{"account_id", "model"}),
-
+			Namespace: namespace,
+			Name:      "account_token_input_total",
+			Help:      "Total input tokens consumed per account per model.",
+		}, []string{"account_id", "model"}),
 
 		AccountTokenOut: prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: namespace,
-		Name: "account_token_output_total",
-		Help: "Total output tokens generated per account per model.",
-	}, []string{"account_id", "model"}),
+			Namespace: namespace,
+			Name:      "account_token_output_total",
+			Help:      "Total output tokens generated per account per model.",
+		}, []string{"account_id", "model"}),
 
 		OptimizerCharsSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -254,6 +254,12 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "optimizer_tokens_saved_total",
 			Help:      "Total estimated tokens saved by optimization.",
 		}),
+
+		ProfileOptimizerSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "profile_optimizer_chars_saved_total",
+			Help:      "Total characters saved by optimization per profile.",
+		}, []string{"profile", "technique"}),
 
 		BudgetLevel: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -339,6 +345,7 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.TransientRetries,
 		m.OptimizerDuration,
 		m.OptimizerTokensSaved,
+		m.ProfileOptimizerSaved,
 		m.BudgetLevel,
 		m.CostSavings,
 		m.BillingPathRequests,
@@ -372,6 +379,13 @@ func (m *Metrics) RecordOptimizationDuration(technique string, seconds float64) 
 func (m *Metrics) RecordTokensSaved(tokens int) {
 	if tokens > 0 {
 		m.OptimizerTokensSaved.Add(float64(tokens))
+	}
+}
+
+// RecordProfileOptimization records per-profile character savings from an optimization technique.
+func (m *Metrics) RecordProfileOptimization(profile, technique string, charsSaved int) {
+	if charsSaved > 0 && profile != "" {
+		m.ProfileOptimizerSaved.WithLabelValues(profile, technique).Add(float64(charsSaved))
 	}
 }
 

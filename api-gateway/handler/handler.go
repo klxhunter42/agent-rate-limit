@@ -828,6 +828,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent)
 					if optimized != sysText {
 						payload["system"] = optimized
+						if saved := len(sysText) - len(optimized); saved > 0 {
+							h.metrics.RecordProfileOptimization(profileName, "system_prompt", saved)
+						}
 					}
 				}
 			}

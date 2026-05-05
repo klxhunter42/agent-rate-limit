@@ -791,6 +791,19 @@ Unlike Caveman (F16), TextComp does NOT add input tokens - it only removes or sh
 - `api_gateway_optimizer_duration_seconds{technique="textcomp"}`
 - `api_gateway_optimizer_runs_total{technique="message_textcomp"}`
 - `api_gateway_optimizer_chars_saved_total{technique="message_textcomp"}`
+- `api_gateway_profile_optimizer_chars_saved_total{profile, technique}` - per-profile character savings from optimization
+- `api_gateway_optimizer_tokens_saved_total` - total tokens saved (previously always 0 due to budgetLevel bug, now fixed)
+- `api_gateway_cost_savings_total` - estimated cost savings from token optimization
+
+### Grafana Dashboard
+
+The "AI Gateway - Service Dashboard" (uid: `arl-service-dashboard`, file: `grafana/provisioning/dashboards/service-dashboard.json`) provides TextComp and optimizer visibility:
+
+- Before/after optimization comparison
+- Top 5 profile usage by requests/tokens/cost
+- Profile usage over time
+- Model distribution
+- Per-profile optimization savings
 
 ---
 
@@ -825,6 +838,12 @@ All 8 modules expose Prometheus metrics under the `api_gateway_` namespace with 
 - `api_gateway_waste_*` (3 metrics)
 - `api_gateway_prefetcher_*` (3 metrics)
 - `api_gateway_warmstart_*` (3 metrics)
+
+#### Profile-Level Optimization Metrics
+
+- `api_gateway_profile_optimizer_chars_saved_total{profile, technique}` - per-profile character savings from optimization
+- `api_gateway_optimizer_tokens_saved_total` - total tokens saved across all requests (was previously always 0 due to budgetLevel propagation bug, now fixed)
+- `api_gateway_cost_savings_total` - estimated dollar cost savings from token optimization
 
 ### Configuration Pattern
 
