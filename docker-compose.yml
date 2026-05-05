@@ -21,9 +21,6 @@ services:
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
-      args:
-        TARGETPLATFORM: ${DOCKER_PLATFORM:-linux/arm64}
-        BUILDPLATFORM: ${BUILDPLATFORM:-linux/arm64}
     container_name: arl-gateway
     restart: always
     environment:
