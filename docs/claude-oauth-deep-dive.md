@@ -166,28 +166,28 @@ Gateway (ตอนแรก, ไม่มี billing header):
 
 Phase breakdown:
   ┌────────────────────────────────────────────────────────┐
-  │ 1. Health check                                       │
-  │    /api/hello, /v1/oauth/hello → 200                  │
+  │ 1. Health check                                        │
+  │    /api/hello, /v1/oauth/hello → 200                   │
   ├────────────────────────────────────────────────────────┤
-  │ 2. OAuth PKCE                                         │
-  │    /v1/oauth/token → 200 (ได้ access_token)           │
+  │ 2. OAuth PKCE                                          │
+  │    /v1/oauth/token → 200 (ได้ access_token)            │
   ├────────────────────────────────────────────────────────┤
-  │ 3. Profile fetch                                      │
-  │    /api/oauth/profile → 200 (subscription: pro)       │
-  │    /api/oauth/claude_cli/roles → 200                  │
+  │ 3. Profile fetch                                       │
+  │    /api/oauth/profile → 200 (subscription: pro)        │
+  │    /api/oauth/claude_cli/roles → 200                   │
   ├────────────────────────────────────────────────────────┤
-  │ 4. Config                                             │
-  │    /v1/mcp_servers → 200/404                          │
-  │    /api/claude_code/settings → 200                    │
-  │    /api/claude_code/policy_limits → 200               │
+  │ 4. Config                                              │
+  │    /v1/mcp_servers → 200/404                           │
+  │    /api/claude_code/settings → 200                     │
+  │    /api/claude_code/policy_limits → 200                │
   ├────────────────────────────────────────────────────────┤
-  │ 5. MCP Init (burst!)                                  │
-  │    /v1/mcp/{11 servers} → 401/502/429/200             │
-  │    ยิง 11 requests พร้อมกันใน ~150ms                 │
+  │ 5. MCP Init (burst!)                                   │
+  │    /v1/mcp/{11 servers} → 401/502/429/200              │
+  │    ยิง 11 requests พร้อมกันใน ~150ms                   │
   ├────────────────────────────────────────────────────────┤
-  │ 6. LLM Request (สำคัญที่สุด)                         │
-  │    /v1/messages?beta=true → 200                       │
-  │    utilization: 5h=0.01, 7d=0.09 (ต่ำมาก)            │
+  │ 6. LLM Request (สำคัญที่สุด)                           │
+  │    /v1/messages?beta=true → 200                        │
+  │    utilization: 5h=0.01, 7d=0.09 (ต่ำมาก)              │
   └────────────────────────────────────────────────────────┘
 ```
 
@@ -276,11 +276,11 @@ curl -X POST https://api.anthropic.com/v1/messages \
 ┌──────────────────────────────────────────────────────────────┐
 │ x-anthropic-billing-header เป็น RESERVED KEYWORD             │
 │                                                              │
-│ ✅ CLI ตัวจริง: ใช้ได้ (Anthropic allowlist ตาม TLS fingerprint) │
+│ ✅ CLI ตัวจริง: ใช้ได้ (Anthropic allowlist ตาม TLS FP)       │
 │ ❌ curl/Go/Python: ใช้ไม่ได้ (reserved keyword → 400)         │
 │ ❌ Gateway (Go): ใช้ไม่ได้ (same 400 error)                   │
 │                                                              │
-│ ข้อสรุป: Anthropic ตรวจสอบ TLS fingerprint ของ caller       │
+│ ข้อสรุป: Anthropic ตรวจสอบ TLS fingerprint ของ caller        │
 │ เฉพาะ official CLI client เท่านั้นที่สามารถ inject ได้       │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -314,8 +314,8 @@ curl -X POST https://api.anthropic.com/v1/messages \
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               arl-gateway container                  │
-│                                                      │
+│               arl-gateway container                 │
+│                                                     │
 │  ┌──────────────────┐      ┌──────────────────────┐ │
 │  │  Go Gateway      │      │  Node.js Sidecar     │ │
 │  │  :8080           │      │  :8081               │ │
@@ -325,11 +325,11 @@ curl -X POST https://api.anthropic.com/v1/messages \
 │  │  - Rate limit    │      │  - Inject billing    │ │
 │  │  - Privacy guard │      │  - Inject identity   │ │
 │  │  - Profile       │      │  - HTTPS proxy       │ │
-│  │                  │      │  - Zero dependencies  │ │
+│  │                  │      │  - Zero dependencies │ │
 │  └──────────────────┘      └──────────┬───────────┘ │
-│                                       │              │
-│  entrypoint.sh starts both processes  │              │
-└───────────────────────────────────────┼──────────────┘
+│                                       │             │
+│  entrypoint.sh starts both processes  │             │
+└───────────────────────────────────────┼─────────────┘
                                         │
                                         │ HTTPS
                                         ▼
@@ -507,12 +507,12 @@ Client ที่ใช้ `arl_` token ผ่าน curl อาจไม่ไ�
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                    Claude Code CLI (192.168.5.221)                       │
 │                                                                          │
-│  ANTHROPIC_BASE_URL=http://192.168.5.62:9000                            │
-│  ANTHROPIC_API_KEY=arl_2f3a72a7...                                      │
+│  ANTHROPIC_BASE_URL=http://192.168.5.62:9000                             │
+│  ANTHROPIC_API_KEY=arl_2f3a72a7...                                       │
 │                                                                          │
-│  POST /v1/messages                                                      │
-│  x-api-key: arl_2f3a72a7...                                             │
-│  Body: {model:"claude-sonnet-4-20250514", messages:[...]}               │
+│  POST /v1/messages                                                       │
+│  x-api-key: arl_2f3a72a7...                                              │
+│  Body: {model:"claude-sonnet-4-20250514", messages:[...]}                │
 └───────────────────────────────┬──────────────────────────────────────────┘
                                 │
                                 ▼
@@ -523,24 +523,24 @@ Client ที่ใช้ `arl_` token ผ่าน curl อาจไม่ไ�
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                    API Gateway (Go, :8080)                                │
+│                    API Gateway (Go, :8080)                               │
 │                    arl-gateway container                                 │
 │                                                                          │
 │  Step 1: Resolve arl_ token                                              │
-│     arl_2f3a72a7... → ResolveProfileToken() → profile "th15011880"      │
+│     arl_2f3a72a7... → ResolveProfileToken() → profile "th15011880"       │
 │                                                                          │
 │  Step 2: Load profile                                                    │
 │     profile.target = "claude-oauth"                                      │
 │     profile.provider = "claude-oauth"                                    │
 │                                                                          │
 │  Step 3: Select token                                                    │
-│     GetDefault("claude-oauth") → sk-ant-oat01-eGNq... from Redis        │
+│     GetDefault("claude-oauth") → sk-ant-oat01-eGNq... from Redis         │
 │                                                                          │
 │  Step 4: Detect transparent                                              │
 │     apiKey starts with "sk-ant-oat01-" → transparent = true              │
 │                                                                          │
 │  Step 5: Privacy scan (PasteGuard)                                       │
-│     Scan body for secrets/PII → none → skip                             │
+│     Scan body for secrets/PII → none → skip                              │
 │                                                                          │
 │  Step 6: Fix headers for sidecar                                         │
 │     ├ Set Authorization: Bearer sk-ant-oat01-...                         │
@@ -554,8 +554,8 @@ Client ที่ใช้ `arl_` token ผ่าน curl อาจไม่ไ�
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                 Node.js Sidecar (:8081)                                   │
-│                 Same container as Gateway                                 │
+│                 Node.js Sidecar (:8081)                                  │
+│                 Same container as Gateway                                │
 │                                                                          │
 │  Step 8: Parse JSON body                                                 │
 │                                                                          │
@@ -563,9 +563,9 @@ Client ที่ใช้ `arl_` token ผ่าน curl อาจไม่ไ�
 │     "Say hi in 3 words"                                                  │
 │                                                                          │
 │  Step 10: Compute billing header                                         │
-│     chars = [text[4], text[7], text[20]] = "i", "3", "r"                │
-│     hash  = SHA256("59cf53e54c78" + "i3r" + "2.1.123").hex[:3] = "a9a" │
-│     header = "cc_version=2.1.123.a9a; cc_entrypoint=cli; cch=00000;"   │
+│     chars = [text[4], text[7], text[20]] = "i", "3", "r"                 │
+│     hash  = SHA256("59cf53e54c78" + "i3r" + "2.1.123").hex[:3] = "a9a"   │
+│     header = "cc_version=2.1.123.a9a; cc_entrypoint=cli; cch=00000;"     │
 │                                                                          │
 │  Step 11: Inject system[0] = billing header                              │
 │  Step 12: Inject system[1] = identity string                             │
@@ -581,11 +581,11 @@ Client ที่ใช้ `arl_` token ผ่าน curl อาจไม่ไ�
 │                   api.anthropic.com/v1/messages                          │
 │                                                                          │
 │  Auth:      Bearer sk-ant-oat01-... (OAuth)                              │
-│  Billing:   Claude Code bucket (system[0] = billing header)             │
-│  Beta:      oauth-2025-04-20 (OAuth auth enabled)                       │
+│  Billing:   Claude Code bucket (system[0] = billing header)              │
+│  Beta:      oauth-2025-04-20 (OAuth auth enabled)                        │
 │                                                                          │
 │  → 200 OK                                                                │
-│  → {"content":[{"type":"text","text":"Hello there, human!"}]}           │
+│  → {"content":[{"type":"text","text":"Hello there, human!"}]}            │
 └───────────────────────────────┬──────────────────────────────────────────┘
                                 │
                                 │ 200 OK (SSE or JSON)

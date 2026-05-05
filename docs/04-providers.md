@@ -180,57 +180,57 @@ System that enables Claude Code CLI to use Sonnet/Opus through the gateway. The 
 ### Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Claude Code CLI                                                              │
-│ (Remote: 192.168.5.62)                                                   │
-│                                                                              │
-│ ANTHROPIC_BASE_URL=http://192.168.5.62:9000                                 │
-│ ANTHROPIC_API_KEY=arl_2f3a72a7...                                            │
-│                                                                              │
-│ POST /v1/messages                                                            │
-│ Headers: x-api-key: arl_2f3a72a7...                                         │
-│ Body: {model: "claude-sonnet-4-20250514", messages: [...]}                   │
-└────────────────────────────┬────────────────────────────────────────────────┘
-                             │
-                             │ HTTP POST (arl_ token)
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Caddy Reverse Proxy (:9000)                                                  │
-└────────────────────────────┬────────────────────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ API Gateway (Go, :8080)                                                      │
-│                                                                              │
-│ 1. ResolveProfileToken() -> profile -> claude-oauth                         │
-│ 2. Get OAuth token from Redis (sk-ant-oat01-*)                              │
-│ 3. Transparent mode: fix headers (Bearer auth, oauth-2025-04-20)            │
-│ 4. Message body optimization (whitespace + dedup)                            │
-│ 5. Privacy masking (PasteGuard: secrets, PII)                                │
-│ 6. 3-Path Routing:                                                           │
-│    ├── Path 1 (primary): Go billing injection -> api.anthropic.com           │
-│    ├── Path 2 (fallback): Sidecar (Node.js) -> api.anthropic.com             │
-│    └── Path 3 (last resort): Direct proxy (no billing header)                │
-└────────────────────────────┬────────────────────────────────────────────────┘
-                             │
-                             │ Path 1 (Go billing injection)
-                             │ Inject billing header as system[0] in Go
-                             │ HTTPS POST to api.anthropic.com
-                             ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ api.anthropic.com/v1/messages                                                │
-│                                                                              │
-│ Auth: OAuth Bearer token + anthropic-beta: oauth-2025-04-20                  │
-│ Billing: Claude Code rate limit bucket (more generous limits)                │
-│ Response: 200 {content: [{type:"text", text:"Hello!"}]}                     │
-│                                                                              │
-│ If 400 "reserved keyword" (billing rejected):                                │
-│ → Fallback to Path 2 (Sidecar) -> Path 3 (Direct)                           │
-└────────────────────────────┬────────────────────────────────────────────────┘
-                             │
-                             │ 200 OK (SSE stream or JSON)
-                             ▼
-                        Back to CLI client
+┌──────────────────────────────────────────────────────────────────┐
+│Claude Code CLI                                                   │
+│(Remote: 192.168.5.62)                                            │
+│                                                                  │
+│ANTHROPIC_BASE_URL=http://192.168.5.62:9000                       │
+│ANTHROPIC_API_KEY=arl_2f3a72a7...                                 │
+│                                                                  │
+│POST /v1/messages                                                 │
+│Headers: x-api-key: arl_2f3a72a7...                               │
+│Body: {model: "claude-sonnet-4-20250514", messages: [...]}        │
+└────────────────────────────────┬─────────────────────────────────┘
+                                 │
+                                 │ HTTP POST (arl_ token)
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│Caddy Reverse Proxy (:9000)                                       │
+└────────────────────────────────┬─────────────────────────────────┘
+                                 │
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│API Gateway (Go, :8080)                                           │
+│                                                                  │
+│1. ResolveProfileToken() -> profile -> claude-oauth               │
+│2. Get OAuth token from Redis (sk-ant-oat01-*)                    │
+│3. Transparent mode: fix headers (Bearer auth, oauth-2025-04-20)  │
+│4. Message body optimization (whitespace + dedup)                 │
+│5. Privacy masking (PasteGuard: secrets, PII)                     │
+│6. 3-Path Routing:                                                │
+│   ├── Path 1 (primary): Go billing injection -> api.anthropic.com│
+│   ├── Path 2 (fallback): Sidecar (Node.js) -> api.anthropic.com  │
+│   └── Path 3 (last resort): Direct proxy (no billing header)     │
+└────────────────────────────────┬─────────────────────────────────┘
+                                 │
+                                 │ Path 1 (Go billing injection)
+                                 │ Inject billing header as system[0] in Go
+                                 │ HTTPS POST to api.anthropic.com
+                                 ▼
+┌──────────────────────────────────────────────────────────────────┐
+│api.anthropic.com/v1/messages                                     │
+│                                                                  │
+│Auth: OAuth Bearer token + anthropic-beta: oauth-2025-04-20       │
+│Billing: Claude Code rate limit bucket (more generous limits)     │
+│Response: 200 {content: [{type:"text", text:"Hello!"}]}           │
+│                                                                  │
+│If 400 "reserved keyword" (billing rejected):                     │
+│→ Fallback to Path 2 (Sidecar) -> Path 3 (Direct)                 │
+└────────────────────────────────┬─────────────────────────────────┘
+                                 │
+                                 │ 200 OK (SSE stream or JSON)
+                                 ▼
+                                 Back to CLI client
 ```
 
 ### Request Routing Flow (Step by Step)
@@ -347,22 +347,22 @@ Step 5: Inject identity as system[1]
 ### Sidecar Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────┐
 │ arl-gateway container                            │
 │                                                  │
-│ ┌────────────────────┐ ┌────────────────────┐   │
-│ │ Go Gateway (:8080) │ │ Node.js Sidecar    │   │
-│ │                    │ │ (:8081)             │   │
-│ │ - HTTP routing     │──▶│ - Parse JSON body  │   │
-│ │ - Profile resolve  │ │ - Inject billing    │   │
-│ │ - Rate limiting    │ │ - Inject identity   │   │
-│ │ - Privacy masking  │ │ - Forward headers   │   │
-│ │                    │ │ - HTTPS to Anthro   │   │
-│ └────────────────────┘ └────────────────────┘   │
+│ ┌────────────────────┐    ┌────────────────────┐ │
+│ │Go Gateway (:8080)  │    │Node.js Sidecar     │ │
+│ │                    │    │(:8081)             │ │
+│ │- HTTP routing      │───▶│- Parse JSON body   │ │
+│ │- Profile resolve   │    │- Inject billing    │ │
+│ │- Rate limiting     │    │- Inject identity   │ │
+│ │- Privacy masking   │    │- Forward headers   │ │
+│ │                    │    │- HTTPS to Anthro   │ │
+│ └────────────────────┘    └────────────────────┘ │
 │                                                  │
 │ Entrypoint: /app/sidecar/entrypoint.sh           │
 │ Starts both processes, waits for either to exit  │
-└─────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────┘
 ```
 
 ### Files

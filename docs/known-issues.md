@@ -361,7 +361,7 @@ Content blocks ประเภท `server_tool_use`, `tool_use`, `tool_result` �
 Anthropic Request (เข้า)                  Z.AI Vision Request (ส่งออก)
 ===========================               ============================
 {                                         {
-  "system": "You are helpful...",    ──┐
+  "system": "You are helpful...",    ─┐
   "messages": [                       │  system text ถูกนำหน้าไป
     {                                 │  ที่ user message แรก
       "role": "user",                 │
@@ -385,8 +385,8 @@ Anthropic Request (เข้า)                  Z.AI Vision Request (ส่ง
       ]                                        }
     }                                        }
   ]                                        ]
-}                                        }
-                                         }
+}                                       }
+                                      }
   role "system"    →  ถูกกรองออก, text ไป user แรก
   role "tool"      →  ถูกกรองออกทั้งหมด
   server_tool_use  →  ถูกกรองออก

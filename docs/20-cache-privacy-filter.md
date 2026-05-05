@@ -571,7 +571,7 @@ Client Request (POST /v1/messages)
   |
   v
 [6] Image detection
-  |         \
+  |          \
   |          \-- hasImages=true --> SKIP optimizer + privacy
   |
   v (no images)
@@ -608,11 +608,11 @@ Client Request (POST /v1/messages)
   +-- Streaming SSE:
         NewStreamUnmasker(piiCtx, secretsCtx)
         For each event:
-          delta.text        -> ProcessChunk()
-          delta.thinking    -> ProcessChunk()
+          delta.text         -> ProcessChunk()
+          delta.thinking     -> ProcessChunk()
           delta.partial_json -> ReplaceDirectJSON()
-          raw data lines    -> ReplaceDirectJSON()
-          error bodies      -> UnmaskResponse()
+          raw data lines     -> ReplaceDirectJSON()
+          error bodies       -> UnmaskResponse()
         End of stream:
           Flush() -> drain partial buffers
 ```

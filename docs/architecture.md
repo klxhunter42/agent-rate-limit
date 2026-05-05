@@ -35,68 +35,68 @@
 ## 1. ภาพรวม
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                                                                  │
-│  Client (Claude Code / Agent)                                    │
-│    │                                                             │
-│    │ POST /v1/messages หรือ POST /v1/chat/completions           │
-│    ▼                                                             │
-│  arl-gateway (:8080)                                             │
-│    ├─ SecurityHeaders Middleware                                 │
-│    ├─ CorrelationID Middleware                                   │
-│    ├─ RealIP Middleware                                          │
+┌───────────────────────────────────────────────────────────────────┐
+│                                                                   │
+│  Client (Claude Code / Agent)                                     │
+│    │                                                              │
+│    │ POST /v1/messages หรือ POST /v1/chat/completions             │
+│    ▼                                                              │
+│  arl-gateway (:8080)                                              │
+│    ├─ SecurityHeaders Middleware                                  │
+│    ├─ CorrelationID Middleware                                    │
+│    ├─ RealIP Middleware                                           │
 │    ├─ IPFilter Middleware (optional)                              │
-│    ├─ Logging Middleware                                         │
-│    ├─ Metrics Middleware                                         │
-│    ├─ Rate Limit Middleware ──▶ arl-rate-limiter (:8080)        │
-│    │                              │                              │
-│    │                              └─▶ arl-dragonfly (:6379)     │
-│    │                                                             │
-│    ├─ Login Limiter (5 attempts/15min per IP, auth endpoints)    │
-│    │                                                             │
-│    ├─ API Routes:                                                │
-│    │   ├─ /v1/messages          (Sync proxy)                     │
-│    │   │   ├─ X-Profile header → Profile-based routing           │
-│    │   │   ├─ Quota check (>=95% → 429, >=80% → WS warning)     │
-│    │   │   └─ Normal: key pool → model slot → proxy              │
-│    │   ├─ /v1/chat/completions  (Async queue)                    │
-│    │   │   └─ WS event: request-queued                           │
-│    │   ├─ /v1/profiles/*        (Profile CRUD)                   │
-│    │   ├─ /v1/usage/*           (Usage analytics)                │
-│    │   ├─ /quota/*              (Quota tracking)                 │
-│    │   ├─ /v1/overview          (Dashboard summary)              │
-│    │   ├─ /v1/health/detailed   (6 health checks)                │
-│    │   ├─ /v1/config/*          (Config + Thinking + GlobalEnv)  │
-│    │   └─ /v1/auth/*            (OAuth + API key auth)           │
-│    │                                                             │
-│    ├─ Sync mode: Transparent Proxy ──▶ Upstream Provider        │
-│    │                                    (17 providers)           │
-│    │                                                             │
-│    ├─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)          │
-│    │                                    │                        │
-│    │                              arl-worker (BRPOP x 50)        │
-│    │                                ├─ Per-Model Semaphores      │
-│    │                                ├─ RPM Limiter               │
+│    ├─ Logging Middleware                                          │
+│    ├─ Metrics Middleware                                          │
+│    ├─ Rate Limit Middleware ──▶ arl-rate-limiter (:8080)          │
+│    │                              │                               │
+│    │                              └─▶ arl-dragonfly (:6379)       │
+│    │                                                              │
+│    ├─ Login Limiter (5 attempts/15min per IP, auth endpoints)     │
+│    │                                                              │
+│    ├─ API Routes:                                                 │
+│    │   ├─ /v1/messages          (Sync proxy)                      │
+│    │   │   ├─ X-Profile header -> Profile-based routing           │
+│    │   │   ├─ Quota check (>=95% -> 429, >=80% -> WS warning)     │
+│    │   │   └─ Normal: key pool -> model slot -> proxy             │
+│    │   ├─ /v1/chat/completions  (Async queue)                     │
+│    │   │   └─ WS event: request-queued                            │
+│    │   ├─ /v1/profiles/*        (Profile CRUD)                    │
+│    │   ├─ /v1/usage/*           (Usage analytics)                 │
+│    │   ├─ /quota/*              (Quota tracking)                  │
+│    │   ├─ /v1/overview          (Dashboard summary)               │
+│    │   ├─ /v1/health/detailed   (6 health checks)                 │
+│    │   ├─ /v1/config/*          (Config + Thinking + GlobalEnv)   │
+│    │   └─ /v1/auth/*            (OAuth + API key auth)            │
+│    │                                                              │
+│    ├─ Sync mode: Transparent Proxy ──▶ Upstream Provider          │
+│    │                                    (17 providers)            │
+│    │                                                              │
+│    ├─ Async mode: LPUSH job ──▶ arl-dragonfly (queue)             │
+│    │                                    │                         │
+│    │                              arl-worker (BRPOP x 50)         │
+│    │                                ├─ Per-Model Semaphores       │
+│    │                                ├─ RPM Limiter                │
 │    │                                ├─ Provider Cache             │
 │    │                                ├─ Provider Fallback Chain    │
 │    │                                ├─ Key Rotation               │
-│    │                                └─ Result → arl-dragonfly     │
-│    │                                                             │
-│    ├─ WebSocket /ws (real-time dashboard updates)                │
-│    │   ├─ 6 event types: config-changed, request-completed,      │
-│    │   │   request-error, anomaly-detected, request-queued,      │
-│    │   │   quota-warning                                         │
-│    │   ├─ Config file watcher (.env changes → broadcast)         │
-│    │   └─ Session secret persistence (config/session_secret)     │
-│    │                                                             │
-│    ├─ Static Dashboard SPA (embedded Vite build)                 │
-│    │                                                             │
-│    └─ Dashboard routes / (with optional auth)                 │
-│                                                                  │
-│  Observability                                                   │
-│    arl-otel (:4317/4318) ──▶ arl-prometheus ──▶ arl-grafana    │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
+│    │                                └─ Result -> arl-dragonfly    │
+│    │                                                              │
+│    ├─ WebSocket /ws (real-time dashboard updates)                 │
+│    │   ├─ 6 event types: config-changed, request-completed,       │
+│    │   │   request-error, anomaly-detected, request-queued,       │
+│    │   │   quota-warning                                          │
+│    │   ├─ Config file watcher (.env changes -> broadcast)         │
+│    │   └─ Session secret persistence (config/session_secret)      │
+│    │                                                              │
+│    ├─ Static Dashboard SPA (embedded Vite build)                  │
+│    │                                                              │
+│    └─ Dashboard routes / (with optional auth)                     │
+│                                                                   │
+│  Observability                                                    │
+│    arl-otel (:4317/4318) ──▶ arl-prometheus ──▶ arl-grafana       │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ### โหมด Sync vs Async
@@ -409,15 +409,15 @@ Per-IP rate limiter for login/auth endpoints. 5 attempts per 15-minute window.
 
 ```
 Request to login endpoint
-  |
-  +-- Extract IP from RemoteAddr
-  |
-  +-- Check attempt counter for this IP:
-      |
-      +-- No record or expired -> allow, start new window
-      +-- count < 5 -> allow, increment counter
-      +-- count >= 5 -> 429 {"error":"too many login attempts"}
-                       Retry-After: 900
+  │
+  ├─ Extract IP from RemoteAddr
+  │
+  └─ Check attempt counter for this IP:
+       │
+       ├─ No record or expired -> allow, start new window
+       ├─ count < 5 -> allow, increment counter
+       └─ count >= 5 -> 429 {"error":"too many login attempts"}
+                        Retry-After: 900
 ```
 
 Background cleanup: expired entries removed every 5 minutes.
@@ -434,14 +434,14 @@ Session cookie signing secret persisted to `config/session_secret` file. Survive
 
 ```
 Startup:
-  |-- File exists and >= 32 bytes -> load from file
-  |-- File missing or too short -> generate 64-byte hex secret
-  |   |-- mkdir config/ (0700)
-  |   |-- write to config/session_secret (0600)
-  |
-  |-- Watch with fsnotify:
-      |-- Write/Create event -> reload secret from file
-      |-- Allows secret rotation without restart
+  ├─ File exists and >= 32 bytes -> load from file
+  ├─ File missing or too short -> generate 64-byte hex secret
+  │   ├─ mkdir config/ (0700)
+  │   └─ write to config/session_secret (0600)
+  │
+  └─ Watch with fsnotify:
+       ├─ Write/Create event -> reload secret from file
+       └─ Allows secret rotation without restart
 ```
 
 File permissions: directory 0700, file 0600 (owner-only read/write).
@@ -456,14 +456,14 @@ Watches `.env` file for changes using fsnotify. On change, calls callback with c
 
 ```
 NewConfigWatcher(".env", callback)
-  |
-  +-- fsnotify watches parent directory
-  |
-  +-- On Write event to .env:
-      |-- Debounce 500ms (avoid duplicate events)
-      |-- Parse new .env -> compare with previous values
-      |-- For each changed key: callback(key, newValue)
-      |-- wsHub.Broadcast("config-changed", {key})
+  │
+  ├─ fsnotify watches parent directory
+  │
+  └─ On Write event to .env:
+       ├─ Debounce 500ms (avoid duplicate events)
+       ├─ Parse new .env -> compare with previous values
+       ├─ For each changed key: callback(key, newValue)
+       └─ wsHub.Broadcast("config-changed", {key})
 ```
 
 Runs in background goroutine, stops on context cancellation.
@@ -478,16 +478,16 @@ Real-time event broadcast to connected dashboard clients.
 
 ```
 Client connects GET /ws
-  |
-  +-- Upgrade to WebSocket (gorilla/websocket, CheckOrigin: allow all)
-  +-- Register in WebSocketHub
-  +-- Start readPump goroutine (pong handler, read limit 512 bytes)
-  +-- Start writePump goroutine (ping every 54s, write deadline 10s)
-  |
-  +-- On broadcast:
-      |-- Hub locks, iterates all clients
-      |-- Non-blocking send to client channel (buffer 256)
-      |-- If channel full -> close and unregister client
+  │
+  ├─ Upgrade to WebSocket (gorilla/websocket, CheckOrigin: allow all)
+  ├─ Register in WebSocketHub
+  ├─ Start readPump goroutine (pong handler, read limit 512 bytes)
+  ├─ Start writePump goroutine (ping every 54s, write deadline 10s)
+  │
+  └─ On broadcast:
+       ├─ Hub locks, iterates all clients
+       ├─ Non-blocking send to client channel (buffer 256)
+       └─ If channel full -> close and unregister client
 
 Event format:
   {"type":"config-changed","data":{"key":"SOME_VAR"},"timestamp":"2026-04-19T12:00:00Z"}
@@ -613,48 +613,27 @@ On 200:
 
 ```
 Request: { "model": "glm-5", ... }
-  |
-  +-- 1. Wait for global slot (sync.Cond signal-based)
-  |
-  +-- 2. Proactive distribution: multi-model series?
-  |     YES (series 5 has glm-5.1, glm-5-turbo, glm-5):
-  |     |   Round-robin across all series-5 models
-  |     |   Any available? -> use it (e.g., glm-5-turbo)
-  |     |
-  |     NO (single model or non-series):
-  |         Try exact model directly (non-blocking CAS)
-  |
-  +-- 3. All same-series full -> check latency pressure:
-  |     EWMA > 1.5x minRTT for majority of series 5 models? -> PRESSURE
-  |     No pressure -> no spillover (stay in series 5)
-  |
-  +-- 4. Spillover to lower series (series 4) under pressure:
-  |     glm-4.7, glm-4.6, glm-4.5 (round-robin)
-  |     Any available? -> use it
-  |
-  +-- 5. All models full -> release global slot -> signal-based block-wait (30s timeout)
-                       -> re-acquire global slot after model slot obtained
-```Request: { "model": "glm-5", ... }
   │
   ├─ 1. Wait for global slot (sync.Cond signal-based)
   │
-  ├─ 2. Try glm-5 (non-blocking CAS acquire)
-  │     └─ Available? → use glm-5
+  ├─ 2. Proactive distribution: multi-model series?
+  │     YES (series 5 has glm-5.1, glm-5-turbo, glm-5):
+  │     │   Round-robin across all series-5 models
+  │     │   Any available? -> use it (e.g., glm-5-turbo)
+  │     │
+  │     NO (single model or non-series):
+  │         Try exact model directly (non-blocking CAS)
   │
-  ├─ 3. glm-5 full → round-robin within same series (series 5):
-  │     ├─ glm-5.1, glm-5-turbo, glm-5 (pooled candidate slices)
-  │     └─ Any available? → use it (same-series round-robin)
+  ├─ 3. All same-series full -> check latency pressure:
+  │     EWMA > 1.5x minRTT for majority of series 5 models? -> PRESSURE
+  │     No pressure -> no spillover (stay in series 5)
   │
-  ├─ 4. Same series full → check latency pressure:
-  │     ├─ EWMA > 1.5x minRTT for majority of series 5 models? → PRESSURE
-  │     └─ No pressure → no spillover (stay in series 5)
+  ├─ 4. Spillover to lower series (series 4) under pressure:
+  │     glm-4.7, glm-4.6, glm-4.5 (round-robin)
+  │     Any available? -> use it
   │
-  ├─ 5. Spillover to lower series (series 4) under pressure:
-  │     ├─ glm-4.7, glm-4.6, glm-4.5 (round-robin)
-  │     └─ Any available? → use it
-  │
-  └─ 6. All models full → release global slot → signal-based block-wait (30s timeout)
-                              → re-acquire global slot after model slot obtained
+  └─ 5. All models full -> release global slot -> signal-based block-wait (30s timeout)
+                            -> re-acquire global slot after model slot obtained
 ```
 
 **Series spillover trade-off**: Only spills to lower series when the current series shows latency pressure (EWMA RTT > 1.5x minRTT for majority of models). This prevents unnecessary downgrades when a model is temporarily full but not under load.
@@ -878,30 +857,30 @@ Gateway ตรวจจับ image content ใน request อัตโนมั
 
 ```
 Client POST /v1/messages
-  |
-  v
+  │
+  ▼
 arl-gateway (:8080)
-  |
-  |-- parse body, resolve key, acquire model slot
-  |
-  |-- filterUnsupportedContent():
-  |     strip server_tool_use blocks
-  |     convert Anthropic image -> GLM image_url format
-  |
-  |-- HasImageContent() scan messages?
-  |
-  +-- NO images:
-  |     ProxyTransparent()
-  |       -> POST UPSTREAM_URL (api.z.ai/api/anthropic)
-  |       <- raw response relay (SSE support)
-  |
-  +-- HAS images:
-        |-- analyzeImagePayload() -> totalBase64Bytes, imageCount
-        |-- selectVisionModel():
-        |     score = totalBase64KB + (imageCount * 300)
-        |     score <= 2000 && count < 3 -> glm-4.6v (10 slots)
-        |     score > 2000 || count >= 3 -> glm-4.6v (heavy payload)
-        |
+  │
+  ├─ parse body, resolve key, acquire model slot
+  │
+  ├─ filterUnsupportedContent():
+  │     strip server_tool_use blocks
+  │     convert Anthropic image -> GLM image_url format
+  │
+  ├─ HasImageContent() scan messages?
+  │
+  ├── NO images:
+  │     ProxyTransparent()
+  │       -> POST UPSTREAM_URL (api.z.ai/api/anthropic)
+  │       <- raw response relay (SSE support)
+  │
+  └── HAS images:
+        ├─ analyzeImagePayload() -> totalBase64Bytes, imageCount
+        ├─ selectVisionModel():
+        │     score = totalBase64KB + (imageCount * 300)
+        │     score <= 2000 && count < 3 -> glm-4.6v (10 slots)
+        │     score > 2000 || count >= 3 -> glm-4.6v (heavy payload)
+        │
         ProxyNativeVision()
           -> anthropicToZhipu() format conversion
           -> POST NATIVE_VISION_URL (open.bigmodel.cn/api/paas/v4/chat/completions)
@@ -921,52 +900,52 @@ arl-gateway (:8080)
 
 ```
 anthropicToZhipu() / AnthropicToOpenAI():
-  ┌──────────────────────────────────────────────────────────────┐
-  │ Anthropic Messages API        ->    Zhipu OpenAI API         │
-  │                                                              │
-  │ messages[].role: "user"       ->    messages[].role: "user"  │
-  │ messages[].role: "assistant"  ->    messages[].role: "assis" │
-  │ messages[].role: "system"     ->    X กรองออก, text ไป user  │
-  │ messages[].role: "tool"       ->    X กรองออกทั้งหมด         │
-  │                                                              │
-  │ content[].type="text"         ->    text string              │
-  │ content[].type="image"        ->    type="image_url"         │
-  │   source.type="base64"        ->      url="data:mime;base64" │
-  │   source.type="url"           ->      url=<original url>     │
-  │ content[].type="server_tool_use" -> X กรองออก (ไม่รองรับ)   │
-  │ content[].type="tool_use"     ->    X กรองออก (ไม่รองรับ)   │
-  │ content[].type="tool_result"  ->    X กรองออก (ไม่รองรับ)   │
-  │                                                              │
-  │ system (string or array)      ->    นำหน้าไปที่ user msg แรก │
-  │ stream: bool                  ->    stream: bool             │
-  │ max_tokens                    ->    max_tokens               │
-  └──────────────────────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────────────────┐
+  │ Anthropic Messages API          ->    Zhipu OpenAI API         │
+  │                                                                │
+  │ messages[].role: "user"         ->    messages[].role: "user"  │
+  │ messages[].role: "assistant"    ->    messages[].role: "assis" │
+  │ messages[].role: "system"       ->    X กรองออก, text ไป user  │
+  │ messages[].role: "tool"         ->    X กรองออกทั้งหมด         │
+  │                                                                │
+  │ content[].type="text"           ->    text string              │
+  │ content[].type="image"          ->    type="image_url"         │
+  │   source.type="base64"          ->      url="data:mime;base64" │
+  │   source.type="url"             ->      url=<original url>     │
+  │ content[].type="server_tool_use"->    X กรองออก (ไม่รองรับ)    │
+  │ content[].type="tool_use"       ->    X กรองออก (ไม่รองรับ)    │
+  │ content[].type="tool_result"    ->    X กรองออก (ไม่รองรับ)    │
+  │                                                                │
+  │ system (string or array)        ->    นำหน้าไปที่ user msg แรก │
+  │ stream: bool                    ->    stream: bool             │
+  │ max_tokens                      ->    max_tokens               │
+  └────────────────────────────────────────────────────────────────┘
 
 ขั้นตอนการแปลง system prompt:
-  ┌─────────────────────────────────────────────────────┐
-  │ ก่อน:                                               │
-  │   system: "You are helpful..."                      │
-  │   messages: [{role:"user", content:"describe"}]     │
-  │                                                     │
-  │ หลัง:                                               │
-  │   messages: [                                       │
-  │     {role:"user",                                   │
-  │      content:"You are helpful...\n\ndescribe"}      │
-  │   ]                                                 │
-  └─────────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────────┐
+  │ ก่อน:                                                   │
+  │   system: "You are helpful..."                          │
+  │   messages: [{role:"user", content:"describe"}]         │
+  │                                                         │
+  │ หลัง:                                                   │
+  │   messages: [                                           │
+  │     {role:"user",                                       │
+  │      content:"You are helpful...\n\ndescribe"}          │
+  │   ]                                                     │
+  └─────────────────────────────────────────────────────────┘
 
 zhipuToAnthropic():
-  ┌──────────────────────────────────────────────────────────────┐
-  │ Zhipu Response                ->    Anthropic Response       │
-  │                                                              │
-  │ choices[0].message.content    ->    content[] array          │
-  │   (text string)               ->      [{type:"text",text:..}]│
-  │   (tool_calls[])              ->      [{type:"tool_use",...}]│
-  │ usage.prompt_tokens           ->    usage.input_tokens       │
-  │ usage.completion_tokens       ->    usage.output_tokens      │
-  │ finish_reason: "stop"         ->    stop_reason: "end_turn"  │
-  │ finish_reason: "tool_calls"   ->    stop_reason: "tool_use"  │
-  └──────────────────────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────────────────────────┐
+  │ Zhipu Response                  ->    Anthropic Response       │
+  │                                                                │
+  │ choices[0].message.content      ->    content[] array          │
+  │   (text string)                 ->      [{type:"text",text:..}]│
+  │   (tool_calls[])                ->      [{type:"tool_use",...}]│
+  │ usage.prompt_tokens             ->    usage.input_tokens       │
+  │ usage.completion_tokens         ->    usage.output_tokens      │
+  │ finish_reason: "stop"           ->    stop_reason: "end_turn"  │
+  │ finish_reason: "tool_calls"     ->    stop_reason: "tool_use"  │
+  └────────────────────────────────────────────────────────────────┘
 ```
 
 ### Content Filtering (กรองเนื้อหา)
@@ -1046,22 +1025,22 @@ The `X-Profile` header enables per-request profile-based routing. When present, 
 
 ```
 Request with X-Profile: my-profile
-  |
-  v
+  │
+  ▼
 Handler.Messages()
-  |-- Extract X-Profile header
-  |-- Profile name non-empty?
-  |     |
-  |     +-- YES: Lookup profile:{name} from Redis
-  |     |     |
-  |     |     +-- Found: Override model, apiKey, baseUrl from profile
-  |     |     |         Skip model fallback logic (profile model is used directly)
-  |     |     |         Skip key pool acquire (profile has its own apiKey)
-  |     |     |         Proxy to profile.baseUrl with profile.apiKey
-  |     |     |
-  |     |     +-- Not found: Log warning, fall through to normal routing
-  |     |
-  |     +-- NO: Normal routing (key pool + adaptive limiter)
+  ├─ Extract X-Profile header
+  ├─ Profile name non-empty?
+  │     │
+  │     ├─ YES: Lookup profile:{name} from Redis
+  │     │     │
+  │     │     ├─ Found: Override model, apiKey, baseUrl from profile
+  │     │     │       Skip model fallback logic (profile model is used directly)
+  │     │     │       Skip key pool acquire (profile has its own apiKey)
+  │     │     │       Proxy to profile.baseUrl with profile.apiKey
+  │     │     │
+  │     │     └─ Not found: Log warning, fall through to normal routing
+  │     │
+  │     └─ NO: Normal routing (key pool + adaptive limiter)
 ```
 
 ### Profile Fields Used for Routing
@@ -1096,17 +1075,17 @@ Quota enforcement is now wired into the sync proxy request flow. Before acquirin
 
 ```
 Messages() handler
-  |-- Resolve model from request (or profile)
-  |-- CheckQuota(provider, accountID, model)
-  |     |
-  |     +-- >= 95% quota → return 429 (Anthropic rate_limit_error format)
-  |     +-- >= 80% quota → broadcast quota-warning via WebSocket
-  |     |                  continue processing (soft warning)
-  |     +-- < 80% → continue normally
-  |     +-- Error → fail-open (log warning, continue processing)
-  |
-  |-- Acquire model slot (adaptive limiter)
-  |-- Proxy upstream
+  ├─ Resolve model from request (or profile)
+  ├─ CheckQuota(provider, accountID, model)
+  │     │
+  │     ├─ >= 95% quota -> return 429 (Anthropic rate_limit_error format)
+  │     ├─ >= 80% quota -> broadcast quota-warning via WebSocket
+  │     │                  continue processing (soft warning)
+  │     ├─ < 80% -> continue normally
+  │     └─ Error -> fail-open (log warning, continue processing)
+  │
+  ├─ Acquire model slot (adaptive limiter)
+  └─ Proxy upstream
 ```
 
 ### Behavior
@@ -1130,20 +1109,20 @@ Messages() handler
 
 ```
 main.go startup:
-  |-- metrics.SetUsageRecorder(usageHandler.RecordUsage)
-  |     // Sets callback in metrics package
+  ├─ metrics.SetUsageRecorder(usageHandler.RecordUsage)
+  │     // Sets callback in metrics package
 
 Per-request flow:
-  |-- proxy response received, usage parsed
-  |-- metrics.RecordTokens(model, inputTokens, outputTokens)
-  |     |-- Increment Prometheus counters (existing)
-  |     |-- If usageRecorder callback set:
-  |     |     Call usageRecorder(model, inputTokens, outputTokens)
-  |     |     |-- Records to Redis:
-  |     |     |     usage:hourly:YYYY-MM-DDTHH
-  |     |     |     usage:daily:YYYY-MM-DD
-  |     |     |     usage:monthly:YYYY-MM
-  |     |     |     usage:sessions:YYYY-MM-DD
+  ├─ proxy response received, usage parsed
+  └─ metrics.RecordTokens(model, inputTokens, outputTokens)
+        ├─ Increment Prometheus counters (existing)
+        └─ If usageRecorder callback set:
+              Call usageRecorder(model, inputTokens, outputTokens)
+              └─ Records to Redis:
+                    usage:hourly:YYYY-MM-DDTHH
+                    usage:daily:YYYY-MM-DD
+                    usage:monthly:YYYY-MM
+                    usage:sessions:YYYY-MM-DD
 ```
 
 **File**: `metrics/metrics.go` lines ~221-237, `main.go` lines ~107-111
@@ -1551,62 +1530,62 @@ Job fails all providers
 Client (10 concurrent POST /v1/chat/completions)
   │
   ▼
-┌─────────────────────────────────────────────┐
-│ arl-gateway (:8080)                         │
-│                                             │
-│  ┌────────────────┐  ┌──────────────────┐  │
-│  │ Rate Limiter   │  │ Key Pool         │  │
-│  │ (token bucket) │  │ (passthrough)    │  │
-│  │ global: 100/m  │  │ key from client  │  │
-│  │ agent: 5/m     │  └──────────────────┘  │
-│  └────────────────┘                         │
-│           │                                 │
-│           ▼ All 10 pass rate limit          │
-│  LPUSH ai_jobs x 10                         │
-└─────────────┬───────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ arl-gateway (:8080)                                      │
+│                                                          │
+│  ┌────────────────┐  ┌──────────────────┐                │
+│  │ Rate Limiter   │  │ Key Pool         │                │
+│  │ (token bucket) │  │ (passthrough)    │                │
+│  │ global: 100/m  │  │ key from client  │                │
+│  │ agent: 5/m     │  └──────────────────┘                │
+│  └────────────────┘                                      │
+│           │                                              │
+│           ▼ All 10 pass rate limit                       │
+│  LPUSH ai_jobs x 10                                      │
+└─────────────┬────────────────────────────────────────────┘
               │
               ▼
-┌─────────────────────────────────────────────┐
-│ arl-dragonfly (Redis-compatible)            │
-│  ai_jobs queue: [job1..job10]               │
-└─────────────┬───────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ arl-dragonfly (Redis-compatible)                         │
+│  ai_jobs queue: [job1..job10]                            │
+└─────────────┬────────────────────────────────────────────┘
               │ BRPOP x 50 worker coroutines
               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ arl-worker (Python asyncio)                                 │
 │                                                             │
-│  Layer 1: Per-Model Semaphores (19 slots, global cap 9)           │
-│  ┌────────┬──────────┬───────┬────────┬────────┬────────┐       │
-│  │glm-5.1 │glm-5-turbo│glm-5 │glm-4.7 │glm-4.6 │glm-4.5 │       │
-│  │ 1 slot │ 1 slot   │2 slots│2 slots │3 slots │10 slots│       │
-│  └────────┴──────────┴───────┴────────┴────────┴────────┘       │
-│  Fallback: glm-5.1 → glm-5-turbo → glm-5 → glm-4.7 → glm-4.6  │
-│            → glm-4.5                                              │
-│                                                                  │
-│  Layer 2: Global Semaphore (9 concurrent max)                    │
+│  Layer 1: Per-Model Semaphores (19 slots, global cap 9)     │
+│  ┌────────┬──────────┬───────┬────────┬────────┬─────────┐  │
+│  │glm-5.1 │glm-5-turb│glm-5  │glm-4.7 │glm-4.6 │glm-4.5  │  │
+│  │1 slot  │1 slot    │2 slots│2 slots │3 slots │10 slots │  │
+│  └────────┴──────────┴───────┴────────┴────────┴─────────┘  │
+│  Fallback: glm-5.1 -> glm-5-turbo -> glm-5 -> glm-4.7       │
+│            -> glm-4.6 -> glm-4.5                            │
 │                                                             │
-│  Layer 3: Per-Provider RPM Limiter                         │
-│  ┌──────────────────────────────┐                          │
-│  │ ProviderRateLimiter (glm:5)  │                          │
-│  │ Sliding window 60s           │                          │
-│  │ Batch 1: 5 req → pass now    │                          │
-│  │ Batch 2: 5 req → wait 60s    │                          │
-│  └──────────────────────────────┘                          │
+│  Layer 2: Global Semaphore (9 concurrent max)               │
+│                                                             │
+│  Layer 3: Per-Provider RPM Limiter                          │
+│  ┌──────────────────────────────────┐                       │
+│  │ ProviderRateLimiter (glm:5)      │                       │
+│  │ Sliding window 60s               │                       │
+│  │ Batch 1: 5 req -> pass now       │                       │
+│  │ Batch 2: 5 req -> wait 60s       │                       │
+│  └──────────────────────────────────┘                       │
 │                                                             │
 │  Layer 4: Provider Cache (httpx reuse)                      │
 │                                                             │
 │  Layer 5: Provider Fallback (key-gated)                     │
 │  Only tries providers with API keys configured              │
-│  GLM_API_KEYS only → glm only                              │
-│  + OPENAI_API_KEYS → glm → openai                          │
+│  GLM_API_KEYS only -> glm only                              │
+│  + OPENAI_API_KEYS -> glm -> openai                         │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼ 5 req now + 5 req after 60s
 ┌──────────────────────────────────────────────────────────────┐
 │ Z.ai API (api.z.ai/api/anthropic)                            │
-│  Per-account RPM: ~5 req/min (single key)                     │
-│  Batch 1 (t=0s):  5 req → all 200 OK                        │
-│  Batch 2 (t=60s): 5 req → all 200 OK                        │
+│  Per-account RPM: ~5 req/min (single key)                    │
+│  Batch 1 (t=0s):  5 req -> all 200 OK                        │
+│  Batch 2 (t=60s): 5 req -> all 200 OK                        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -1821,20 +1800,20 @@ Agent Orchestrator
   ├─ Agent B (test writer)       ──POST /v1/chat/completions──▶ Gateway
   ├─ Agent C (doc generator)     ──POST /v1/chat/completions──▶ Gateway
   └─ Agent D (security scanner)  ──POST /v1/chat/completions──▶ Gateway
-                                              │
-                                              ▼
-                                     arl-dragonfly (queue)
-                                              │
-                                              ▼
-                                     arl-worker (50 coroutines)
-                                       ├─ RPM limiter paces requests
-                                       ├─ Per-model semaphore (19 slots, global cap 9)
-                                       └─ Provider fallback chain
-                                              │
-                                              ▼
-                                        Z.ai / OpenAI / ...
-                                              │
-                        Agent polls GET /v1/results/{id} ←── result cache (TTL 600s)
+                                               │
+                                               ▼
+                                      arl-dragonfly (queue)
+                                               │
+                                               ▼
+                                      arl-worker (50 coroutines)
+                                        ├─ RPM limiter paces requests
+                                        ├─ Per-model semaphore (19 slots, global cap 9)
+                                        └─ Provider fallback chain
+                                               │
+                                               ▼
+                                         Z.ai / OpenAI / ...
+                                               │
+                         Agent polls GET /v1/results/{id} <- result cache (TTL 600s)
 ```
 
 **ข้อดี**:

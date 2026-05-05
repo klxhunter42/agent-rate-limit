@@ -6,41 +6,42 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │ Multi-Agent AI System                                                │
 │                                                                      │
-│ ┌──────────┐ ┌──────────────┐ ┌──────────────┐                      │
-│ │ Client   │──▶│ API Gateway  │──▶│ Rate Limiter │                      │
-│ │(Claude/  │   │ (Go/chi)     │   │ (Java/Spring)│                      │
-│ │ Agent)   │   │ :8080        │   │ :8080        │                      │
-│ └──────────┘ └──────┬───────┘ └──────┬───────┘                      │
-│                      │                 │                              │
-│               ┌──────▼────┐     ┌──────▼────┐                        │
-│               │Dragonfly  │◀────│ Token     │                        │
-│               │(Redis)    │     │ Bucket    │                        │
-│               │:6379      │     │ Store     │                        │
-│               └──────┬────┘     └───────────┘                        │
-│                      │                                               │
-│ ┌────────────────────▼──────────────────────────┐                   │
-│ │ AI Worker (Python)                             │                   │
-│ │ ┌──┬──┬──┬──┬──┬──┬──┬──┐                     │                   │
-│ │ │W0│W1│W2│..│..│..│..│W49│ WORKER_CONCURRENCY=50                   │
-│ │ └──┴──┴──┴──┴──┴──┴──┴──┘                     │                   │
-│ │ Per-Model Semaphores:                          │                   │
-│ │  glm-5.1(1) glm-5-turbo(1) glm-5(2)           │                   │
-│ │  glm-4.7(2) glm-4.6(3) glm-4.5(10)            │                   │
-│ │ Vision: glm-4.6v(10) glm-4.5v(10)             │                   │
-│ │ Global Limit: 9 concurrent                     │                   │
-│ └────────────────────┬───────────────────────────┘                   │
-│                      │                                               │
-│ ┌────────────────────▼────────────────────────────┐                  │
-│ │ Provider Fallback Chain (18 providers)          │                  │
-│ │ claude-oauth → anthropic → gemini-oauth → gemini│                  │
-│ │ → openai → zai → copilot → openrouter → qwen   │                  │
-│ │ → deepseek → kimi → huggingface → ollama       │                  │
-│ │ Profile: X-Profile header / arl_ API token       │                  │
-│ └─────────────────────────────────────────────────┘                  │
+│ ┌───────────┐    ┌──────────────┐    ┌──────────────┐                │
+│ │ Client    │───▶│ API Gateway  │───▶│ Rate Limiter │                │
+│ │ (Claude/  │    │ (Go/chi)     │    │ (Java/Spring)│                │
+│ │  Agent)   │    │ :8080        │    │ :8080        │                │
+│ └───────────┘    └──────┬───────┘    └──────┬───────┘                │
+│                         │                    │                       │
+│                  ┌──────▼──────┐      ┌──────▼──────┐                │
+│                  │ Dragonfly   │◀─────│ Token       │                │
+│                  │ (Redis)     │      │ Bucket      │                │
+│                  │ :6379       │      │ Store       │                │
+│                  └──────┬──────┘      └─────────────┘                │
+│                         │                                            │
+│ ┌───────────────────────▼────────────────────────────┐               │
+│ │ AI Worker (Python)                                  │              │
+│ │ ┌───┬───┬───┬───┬───┬───┬───┬───┐                 │                │
+│ │ │W0 │W1 │W2 │.. │.. │.. │.. │W49│                 │                │
+│ │ └───┴───┴───┴───┴───┴───┴───┴───┘                 │                │
+│ │  WORKER_CONCURRENCY=50                              │              │
+│ │ Per-Model Semaphores:                               │              │
+│ │  glm-5.1(1) glm-5-turbo(1) glm-5(2)                │               │
+│ │  glm-4.7(2) glm-4.6(3) glm-4.5(10)                 │               │
+│ │ Vision: glm-4.6v(10) glm-4.5v(10)                  │               │
+│ │ Global Limit: 9 concurrent                          │              │
+│ └───────────────────────┬────────────────────────────┘               │
+│                         │                                            │
+│ ┌───────────────────────▼────────────────────────────┐               │
+│ │ Provider Fallback Chain (18 providers)              │              │
+│ │ claude-oauth → anthropic → gemini-oauth → gemini   │               │
+│ │ → openai → zai → copilot → openrouter → qwen      │                │
+│ │ → deepseek → kimi → huggingface → ollama          │                │
+│ │ Profile: X-Profile header / arl_ API token         │               │
+│ └─────────────────────────────────────────────────────┘              │
 │                                                                      │
 │ ┌──────────────── Observability Stack ─────────────────┐             │
-│ │ OpenTelemetry → Prometheus → Grafana                  │             │
-│ │ Caddy Proxy :9000 (external entry point)              │             │
+│ │ OpenTelemetry → Prometheus → Grafana                  │            │
+│ │ Caddy Proxy :9000 (external entry point)              │            │
 │ └──────────────────────────────────────────────────────┘             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
