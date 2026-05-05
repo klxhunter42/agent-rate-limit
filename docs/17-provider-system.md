@@ -890,11 +890,6 @@ type Config struct {
     ZAIOpenAIURL      string            // OpenAI-compatible endpoint
     ZAIOpenAIModels   map[string]bool   // models to route via OpenAI format
 
-    // Z.AI web chat
-    ZAIWebEnabled     bool
-    ZAIWebToken       string
-    ZAIWebModels      []string
-
     // Provider routing
     ProviderModelPrefixes string
 

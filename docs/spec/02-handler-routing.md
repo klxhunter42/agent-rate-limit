@@ -962,7 +962,6 @@ After preprocessing, the handler dispatches to the appropriate proxy in this pri
 
 ```
 1. hasImages? --> Vision routing (section 9.2)
-2. ZAIWebEnabled + IsZAIWebModel(model)? --> ZAIWebProxy.ProxyZAIWeb()
 3. GLMMode + ZAIOpenAIModels[model]? --> OpenAIProxy.ProxyOpenAI(ZAIOpenAIURL)
 4. decision != nil? --> Format-based dispatch:
    a. OpenAI format --> OpenAIProxy.ProxyOpenAI()
@@ -972,7 +971,6 @@ After preprocessing, the handler dispatches to the appropriate proxy in this pri
 5. Fallback: trySidecarOrDirect() with profile options
 ```
 
-The ZAIWeb path (step 2) routes requests through chat.z.ai's signed web API, providing free access without API keys. Configuration: `ZAI_WEB_ENABLED`, `ZAI_WEB_MODELS`, `ZAI_WEB_TOKEN`.
 
 ---
 
@@ -1209,19 +1207,6 @@ POST /v1/chat/completions    (enqueue job)
 GET  /v1/results/{requestID} (poll result)
 ```
 
-### 11.12 ZAIWeb Endpoints
-
-Z.AI web chat proxy endpoints (require `ZAI_WEB_ENABLED=true`):
-
-```
-GET  /v1/zaiweb/status                (token status, FE version, available models)
-POST /v1/zaiweb/token                 (set/update JWT token, body: {"token": "..."})
-POST /v1/zaiweb/image/generate        (proxy to image.z.ai, body forwarded as-is)
-POST /v1/zaiweb/audio/tts             (proxy to audio.z.ai, SSE stream relay)
-```
-
-Routing: when `ZAIWebEnabled && IsZAIWebModel(model)`, requests to `/v1/messages` are routed through `ZAIWebProxy.ProxyZAIWeb()` instead of the standard proxy path.
-
 ### 11.13 Auth Routes (provider/handler.go)
 
 Auth routes managed by `AuthHandler.Routes()`:
@@ -1341,6 +1326,3 @@ All relevant env vars for the handler/routing layer:
 | `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
 | `DEFAULT_MODEL` | `glm-5` | Default model |
 | `DEFAULT_PROVIDER` | `glm` | Default provider |
-| `ZAI_WEB_ENABLED` | `false` | Enable Z.AI web chat proxy routing |
-| `ZAI_WEB_TOKEN` | (empty) | JWT token for chat.z.ai (auto-fetches anonymous if empty) |
-| `ZAI_WEB_MODELS` | (empty) | Comma-separated models to route through ZAIWeb |

@@ -87,7 +87,7 @@ main()
   -> middleware.NewRuntimeMetrics() (goroutine, heap, GC gauges)
   -> middleware.NewAnomalyDetector() (Welford's online algorithm)
   -> privacy.NewPipeline() (secrets + PII detection)
-  -> proxy.New*Proxy() (anthropic, gemini-codeassist, openai, gemini-api, zaiweb)
+  -> proxy.New*Proxy() (anthropic, gemini-codeassist, openai, gemini-api)
   -> middleware.NewAdaptiveLimiter() (per-model concurrency slots)
   -> proxy.NewKeyPool() (multi-key rotation with RPM tracking)
   -> provider.New*() (registry, token store, auth handler, resolver, refresh worker)
@@ -155,7 +155,6 @@ type Handler struct {
     geminiCodeAssist   *proxy.GeminiCodeAssistProxy
     openAIProxy        *proxy.OpenAIProxy
     geminiAPIProxy     *proxy.GeminiAPIProxy
-    zaiWebProxy        *proxy.ZAIWebProxy
     mcpProxy           *proxy.MCPProxy
     modelLimiter       *middleware.AdaptiveLimiter
     keyPool            *proxy.KeyPool
@@ -193,10 +192,6 @@ type Handler struct {
 | GET | `/ws` | `HandleWebSocket()` | WebSocket real-time events |
 | GET | `/v1/waste/findings` | `GetWasteFindings()` | Waste detection results |
 | GET | `/v1/auth/accounts/ratelimits` | `GetRateLimits()` | Per-account rate limit status |
-| POST | `/v1/zaiweb/token` | `ZAIWebSetToken()` | Set Z.AI web chat token |
-| GET | `/v1/zaiweb/status` | `ZAIWebStatus()` | Z.AI web chat status |
-| POST | `/v1/images/generations` | `ZAIWebImageGenerate()` | Image generation via Z.AI |
-| POST | `/v1/audio/tts` | `ZAIWebAudioTTS()` | TTS via Z.AI |
 | POST | `/mcp/{server}` | `MCPProxyHandle()` | MCP JSON-RPC proxy |
 | GET | `/mcp` | `MCPListServers()` | List available MCP servers |
 | * | `/api/claude_code/*` | `AnthropicPassthrough()` | Claude Code transparent passthrough |
@@ -230,7 +225,6 @@ The `Messages()` handler is the primary endpoint (`POST /v1/messages`). Its requ
     - Anthropic format -> `anthropicProxy.ProxyTransparent()` or `ProxySidecar()`
     - OpenAI format -> `openAIProxy.ProxyOpenAI()`
     - Gemini format -> `geminiCodeAssistProxy.Proxy()` or `geminiAPIProxy.Proxy()`
-    - Z.AI web -> `zaiWebProxy.Proxy()`
     - MCP -> `mcpProxy.ProxyMCP()`
 11. **Privacy unmasking**: Restore original values in response (buffered or SSE stream)
 12. **Metrics recording**: Token counts, cost, usage, profile, account
@@ -480,21 +474,6 @@ Format conversion between Anthropic and OpenAI APIs:
 
 Direct Gemini API integration with streaming SSE conversion from Gemini to Anthropic format.
 
-### 4.6 Z.AI Web Proxy
-
-**File:** `proxy/zaiweb.go` (~765 lines)
-
-HMAC-SHA256 request signing with 5-minute time periods:
-```
-signature = HMAC-SHA256(timestamp, token)
-```
-
-Features:
-- FE version scraping from `chat.z.ai`
-- Model name mapping
-- Feature flags: `web_search`, `thinking`, `image_generation`
-- Image generation proxy (`image.z.ai`)
-- TTS proxy (`audio.z.ai`)
 
 ### 4.7 Claude Session Proxy
 
@@ -794,9 +773,6 @@ All config loaded from environment variables with sensible defaults for containe
 | `ANOMALY_Z_THRESHOLD` | `2.0` | Z-score threshold |
 | `GLM_MODE` | `true` | Z.AI features toggle |
 | `ZAI_OPENAI_URL` | `https://api.z.ai/api/paas/v4/...` | Z.AI OpenAI-compatible endpoint |
-| `ZAI_WEB_ENABLED` | `false` | Z.AI web chat proxy toggle |
-| `ZAI_WEB_TOKEN` | (empty) | Z.AI web chat JWT token |
-| `ZAI_WEB_MODELS` | (empty) | Models to route via chat.z.ai |
 | `CLI_SIDECAR_ENABLED` | `true` | Node.js sidecar toggle |
 | `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
 | `MCP_ENABLED` | `true` | MCP proxy toggle |
@@ -952,7 +928,6 @@ Handler.Messages()
   |      |      +-> anthropicToGemini() format conversion
   |      |      +-> SSE stream conversion (Gemini -> Anthropic format)
   |      |
-  |      +-> [Z.AI Web] -> ZAIWebProxy
   |      |      +-> HMAC-SHA256 request signing
   |      |      +-> chat.z.ai API call
   |      |

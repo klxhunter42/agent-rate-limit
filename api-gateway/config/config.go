@@ -109,9 +109,6 @@ type Config struct {
 	ZAIOpenAIModels map[string]bool
 
 	// Z.AI web chat routing: uses chat.z.ai's signed API for free/anonymous access.
-	ZAIWebEnabled bool
-	ZAIWebToken   string   // JWT Bearer token (empty = auto-fetch anonymous)
-	ZAIWebModels  []string // models to route through chat.z.ai
 
 	// CLI sidecar for billing header injection (Node.js proxy).
 	CLISidecarURL     string
@@ -206,10 +203,6 @@ func Load() *Config {
 		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),
 		ZAIOpenAIModels: parseModelSet(envOr("ZAI_OPENAI_MODELS", "")),
 
-		// Z.AI web chat routing.
-		ZAIWebEnabled: envBoolOr("ZAI_WEB_ENABLED", false),
-		ZAIWebToken:   envOr("ZAI_WEB_TOKEN", ""),
-		ZAIWebModels:  parseModelList(envOr("ZAI_WEB_MODELS", "")),
 
 		// CLI sidecar.
 		CLISidecarURL:     envOr("CLI_SIDECAR_URL", "http://127.0.0.1:8081"),
@@ -410,19 +403,3 @@ func parseModelList(s string) []string {
 	return result
 }
 
-// IsZAIWebModel returns true if the model should be routed through chat.z.ai web API.
-func (c *Config) IsZAIWebModel(model string) bool {
-	if !c.ZAIWebEnabled {
-		return false
-	}
-	for _, m := range c.ZAIWebModels {
-		if m == model {
-			return true
-		}
-		// Support prefix matching: "glm-" matches all glm models.
-		if strings.HasSuffix(m, "-") && strings.HasPrefix(model, m) {
-			return true
-		}
-	}
-	return false
-}

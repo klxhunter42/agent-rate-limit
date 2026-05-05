@@ -55,15 +55,6 @@
 |--------|------|-------------|
 | `GET` | `/v1/auth/accounts/ratelimits` | Get cached Anthropic rate limit utilization for all accounts |
 
-### ZAI Web Chat (if enabled)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/zaiweb/status` | Get ZAI web chat token status |
-| `POST` | `/v1/zaiweb/token` | Update ZAI web chat JWT token |
-| `POST` | `/v1/images/generations` | Proxy image generation to image.z.ai |
-| `POST` | `/v1/audio/tts` | Proxy TTS to audio.z.ai |
-
 ### Token Optimization
 
 | Method | Path | Description |

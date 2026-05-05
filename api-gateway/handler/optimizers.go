@@ -43,7 +43,7 @@ type Optimizers struct {
 // OptimizeSystemPrompt applies the full optimization pipeline to system prompt text.
 // budgetLevel: 0=green, 1=yellow, 2=red
 // model: used for budget tracking and model-specific optimizations
-func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budgetLevel int, model string) string {
+func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budgetLevel int, model string, transparent bool) string {
 	if text == "" {
 		return text
 	}
@@ -121,16 +121,18 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		}
 	}
 
-	// Caveman compression (F16)
-	if o.Caveman != nil {
-		shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
-		if shouldCompress {
-			start := time.Now()
-			compressed, _ := o.Caveman.Compress("", tier)
-			if compressed != "" {
-				text = compressed
-				m.RecordOptimization("caveman", 0)
-				m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
+	// Caveman compression (F16) — skip for transparent: adds input tokens
+	if !transparent {
+		if o.Caveman != nil {
+			shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
+			if shouldCompress {
+				start := time.Now()
+				compressed, _ := o.Caveman.Compress("", tier)
+				if compressed != "" {
+					text = compressed
+					m.RecordOptimization("caveman", 0)
+					m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
+				}
 			}
 		}
 	}

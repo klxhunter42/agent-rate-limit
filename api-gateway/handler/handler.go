@@ -128,18 +128,17 @@ type Handler struct {
 	optimizers      *Optimizers
 	sidecarURL      string // empty = sidecar disabled
 	sessionManager  *proxy.ClaudeSessionManager
-	zaiWebProxy     *proxy.ZAIWebProxy
 	mcpProxy        *proxy.MCPProxy
 }
 
 // New creates a new Handler.
-func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers, zwp *proxy.ZAIWebProxy, mcp *proxy.MCPProxy) *Handler {
+func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, cap *proxy.GeminiCodeAssistProxy, oap *proxy.OpenAIProxy, gap *proxy.GeminiAPIProxy, ml *middleware.AdaptiveLimiter, kp *proxy.KeyPool, cfg *config.Config, priv *privacy.Pipeline, ts *provider.TokenStore, res *provider.Resolver, ad *middleware.AnomalyDetector, uh *UsageHandler, qh *QuotaHandler, profileRdb *redis.Client, wsFn func(string, interface{}), rw *provider.RefreshWorker, opt *Optimizers, mcp *proxy.MCPProxy) *Handler {
 	var sidecarURL string
 	if cfg.CLISidecarEnabled {
 		sidecarURL = cfg.CLISidecarURL
 	}
-	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode, "zaiweb_enabled", cfg.ZAIWebEnabled)
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), zaiWebProxy: zwp, mcpProxy: mcp}
+	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode)
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), mcpProxy: mcp}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -734,9 +733,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	var maskResult *privacy.MaskResult
 	hasImages := false
 
-	// Inject system prompt for token efficiency.
-	if h.cfg.EnablePromptInjection {
-		injectSystemPrompt(payload, h.cfg.PromptInjectionText)
+	// Skip prompt injection for transparent claude-oauth: avoids adding input tokens.
+	// Optimizer (dedup/whitespace) still runs below to reduce existing input tokens.
+	if !transparent {
+		// Inject system prompt for token efficiency.
+		if h.cfg.EnablePromptInjection {
+			injectSystemPrompt(payload, h.cfg.PromptInjectionText)
+		}
 	}
 
 	// Smart max_tokens auto-adjustment.
@@ -822,7 +825,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					} else {
 						h.metrics.SetBudgetLevel(selectedModel, 0)
 					}
-					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel)
+					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent)
 					if optimized != sysText {
 						payload["system"] = optimized
 					}
@@ -1189,14 +1192,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "vision proxy error: " + err.Error()})
 			}
 		}
-	} else if h.cfg.ZAIWebEnabled && h.cfg.IsZAIWebModel(selectedModel) && h.zaiWebProxy != nil {
-		// Z.AI web chat routing: free access via chat.z.ai signed API.
-		slog.Info("routing via zai web chat", "model", selectedModel, "stream", isStream)
-		if err := h.zaiWebProxy.ProxyZAIWeb(w, r, body, selectedModel, isStream, feedbackFn, maskResult); err != nil {
-			slog.Error("zaiweb proxy error", "error", err, "model", selectedModel)
-			h.metrics.IncError("upstream")
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zaiweb proxy error: " + err.Error()})
-		}
 	} else if h.cfg.GLMMode && h.cfg.ZAIOpenAIModels[selectedModel] {
 		// GLM model that requires OpenAI-compatible endpoint.
 		upstreamURL := h.cfg.ZAIOpenAIURL
@@ -1310,84 +1305,6 @@ func (h *Handler) LimiterOverride(w http.ResponseWriter, r *http.Request) {
 		action = "set to " + strconv.FormatInt(req.Limit, 10)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "model": req.Model, "override": action})
-}
-
-// ZAIWebStatus returns the current ZAI web chat token status.
-func (h *Handler) ZAIWebStatus(w http.ResponseWriter, r *http.Request) {
-	if h.zaiWebProxy == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
-		return
-	}
-	token, userID := h.zaiWebProxy.GetToken()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":   h.cfg.ZAIWebEnabled,
-		"token_set": token != "",
-		"token_prefix": func() string {
-			if len(token) > 20 {
-				return token[:20] + "..."
-			}
-			return ""
-		}(),
-		"user_id":    userID,
-		"models":     h.cfg.ZAIWebModels,
-		"fe_version": h.zaiWebProxy.GetFEVersion(),
-	})
-}
-
-// ZAIWebSetToken updates the ZAI web chat JWT token at runtime.
-func (h *Handler) ZAIWebSetToken(w http.ResponseWriter, r *http.Request) {
-	if h.zaiWebProxy == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
-		return
-	}
-	var req struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON"})
-		return
-	}
-	if req.Token == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "token is required"})
-		return
-	}
-	h.zaiWebProxy.SetToken(req.Token)
-	slog.Info("zaiweb token updated", "prefix", req.Token[:min(20, len(req.Token))]+"...")
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-// ZAIWebImageGenerate proxies image generation requests to image.z.ai.
-func (h *Handler) ZAIWebImageGenerate(w http.ResponseWriter, r *http.Request) {
-	if h.zaiWebProxy == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024*1024))
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
-		return
-	}
-	if err := h.zaiWebProxy.ProxyImageGeneration(w, r, body); err != nil {
-		slog.Error("image generation failed", "error", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-	}
-}
-
-// ZAIWebAudioTTS proxies TTS requests to audio.z.ai.
-func (h *Handler) ZAIWebAudioTTS(w http.ResponseWriter, r *http.Request) {
-	if h.zaiWebProxy == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "zaiweb not enabled"})
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, 10*1024*1024))
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
-		return
-	}
-	if err := h.zaiWebProxy.ProxyAudioTTS(w, r, body); err != nil {
-		slog.Error("audio tts failed", "error", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
-	}
 }
 
 func validateChatRequest(req *ChatRequest) string {

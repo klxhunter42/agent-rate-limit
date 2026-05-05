@@ -120,9 +120,6 @@ All config via environment variables, parsed at startup with fallback defaults.
 | `DASHBOARD_PASSWORD` | (empty) | string | Optional dashboard auth key |
 | `ZAIOpenAIURL` | `https://api.z.ai/api/paas/v4/chat/completions` | string | Z.AI OpenAI-compatible endpoint |
 | `ZAIOpenAIModels` | (empty) | map | Models to route through Z.AI OpenAI endpoint |
-| `ZAIWebEnabled` | `false` | bool | Enable Z.AI web chat routing |
-| `ZAIWebToken` | (empty) | string | JWT Bearer token for chat.z.ai |
-| `ZAIWebModels` | (empty) | csv | Models to route through chat.z.ai |
 | `ENABLE_AUTO_TRUNCATE` | `true` | bool | Auto-truncation recovery |
 | `TRANSIENT_RETRY_MAX` | `3` | int | Max retries on transient errors |
 | `PASTEGUARD_ENABLED` | `true` | bool | Enable PasteGuard pipeline |

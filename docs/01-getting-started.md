@@ -112,7 +112,6 @@ API Gateway (:8080)
 |   +- FormatAnthropic -> Anthropic proxy
 |   +- FormatOpenAI -> OpenAI proxy
 |   +- FormatGemini -> Gemini CodeAssist / API proxy
-|   +- ZAI Web chat proxy (free access models)
 |   |
 |   v
 |   SSE Streaming Response -> relay back to client chunk by chunk
@@ -310,9 +309,6 @@ cp .env.example .env
 | `GLM_MODE` | `true` | Enable Z.AI features (key pool, model limits, vision) |
 | `ZAI_OPENAI_URL` | `https://api.z.ai/api/paas/v4/chat/completions` | Z.AI OpenAI-compatible endpoint |
 | `ZAI_OPENAI_MODELS` | `` | Models requiring OpenAI format (comma-separated) |
-| `ZAI_WEB_ENABLED` | `false` | Enable Z.AI web chat proxy |
-| `ZAI_WEB_TOKEN` | `` | Z.AI web chat JWT token |
-| `ZAI_WEB_MODELS` | `` | Models to route through chat.z.ai |
 | `CLI_SIDECAR_ENABLED` | `true` | Enable Node.js sidecar for billing injection |
 | `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
 | `SIDECAR_PORT` | `8081` | Sidecar listen port |

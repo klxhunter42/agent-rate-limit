@@ -67,9 +67,6 @@ Complete reference for all data structures, Redis keys, API endpoints, and state
 | CLISidecarEnabled | bool | CLI_SIDECAR_ENABLED | true |
 | ZAIOpenAIURL | string | ZAI_OPENAI_URL | `https://api.z.ai/api/paas/v4/chat/completions` |
 | ZAIOpenAIModels | map[string]bool | ZAI_OPENAI_MODELS | (empty) |
-| ZAIWebEnabled | bool | ZAI_WEB_ENABLED | false |
-| ZAIWebToken | string | ZAI_WEB_TOKEN | (empty) |
-| ZAIWebModels | []string | ZAI_WEB_MODELS | (empty) |
 
 ### 1.2 ModelPrice struct
 
