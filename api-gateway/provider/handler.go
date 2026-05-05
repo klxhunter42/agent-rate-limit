@@ -741,6 +741,26 @@ func (h *AuthHandler) CheckAuth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// RequireAuth wraps an http.Handler with dashboard session auth.
+// If DASHBOARD_PASSWORD is not set, passes through (no auth required).
+func (h *AuthHandler) RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.apiKey == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get("x-api-key") == h.apiKey {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if cookie, err := r.Cookie("arl_session"); err == nil && cookie.Value == h.apiKey {
+			next.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, "/login", http.StatusFound)
+	})
+}
+
 func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 	providerID := chi.URLParam(r, "provider")
 	pc, ok := h.registry.Get(providerID)

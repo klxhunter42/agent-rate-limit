@@ -389,7 +389,7 @@ func main() {
 	staticSub, _ := fs.Sub(staticFS, "static")
 	fileServer := http.FileServer(http.FS(staticSub))
 
-	// Dashboard SPA at / (client-side auth handles redirect)
+	// Dashboard SPA with auth guard
 	r.Handle("/assets/*", fileServer)
 	r.Get("/favicon.svg", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fileServer.ServeHTTP(w, r)
@@ -398,7 +398,7 @@ func main() {
 		http.Redirect(w, r, "/favicon.svg", http.StatusMovedPermanently)
 	}))
 	r.Get("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fileServer.ServeHTTP(w, r)
+		authHandler.RequireAuth(fileServer).ServeHTTP(w, r)
 	}))
 	r.Handle("/metrics", m.Handler())
 	r.Handle("/api/metrics", m.Handler())
@@ -406,9 +406,11 @@ func main() {
 	indexHTML, _ := staticSub.Open("index.html")
 	indexBytes, _ := io.ReadAll(indexHTML)
 	r.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		w.Write(indexBytes)
+		authHandler.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			w.Write(indexBytes)
+		})).ServeHTTP(w, r)
 	}))
 
 	// --- Server ---
