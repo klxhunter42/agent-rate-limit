@@ -1461,6 +1461,24 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 				lastErrBody = pipeline.UnmaskResponse(lastErrBody, maskResult)
 			}
+			// Validate JSON before writing. If upstream sent truncated JSON,
+			// wrap in a proper error response so client doesn't get "Unexpected EOF".
+			if !json.Valid(lastErrBody) {
+				slog.Warn("upstream error body is not valid JSON, wrapping",
+					"status", lastErrStatus,
+					"body_preview", string(lastErrBody[:min(200, len(lastErrBody))]),
+				)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadGateway)
+				json.NewEncoder(w).Encode(ErrorResponse{
+					Type: "error",
+					Error: ErrorDetail{
+						Type:    "api_error",
+						Message: "upstream returned malformed error response",
+					},
+				})
+				return nil
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(lastErrStatus)
 			w.Write(lastErrBody)
@@ -2034,6 +2052,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
+	var lastOpenBlockIndex = -1
 	filteredBlocks := make(map[int]bool)
 	var toolStripper *toolUseStripper
 	if strings.HasPrefix(model, "glm-") {
@@ -2156,10 +2175,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					Type string `json:"type"`
 				} `json:"content_block"`
 			}
-			if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
-				filteredBlocks[cbs.Index] = true
-				slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
-				continue
+			if json.Unmarshal([]byte(data), &cbs) == nil {
+				lastOpenBlockIndex = cbs.Index
+				if cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result" {
+					filteredBlocks[cbs.Index] = true
+					slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
+					continue
+				}
 			}
 		}
 		if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
@@ -2167,7 +2189,19 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				Index int `json:"index"`
 			}
 			if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
+				if strings.Contains(data, `"content_block_stop"`) {
+					lastOpenBlockIndex = -1
+				}
 				continue
+			}
+		}
+		// Track content_block_stop to know when blocks are closed cleanly.
+		if strings.Contains(data, `"content_block_stop"`) {
+			var idxEvt struct {
+				Index int `json:"index"`
+			}
+			if json.Unmarshal([]byte(data), &idxEvt) == nil && idxEvt.Index == lastOpenBlockIndex {
+				lastOpenBlockIndex = -1
 			}
 		}
 
@@ -2222,14 +2256,24 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	if err := scanner.Err(); err != nil {
 		isClientGone := ctx.Err() != nil
-		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "elapsed", time.Since(streamStart).Round(time.Millisecond))
+		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "open_block", lastOpenBlockIndex, "elapsed", time.Since(streamStart).Round(time.Millisecond))
 		if isClientGone {
 			return nil
+		}
+		// Flush toolStripper buffer before closing.
+		if toolStripper != nil {
+			if remaining := toolStripper.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", max(lastOpenBlockIndex, 0), string(escaped))
+			}
 		}
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+		// Close any open content block before sending message-level events.
+		if lastOpenBlockIndex >= 0 {
+			fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":%d}\n\n", lastOpenBlockIndex)
+		}
 		fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 		if f, ok := w.(http.Flusher); ok {

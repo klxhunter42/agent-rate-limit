@@ -1548,6 +1548,14 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 	if strings.HasPrefix(model, "glm-") {
 		delete(payload, "tools")
 		delete(payload, "tool_choice")
+		delete(payload, "thinking")
+		delete(payload, "budget_tokens")
+		delete(payload, "effort")
+		delete(payload, "stream_options")
+		delete(payload, "metadata")
+		if oc, ok := payload["output_config"].(map[string]any); ok {
+			delete(oc, "effort")
+		}
 	}
 	// Strip thinking params for models that don't support extended thinking.
 	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
