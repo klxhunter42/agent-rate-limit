@@ -1011,25 +1011,6 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	modelCap := tokenizer.GetModelCapabilities(model)
 	slog.Debug("request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "max_output", modelCap.MaxOutputTokens)
 
-	// Optimize system prompt in body if present.
-	// Skip when masking is active to avoid corrupting placeholders.
-	if maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII) {
-		if bodyMap := make(map[string]any); json.Unmarshal(body, &bodyMap) == nil {
-			if sys, ok := bodyMap["system"].(string); ok && sys != "" {
-				optSys, wsSaved := tokenizer.OptimizeWhitespace(sys)
-				optSys, dedupSaved := tokenizer.DeduplicateSentences(optSys)
-				if wsSaved > 0 || dedupSaved > 0 {
-					bodyMap["system"] = optSys
-					if newBody, err := json.Marshal(bodyMap); err == nil {
-						body = newBody
-						slog.Debug("transparent prompt optimized", "ws_saved", wsSaved, "dedup_saved", dedupSaved)
-						p.metrics.RecordOptimization("whitespace", wsSaved)
-						p.metrics.RecordOptimization("dedup", dedupSaved)
-					}
-				}
-			}
-		}
-	}
 
 	var lastResp *http.Response
 	var lastErrBody []byte
@@ -1900,6 +1881,28 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 				}
 			}
 		}
+	}
+
+	// Validate JSON before writing to client. If upstream sent truncated JSON
+	// (e.g. connection reset mid-body), wrap it in a valid error response so
+	// the client gets parseable JSON instead of "Unexpected EOF".
+	if !json.Valid(body) {
+		slog.Warn("upstream returned invalid JSON, wrapping as error",
+			"model", model,
+			"status", resp.StatusCode,
+			"body_len", len(body),
+			"body_preview", string(body[:min(200, len(body))]),
+		)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(ErrorResponse{
+			Type: "error",
+			Error: ErrorDetail{
+				Type:    "api_error",
+				Message: "upstream returned malformed response",
+			},
+		})
+		return nil
 	}
 
 	// Write headers only after body is fully buffered so errors above can still

@@ -128,7 +128,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 			start := time.Now()
 			compressed, _ := o.Caveman.Compress("", tier)
 			if compressed != "" {
-				text = text + compressed
+				text = compressed
 				m.RecordOptimization("caveman", 0)
 				m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 			}
