@@ -1237,6 +1237,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			)
 			bodyPreview := string(body[:min(2000, len(body))])
 			slog.Info("vision body preview", "body_preview", bodyPreview)
+			if h.cfg.DebugMode {
+				var dbgMap map[string]any
+				if json.Unmarshal(body, &dbgMap) == nil {
+					var keys []string
+					for k := range dbgMap {
+						keys = append(keys, k)
+					}
+					slog.Info("debug vision body keys", "top_keys", keys, "stream", dbgMap["stream"], "max_tokens", dbgMap["max_tokens"], "model", dbgMap["model"], "has_system", dbgMap["system"] != nil)
+				}
+			}
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
