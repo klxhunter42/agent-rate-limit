@@ -40,6 +40,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
 )
@@ -151,6 +152,7 @@ func main() {
 	optCache := cache.New(m.Registry(), optRdb)
 	optWarmStart := warmstart.New(m.Registry(), optRdb)
 	optCaveman := caveman.New(m.Registry())
+	optTextComp := textcomp.New(textcomp.LoadConfig())
 
 	optimizers := &handler.Optimizers{
 		Chunker:    optChunker,

@@ -1,6 +1,6 @@
 # Token Pipeline - Detailed Technical Reference
 
-This document covers the 8 subsystems that form the token processing pipeline in the API gateway. Each module intercepts, optimizes, or analyzes requests and responses to reduce token consumption, detect waste, and improve latency.
+This document covers the 9 subsystems that form the token processing pipeline in the API gateway. Each module intercepts, optimizes, or analyzes requests and responses to reduce token consumption, detect waste, and improve latency.
 
 ---
 
@@ -731,6 +731,66 @@ DATA STORES:
            prefetcher transitions, warm start signatures
   - In-memory: waste detector session records (30min eviction)
 ```
+
+---
+
+## 10. TextComp (`api-gateway/textcomp/`)
+
+### Purpose
+
+Regex-based text compression that removes filler phrases, hedge words, and verbose constructs from prompts. Inspired by [tokenshrink](https://github.com/voxel-hub/tokenshrink) - reduces input token count without changing meaning.
+
+### Algorithm: Mask-Apply-Unmask
+
+```
+Input text
+  -> Phase 1: Mask protected regions (code blocks, URLs, quoted strings)
+  -> Phase 2: Apply regex compression rules (filler/hedge/verbose removal)
+  -> Phase 3: Unmask protected regions (restore originals)
+  -> Phase 4: Final cleanup (collapse multi-spaces, trim)
+  -> Compressed text + char savings count
+```
+
+Protected regions ensure code, URLs, and quoted content are never modified.
+
+### Compression Rules
+
+| Category | Count | Examples |
+|---|---|---|
+| Filler removal | 10 | "I would like to", "Could you please", "Kindly" |
+| Hedge removal | 12 | "sort of", "basically", "just", "really" |
+| Verbose-to-compact | 30 | "due to the fact that" -> "because", "in order to" -> "to" |
+| Aggressive-only | 11 | "I think that", "It seems that" (mode=aggressive only) |
+
+### Modes
+
+| Mode | Rules Applied | Use Case |
+|---|---|---|
+| `balanced` | Filler + hedge + verbose (52 rules) | Default, safe for all prompts |
+| `aggressive` | All 63 rules | Maximum compression, may alter tone |
+
+### Configuration
+
+| Env Var | Default | Description |
+|---|---|---|
+| `TEXTCOMP_ENABLED` | `true` | Enable/disable TextComp |
+| `TEXTCOMP_MODE` | `balanced` | Compression mode: `balanced` or `aggressive` |
+
+### Integration Points
+
+TextComp runs as stage F17 in the optimizer pipeline:
+- **OptimizeSystemPrompt**: compresses system prompt text (all modes including transparent)
+- **OptimizeMessages**: compresses string content in user/assistant messages
+
+Unlike Caveman (F16), TextComp does NOT add input tokens - it only removes or shortens existing text. Safe for transparent claude-oauth passthrough.
+
+### Prometheus Metrics
+
+- `api_gateway_optimizer_runs_total{technique="textcomp"}`
+- `api_gateway_optimizer_chars_saved_total{technique="textcomp"}`
+- `api_gateway_optimizer_duration_seconds{technique="textcomp"}`
+- `api_gateway_optimizer_runs_total{technique="message_textcomp"}`
+- `api_gateway_optimizer_chars_saved_total{technique="message_textcomp"}`
 
 ---
 

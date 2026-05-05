@@ -47,6 +47,8 @@ gateway:
     CLI_SIDECAR_ENABLED: "true"
     CLI_SIDECAR_URL: "http://127.0.0.1:8081"
     SIDECAR_PORT: "8081"
+    TEXTCOMP_ENABLED: "true"
+    TEXTCOMP_MODE: "balanced"
   hpa:
     enabled: false
     minReplicas: 2

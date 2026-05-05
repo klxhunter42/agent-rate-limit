@@ -17,6 +17,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
@@ -38,6 +39,7 @@ type Optimizers struct {
 	Cache      *cache.EvictionManager
 	WarmStart  *warmstart.WarmStart
 	Caveman    *caveman.CavemanPipeline
+	TextComp   *textcomp.TextComp
 }
 
 // OptimizeSystemPrompt applies the full optimization pipeline to system prompt text.
@@ -121,6 +123,18 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		}
 	}
 
+	// TextComp regex compression (F17) - removes filler/verbose text, safe for all modes
+	if o.TextComp != nil {
+		start := time.Now()
+		opt, saved := o.TextComp.Compress(text)
+		if saved > 0 {
+			text = opt
+			m.RecordOptimization("textcomp", saved)
+			m.RecordOptimizationDuration("textcomp", time.Since(start).Seconds())
+			totalSaved += saved
+		}
+	}
+
 	// Caveman compression (F16) — skip for transparent: adds input tokens
 	if !transparent {
 		if o.Caveman != nil {
@@ -174,6 +188,16 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 				}
 				msgMap["content"] = optimized
 				m.RecordOptimization("message_text", saved)
+			}
+			// TextComp on string message content
+			if o.TextComp != nil {
+				if tc, ok := msgMap["content"].(string); ok && tc != "" {
+					opt2, saved2 := o.TextComp.Compress(tc)
+					if saved2 > 0 {
+						msgMap["content"] = opt2
+						m.RecordOptimization("message_textcomp", saved2)
+					}
+				}
 			}
 		case []any:
 			for _, block := range c {
