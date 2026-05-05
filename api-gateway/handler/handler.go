@@ -749,9 +749,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Strip fields unsupported by non-Anthropic upstreams.
 	// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
 
-	// --- DEBUG: dump EVERYTHING for Z.AI 1210 diagnosis ---
-	if decision != nil && decision.ProviderID == "zai" {
-		slog.Info("zai incoming request",
+	// --- DEBUG: dump incoming request (DEBUG=true) ---
+	if h.cfg.DebugMode {
+		slog.Info("debug incoming request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"content_length", r.ContentLength,
@@ -760,10 +760,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			"stream", payload["stream"],
 			"has_system", payload["system"] != nil,
 			"msg_count", func() int { if msgs, ok := payload["messages"].([]any); ok { return len(msgs) }; return 0 }(),
+			"provider", func() string { if decision != nil { return decision.ProviderID }; return "" }(),
+			"auth_mode", func() string { if decision != nil { return decision.AuthMode }; return "" }(),
 			"headers", map[string][]string(r.Header),
 		)
 		if rawDump, err := json.Marshal(payload); err == nil {
-			slog.Info("zai RAW PAYLOAD before strip", "payload_json", string(rawDump))
+			slog.Info("debug RAW PAYLOAD before strip", "payload_json", string(rawDump))
 		}
 	}
 
@@ -775,13 +777,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		filterUnsupportedContent(payload)
 	}
 
-	// --- DEBUG: 1210 diagnostic ---
-	if decision != nil && decision.ProviderID == "zai" {
+	// --- DEBUG: post-strip diagnostic (DEBUG=true) ---
+	if h.cfg.DebugMode {
 		var topKeys []string
 		for k := range payload {
 			topKeys = append(topKeys, k)
 		}
-		slog.Info("zai strip debug",
+		slog.Info("debug strip result",
 			"model", selectedModel,
 			"top_keys", topKeys,
 			"has_tools", payload["tools"] != nil,
@@ -842,7 +844,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		slog.Info("zai content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
+		slog.Info("debug content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
 	}
 
 
@@ -904,6 +906,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					}
 					totalTokens := sysTokens + msgTokens
 					pctUsed := float64(totalTokens) / float64(cap.ContextWindow)
+					if h.cfg.DebugMode {
+						slog.Info("debug tokens before optimize", "model", selectedModel, "sys_tokens", sysTokens, "msg_tokens", msgTokens, "total_tokens", totalTokens, "context_limit", cap.ContextWindow, "pct_used", fmt.Sprintf("%.1f%%", pctUsed*100), "budget_level", budgetLevel)
+					}
 					if pctUsed >= 0.8 {
 						budgetLevel = 2
 						h.metrics.SetBudgetLevel(selectedModel, 2)
@@ -949,6 +954,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					"secrets_count", len(maskResult.SecretsCtx.Mapping),
 					"pii_count", len(maskResult.PIICtx.Mapping),
 				)
+				if h.cfg.DebugMode {
+					var secretTypes []string
+					for t := range maskResult.SecretsCtx.Mapping {
+						secretTypes = append(secretTypes, t)
+					}
+					var piiTypes []string
+					for t := range maskResult.PIICtx.Mapping {
+						piiTypes = append(piiTypes, t)
+					}
+					slog.Info("debug privacy detail", "secret_types", secretTypes, "pii_types", piiTypes, "body_len_before", len(string(body)), "body_len_after", len(string(maskResult.MaskedBody)))
+				}
 			} else {
 				slog.Info("privacy mask skipped", "reason", "no_pii_or_secrets")
 			}

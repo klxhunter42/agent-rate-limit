@@ -66,6 +66,7 @@ services:
       TEXTCOMP_ENABLED: ${TEXTCOMP_ENABLED:-true}
       TEXTCOMP_MODE: ${TEXTCOMP_MODE:-balanced}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      DEBUG: ${DEBUG:-false}
     depends_on:
       arl-dragonfly:
         condition: service_healthy

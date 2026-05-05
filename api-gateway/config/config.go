@@ -119,6 +119,9 @@ type Config struct {
 	MCPCacheTTL        time.Duration
 	MCPMaxRetries      int
 	MCPRateLimitPerMin int
+
+	// Debug mode: log full payloads, token counts, privacy details.
+	DebugMode bool
 }
 
 // ModelPrice holds per-token pricing for cost calculation.
@@ -212,6 +215,9 @@ func Load() *Config {
 		MCPCacheTTL:        envDurationOr("MCP_CACHE_TTL", 1*time.Hour),
 		MCPMaxRetries:      envIntOr("MCP_MAX_RETRIES", 2),
 		MCPRateLimitPerMin: envIntOr("MCP_RATE_LIMIT_PER_MIN", 30),
+
+		// Debug mode.
+		DebugMode: envBoolOr("DEBUG", false),
 	}
 }
 
