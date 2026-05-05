@@ -146,6 +146,36 @@ IBAN, IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 | `PFUSER = "bro"` | Username without credential pairing, too short |
 | `password = "abc"` | Below 8-char minimum |
 | Generic high-entropy strings | Shannon entropy not implemented (too many FPs for inline detection) |
+| Kubernetes base64 secrets | Every base64 string matches, noise too high |
+| Browser session cookies | Not code context |
+
+---
+
+## Backlog (planned, not yet implemented)
+
+### Bug fixes
+
+| Priority | Issue | Impact |
+|----------|-------|--------|
+| HIGH | `AZURE_CREDENTIAL` uses `[a-f0-9]` for UUID, misses uppercase hex (`0F1A2B3C-...`) | Azure UUIDs with uppercase not detected |
+| HIGH | `API_KEY_AWS` only matches `AKIA` (long-term), misses `ASIA` (STS temporary) | AWS temporary credentials not detected |
+
+### New patterns
+
+| Priority | Entity | Pattern | Source |
+|----------|--------|---------|--------|
+| HIGH | `API_KEY_AWS_STS` | `ASIA[0-9A-Z]{16}` | GitGuardian 2025, TruffleHog |
+| MED | `API_KEY_GCP_OAUTH` | `ya29\.[0-9A-Za-z_-]+` | Gitleaks `google-oauth` |
+| MED | `GCP_SERVICE_ACCOUNT` | `"type"\s*:\s*"service_account"` | TruffleHog, Gitleaks |
+| MED | `CONNECTION_STRING_JDBC` | `jdbc:(?:postgresql\|mysql\|oracle)://[^\s'"]+password=[^\s'"]+` | GitGuardian 2025 |
+| MED | `AZURE_STORAGE_KEY` | `DefaultEndpointsProtocol=https?;AccountName=[^;]+;AccountKey=[a-zA-Z0-9+/=]{88}` | Gitleaks `azure-storage` |
+| LOW | `ENV_WEBHOOK` | `(?i)WEBHOOK_(?:SECRET\|KEY)\s*[=:]\s*['"][^'"]{8,}['"]` | Common `.env` pattern |
+
+### Research notes
+
+- Generic/untyped secrets = 58-74% of all leaks (GitGuardian 2025) but requires Shannon entropy, not suitable for proxy masking
+- AI service API keys surged 81% YoY, 8 of 10 fastest-growing secret categories (GitGuardian 2025)
+- `AZURE_CREDENTIAL` should also match Terraform patterns: `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`
 
 ---
 
