@@ -1197,6 +1197,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				var bodyMap map[string]any
 				if json.Unmarshal(body, &bodyMap) == nil {
 					bodyMap["model"] = selectedModel
+					// Z.AI requires stream:true for vision models.
+					if bodyMap["stream"] == nil || bodyMap["stream"] == false {
+						bodyMap["stream"] = true
+					}
 					body, _ = json.Marshal(bodyMap)
 				}
 			}
