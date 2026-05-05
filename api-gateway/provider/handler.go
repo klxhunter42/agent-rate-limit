@@ -780,6 +780,7 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		APIKey        string `json:"api_key"`
+		Password      string `json:"password"`
 		SessionCookie string `json:"session_cookie"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -788,6 +789,9 @@ func (h *AuthHandler) RegisterAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	secret := req.APIKey
+	if secret == "" {
+		secret = req.Password
+	}
 	if pc.AuthType == AuthTypeSessionCookie {
 		secret = req.SessionCookie
 	}
