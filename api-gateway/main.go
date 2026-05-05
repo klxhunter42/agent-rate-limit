@@ -168,6 +168,7 @@ func main() {
 		Cache:      optCache,
 		WarmStart:  optWarmStart,
 		Caveman:    optCaveman,
+		TextComp:   optTextComp,
 	}
 
 	// Background optimizer goroutines.
