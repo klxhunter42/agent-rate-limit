@@ -22,7 +22,7 @@ COPY api-gateway/go.mod api-gateway/go.sum ./
 RUN go mod download
 
 COPY api-gateway/ .
-COPY --from=ui-builder /build/api-gateway-static ./static/
+COPY --from=ui-builder /build/api-gateway/static ./static/
 RUN CGO_ENABLED=0 go build \
  -trimpath \
  -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" \
