@@ -748,12 +748,101 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Strip fields unsupported by non-Anthropic upstreams.
 	// Native Anthropic (claude-oauth bearer) supports context_management — keep it.
+
+	// --- DEBUG: dump EVERYTHING for Z.AI 1210 diagnosis ---
+	if decision != nil && decision.ProviderID == "zai" {
+		slog.Info("zai incoming request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"content_length", r.ContentLength,
+			"model_requested", payload["model"],
+			"model_selected", selectedModel,
+			"stream", payload["stream"],
+			"has_system", payload["system"] != nil,
+			"msg_count", func() int { if msgs, ok := payload["messages"].([]any); ok { return len(msgs) }; return 0 }(),
+			"headers", map[string][]string(r.Header),
+		)
+		if rawDump, err := json.Marshal(payload); err == nil {
+			slog.Info("zai RAW PAYLOAD before strip", "payload_json", string(rawDump))
+		}
+	}
+
 	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
 	stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
 
 	// Strip content block types unsupported by upstream (only needed for Z.AI).
 	if decision != nil && decision.ProviderID == "zai" {
 		filterUnsupportedContent(payload)
+	}
+
+	// --- DEBUG: 1210 diagnostic ---
+	if decision != nil && decision.ProviderID == "zai" {
+		var topKeys []string
+		for k := range payload {
+			topKeys = append(topKeys, k)
+		}
+		slog.Info("zai strip debug",
+			"model", selectedModel,
+			"top_keys", topKeys,
+			"has_tools", payload["tools"] != nil,
+			"has_tool_choice", payload["tool_choice"] != nil,
+			"has_thinking", payload["thinking"] != nil,
+			"has_output_config", payload["output_config"] != nil,
+			"has_stream_options", payload["stream_options"] != nil,
+			"has_metadata", payload["metadata"] != nil,
+			"has_service_tier", payload["service_tier"] != nil,
+			"has_context_mgmt", payload["context_management"] != nil,
+			"has_effort", payload["effort"] != nil,
+			"has_budget_tokens", payload["budget_tokens"] != nil,
+		)
+
+		var msgTypes []string
+		if msgs, ok := payload["messages"].([]any); ok {
+			for i, msg := range msgs {
+				if m, ok := msg.(map[string]any); ok {
+					if content, ok := m["content"].([]any); ok {
+						for _, block := range content {
+							if cb, ok := block.(map[string]any); ok {
+								t, _ := cb["type"].(string)
+								var extraKeys []string
+								for k := range cb {
+									if k != "type" && k != "text" && k != "source" && k != "id" && k != "name" && k != "input" && k != "tool_use_id" && k != "content" && k != "thinking" {
+										extraKeys = append(extraKeys, k+":"+fmt.Sprintf("%v", cb[k]))
+									}
+								}
+								if len(extraKeys) > 0 {
+									msgTypes = append(msgTypes, fmt.Sprintf("msg[%d]:%s(%s)", i, t, strings.Join(extraKeys, ",")))
+								} else {
+									msgTypes = append(msgTypes, fmt.Sprintf("msg[%d]:%s", i, t))
+								}
+							}
+						}
+					} else if content, ok := m["content"].(string); ok {
+						msgTypes = append(msgTypes, fmt.Sprintf("msg[%d]:string(len=%d)", i, len(content)))
+					}
+				}
+			}
+		}
+		var sysTypes []string
+		if sys, ok := payload["system"].([]any); ok {
+			for i, block := range sys {
+				if cb, ok := block.(map[string]any); ok {
+					t, _ := cb["type"].(string)
+					var extraKeys []string
+					for k := range cb {
+						if k != "type" && k != "text" {
+							extraKeys = append(extraKeys, k+":"+fmt.Sprintf("%v", cb[k]))
+						}
+					}
+					if len(extraKeys) > 0 {
+						sysTypes = append(sysTypes, fmt.Sprintf("sys[%d]:%s(%s)", i, t, strings.Join(extraKeys, ",")))
+					} else {
+						sysTypes = append(sysTypes, fmt.Sprintf("sys[%d]:%s", i, t))
+					}
+				}
+			}
+		}
+		slog.Info("zai content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
 	}
 
 
@@ -1115,7 +1204,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// glm-4.6v uses Anthropic-compatible endpoint (same billing pool as text).
 		// Only non-native models needing OpenAI format go through openaiProxy.
 		if isNativeImageModel(selectedModel) {
-			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
+			slog.Info("vision via anthropic endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body),
+				"req_headers", map[string]string{
+					"content-type": r.Header.Get("Content-Type"),
+					"anthropic-version": r.Header.Get("anthropic-version"),
+					"anthropic-beta": r.Header.Get("anthropic-beta"),
+					"x-app": r.Header.Get("x-app"),
+					"user-agent": r.Header.Get("User-Agent"),
+					"auth_mode": func() string { if decision != nil { return decision.AuthMode }; return "" }(),
+					"session_id": r.Header.Get("X-Claude-Code-Session-Id"),
+				},
+			)
+			bodyPreview := string(body[:min(2000, len(body))])
+			slog.Info("vision body preview", "body_preview", bodyPreview)
 			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
