@@ -13,7 +13,7 @@ data:
       - name: Prometheus
         type: prometheus
         access: proxy
-        url: http://{{ .Release.Name }}-prometheus:9090
+        url: http://{{ .Release.Name }}-prometheus.{{ .Values.global.namespace }}.svc.cluster.local:9090
         uid: prometheus
         isDefault: true
         editable: false

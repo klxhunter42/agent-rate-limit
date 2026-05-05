@@ -10,43 +10,43 @@ data:
   Caddyfile: |
     http://:9000 {
       handle /ws {
-        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080 {
           flush_interval -1
         }
       }
       handle /hmr {
-        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080 {
           flush_interval -1
         }
       }
       handle /v1/* {
-        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080 {
           flush_interval -1
         }
       }
       handle /health {
-        reverse_proxy {{ .Release.Name }}-gateway:8080
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080
       }
       handle /api/* {
-        reverse_proxy {{ .Release.Name }}-gateway:8080 {
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080 {
           flush_interval -1
         }
       }
       handle /metrics {
-        reverse_proxy {{ .Release.Name }}-gateway:8080
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080
       }
       handle /callback {
-        reverse_proxy {{ .Release.Name }}-gateway:8080
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080
       }
       @grafana path /grafana /grafana/*
       handle @grafana {
-        reverse_proxy {{ .Release.Name }}-grafana:3000
+        reverse_proxy {{ .Release.Name }}-grafana.{{ .Values.global.namespace }}.svc.cluster.local:3000
       }
       handle_path /rl/* {
         reverse_proxy {{ .Release.Name }}-rl-dashboard:8080
       }
       handle {
-        reverse_proxy {{ .Release.Name }}-gateway:8080
+        reverse_proxy {{ .Release.Name }}-gateway.{{ .Values.global.namespace }}.svc.cluster.local:8080
       }
     }
 {{- end }}
