@@ -30,32 +30,32 @@ jobs:
  ctx: .
  file: api-gateway/Dockerfile
  img: ai-gateway
- paths: api-gateway/ ui/
+ paths: "api-gateway/**\nui/**"
  - name: worker
  ctx: ./ai-worker
  file: Dockerfile
  img: ai-worker
- paths: ai-worker/
+ paths: "ai-worker/**"
  - name: rate-limiter
  ctx: ./distributed-rate-limiter
  file: Dockerfile
  img: distributed-rate-limiter
- paths: distributed-rate-limiter/
+ paths: "distributed-rate-limiter/**"
  - name: dashboard
  ctx: ./ui
  file: Dockerfile.dev
  img: ai-dashboard
- paths: ui/
+ paths: "ui/**"
  - name: rl-dashboard
  ctx: ./distributed-rate-limiter/examples/web-dashboard
  file: Dockerfile
  img: ai-rl-dashboard
- paths: distributed-rate-limiter/examples/web-dashboard/
+ paths: "distributed-rate-limiter/examples/web-dashboard/**"
  - name: sidecar
  ctx: ./api-gateway/sidecar
  file: Dockerfile
  img: ai-sidecar
- paths: api-gateway/sidecar/
+ paths: "api-gateway/sidecar/**"
  name: ${{ matrix.name }}
  permissions:
  packages: write
@@ -69,7 +69,7 @@ jobs:
  with:
  filters: |
  src:
- - ${{ join(matrix.paths, '\n- ') }}
+ - ${{ matrix.paths }}
 
  - name: Skip if no changes and not manual
  id: skip
