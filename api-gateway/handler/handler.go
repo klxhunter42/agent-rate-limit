@@ -1255,7 +1255,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					slog.Info("debug vision body keys", "top_keys", keys, "stream", dbgMap["stream"], "max_tokens", dbgMap["max_tokens"], "model", dbgMap["model"], "has_system", dbgMap["system"] != nil)
 				}
 			}
-			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, nil); err != nil {
+			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, true, feedbackFn, maskResult, nil); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
