@@ -887,7 +887,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Only compresses images exceeding 1024px on any dimension.
 		if decision != nil && decision.ProviderID == "zai" {
 			const (
-				imgCompressThreshold = 500 * 1024 // 500KB of base64 data
+				imgCompressThreshold = 1 // compress all images
 				imgMaxDimension      = 1024
 				imgJPEGQuality       = 85
 			)
