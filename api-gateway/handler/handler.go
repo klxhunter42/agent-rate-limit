@@ -891,16 +891,27 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				imgMaxDimension      = 1024
 				imgJPEGQuality       = 85
 			)
-			if n, saved := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
-				slog.Info("large images compressed", "count", n, "bytes_saved", saved)
+		if n, saved := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
+			slog.Info("large images compressed", "count", n, "bytes_saved", saved)
+			// Re-marshal body only when compression modified the payload
+			var marshalErr error
+			body, marshalErr = json.Marshal(payload)
+			if marshalErr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+				return
 			}
 		}
 	}
+	}
+
 	// Re-encode payload after modifications.
-	body, err = json.Marshal(payload)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-		return
+	// Skip for image requests unless compression re-marshaled above.
+	if !hasImages {
+		body, err = json.Marshal(payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+			return
+		}
 	}
 
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
