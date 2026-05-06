@@ -1322,7 +1322,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Vision via Z.AI proxy.
 		if isNativeImageModel(selectedModel) {
 			slog.Info("vision via zai proxy", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
-			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, true, feedbackFn, maskResult, nil); err != nil {
+			if err := h.proxy.ProxyTransparent(w, r, apiKey, body, selectedModel, true, feedbackFn, maskResult, &proxy.ProxyOptions{AuthMode: "bearer"}); err != nil {
 				slog.Error("zai anthropic vision proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
