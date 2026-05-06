@@ -28,6 +28,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/toolfilter"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -895,15 +896,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
 	// Re-encode payload after modifications.
-	// Skip for image requests to avoid re-marshaling large base64 payloads.
-	if !hasImages {
-		body, err = json.Marshal(payload)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-			return
-		}
+	body, err = json.Marshal(payload)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+		return
 	}
 
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
@@ -966,6 +963,54 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if h.optimizers != nil {
 			if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
 				h.optimizers.OptimizeMessages(msgs, h.metrics)
+			}
+		}
+
+		// Tool manifest filtering - reduce tool count when > MaxTools
+		if h.optimizers != nil && h.optimizers.ToolFilter != nil {
+			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
+				parsedTools := make([]toolfilter.Tool, 0, len(tools))
+				for _, t := range tools {
+					tm, ok := t.(map[string]any)
+					if !ok {
+						continue
+					}
+					name, _ := tm["name"].(string)
+					desc, _ := tm["description"].(string)
+					parsedTools = append(parsedTools, toolfilter.Tool{Name: name, Description: desc})
+				}
+				// Extract intent from recent messages
+				recentText := ""
+				if msgs, ok := payload["messages"].([]any); ok {
+					for i := len(msgs) - 1; i >= 0 && len(recentText) < 500; i-- {
+						if mm, ok := msgs[i].(map[string]any); ok {
+							if c, ok := mm["content"].(string); ok {
+								recentText = c + " " + recentText
+							}
+						}
+					}
+				}
+				filtered := h.optimizers.ToolFilter.FilterTools(parsedTools, recentText)
+				if len(filtered) < len(parsedTools) {
+					// Rebuild tools array from filtered results
+					filteredMap := make(map[string]bool, len(filtered))
+					for _, ft := range filtered {
+						filteredMap[ft.Name] = true
+					}
+					newTools := make([]any, 0, len(filtered))
+					for _, t := range tools {
+						if tm, ok := t.(map[string]any); ok {
+							if name, ok := tm["name"].(string); ok {
+								if filteredMap[name] {
+									newTools = append(newTools, t)
+								}
+							}
+						}
+					}
+					saved := (len(tools) - len(newTools)) * 80
+					payload["tools"] = newTools
+					h.metrics.RecordOptimization("toolfilter", saved, "input")
+				}
 			}
 		}
 
@@ -1270,6 +1315,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
 			}
+	} else {
 			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
 				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
