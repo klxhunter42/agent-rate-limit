@@ -650,16 +650,14 @@
         "stacking": "none",
         "tooltip": {
           "mode": "single"
-        }
+        },
+        "showValue": "always"
       }
     },
     {
-      "title": "Top 10 Profile Usage",
       "type": "barchart",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "title": "Top 10 Profile Usage",
+      "description": "Top 10 profiles by total token usage (input + output) over the selected period. Only populated when profile routing is enabled (non-GLM mode).",
       "gridPos": {
         "h": 9,
         "w": 8,
@@ -668,44 +666,34 @@
       },
       "targets": [
         {
+          "expr": "sort_desc(topk(10, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range]))))",
+          "legendFormat": "{{profile}}",
+          "instant": true,
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "expr": "(sort_desc(topk(10, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range])))))",
-          "legendFormat": "{{profile}}",
-          "refId": "A",
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "fillOpacity": 60,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
+          "unit": "none",
+          "decimals": 0,
           "color": {
             "mode": "palette-classic"
-          },
-          "lineWidth": 2,
-          "unit": "none",
-          "decimals": 0
-        },
-        "overrides": []
+          }
+        }
       },
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
         "barWidth": 0.5,
         "showValue": "always",
-        "stacking": "none"
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "lineWidth": 2,
-      "description": "Top 10 profiles by total token usage (input + output) over the selected period. Only populated when profile routing is enabled (non-GLM mode)."
+        "stacking": "none",
+        "tooltip": {
+          "mode": "single"
+        }
+      }
     },
     {
       "type": "piechart",
