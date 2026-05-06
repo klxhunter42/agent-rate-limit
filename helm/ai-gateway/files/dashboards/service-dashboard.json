@@ -410,20 +410,20 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 333333) or on() vector(0)",
-          "legendFormat": "Without Optimization",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          }
+          },
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
+          "legendFormat": "Without Optimization"
         },
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
-          "legendFormat": "With Optimization",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          }
+          },
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_cost_savings_total[$__range])) * 333333) or on() vector(0)",
+          "legendFormat": "With Optimization"
         }
       ],
       "fieldConfig": {
@@ -607,54 +607,6 @@
     },
     {
       "type": "barchart",
-      "title": "Top 10 Services by Cost",
-      "description": "Highest spending service profiles",
-      "gridPos": {
-        "h": 9,
-        "w": 8,
-        "x": 0,
-        "y": 15
-      },
-      "targets": [
-        {
-          "expr": "(sort_desc(topk(10, sum by (model) (increase(api_gateway_cost_total[$__range]))))) or on() vector(0)",
-          "legendFormat": "{{model}}",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "USD",
-          "decimals": 2,
-          "color": {
-            "fixedColor": "#f97316",
-            "mode": "fixed"
-          },
-          "links": [
-            {
-              "title": "View billing details",
-              "url": "/d/claude-oauth-billing?var-model=${__field.labels.model}"
-            }
-          ]
-        }
-      },
-      "options": {
-        "orientation": "horizontal",
-        "xTickLabelRotation": 0,
-        "groupWidth": 0.7,
-        "barWidth": 0.5,
-        "stacking": "none",
-        "tooltip": {
-          "mode": "single"
-        }
-      }
-    },
-    {
-      "type": "barchart",
       "title": "Top 10 Services by Usage",
       "description": "Most active profiles by combined token consumption (input + output)",
       "gridPos": {
@@ -700,6 +652,59 @@
           "mode": "single"
         }
       }
+    },
+    {
+      "title": "Top 10 Profile Usage",
+      "type": "barchart",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sort_desc(topk(10, sum by (profile) (increase(api_gateway_profile_requests_total[$__range]))))) or on() vector(0)",
+          "legendFormat": "{{profile}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 60,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2,
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "groupWidth": 0.7,
+        "barWidth": 0.5,
+        "showValue": "always",
+        "stacking": "none"
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2,
+      "description": "Top 10 profiles by request count. Only populated when profile routing is enabled (non-GLM mode)."
     },
     {
       "type": "piechart",

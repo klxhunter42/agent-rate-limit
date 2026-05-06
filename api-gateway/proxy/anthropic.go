@@ -842,7 +842,38 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		if text == "" {
 			text, _ = delta["reasoning_content"].(string)
 		}
+
+		// Handle tool_calls: forward arguments with unmasking.
 		if text == "" {
+			if toolCalls, ok := delta["tool_calls"].([]any); ok && len(toolCalls) > 0 {
+				for _, tc := range toolCalls {
+					tcMap, ok := tc.(map[string]any)
+					if !ok {
+						continue
+					}
+					fn, _ := tcMap["function"].(map[string]any)
+					args, _ := fn["arguments"].(string)
+					if args == "" {
+						continue
+					}
+					if unmasker != nil {
+						args = unmasker.ProcessChunk(args)
+					}
+					if args != "" {
+						if !started {
+							fmt.Fprintf(w, "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"%s\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"%s\",\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":%d,\"output_tokens\":0}}}\n\n", msgID, model, inputTokens)
+							fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n")
+							started = true
+						}
+						outputTokens++
+						escaped, _ := json.Marshal(args)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+						if flusher != nil {
+							flusher.Flush()
+						}
+					}
+				}
+			}
 			continue
 		}
 
@@ -1634,7 +1665,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
-								evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							}
 							if changed {
@@ -1995,7 +2026,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						changed = evt.Delta.Thinking != before
 					} else if evt.Delta.PartialJSON != "" {
 						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
 						changed = evt.Delta.PartialJSON != before
 					}
 					if changed {

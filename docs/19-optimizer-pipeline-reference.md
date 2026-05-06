@@ -522,27 +522,30 @@ Note: toolfilter also removed 960 chars from the 27-tool manifest (not shown in 
 
 ### Per-Stage Aggregate Summary (from Prometheus)
 
-| Stage | Chars Saved | Runs | Avg/Run | Direction |
-|-------|-------------|------|---------|-----------|
-| semantic_dedup | 28 | 7 | 4.0 | INPUT (system prompt) |
-| sketch_dedup | 2,647 | 4 | 661.8 | INPUT (diagnostic) |
-| caveman | 3,273* | 7 | 467.6 | OUTPUT (style injection) |
-| message_textcomp | 236 | 4 | 59.0 | INPUT (message filler removal) |
-| message_text | 2 | 2 | 1.0 | INPUT (whitespace) |
-| toolfilter | 960 | 1 | 960.0 | INPUT (tools manifest) |
+| Stage | Chars Affected | Runs | Avg/Run | Saves | What it does |
+|-------|----------------|------|---------|-------|--------------|
+| semantic_dedup | 28 reduced | 7 | 4.0 | INPUT | Deduplicates sentences in system prompt |
+| sketch_dedup | 2,647 flagged | 4 | 661.8 | INPUT | Flags near-duplicate system prompts |
+| caveman | 3,273 replaced* | 7 | 467.6 | OUTPUT (indirect) | Replaces system prompt with brevity directive |
+| message_textcomp | 236 reduced | 4 | 59.0 | INPUT | Removes filler from messages |
+| message_text | 2 reduced | 2 | 1.0 | INPUT | Whitespace normalization |
+| toolfilter | 960 removed | 1 | 960.0 | INPUT | Filters tool manifest |
 
-*caveman actual savings from debug log; Prometheus shows 0 due to code bug (`m.RecordOptimization("caveman", 0, "input")` passes 0 instead of saved value)
+*caveman: chars REPLACED, not removed. System prompt (avg 577-1067 chars) replaced with 229-char style directive.
+Prometheus shows 0 for caveman due to code bug (`m.RecordOptimization("caveman", 0, "input")`).
 
-**Total chars saved**: 7,146 (system prompt + message optimization)
-**Total with caveman**: 3,273 chars (output token reduction via style injection)
+**INPUT tokens actually saved**: 3,873 chars = ~968 tokens (semantic_dedup + sketch + message_text + message_textcomp + toolfilter)
+**INPUT tokens replaced by caveman**: 3,273 chars = ~818 tokens (system prompt replaced, not removed - model receives 229-char directive instead)
 
 ### INPUT vs OUTPUT Breakdown
 
-| Direction | Stages | Chars Saved | Est. Tokens | % of Total |
-|-----------|--------|-------------|-------------|------------|
-| **INPUT** | semantic_dedup, sketch_dedup, message_text, message_textcomp, toolfilter | 3,873 | ~968 | 54.2% |
-| **OUTPUT** | caveman (style injection) | 3,273 | ~818 | 45.8% |
-| **TOTAL** | | **7,146** | **~1,786** | **100%** |
+| Direction | Stages | Chars Affected | Est. Tokens | What this means |
+|-----------|--------|----------------|-------------|-----------------|
+| **INPUT** | semantic_dedup, sketch_dedup, message_text, message_textcomp, toolfilter | 3,873 reduced | ~968 saved | Input tokens not sent to provider |
+| **OUTPUT influence** | caveman | 3,273 replaced | ~818 fewer chars in system prompt | System prompt replaced with brevity directive - model may produce shorter output |
+| **OUTPUT direct** | intent_filter | 0 | 0 | Did not activate (all requests classified as "chat") |
+
+**Caveman clarification**: The 3,273 chars is the system prompt text that was REPLACED (not removed). The model receives a 229-char style directive instead of the original system prompt. This saves input tokens (shorter prompt) and may reduce output tokens (model follows brevity directive), but the actual output savings are indirect and unmeasured in this test.
 
 ### Cost Analysis
 
@@ -583,7 +586,7 @@ All stages complete in < 1ms average. Total optimization overhead per request: <
 ### Notes
 
 - All 7 requests stayed in green budget (context window usage < 50%) so summarizer and intent_filter did not activate
-- caveman dominates savings (3,273 chars) by injecting style directives that reduce output verbosity
+- **Caveman replaces system prompt**: `text = compressed` in optimizers.go replaces the entire system prompt with a 229-char style directive. The "saved" chars are system prompt text replaced, not output tokens reduced. Actual output savings are indirect (model follows brevity directive)
 - sketch_dedup detected 4 near-duplicate system prompts (T4-T7 all had the same system prompt)
 - toolfilter removed 960 chars from the 27-tool manifest on T3, keeping only relevant tools
 - model fallback: glm-5 fell back to glm-5-turbo (3x) and glm-5.1 (2x) via bandit selection

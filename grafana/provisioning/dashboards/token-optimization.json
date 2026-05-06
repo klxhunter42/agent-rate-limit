@@ -93,6 +93,10 @@
       },
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"output\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
@@ -115,7 +119,7 @@
         },
         "overrides": []
       },
-      "description": "Output tokens saved by response trimming. Shows 0 until first trim operation."
+      "description": "Output tokens saved by response trimming. Shows 0 until response optimization is triggered by actual AI traffic."
     },
     {
       "title": "Cost Savings (USD)",
@@ -696,8 +700,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_chunker_chars_saved_total[$__interval] > 0)) + sum(rate(api_gateway_delta_chars_saved_total[$__interval] > 0)) or on() vector(0)",
-          "legendFormat": "optimizations/s",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(api_gateway_chunker_chars_saved_total[$__interval])) + sum(rate(api_gateway_delta_chars_saved_total[$__interval])) + sum(rate(api_gateway_disclosure_chars_saved_total[$__interval])) + sum(rate(api_gateway_sketch_chars_saved_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "chars saved/s",
           "refId": "A"
         }
       ],
@@ -898,6 +906,10 @@
       },
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "avg(api_gateway_budget_level) or on() vector(0)",
           "refId": "A"
         }
@@ -922,10 +934,12 @@
                 "value": 2
               }
             ]
-          }
+          },
+          "decimals": 1
         },
         "overrides": []
-      }
+      },
+      "description": "Average budget level across models. 0=green, 1=yellow, 2=red. Shows 0 until AI requests flow through."
     },
     {
       "title": "Waste Detection",

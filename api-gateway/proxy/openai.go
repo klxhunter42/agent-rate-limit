@@ -494,10 +494,14 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 					}
 				}
 				// Flush remaining unmasker buffer before closing events.
-				if unmasker != nil && textBlockOpen {
+				if unmasker != nil && (textBlockOpen || toolBlockOpen) {
 					if remaining := unmasker.Flush(); remaining != "" {
 						escaped, _ := json.Marshal(remaining)
-						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+						if toolBlockOpen {
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+						} else {
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+						}
 					}
 				}
 				if textBlockOpen || toolBlockOpen {
@@ -567,10 +571,14 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 						}
 						// Close previous content block if open
 						if textBlockOpen || toolBlockOpen {
-							if unmasker != nil && textBlockOpen {
+							if unmasker != nil {
 								if remaining := unmasker.Flush(); remaining != "" {
 									escaped, _ := json.Marshal(remaining)
-									fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+									if toolBlockOpen {
+										fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+									} else {
+										fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+									}
 								}
 							}
 							fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":%d}\n\n", contentBlockIdx)
@@ -587,8 +595,11 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 						}
 					}
 
-					// Arguments delta
+					// Arguments delta - unmask placeholders in tool call arguments
 					if args, _ := fn["arguments"].(string); args != "" && toolBlockOpen {
+						if unmasker != nil {
+							args = unmasker.ProcessChunk(args)
+						}
 						escaped, _ := json.Marshal(args)
 						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
 					}
@@ -654,10 +665,14 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 				accumulatedText += remaining
 			}
 		}
-		if unmasker != nil && textBlockOpen {
+		if unmasker != nil && (textBlockOpen || toolBlockOpen) {
 			if remaining := unmasker.Flush(); remaining != "" {
 				escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+				if toolBlockOpen {
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+				} else {
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
