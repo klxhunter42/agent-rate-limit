@@ -52,7 +52,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_dragonfly_up",
+          "expr": "api_gateway_dragonfly_up or on() vector(0)",
           "legendFormat": "Dragonfly",
           "refId": "A"
         }
@@ -108,7 +108,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_active_connections",
+          "expr": "api_gateway_active_connections or on() vector(0)",
           "legendFormat": "Active",
           "refId": "A"
         }
@@ -148,7 +148,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_queue_depth",
+          "expr": "api_gateway_queue_depth or on() vector(0)",
           "legendFormat": "Gateway",
           "refId": "A"
         },
@@ -259,7 +259,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_upstream_429_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval]))",
+          "expr": "(sum(rate(api_gateway_upstream_429_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval]))) or on() vector(0)",
           "legendFormat": "Error %",
           "refId": "A"
         }
@@ -301,7 +301,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_request_latency_seconds_count[$__interval]))",
+          "expr": "(sum(rate(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
           "legendFormat": "requests/s",
           "refId": "A"
         }
@@ -332,7 +332,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval])",
+          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
           "legendFormat": "Processed",
           "refId": "A"
         },
@@ -368,7 +368,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "gateway p95",
           "refId": "A"
         }
@@ -399,12 +399,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "B"
         }

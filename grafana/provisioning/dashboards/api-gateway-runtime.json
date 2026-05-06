@@ -32,7 +32,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_go_goroutines",
+          "expr": "api_gateway_go_goroutines or on() vector(0)",
           "legendFormat": "goroutines",
           "refId": "A"
         }
@@ -63,12 +63,12 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_go_heap_alloc_bytes",
+          "expr": "api_gateway_go_heap_alloc_bytes or on() vector(0)",
           "legendFormat": "heap_alloc",
           "refId": "A"
         },
         {
-          "expr": "api_gateway_go_stack_inuse_bytes",
+          "expr": "api_gateway_go_stack_inuse_bytes or on() vector(0)",
           "legendFormat": "stack_inuse",
           "refId": "B"
         }
@@ -99,7 +99,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_go_gc_pause_ns",
+          "expr": "api_gateway_go_gc_pause_ns or on() vector(0)",
           "legendFormat": "gc_pause",
           "refId": "A"
         }
@@ -130,7 +130,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_go_heap_objects",
+          "expr": "api_gateway_go_heap_objects or on() vector(0)",
           "legendFormat": "heap_objects",
           "refId": "A"
         }
@@ -161,7 +161,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_dragonfly_up",
+          "expr": "api_gateway_dragonfly_up or on() vector(0)",
           "legendFormat": "Dragonfly",
           "refId": "A"
         }
@@ -205,6 +205,45 @@
         "graphMode": "none",
         "justifyMode": "center"
       }
+    },
+    {
+      "title": "Anomalies",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "expr": "(sum by (type, severity) (rate(api_gateway_anomaly_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{type}} ({{severity}})",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "schemaVersion": 39,

@@ -90,6 +90,42 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 - `filterUnsupportedContent` was written only for Zhipu native (`open.bigmodel.cn`)
 - After migrating to api.z.ai (Anthropic-compatible), no format conversion needed because client already sends Anthropic format
 
+## Image Compression: WebP Bug Fix
+
+### Problem
+
+Image responses from GLM models were incorrect (hallucinated content). Root cause: gateway compressed images to WebP format (`bimg.WEBP`) but Zhipu GLM models cannot interpret WebP data, resulting in the model hallucinating about image content.
+
+### Symptoms
+
+- Model describes image content that doesn't match the actual image
+- Model may return image URL instead of analyzing content
+- Affects all image types (PNG, JPEG) after WebP re-encoding
+
+### Fix
+
+Changed compression output from `bimg.WEBP` to `bimg.JPEG` with a size guard:
+
+```go
+// Before: WebP (GLM can't read)
+newImage, err := img.Process(bimg.Options{Quality: quality, Type: bimg.WEBP})
+src["media_type"] = "image/webp"
+
+// After: JPEG (universal compatibility) + size guard
+newImage, err := img.Process(bimg.Options{Quality: quality, Type: bimg.JPEG})
+if len(newData) >= len(data) { continue }  // skip if compression increased size
+src["media_type"] = "image/jpeg"
+```
+
+Also fixed: Prometheus `counter cannot decrease` panic when JPEG compression produced larger output than input (savedBytes < 0). The size guard ensures `RecordImageCompression` is only called with positive saved values.
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `handler/handler.go` | `bimg.WEBP` -> `bimg.JPEG`, added size guard, `image/webp` -> `image/jpeg` |
+| `metrics/metrics.go` | `ImageCompressions`, `ImageBytesSaved`, `ImageBytesOriginal` counters |
+
 ## Additional Routing: ZAI OpenAI Models
 
 Some Z.AI models (configured via `ZAI_OPENAI_MODELS` env var) are routed through the OpenAI-compatible endpoint (`ZAI_OPENAI_URL`) instead of the Anthropic-compatible endpoint. For these models, `AnthropicToOpenAI()` conversion is applied, including image block conversion via `convertImageBlock()` in `proxy/anthropic.go`. This path is separate from the standard vision routing described above.

@@ -26,6 +26,15 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
 )
 
+// PipelineStep logs a single optimization step and returns (after, saved)
+func PipelineStep(stage string, original, optimized string, m *metrics.Metrics) (string, int) {
+	saved := len(original) - len(optimized)
+	if saved > 0 {
+		slog.Info("optimizer_step", "stage", stage, "before", len(original), "after", len(optimized), "saved", saved)
+	}
+	return optimized, saved
+}
+
 // Optimizers holds all 13 token optimization components.
 // Nil fields mean the feature is disabled.
 type Optimizers struct {
@@ -52,6 +61,7 @@ type Optimizers struct {
 // budgetLevel: 0=green, 1=yellow, 2=red
 // model: used for budget tracking and model-specific optimizations
 func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budgetLevel int, model string, transparent bool) string {
+	slog.Info("optimize_system_prompt_entry", "len", len(text), "budget", budgetLevel, "model", model)
 	if text == "" {
 		return text
 	}
@@ -62,7 +72,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := tokenizer.DeduplicateSemantic(text, 0.7)
 		if saved > 0 {
-			text = opt
+			beforeSD := len(text); text = opt; slog.Info("optimizer_step", "stage", "semantic_dedup", "before", beforeSD, "after", len(text), "saved", beforeSD-len(text))
 			m.RecordOptimization("semantic_dedup", saved, "input")
 			m.RecordOptimizationDuration("semantic_dedup", time.Since(start).Seconds())
 			totalSaved += saved
@@ -74,7 +84,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.Chunker.ChunkAndReorder(context.Background(), text)
 		if saved > 0 {
-			text = opt
+			beforeCh := len(text); text = opt; slog.Info("optimizer_step", "stage", "chunker", "before", beforeCh, "after", len(text), "saved", beforeCh-len(text))
 			m.RecordOptimization("chunker", saved, "input")
 			m.RecordOptimizationDuration("chunker", time.Since(start).Seconds())
 			totalSaved += saved
@@ -86,8 +96,8 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		encoded, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
 		if ok && saved > 0 {
-			text = encoded
-			m.RecordOptimization("delta", saved, "input")
+			beforeD := len(text); text = encoded; slog.Info("optimizer_step", "stage", "delta", "before", beforeD, "after", len(text), "saved", beforeD-len(text))
+				m.RecordOptimization("delta", saved, "input")
 			m.RecordOptimizationDuration("delta", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -98,7 +108,8 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		isDup, _, saved := o.Sketch.CheckAndStore(context.Background(), model, text)
 		if isDup && saved > 0 {
-			m.RecordOptimization("sketch_dedup", saved, "input")
+			slog.Info("optimizer_step", "stage", "sketch_dedup", "before", len(text), "after", len(text), "saved", saved)
+				m.RecordOptimization("sketch_dedup", saved, "input")
 			m.RecordOptimizationDuration("sketch", time.Since(start).Seconds())
 		}
 	}
@@ -108,7 +119,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.Summarizer.Summarize(context.Background(), text, budgetLevel)
 		if saved > 0 {
-			text = opt
+			beforeSum := len(text); text = opt; slog.Info("optimizer_step", "stage", "summarizer", "before", beforeSum, "after", len(text), "saved", beforeSum-len(text))
 			m.RecordOptimization("summarizer", saved, "input")
 			m.RecordOptimizationDuration("summarizer", time.Since(start).Seconds())
 			totalSaved += saved
@@ -121,7 +132,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		intent := o.Filter.ClassifyIntent(nil)
 		opt, saved := o.Filter.FilterResponse(text, intent)
 		if saved > 0 {
-			text = opt
+			beforeIF := len(text); text = opt; slog.Info("optimizer_step", "stage", "intent_filter", "before", beforeIF, "after", len(text), "saved", beforeIF-len(text))
 			m.RecordOptimization("intent_filter", saved, "input")
 			m.RecordOptimizationDuration("intent_filter", time.Since(start).Seconds())
 			totalSaved += saved
@@ -133,7 +144,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.TextComp.Compress(text)
 		if saved > 0 {
-			text = opt
+			beforeTC := len(text); text = opt; slog.Info("optimizer_step", "stage", "textcomp_sys", "before", beforeTC, "after", len(text), "saved", beforeTC-len(text))
 			m.RecordOptimization("textcomp", saved, "input")
 			m.RecordOptimizationDuration("textcomp", time.Since(start).Seconds())
 			totalSaved += saved
@@ -148,8 +159,8 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 				start := time.Now()
 				compressed, _ := o.Caveman.Compress("", tier)
 				if compressed != "" {
-					text = compressed
-					m.RecordOptimization("caveman", 0, "input")
+					beforeCav := len(text); text = compressed; slog.Info("optimizer_step", "stage", "caveman", "before", beforeCav, "after", len(text), "saved", beforeCav-len(text))
+						m.RecordOptimization("caveman", 0, "input")
 					m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 				}
 			}
@@ -169,6 +180,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 // OptimizeMessages applies lightweight optimization to message content (whitespace + dedup).
 // Skips code blocks and privacy placeholders. Only applies to text content in user/assistant messages.
 func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
+	slog.Info("optimize_messages_entry", "count", len(messages))
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]any)
 		if !ok {
@@ -190,6 +202,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 					optimized = opt2
 					saved += s2
 				}
+				slog.Info("optimizer_step", "stage", "message_text", "before", len(c), "after", len(optimized), "saved", saved)
 				msgMap["content"] = optimized
 				m.RecordOptimization("message_text", saved, "input")
 			}
@@ -198,6 +211,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 				if tc, ok := msgMap["content"].(string); ok && tc != "" {
 					opt2, saved2 := o.TextComp.Compress(tc)
 					if saved2 > 0 {
+						slog.Info("optimizer_step", "stage", "message_textcomp", "before", len(tc), "after", len(opt2), "saved", saved2)
 						msgMap["content"] = opt2
 						m.RecordOptimization("message_textcomp", saved2, "input")
 					}
@@ -229,6 +243,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 							optimized = opt2
 							saved += s2
 						}
+						slog.Info("optimizer_step", "stage", "message_block_"+blockType, "before", len(text), "after", len(optimized), "saved", saved)
 						blockMap[field] = optimized
 						m.RecordOptimization("message_block_"+blockType, saved, "input")
 					}
@@ -238,6 +253,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 					if tc, ok := blockMap["content"].(string); ok && tc != "" {
 						opt, saved := o.ToolComp.Compress(tc)
 						if saved > 0 {
+							slog.Info("optimizer_step", "stage", "toolcomp", "before", len(tc), "after", len(opt), "saved", saved)
 							blockMap["content"] = opt
 							m.RecordOptimization("toolcomp", saved, "input")
 						}

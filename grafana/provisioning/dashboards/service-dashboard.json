@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 100000 / (sum(increase(api_gateway_cost_total[$__range])) + 1)) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -410,7 +410,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 333333) or on() vector(0)",
           "legendFormat": "Without Optimization",
           "datasource": {
             "type": "prometheus",
@@ -491,7 +491,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[$__interval]))",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -549,7 +549,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__interval]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -617,7 +617,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (model) (increase(api_gateway_cost_total[$__range]))))",
+          "expr": "(sort_desc(topk(10, sum by (model) (increase(api_gateway_cost_total[$__range]))))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -665,7 +665,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (model) (increase(api_gateway_token_input_total[$__range])) + sum by (model) (increase(api_gateway_token_output_total[$__range]))))",
+          "expr": "(sort_desc(topk(10, sum by (model) (increase(api_gateway_token_input_total[$__range])) + sum by (model) (increase(api_gateway_token_output_total[$__range]))))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -713,7 +713,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__range]))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -776,7 +776,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count[$__interval]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
           "legendFormat": "requests",
           "datasource": {
             "type": "prometheus",
@@ -834,17 +834,14 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4",
-          "legendFormat": "Units Saved",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
+          "expr": "sum(rate(api_gateway_cost_savings_total[$__interval])) or on() vector(0)",
+          "legendFormat": "cost savings ($/s)",
+          "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "currencyUSD",
           "decimals": 0,
           "custom": {
             "fillOpacity": 40,
@@ -914,7 +911,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_request_latency_seconds_count[$__range]))",
+          "expr": "(sum(increase(api_gateway_request_latency_seconds_count[$__range]))) or on() vector(0)",
           "legendFormat": "requests",
           "datasource": {
             "type": "prometheus",
@@ -924,7 +921,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -934,7 +931,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__range]))) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -944,7 +941,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (model) (increase(api_gateway_cost_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__range]))) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",

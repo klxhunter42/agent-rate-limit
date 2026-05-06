@@ -55,7 +55,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
+          "expr": "(sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
           "legendFormat": "{{method}} {{path}} {{status}}",
           "refId": "A"
         }
@@ -87,17 +87,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.50, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.99, sum by (le) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -128,7 +128,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (path) (rate(api_gateway_request_latency_seconds_sum[$__interval])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[$__interval]))",
+          "expr": "(sum by (path) (rate(api_gateway_request_latency_seconds_sum[$__interval])) / sum by (path) (rate(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -159,7 +159,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_active_connections",
+          "expr": "api_gateway_active_connections or on() vector(0)",
           "legendFormat": "Active",
           "refId": "A"
         }
@@ -201,7 +201,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_token_input_total[$__interval])",
+          "expr": "rate(api_gateway_token_input_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -232,7 +232,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_token_output_total[$__interval])",
+          "expr": "rate(api_gateway_token_output_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -264,7 +264,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_upstream_429_total[$__interval]))",
+          "expr": "(sum(rate(api_gateway_upstream_429_total[$__interval]))) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         }
@@ -337,7 +337,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_adaptive_limit",
+          "expr": "api_gateway_adaptive_limit or on() vector(0)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -408,12 +408,12 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_adaptive_in_flight",
+          "expr": "api_gateway_adaptive_in_flight or on() vector(0)",
           "legendFormat": "in-flight: {{model}}",
           "refId": "A"
         },
         {
-          "expr": "api_gateway_adaptive_limit",
+          "expr": "api_gateway_adaptive_limit or on() vector(0)",
           "legendFormat": "limit: {{model}}",
           "refId": "B"
         }
@@ -444,12 +444,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "B"
         }
@@ -480,7 +480,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -511,7 +511,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_upstream_429_total[$__interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__interval])) * 100",
+          "expr": "(sum(rate(api_gateway_upstream_429_total[$__interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__interval])) * 100) or on() vector(0)",
           "legendFormat": "error rate",
           "refId": "A"
         }
@@ -542,7 +542,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{key}}",
           "refId": "A"
         }
@@ -578,7 +578,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_upstream_retries_total[$__interval]))",
+          "expr": "(sum(rate(api_gateway_upstream_retries_total[$__interval]))) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "A"
         }
@@ -609,12 +609,12 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.50, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_ttfb_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "p95",
           "refId": "B"
         }
@@ -645,7 +645,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_queue_depth",
+          "expr": "api_gateway_queue_depth or on() vector(0)",
           "legendFormat": "Queue Depth",
           "refId": "A"
         }
@@ -705,7 +705,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (status) (rate(api_gateway_request_latency_seconds_count{path!~\"/health|/metrics\"}[$__interval]))",
+          "expr": "(sum by (status) (rate(api_gateway_request_latency_seconds_count{path!~\"/health|/metrics\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -737,12 +737,12 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_token_input_total[$__interval]))",
+          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "sum by (model) (rate(api_gateway_token_output_total[$__interval]))",
+          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}} out",
           "refId": "B"
         }
@@ -773,7 +773,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_cost_total[$__interval]))",
+          "expr": "(sum by (model) (rate(api_gateway_cost_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -815,19 +815,37 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
-          "legendFormat": "{{technique}}",
+          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval])) or on() vector(0)",
+          "legendFormat": "chunker",
           "refId": "A"
+        },
+        {
+          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval])) or on() vector(0)",
+          "legendFormat": "delta",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval])) or on() vector(0)",
+          "legendFormat": "disclosure",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval])) or on() vector(0)",
+          "legendFormat": "sketch",
+          "refId": "D"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "chars/s",
           "custom": {
-            "fillOpacity": 10,
+            "fillOpacity": 30,
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
           },
           "lineWidth": 2
         }
@@ -847,7 +865,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))",
+          "expr": "(sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -879,8 +897,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
-          "legendFormat": "Total",
+          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -912,8 +929,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
-          "legendFormat": "Avg",
+          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / (sum(increase(api_gateway_chunker_reorder_duration_seconds_count[$__range])) + sum(increase(api_gateway_delta_encodes_total[$__range])) + sum(increase(api_gateway_sketch_checks_total[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -949,7 +965,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
           "refId": "A",
           "legendFormat": "{{model}}"
         }
@@ -987,7 +1003,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__range]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__range]))) or on() vector(0)",
           "refId": "A",
           "legendFormat": "{{model}}"
         }
@@ -1025,7 +1041,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_input_total[$__interval]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
           "refId": "A",
           "legendFormat": "{{model}}"
         }
@@ -1064,7 +1080,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_token_output_total[$__interval]))",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__interval]))) or on() vector(0)",
           "refId": "A",
           "legendFormat": "{{model}}"
         }
@@ -1089,274 +1105,121 @@
       "lineWidth": 2
     },
     {
-      "id": 1,
-      "title": "Image Compression",
-      "type": "row",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 111
+      "title": "Errors by Type",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "panels": [
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 110
+      },
+      "targets": [
         {
-          "id": 2,
-          "title": "Images Compressed",
-          "type": "stat",
-          "gridPos": {
-            "h": 4,
-            "w": 8,
-            "x": 0,
-            "y": 112
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "targets": [
-            {
-              "expr": "sum(increase(api_gateway_image_compressions_total[$__range]))",
-              "legendFormat": ""
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto"
-          }
-        },
-        {
-          "id": 3,
-          "title": "Bytes Saved",
-          "type": "stat",
-          "gridPos": {
-            "h": 4,
-            "w": 8,
-            "x": 8,
-            "y": 112
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "targets": [
-            {
-              "expr": "sum(increase(api_gateway_image_bytes_saved_total[$__range]))",
-              "legendFormat": ""
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decbytes",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto"
-          }
-        },
-        {
-          "id": 4,
-          "title": "Original Bytes Processed",
-          "type": "stat",
-          "gridPos": {
-            "h": 4,
-            "w": 8,
-            "x": 16,
-            "y": 112
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "targets": [
-            {
-              "expr": "sum(increase(api_gateway_image_bytes_original_total[$__range]))",
-              "legendFormat": ""
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decbytes",
-              "color": {
-                "mode": "thresholds"
-              },
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "blue",
-                    "value": null
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "textMode": "auto"
-          }
-        },
-        {
-          "id": 5,
-          "title": "Compression Rate Over Time",
-          "type": "timeseries",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 116
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "targets": [
-            {
-              "expr": "sum by (model) (increase(api_gateway_image_bytes_saved_total[$__range]))",
-              "legendFormat": "saved - {{model}}"
-            },
-            {
-              "expr": "sum by (model) (increase(api_gateway_image_bytes_original_total[$__range]))",
-              "legendFormat": "original - {{model}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decbytes",
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "drawStyle": "line",
-                "lineInterpolation": "smooth",
-                "fillOpacity": 15,
-                "pointSize": 5,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            },
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            }
-          }
-        },
-        {
-          "id": 6,
-          "title": "Images Compressed Over Time",
-          "type": "timeseries",
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 116
-          },
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          },
-          "targets": [
-            {
-              "expr": "sum by (model) (increase(api_gateway_image_compressions_total[$__range]))",
-              "legendFormat": "{{model}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "drawStyle": "bars",
-                "lineInterpolation": "smooth",
-                "fillOpacity": 50,
-                "pointSize": 5,
-                "showPoints": "never",
-                "spanNulls": false
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            },
-            "legend": {
-              "displayMode": "list",
-              "placement": "bottom"
-            }
-          }
+          "expr": "(sum by (type) (rate(api_gateway_error_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{type}}",
+          "refId": "A"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
+    },
+    {
+      "title": "Rate Limit Hits",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 110
+      },
+      "targets": [
+        {
+          "expr": "(sum by (key) (rate(api_gateway_rate_limit_hits_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{key}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
+    },
+    {
+      "title": "Model Fallbacks",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 110
+      },
+      "targets": [
+        {
+          "expr": "(sum by (requested) (rate(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{requested}} -> {{selected}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "schemaVersion": 39,

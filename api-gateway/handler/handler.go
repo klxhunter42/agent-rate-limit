@@ -1951,7 +1951,7 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 
 			newImage, err := img.Process(bimg.Options{
 				Quality: quality,
-				Type:    bimg.WEBP,
+				Type:    bimg.JPEG,
 			})
 			if err != nil {
 				slog.Debug("bimg process failed, skip", "error", err)
@@ -1959,8 +1959,16 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			}
 
 			newData := base64.StdEncoding.EncodeToString(newImage)
+			if len(newData) >= len(data) {
+				slog.Debug("compression increased size, keeping original",
+					"original_bytes", len(data),
+					"compressed_bytes", len(newData),
+					"original_size", fmt.Sprintf("%dx%d", origW, origH),
+				)
+				continue
+			}
 			src["data"] = newData
-			src["media_type"] = "image/webp"
+			src["media_type"] = "image/jpeg"
 			compressed++
 			savedBytes += len(data) - len(newData)
 			originalBytes += len(data)

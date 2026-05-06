@@ -38,7 +38,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval])",
+          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
           "legendFormat": "Processed/s ({{provider}})",
           "refId": "A"
         },
@@ -313,7 +313,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_token_input_total[$__interval]))",
+          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -345,7 +345,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (rate(api_gateway_token_output_total[$__interval]))",
+          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -377,17 +377,17 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.50, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "{{provider}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "{{provider}} p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.99, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "{{provider}} p99",
           "refId": "C"
         }
@@ -493,7 +493,7 @@
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval])",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{provider}} rate-limited/s",
           "refId": "B"
         }
@@ -509,6 +509,84 @@
           },
           "lineWidth": 2
         }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
+    },
+    {
+      "title": "Account Input Tokens",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "targets": [
+        {
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_input_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{account_id}}/{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
+    },
+    {
+      "title": "Account Output Tokens",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "targets": [
+        {
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_output_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{account_id}}/{{model}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
       },
       "showPoints": "never",
       "spanNulls": true,

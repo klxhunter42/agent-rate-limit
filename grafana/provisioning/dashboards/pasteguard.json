@@ -55,7 +55,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_mask_requests_total[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -98,7 +98,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         }
@@ -141,7 +141,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "PII",
           "refId": "A"
         }
@@ -326,17 +326,17 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total[$__interval]))",
+          "expr": "(sum(rate(api_gateway_mask_requests_total[$__interval]))) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))",
+          "expr": "(sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "Secrets Found",
           "refId": "B"
         },
         {
-          "expr": "sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))",
+          "expr": "(sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "PII Found",
           "refId": "C"
         }
@@ -514,7 +514,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (rate(api_gateway_pii_detected_total[$__interval]))",
+          "expr": "(sum by (type) (rate(api_gateway_pii_detected_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -550,7 +550,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -587,7 +587,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -745,12 +745,12 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         },
         {
-          "expr": "sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "PII",
           "refId": "B"
         }
@@ -837,7 +837,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__interval])))",
+          "expr": "(histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__interval])))) or on() vector(0)",
           "legendFormat": "{{phase}} p95",
           "refId": "A"
         }
@@ -862,7 +862,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))) or vector(0)",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))) or vector(0)) or on() vector(0)",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -943,7 +943,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_mask_requests_total{has_secrets=\"false\", has_pii=\"false\"}[$__range])) or vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"false\", has_pii=\"false\"}[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Clean",
           "refId": "A"
         }
@@ -986,7 +986,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0) or on() vector(0)",
           "legendFormat": "Protected",
           "refId": "A"
         }
@@ -1056,8 +1056,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__interval]))",
-          "legendFormat": "{{type}}",
+          "expr": "sum(rate(api_gateway_secrets_detected_total[$__interval])) or on() vector(0)",
+          "legendFormat": "secrets/s",
           "refId": "A"
         }
       ],
@@ -1091,14 +1091,14 @@
       },
       "targets": [
         {
-          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__range]))",
+          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range]))) or on() vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "sum by (type) (increase(api_gateway_pii_detected_total[$__range]))",
+          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range]))) or on() vector(0)",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
@@ -1161,24 +1161,6 @@
           }
         ]
       }
-    },
-    {
-      "title": "Compliance Summary",
-      "type": "text",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 34
-      },
-      "options": {
-        "mode": "markdown"
-      },
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "content": "### Data Protection Overview\n\nAll AI requests are automatically scanned and masked in real-time. No sensitive data is stored or forwarded to upstream providers.\n\n| Protection | Status | Coverage |\n|------------|--------|----------|\n| Credentials & Secrets | **Protected** | API keys, tokens, private keys |\n| Personal Data (PII) | **Protected** | Email, phone numbers |\n| Data-in-Transit | **Encrypted** | TLS 1.2+ end-to-end |\n| Data-at-Rest | **None Stored** | Zero retention policy |\n\n---\n\n| Compliance Aspect | Detail |\n|-------------------|--------|\n| PDPA (Thailand) | PII auto-masking enabled |\n| SOC 2 Alignment | No sensitive data stored |\n| Latency Impact | < 100ms per request (P95) |\n| Scan Throughput | Up to 200K chars/request |"
     }
   ],
   "refresh": "30s",

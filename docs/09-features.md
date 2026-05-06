@@ -116,13 +116,37 @@ NATIVE_VISION_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
 UPSTREAM_VISION_MODEL_LIMITS=glm-5.1:5,glm-4.6v:5,glm-4.5v:3
 ```
 
+### Image Compression
+
+Gateway compresses base64 images before forwarding to reduce bandwidth and latency.
+
+| Setting | Value | Notes |
+|---|---|---|
+| Format | JPEG (quality 85) | WebP not supported by Zhipu GLM models |
+| Max dimension | 1024px | Resize if width or height exceeds |
+| Threshold | 1 byte | Compress all images |
+| Size guard | Skip if compressed >= original | Keeps original when compression inflates |
+
+**Compression pipeline:**
+1. Decode base64 image data
+2. Re-encode as JPEG at quality 85 via bimg/libvips
+3. If compressed base64 < original base64: replace payload, update `media_type` to `image/jpeg`
+4. If compressed base64 >= original: keep original format, skip
+
+**Prometheus metrics:**
+```
+api_gateway_image_compressions_total{model}  -- count of compressed images
+api_gateway_image_bytes_saved_total{model}   -- bytes saved (always >= 0)
+api_gateway_image_bytes_original_total{model} -- original bytes processed
+```
+
 ### Limitations
 
 | Limitation | Detail |
 |---|---|
 | Privacy pipeline skipped | Vision path does not go through privacy masking |
 | tool_use on vision stripped | `server_tool_use`, `tool_use`, `tool_result` content blocks are filtered before sending (Z.AI doesn't support them) |
-| No auto-resize | Large images may be slow/fail |
+| WebP not supported | Zhipu GLM models cannot interpret WebP images; gateway converts to JPEG |
 
 > **Note**: Error 1210 ("API parameter error") that previously occurred from sending `system` role and Anthropic-specific content blocks has been fixed (commit 7c08cb0) -- gateway now auto-filters roles and content types.
 

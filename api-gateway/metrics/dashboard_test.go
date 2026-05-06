@@ -25,7 +25,7 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_upstream_429_total":           {},
 	"api_gateway_adaptive_limit":               {"model"},
 	"api_gateway_adaptive_in_flight":           {"model"},
-	"api_gateway_cost_total":                 {"model", "type"},
+	"api_gateway_cost_total":                   {"model", "type"},
 	"api_gateway_model_fallback_total":         {"requested", "selected"},
 	"api_gateway_ttfb_seconds":                 {"model"},
 	"api_gateway_go_goroutines":                {},
@@ -42,7 +42,7 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_profile_requests_total":       {"profile", "model"},
 	"api_gateway_profile_token_input_total":    {"profile", "model"},
 	"api_gateway_profile_token_output_total":   {"profile", "model"},
-	"api_gateway_profile_cost_total":         {"profile", "model", "type"},
+	"api_gateway_profile_cost_total":           {"profile", "model", "type"},
 	"api_gateway_optimizer_chars_saved_total":  {"technique", "direction"},
 	"api_gateway_optimizer_runs_total":         {"technique"},
 	"api_gateway_optimizer_duration_seconds":   {"technique"},
@@ -53,20 +53,44 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_transient_retry_total":        {"status", "model"},
 	"api_gateway_waste_findings_total":         {"detector", "severity"},
 	"api_gateway_waste_tokens_wasted_total":    {"detector"},
-	"api_gateway_account_token_input_total":  {"account_id", "model"},
-	"api_gateway_account_token_output_total": {"account_id", "model"},
-	"api_gateway_billing_path_requests_total": {"path"},
+	"api_gateway_account_token_input_total":    {"account_id", "model"},
+	"api_gateway_account_token_output_total":   {"account_id", "model"},
+	"api_gateway_billing_path_requests_total":  {"path"},
 	"api_gateway_billing_path_latency_seconds": {"path"},
+	// Per-technique metrics from optimizer sub-packages
+	"api_gateway_chunker_chars_saved_total":        {},
+	"api_gateway_delta_chars_saved_total":          {},
+	"api_gateway_disclosure_chars_saved_total":     {},
+	"api_gateway_sketch_chars_saved_total":         {},
+	"api_gateway_chunker_reorder_duration_seconds": {},
+	"api_gateway_delta_encodes_total":              {},
+	"api_gateway_sketch_checks_total":              {},
+	"api_gateway_waste_scan_duration_seconds":      {},
 }
 
 // skipMetricsFromCoverage are registered metrics excluded from the
 // "every metric must appear in a dashboard" check. These are internal
 // runtime/diagnostic metrics that may not warrant a dedicated panel.
 var skipMetricsFromCoverage = map[string]string{
-	"api_gateway_go_heap_objects":      "internal GC diagnostic, covered by heap_alloc_bytes panel",
-	"api_gateway_go_stack_inuse_bytes": "internal runtime diagnostic, rarely actionable alone",
-	"api_gateway_context_truncation_total": "recovery metric, no dedicated panel yet",
-	"api_gateway_transient_retry_total":    "recovery metric, no dedicated panel yet",
+	"api_gateway_go_heap_objects":            "internal GC diagnostic, covered by heap_alloc_bytes panel",
+	"api_gateway_go_stack_inuse_bytes":       "internal runtime diagnostic, rarely actionable alone",
+	"api_gateway_context_truncation_total":   "recovery metric, no dedicated panel yet",
+	"api_gateway_transient_retry_total":      "recovery metric, no dedicated panel yet",
+	"api_gateway_profile_requests_total":     "GLM mode has no profile concept, metric never populated",
+	"api_gateway_profile_token_input_total":  "GLM mode has no profile concept, metric never populated",
+	"api_gateway_profile_token_output_total": "GLM mode has no profile concept, metric never populated",
+	"api_gateway_profile_cost_total":         "GLM mode has no profile concept, metric never populated",
+	"api_gateway_waste_findings_total":       "registered but not incremented until waste detector runs",
+	"api_gateway_waste_tokens_wasted_total":  "registered but not incremented until waste detector runs",
+	"api_gateway_billing_path_latency_seconds": "covered by billing_path_requests panel",
+	"api_gateway_chunker_chars_saved_total":        "covered by aggregate optimizer_chars_saved panel",
+	"api_gateway_delta_chars_saved_total":          "covered by aggregate optimizer_chars_saved panel",
+	"api_gateway_disclosure_chars_saved_total":     "covered by aggregate optimizer_chars_saved panel",
+	"api_gateway_sketch_chars_saved_total":         "covered by aggregate optimizer_chars_saved panel",
+	"api_gateway_chunker_reorder_duration_seconds": "covered by optimizer_duration panel",
+	"api_gateway_delta_encodes_total":              "covered by optimizer_runs panel",
+	"api_gateway_sketch_checks_total":              "covered by optimizer_runs panel",
+	"api_gateway_waste_scan_duration_seconds":      "covered by waste detection panel",
 }
 
 var (
@@ -243,7 +267,13 @@ func TestLabelValidation(t *testing.T) {
 				inner := lm[1 : len(lm)-1] // strip braces
 				parts := strings.Split(inner, ",")
 				for _, part := range parts {
-					kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+					part = strings.TrimSpace(part)
+				// Handle != operator before splitting on =.
+				sep := "="
+				if strings.Contains(part, "!=") {
+					sep = "!="
+				}
+				kv := strings.SplitN(part, sep, 2)
 					if len(kv) != 2 {
 						continue
 					}
@@ -350,10 +380,18 @@ func TestRegisteredMetricsComplete(t *testing.T) {
 		"api_gateway_transient_retry_total",
 		"api_gateway_waste_findings_total",
 		"api_gateway_waste_tokens_wasted_total",
-	"api_gateway_account_token_input_total",
-	"api_gateway_account_token_output_total",
-	"api_gateway_billing_path_requests_total",
-	"api_gateway_billing_path_latency_seconds",
+		"api_gateway_account_token_input_total",
+		"api_gateway_account_token_output_total",
+		"api_gateway_billing_path_requests_total",
+		"api_gateway_billing_path_latency_seconds",
+		"api_gateway_chunker_chars_saved_total",
+		"api_gateway_delta_chars_saved_total",
+		"api_gateway_disclosure_chars_saved_total",
+		"api_gateway_sketch_chars_saved_total",
+		"api_gateway_chunker_reorder_duration_seconds",
+		"api_gateway_delta_encodes_total",
+		"api_gateway_sketch_checks_total",
+		"api_gateway_waste_scan_duration_seconds",
 	}
 
 	for _, m := range canonical {
@@ -395,6 +433,12 @@ func TestRegisteredMetricsComplete(t *testing.T) {
 		"api_gateway_profile_token_input_total":  {"profile", "model"},
 		"api_gateway_profile_token_output_total": {"profile", "model"},
 		"api_gateway_profile_cost_total":         {"profile", "model", "type"},
+		"api_gateway_optimizer_chars_saved_total":  {"technique", "direction"},
+		"api_gateway_optimizer_runs_total":         {"technique"},
+		"api_gateway_optimizer_tokens_saved_total": {"direction"},
+		"api_gateway_cost_savings_total":           {},
+		"api_gateway_waste_findings_total":         {"detector", "severity"},
+		"api_gateway_waste_tokens_wasted_total":    {"detector"},
 	}
 	for m, wantLabels := range labelChecks {
 		gotLabels := registeredMetrics[m]
