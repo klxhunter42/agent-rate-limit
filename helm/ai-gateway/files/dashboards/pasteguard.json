@@ -261,7 +261,8 @@
             },
             "lineWidth": 2
           },
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -339,7 +340,10 @@
           "legendFormat": "PII Found",
           "refId": "C"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Detection Rate by Type",
@@ -370,7 +374,8 @@
             },
             "lineWidth": 2
           },
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -513,7 +518,10 @@
           "legendFormat": "{{type}}",
           "refId": "A"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Detection Analysis",
@@ -810,7 +818,8 @@
             "spanNulls": true,
             "lineWidth": 2
           },
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2
         }
       },
       "options": {
@@ -832,7 +841,10 @@
           "legendFormat": "{{phase}} p95",
           "refId": "A"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Processing Health",
@@ -1030,7 +1042,8 @@
             },
             "lineWidth": 2
           },
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2
         }
       },
       "options": {
@@ -1047,7 +1060,10 @@
           "legendFormat": "{{type}}",
           "refId": "A"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Detection Detail Table",

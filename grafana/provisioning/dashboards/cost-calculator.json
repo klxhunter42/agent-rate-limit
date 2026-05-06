@@ -205,7 +205,8 @@
             "spanNulls": true,
             "lineWidth": 2
           },
-          "unit": "currencyUSD"
+          "unit": "currencyUSD",
+          "lineWidth": 2
         }
       },
       "options": {
@@ -226,7 +227,10 @@
           "legendFormat": "{{model}}",
           "refId": "A"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost by Model",

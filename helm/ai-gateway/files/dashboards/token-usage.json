@@ -262,8 +262,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -278,7 +280,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "timeseries",
@@ -308,8 +313,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -324,7 +331,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "table",
@@ -426,8 +436,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -442,7 +454,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "timeseries",
@@ -472,8 +487,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -488,7 +505,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "table",
@@ -582,8 +602,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -598,7 +620,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "timeseries",
@@ -628,8 +653,10 @@
               "mode": "normal"
             },
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -644,7 +671,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "table",
@@ -735,8 +765,10 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -751,7 +783,10 @@
             "max"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "timeseries",
@@ -778,8 +813,10 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -794,7 +831,10 @@
             "max"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "type": "timeseries",
@@ -829,8 +869,10 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
       },
       "options": {
@@ -845,7 +887,10 @@
             "max"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ]
 }

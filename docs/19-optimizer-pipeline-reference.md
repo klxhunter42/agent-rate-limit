@@ -415,32 +415,52 @@ To disable mock data: remove the `go seedOptimizers()` call in `metrics/metrics.
 
 ## Load Test Results (2026-05-06)
 
-**Setup**: 10 requests, localhost, `DEBUG=true`, Redis on localhost:6379, model `glm-4.7-flashx`
+**Setup**: 12 requests, localhost, `DEBUG=true`, Redis on localhost:6379, model `glm-4.7-flashx` (8K context for red budget testing)
 
 ### Per-Technique Chars Saved
 
-| Technique | Chars Saved | Runs | Avg/Run |
-|-----------|-------------|------|---------|
-| sketch_dedup | 7,128 | 9 | 792 |
-| message_block_tool_result | 140 | 6 | 23 |
-| toolcomp | 115 | 1 | 115 |
-| semantic_dedup | 43 | 11 | 4 |
-| textcomp | 26 | 2 | 13 |
-| message_block_text | 20 | 2 | 10 |
-| message_text | 20 | 1 | 20 |
+| Technique | Chars Saved | Runs | Avg/Run | Stage |
+|-----------|-------------|------|---------|-------|
+| semantic_dedup | 47,226 | 36 | 1,312 | F7 (system prompt) |
+| sketch_dedup | 20,660 | 30 | 689 | F9 (system prompt) |
+| toolcomp | 13,740 | 12 | 1,145 | F18 (tool_result blocks) |
+| toolfilter | 4,800 | 2 | 2,400 | F19 (tools manifest) |
+| summarizer | 2,802 | 6 | 467 | F6 (red budget system prompt) |
+| message_block_tool_result | 72 | 6 | 12 | whitespace (tool_result) |
+| message_textcomp | 15 | 2 | 8 | textcomp (message string) |
+| textcomp | 39 | 3 | 13 | F17 (system prompt) |
 
-### Total
+### Totals
 
-- INPUT chars saved: **7,492** across 11 requests
-- Estimated tokens saved: ~1,873 (chars / 4)
-- Cost savings: $0.000005 (at $3/M tokens)
-- All optimization ran in < 5ms total per request
+- INPUT chars saved: **89,354** across 12 requests
+- Estimated tokens saved: ~22,339 (chars / 4)
+- Cost savings: **$0.0376** (at $3/M tokens)
+- Optimization overhead: < 10ms total per request (caveman 0.14ms, semantic_dedup sub-ms, sketch 5ms, summarizer 7.7ms)
+
+### Stage Coverage
+
+| Stage | Triggered | How |
+|-------|-----------|-----|
+| F7 semantic_dedup | Yes (36 runs) | Verbose + repeated system prompts |
+| F9 sketch_dedup | Yes (30 runs) | Near-duplicate system prompts across requests |
+| F18 toolcomp | Yes (12 runs) | Shell ls, JSON, log, diff, table formats in tool_result |
+| F19 toolfilter | Yes (2 runs) | 25-tool manifest filtered to relevant subset |
+| F6 summarizer | Yes (6 runs) | 30K-char system prompt > 8K context = red budget |
+| F1 chunker | Yes | Triggered alongside semantic_dedup |
+| F17 textcomp | Yes (3 runs) | Filler/verbose removal on system prompt |
+| F8 delta | Yes | Differential encoding of repeated prompts |
+| F13 intent_filter | Yes | Intent classification on system prompts |
+| F16 caveman | Yes (30 runs) | Transparent mode disabled |
+| Whitespace opt | Yes (6 runs) | Multi-space normalization in tool_result blocks |
+| F5 context_cache | Yes | Redis-backed cache for system prompts |
+| F10 bandit | Pass-through | No upstream response to learn from |
+| F11 waste | Pass-through | No upstream response to analyze |
+| F12 caching | Pass-through | No upstream response to cache |
 
 ### Notes
 
-- sketch_dedup dominates because repeated system prompts across requests trigger near-duplicate detection
-- toolcomp saved 115 chars on shell ls output (removed headers, kept first 5 + last 2 entries)
-- Budget level was always 0 (green) because test payloads were small vs 128K context window
-- Summarizer only activates on red budget (budgetLevel >= 2), not triggered in this test
-- ToolFilter only fires when tools array has > 15 entries, not triggered with 0-2 tools per request
-- Post-proxy feedback (bandit, waste, cache) did not fire because upstream proxy timed out before completing
+- semantic_dedup dominates (47K chars) because repeated project-description system prompts trigger exact/near-duplicate detection
+- toolcomp saved 13,740 chars across 12 tool_result blocks: shell ls (trimmed), JSON (compacted), logs (deduped), diff (compressed), table (stripped separators)
+- toolfilter saved 4,800 chars (2 runs x 20 tools removed x 240 chars/tool) by filtering 25-tool manifest to relevant subset based on user intent ("read configuration file" -> kept Read, Edit, Bash)
+- summarizer activated on red budget when 30K-char system prompt exceeded 8K context window (glm-4.7-flashx set to 8192 for testing)
+- All optimization stages complete in < 10ms; the slowest is summarizer at 7.7ms for 6 runs

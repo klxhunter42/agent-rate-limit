@@ -117,13 +117,14 @@ var KnownModels = map[string]ModelCapabilities{
 	"gemini-2.5-flash": {ContextWindow: 1048576, MaxOutputTokens: 65536, Provider: "google"},
 	"gemini-2.0-flash": {ContextWindow: 1048576, MaxOutputTokens: 8192, Provider: "google"},
 	// Z.AI (GLM)
-	"glm-5.1":      {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-5":        {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-4.6v":     {ContextWindow: 8192, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-4-plus":   {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-4-flash":  {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-4-0520":   {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
-	"glm-4v-flash": {ContextWindow: 8192, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-5.1":        {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-5":          {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4.6v":       {ContextWindow: 8192, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4-plus":     {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4.7-flashx": {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4-flash":    {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4-0520":     {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-4v-flash":   {ContextWindow: 8192, MaxOutputTokens: 4096, Provider: "zai"},
 }
 
 // GetModelCapabilities returns capabilities for a model, with fallback defaults.

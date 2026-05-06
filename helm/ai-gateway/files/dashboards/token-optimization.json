@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -93,7 +93,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"output\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -221,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
+          "expr": "(clamp(sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) * 100, 0, 50)) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -323,7 +323,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total{}[$__interval]))",
+          "expr": "sum(rate(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__interval]))",
           "refId": "A"
         }
       ],
@@ -338,7 +338,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -357,7 +358,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost Savings Over Time",
@@ -390,7 +394,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -409,7 +414,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Optimization by Technique",
@@ -437,7 +445,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval]))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval]))",
           "refId": "A"
         }
       ],
@@ -448,13 +456,14 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
       },
@@ -466,7 +475,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Savings by Technique",
@@ -483,7 +495,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))",
           "refId": "A",
           "instant": true,
           "format": "table"
@@ -531,16 +543,20 @@
               "mode": "normal"
             },
             "fillOpacity": 20,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Before vs After",
@@ -568,7 +584,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "legendFormat": "Without Optimization"
         },
@@ -648,7 +664,7 @@
       },
       "targets": [
         {
-          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__interval])) / 4) * 100, 0, 100)",
+          "expr": "clamp(sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + sum(rate(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__interval])) / 4) * 100, 0, 100)",
           "refId": "A"
         }
       ],
@@ -660,7 +676,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -679,7 +696,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Optimizer Performance (P95)",
@@ -704,10 +724,11 @@
         "defaults": {
           "unit": "s",
           "custom": {
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
       },
@@ -720,7 +741,10 @@
             "max"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Technique Detail Table",
@@ -748,7 +772,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))",
           "refId": "A",
           "format": "table",
           "instant": true
@@ -810,178 +834,13 @@
       }
     },
     {
-      "title": "New Optimizer Techniques",
-      "type": "row",
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 41
-      },
-      "collapsed": false
-    },
-    {
-      "title": "ToolComp Savings (tool_result)",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 42
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{technique=\"toolcomp\"}[$__interval]))",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "fillOpacity": 30,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "color": {
-            "fixedColor": "#8b5cf6",
-            "mode": "fixed"
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "title": "ToolComp Runs by Format",
-      "type": "barchart",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 42
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"toolcomp\"}[$__range]))",
-          "refId": "A",
-          "instant": true,
-          "format": "table"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "horizontal",
-        "groupWidth": 0.7,
-        "barWidth": 0.6
-      }
-    },
-    {
-      "title": "Compcache Compression Ratio",
-      "type": "gauge",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 4,
-        "x": 16,
-        "y": 42
-      },
-      "targets": [
-        {
-          "expr": "avg(compcache_compression_ratio) or on() vector(0)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "max": 1,
-          "unit": "percentunit",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.3
-              },
-              {
-                "color": "green",
-                "value": 0.5
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "title": "Optimizer Technique Coverage",
-      "type": "piechart",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 4,
-        "x": 20,
-        "y": 42
-      },
-      "targets": [
-        {
-          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\"}[$__range]))",
-          "refId": "A",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "values": [
-            "value",
-            "percent"
-          ]
-        }
-      }
-    },
-    {
       "title": "Budget & Waste",
       "type": "row",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 41
       },
       "collapsed": false
     },
@@ -996,7 +855,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 51
+        "y": 42
       },
       "targets": [
         {
@@ -1040,12 +899,13 @@
         "h": 6,
         "w": 9,
         "x": 6,
-        "y": 51
+        "y": 42
       },
       "targets": [
         {
           "expr": "sum by (severity) (rate(api_gateway_waste_findings_total[$__interval]))",
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "{{severity}}"
         }
       ],
       "fieldConfig": {
@@ -1055,16 +915,20 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Wasted Units by Detector",
@@ -1077,12 +941,12 @@
         "h": 6,
         "w": 9,
         "x": 15,
-        "y": 51
+        "y": 42
       },
       "targets": [
         {
-          "expr": "sum by (detector) (rate(api_gateway_waste_findings_total[$__interval]))",
-          "legendFormat": "scans",
+          "expr": "sum by (detector) (rate(api_gateway_waste_tokens_wasted_total[$__interval]))",
+          "legendFormat": "{{detector}}",
           "refId": "A"
         }
       ],
@@ -1093,16 +957,20 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "refresh": "30s",

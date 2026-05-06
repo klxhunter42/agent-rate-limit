@@ -308,9 +308,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps"
+          "unit": "reqps",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Job Rate",
@@ -335,9 +344,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Latency p95",
@@ -357,9 +375,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "429s & Retries",
@@ -384,9 +411,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "schemaVersion": 39,

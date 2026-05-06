@@ -163,8 +163,10 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -213,7 +215,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Billing Path Total (Last 1h)",
@@ -361,9 +366,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Per-Profile Usage",
@@ -398,10 +412,15 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "API Usage by Profile (OAuth)",
@@ -426,9 +445,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "cps"
+          "unit": "cps",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Upstream Health",
@@ -462,14 +490,19 @@
           "custom": {
             "fillOpacity": 30,
             "spanNulls": true,
-            "lineWidth": 2
+            "lineWidth": 2,
+            "showPoints": "never"
           },
           "color": {
             "fixedColor": "red",
             "mode": "fixed"
-          }
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Upstream Retries",
@@ -492,14 +525,19 @@
           "custom": {
             "fillOpacity": 30,
             "spanNulls": true,
-            "lineWidth": 2
+            "lineWidth": 2,
+            "showPoints": "never"
           },
           "color": {
             "fixedColor": "orange",
             "mode": "fixed"
-          }
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "TTFB by Model (Streaming)",
@@ -524,9 +562,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost Overview",
@@ -558,9 +605,18 @@
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "decimals": 4
+          "decimals": 4,
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost by Model",
@@ -581,9 +637,18 @@
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "decimals": 4
+          "decimals": 4,
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "refresh": "10s",

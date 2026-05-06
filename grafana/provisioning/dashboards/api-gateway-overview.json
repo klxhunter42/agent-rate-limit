@@ -66,10 +66,15 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Latency Percentiles",
@@ -99,9 +104,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Avg Latency by Path",
@@ -121,9 +135,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Active Connections",
@@ -146,10 +169,15 @@
           "custom": {
             "fillOpacity": 30,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "API Units & Fallback",
@@ -180,9 +208,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Output Units by Model",
@@ -202,9 +239,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Upstream 429 Rate",
@@ -225,9 +271,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Adaptive Limiter",
@@ -263,7 +318,8 @@
             "spanNulls": true,
             "lineWidth": 2
           },
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2
         }
       },
       "options": {
@@ -285,7 +341,10 @@
           "legendFormat": "{{status}}",
           "refId": "A"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "In-Flight vs Limit per Model",
@@ -310,7 +369,8 @@
             "spanNulls": true,
             "lineWidth": 2
           },
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -357,7 +417,10 @@
           "legendFormat": "limit: {{model}}",
           "refId": "B"
         }
-      ]
+      ],
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Errors & Rate Limits",
@@ -393,9 +456,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Errors by Type",
@@ -415,9 +487,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Error Rate %",
@@ -437,9 +518,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent"
+          "unit": "percent",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Rate Limit Hits by Key",
@@ -463,9 +553,18 @@
           "color": {
             "fixedColor": "orange",
             "mode": "fixed"
+          },
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
           }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Upstream Retry Rate",
@@ -486,9 +585,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops"
+          "unit": "ops",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Time to First Byte (TTFB)",
@@ -513,9 +621,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Queue Depth",
@@ -553,9 +670,18 @@
                 "value": 200
               }
             ]
+          },
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
           }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Profile Usage",
@@ -590,10 +716,15 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "API Units by Model",
@@ -618,9 +749,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost by Model",
@@ -640,9 +780,18 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "$/s"
+          "unit": "$/s",
+          "lineWidth": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never"
+          }
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Text Optimization",
@@ -677,10 +826,15 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Optimization Runs",
@@ -704,10 +858,15 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Total Characters Saved",
@@ -882,9 +1041,13 @@
             "stacking": {
               "mode": "normal"
             }
-          }
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Output Tokens Cumulative",
@@ -917,9 +1080,13 @@
             "stacking": {
               "mode": "normal"
             }
-          }
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "schemaVersion": 39,

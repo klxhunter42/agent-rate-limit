@@ -59,11 +59,16 @@
           "custom": {
             "fillOpacity": 10,
             "spanNulls": true,
-            "lineWidth": 2
+            "lineWidth": 2,
+            "showPoints": "never"
           },
-          "noValue": "0"
+          "noValue": "0",
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Total Jobs",
@@ -138,7 +143,8 @@
           "custom": {
             "fillOpacity": 20,
             "spanNulls": true,
-            "lineWidth": 2
+            "lineWidth": 2,
+            "showPoints": "never"
           },
           "noValue": "0",
           "color": {
@@ -159,9 +165,13 @@
                 "value": 200
               }
             ]
-          }
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Active Workers",
@@ -314,10 +324,15 @@
           "noValue": "0",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "API Usage - Output by Model",
@@ -341,10 +356,15 @@
           "noValue": "0",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Provider Latency (p50/p95/p99)",
@@ -378,10 +398,15 @@
           "noValue": "-",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Worker Process Memory (RSS)",
@@ -410,10 +435,15 @@
           "noValue": "-",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Worker CPU Usage",
@@ -437,10 +467,15 @@
           "noValue": "-",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Provider Errors by Provider",
@@ -469,10 +504,15 @@
           "noValue": "0",
           "custom": {
             "spanNulls": true,
-            "lineWidth": 2
-          }
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "lineWidth": 2
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "schemaVersion": 39,

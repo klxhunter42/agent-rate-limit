@@ -338,7 +338,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -357,7 +358,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Cost Savings Over Time",
@@ -390,7 +394,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -409,7 +414,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Optimization by Technique",
@@ -448,13 +456,14 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
       },
@@ -466,7 +475,10 @@
             "sum"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Savings by Technique",
@@ -531,16 +543,20 @@
               "mode": "normal"
             },
             "fillOpacity": 20,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Before vs After",
@@ -660,7 +676,8 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": [
           {
@@ -679,7 +696,10 @@
             ]
           }
         ]
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Optimizer Performance (P95)",
@@ -704,10 +724,11 @@
         "defaults": {
           "unit": "s",
           "custom": {
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
       },
@@ -720,7 +741,10 @@
             "max"
           ]
         }
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Technique Detail Table",
@@ -879,8 +903,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (severity) (rate(api_gateway_waste_scan_duration_seconds_count[$__interval]))",
-          "refId": "A"
+          "expr": "sum by (severity) (rate(api_gateway_waste_findings_total[$__interval]))",
+          "refId": "A",
+          "legendFormat": "{{severity}}"
         }
       ],
       "fieldConfig": {
@@ -890,16 +915,20 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     },
     {
       "title": "Wasted Units by Detector",
@@ -916,8 +945,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (detector) (rate(api_gateway_waste_scan_duration_seconds_count[$__interval]))",
-          "legendFormat": "scans",
+          "expr": "sum by (detector) (rate(api_gateway_waste_tokens_wasted_total[$__interval]))",
+          "legendFormat": "{{detector}}",
           "refId": "A"
         }
       ],
@@ -928,16 +957,20 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
-            "lineWidth": 1,
+            "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "lineWidth": 2
         },
         "overrides": []
-      }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
     }
   ],
   "refresh": "30s",
