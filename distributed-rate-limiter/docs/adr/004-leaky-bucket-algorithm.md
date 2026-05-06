@@ -97,13 +97,13 @@ public class LeakyBucket implements RateLimiter {
 
 ## Performance Characteristics
 
-| Metric | Value | Comparison to Token Bucket |
-|--------|-------|---------------------------|
-| **Memory per Key** | ~16KB | +100% (due to queuing) |
-| **CPU Overhead** | +40% | Higher (continuous processing) |
-| **Latency** | Variable (queue delay) | Higher (no immediate responses) |
-| **Throughput** | Constant (by design) | Lower peak, consistent average |
-| **Burst Handling** | Queue + Shape | No bursts (traffic shaping) |
+| Metric             | Value                  | Comparison to Token Bucket      |
+|--------------------|------------------------|---------------------------------|
+| **Memory per Key** | ~16KB                  | +100% (due to queuing)          |
+| **CPU Overhead**   | +40%                   | Higher (continuous processing)  |
+| **Latency**        | Variable (queue delay) | Higher (no immediate responses) |
+| **Throughput**     | Constant (by design)   | Lower peak, consistent average  |
+| **Burst Handling** | Queue + Shape          | No bursts (traffic shaping)     |
 
 ## Monitoring and Metrics
 

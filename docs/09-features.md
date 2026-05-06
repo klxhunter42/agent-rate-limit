@@ -53,20 +53,20 @@ Gateway auto-selects vision model based on **scoring formula**:
 score = totalBase64KB + (imageCount * 300)
 ```
 
-| Score / Condition | Selected Model | Slots | Reason |
-|---|---|---|---|
-| score <= 2000 && count < 3 | `glm-4.6v` | 10 | Best quality, high capacity |
-| score > 2000 or count >= 3 | `glm-4.6v` | 10 | Fallback for heavy payloads |
+| Score / Condition          | Selected Model | Slots | Reason                      |
+|----------------------------|----------------|-------|-----------------------------|
+| score <= 2000 && count < 3 | `glm-4.6v`     | 10    | Best quality, high capacity |
+| score > 2000 or count >= 3 | `glm-4.6v`     | 10    | Fallback for heavy payloads |
 
 **Examples:**
 
-| Scenario | Total KB | Count | Score | Model |
-|---|---|---|---|---|
-| 1 screenshot (200KB) | 200 | 1 | 500 | glm-4.6v |
-| 1 photo (1.5MB) | 1500 | 1 | 1800 | glm-4.6v |
-| 2 photos (1MB each) | 2000 | 2 | 2600 | glm-4.6v |
-| 5 screenshots (100KB each) | 500 | 5 | 2000 | glm-4.6v |
-| 1 large photo (3MB) | 3000 | 1 | 3300 | glm-4.6v |
+| Scenario                   | Total KB | Count | Score | Model    |
+|----------------------------|----------|-------|-------|----------|
+| 1 screenshot (200KB)       | 200      | 1     | 500   | glm-4.6v |
+| 1 photo (1.5MB)            | 1500     | 1     | 1800  | glm-4.6v |
+| 2 photos (1MB each)        | 2000     | 2     | 2600  | glm-4.6v |
+| 5 screenshots (100KB each) | 500      | 5     | 2000  | glm-4.6v |
+| 1 large photo (3MB)        | 3000     | 1     | 3300  | glm-4.6v |
 
 ### SSE Streaming for Vision
 
@@ -85,11 +85,11 @@ Supports both `delta.content` and `delta.reasoning_content` from Zhipu.
 
 ### Supported Vision Models
 
-| Model | Slots | Status | Notes |
-|---|---|---|---|
-| `glm-5.1` | 5 | Native image input | V5 series, natively supports images |
-| `glm-4.6v` | 5 | Recommended | Best quality, auto-selected default |
-| `glm-4.5v` | 3 | Available | Good quality |
+| Model      | Slots | Status             | Notes                               |
+|------------|-------|--------------------|-------------------------------------|
+| `glm-5.1`  | 5     | Native image input | V5 series, natively supports images |
+| `glm-4.6v` | 5     | Recommended        | Best quality, auto-selected default |
+| `glm-4.5v` | 3     | Available          | Good quality                        |
 
 Native image models (bypass auto-selection): `glm-5.1`, `glm-4.6v`, `glm-4.5v`.
 
@@ -120,20 +120,20 @@ UPSTREAM_VISION_MODEL_LIMITS=glm-5.1:5,glm-4.6v:5,glm-4.5v:3
 
 Gateway compresses base64 images before forwarding to reduce bandwidth and latency.
 
-| Setting | Value | Notes |
-|---|---|---|
-| Format | JPEG (quality 75) | Best accuracy per POC testing |
-| Max dimension | 1600px | Resize if width or height exceeds |
-| Threshold | 1 byte | Compress all images |
-| Size guard | Skip if compressed >= original | Keeps original when compression inflates |
+| Setting       | Value                          | Notes                                    |
+|---------------|--------------------------------|------------------------------------------|
+| Format        | JPEG (quality 75)              | Best accuracy per POC testing            |
+| Max dimension | 1600px                         | Resize if width or height exceeds        |
+| Threshold     | 1 byte                         | Compress all images                      |
+| Size guard    | Skip if compressed >= original | Keeps original when compression inflates |
 
 **POC Results (real photo, 20 keywords):**
 
-| Model | Format | Quality | Dim | Accuracy |
-|---|---|---|---|---|
-| glm-4.6v | JPEG | 75 | 1600 | **90%** |
-| glm-5.1 | WebP | 75 | 1600 | 85% |
-| glm-4.5v | JPEG | 75 | 1600 | 85% |
+| Model    | Format | Quality | Dim  | Accuracy |
+|----------|--------|---------|------|----------|
+| glm-4.6v | JPEG   | 75      | 1600 | **90%**  |
+| glm-5.1  | WebP   | 75      | 1600 | 85%      |
+| glm-4.5v | JPEG   | 75      | 1600 | 85%      |
 
 **Compression pipeline:**
 1. Decode base64 image data
@@ -151,9 +151,9 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 
 ### Limitations
 
-| Limitation | Detail |
-|---|---|
-| Privacy pipeline skipped | Vision path does not go through privacy masking |
+| Limitation                  | Detail                                                                                                              |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------|
+| Privacy pipeline skipped    | Vision path does not go through privacy masking                                                                     |
 | tool_use on vision stripped | `server_tool_use`, `tool_use`, `tool_result` content blocks are filtered before sending (Z.AI doesn't support them) |
 
 > **Note**: Error 1210 ("API parameter error") that previously occurred from sending `system` role and Anthropic-specific content blocks has been fixed (commit 7c08cb0) -- gateway now auto-filters roles and content types.
@@ -164,14 +164,14 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 
 ### Sync vs Async -- Which Mode
 
-| Use Case | Mode | Endpoint |
-|---|---|---|
-| **Claude Code (interactive)** | Sync | `POST /v1/messages` |
-| **Multiple Claude Code on same machine** | Sync | Each session uses different key |
-| **CI/CD pipeline** | Async | `POST /v1/chat/completions` |
-| **Batch processing (100+ jobs)** | Async | Send then poll result |
-| **Agent framework (5-50 agents)** | Async | Each agent sends separate `agent_id` quota |
-| **Cron / scheduled tasks** | Async | Queue manages pacing automatically |
+| Use Case                                 | Mode  | Endpoint                                   |
+|------------------------------------------|-------|--------------------------------------------|
+| **Claude Code (interactive)**            | Sync  | `POST /v1/messages`                        |
+| **Multiple Claude Code on same machine** | Sync  | Each session uses different key            |
+| **CI/CD pipeline**                       | Async | `POST /v1/chat/completions`                |
+| **Batch processing (100+ jobs)**         | Async | Send then poll result                      |
+| **Agent framework (5-50 agents)**        | Async | Each agent sends separate `agent_id` quota |
+| **Cron / scheduled tasks**               | Async | Queue manages pacing automatically         |
 
 ### Sync Mode -- For Claude Code
 
@@ -229,13 +229,13 @@ PROVIDER_RPM_LIMITS=glm:15,openai:120
 
 ### Scale Guidelines
 
-| Scale | Mode | Config |
-|---|---|---|
-| 1 developer | Sync | Single key |
-| 2-5 developers | Sync | Each person uses different key |
-| 1 team + CI/CD | Sync + Async | Dev sync, CI async |
-| Agent framework (5-50) | Async | `WORKER_CONCURRENCY=50` |
-| Heavy batch (100+) | Async | Multiple keys + multiple providers |
+| Scale                  | Mode         | Config                             |
+|------------------------|--------------|------------------------------------|
+| 1 developer            | Sync         | Single key                         |
+| 2-5 developers         | Sync         | Each person uses different key     |
+| 1 team + CI/CD         | Sync + Async | Dev sync, CI async                 |
+| Agent framework (5-50) | Async        | `WORKER_CONCURRENCY=50`            |
+| Heavy batch (100+)     | Async        | Multiple keys + multiple providers |
 
 ---
 
@@ -269,14 +269,14 @@ Request body (JSON)
 
 ### Content Types Handled
 
-| Content Type | Optimized? | How |
-|---|---|---|
-| `messages[].content` (string) | Yes | `OptimizeWhitespace` + `DeduplicateSentences` |
-| `messages[].content[].text` blocks | Yes | Same, metric: `message_block_text` |
-| `messages[].content[]` tool_result `content` field | Yes | Same, metric: `message_block_tool_result` |
-| `messages[].content[]` tool_use | No | Skipped (JSON input, not prose) |
-| Code blocks inside text (` ```...``` `) | No | `SplitCodeBlocks` preserves code verbatim |
-| Privacy placeholders (`__SECRET_1__`, `__PII_1__`) | No | Dedup skipped when placeholders present |
+| Content Type                                       | Optimized? | How                                           |
+|----------------------------------------------------|------------|-----------------------------------------------|
+| `messages[].content` (string)                      | Yes        | `OptimizeWhitespace` + `DeduplicateSentences` |
+| `messages[].content[].text` blocks                 | Yes        | Same, metric: `message_block_text`            |
+| `messages[].content[]` tool_result `content` field | Yes        | Same, metric: `message_block_tool_result`     |
+| `messages[].content[]` tool_use                    | No         | Skipped (JSON input, not prose)               |
+| Code blocks inside text (` ```...``` `)            | No         | `SplitCodeBlocks` preserves code verbatim     |
+| Privacy placeholders (`__SECRET_1__`, `__PII_1__`) | No         | Dedup skipped when placeholders present       |
 
 ### Metrics
 

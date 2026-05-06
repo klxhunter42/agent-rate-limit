@@ -12,14 +12,14 @@ Claude Code / Client
    [HTTPS]
         |
   +-----------+     +------------------+     +-------------------+
-  | Middleware | --> | Handler (Router) | --> | Proxy (Upstream)  |
+| Middleware | --> | Handler (Router) | --> | Proxy (Upstream)  |
   +-----------+     +------------------+     +-------------------+
-        |                   |                        |
+|                   |                        |
   rate limit          privacy mask            format conversion
   IP filter           token optimize          retry + recovery
   adaptive limit      quota check             streaming SSE
   anomaly detect      profile routing         key rotation
-        |                   |                        |
+|                   |                        |
   +-----------------------------------------------+
   |              Dragonfly (Redis)                 |
   |  profiles, tokens, usage, quota, optimizer    |
@@ -36,25 +36,25 @@ Routes AI requests across 17+ providers with automatic format conversion.
 
 ### Supported Providers
 
-| Provider | Auth | Format | Proxy File |
-|---|---|---|---|
-| Anthropic | API Key / OAuth PKCE | Anthropic Messages API | `proxy/anthropic.go` |
-| Claude OAuth | OAuth PKCE | Anthropic Messages API | `proxy/anthropic.go` |
-| Claude Session | Session Cookie | Anthropic Messages API | `proxy/claude-session.go` |
-| OpenAI | API Key | OpenAI Chat Completions | `proxy/openai.go` |
-| Gemini API Key | API Key | Gemini GenerateContent | `proxy/gemini-apikey.go` |
-| Gemini OAuth | OAuth PKCE | Gemini GenerateContent | `proxy/gemini-apikey.go` |
-| Gemini Code Assist | OAuth PKCE | Code Assist envelope | `proxy/gemini-codeassist.go` |
-| Z.AI (GLM) | API Key (pool) | Anthropic format | `proxy/anthropic.go` |
-| OpenRouter | API Key | OpenAI format | `proxy/openai.go` |
-| Qwen | API Key | OpenAI format | `proxy/openai.go` |
-| DeepSeek | API Key | OpenAI format | `proxy/openai.go` |
-| Kimi | API Key | OpenAI format | `proxy/openai.go` |
-| HuggingFace | API Key | OpenAI format | `proxy/openai.go` |
-| Ollama | API Key | OpenAI format | `proxy/openai.go` |
-| Cursor | OAuth Device Code | OpenAI format | `proxy/openai.go` |
-| AGY | API Key | OpenAI format | `proxy/openai.go` |
-| CodeBuddy | API Key | OpenAI format | `proxy/openai.go` |
+| Provider           | Auth                 | Format                  | Proxy File                   |
+|--------------------|----------------------|-------------------------|------------------------------|
+| Anthropic          | API Key / OAuth PKCE | Anthropic Messages API  | `proxy/anthropic.go`         |
+| Claude OAuth       | OAuth PKCE           | Anthropic Messages API  | `proxy/anthropic.go`         |
+| Claude Session     | Session Cookie       | Anthropic Messages API  | `proxy/claude-session.go`    |
+| OpenAI             | API Key              | OpenAI Chat Completions | `proxy/openai.go`            |
+| Gemini API Key     | API Key              | Gemini GenerateContent  | `proxy/gemini-apikey.go`     |
+| Gemini OAuth       | OAuth PKCE           | Gemini GenerateContent  | `proxy/gemini-apikey.go`     |
+| Gemini Code Assist | OAuth PKCE           | Code Assist envelope    | `proxy/gemini-codeassist.go` |
+| Z.AI (GLM)         | API Key (pool)       | Anthropic format        | `proxy/anthropic.go`         |
+| OpenRouter         | API Key              | OpenAI format           | `proxy/openai.go`            |
+| Qwen               | API Key              | OpenAI format           | `proxy/openai.go`            |
+| DeepSeek           | API Key              | OpenAI format           | `proxy/openai.go`            |
+| Kimi               | API Key              | OpenAI format           | `proxy/openai.go`            |
+| HuggingFace        | API Key              | OpenAI format           | `proxy/openai.go`            |
+| Ollama             | API Key              | OpenAI format           | `proxy/openai.go`            |
+| Cursor             | OAuth Device Code    | OpenAI format           | `proxy/openai.go`            |
+| AGY                | API Key              | OpenAI format           | `proxy/openai.go`            |
+| CodeBuddy          | API Key              | OpenAI format           | `proxy/openai.go`            |
 
 ### Provider Resolution
 
@@ -66,14 +66,14 @@ Routes AI requests across 17+ providers with automatic format conversion.
 
 ### Key Env Vars
 
-| Variable | Default | Description |
-|---|---|---|
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Default upstream URL |
-| `UPSTREAM_MAX_RETRIES` | `3` | Max 429 retries |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff (exponential, cap 5 min) |
-| `STREAM_TIMEOUT` | `300s` | SSE streaming timeout |
-| `GLM_MODE` | `true` | Z.AI features active |
-| `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
+| Variable                 | Default                          | Description                           |
+|--------------------------|----------------------------------|---------------------------------------|
+| `UPSTREAM_URL`           | `https://api.z.ai/api/anthropic` | Default upstream URL                  |
+| `UPSTREAM_MAX_RETRIES`   | `3`                              | Max 429 retries                       |
+| `UPSTREAM_RETRY_BACKOFF` | `500ms`                          | Base backoff (exponential, cap 5 min) |
+| `STREAM_TIMEOUT`         | `300s`                           | SSE streaming timeout                 |
+| `GLM_MODE`               | `true`                           | Z.AI features active                  |
+| `ANTHROPIC_API_VERSION`  | `2023-06-01`                     | Anthropic API version header          |
 
 ---
 
@@ -122,14 +122,14 @@ All retries exhausted --> log: "upstream all retries exhausted" + last_status
 
 ### Recovery Actions
 
-| Error | Trigger | Recovery | Log Message | Metric |
-|---|---|---|---|---|
-| Rate limit | 429 | Rotate key, exponential backoff (cap 5min) | `upstream retry` | `upstream_retries_total`, `upstream_429_total` |
-| Auth expired | 401 (OAuth) | Refresh token, retry once | `upstream retry with refreshed token` | - |
-| Transient | 500/502/503/529 | Backoff, retry up to N times | `upstream retry transient error` | `transient_retry_total` |
-| Context overflow | 400/413/422 + keywords | Truncate oldest, retry once | `upstream retry after auto-truncation` | `context_truncation_total` |
-| Success after retry | 200 after >0 attempts | Return response | `upstream retry success` | - |
-| Exhausted | All retries failed | Return error to client | `upstream all retries exhausted` | - |
+| Error               | Trigger                | Recovery                                   | Log Message                            | Metric                                         |
+|---------------------|------------------------|--------------------------------------------|----------------------------------------|------------------------------------------------|
+| Rate limit          | 429                    | Rotate key, exponential backoff (cap 5min) | `upstream retry`                       | `upstream_retries_total`, `upstream_429_total` |
+| Auth expired        | 401 (OAuth)            | Refresh token, retry once                  | `upstream retry with refreshed token`  | -                                              |
+| Transient           | 500/502/503/529        | Backoff, retry up to N times               | `upstream retry transient error`       | `transient_retry_total`                        |
+| Context overflow    | 400/413/422 + keywords | Truncate oldest, retry once                | `upstream retry after auto-truncation` | `context_truncation_total`                     |
+| Success after retry | 200 after >0 attempts  | Return response                            | `upstream retry success`               | -                                              |
+| Exhausted           | All retries failed     | Return error to client                     | `upstream all retries exhausted`       | -                                              |
 
 ### Backoff Formula
 
@@ -139,12 +139,12 @@ cap at 5 minutes
 ```
 
 Example with default 500ms base:
-| Attempt | Backoff |
-|---|---|
-| 1 | 500ms |
-| 2 | 2s |
-| 3 | 4.5s |
-| 4+ | 5min (capped) |
+| Attempt | Backoff       |
+|---------|---------------|
+| 1       | 500ms         |
+| 2       | 2s            |
+| 3       | 4.5s          |
+| 4+      | 5min (capped) |
 
 ### Context Truncation
 
@@ -158,25 +158,25 @@ Example with default 500ms base:
 
 All retry log entries include:
 
-| Field | Description |
-|---|---|
-| `attempt` | Current attempt number (1-based) |
-| `backoff` | Wait duration before this attempt |
-| `model` | Target model name |
-| `reason` | Why the retry happened (e.g. "429 rate limited") |
-| `max_attempts` | Total attempts allowed |
-| `status` | HTTP status that triggered retry (where applicable) |
-| `response` | First 200 chars of error response body (transient only) |
-| `rtt` | Round-trip time of successful attempt (success log only) |
+| Field          | Description                                              |
+|----------------|----------------------------------------------------------|
+| `attempt`      | Current attempt number (1-based)                         |
+| `backoff`      | Wait duration before this attempt                        |
+| `model`        | Target model name                                        |
+| `reason`       | Why the retry happened (e.g. "429 rate limited")         |
+| `max_attempts` | Total attempts allowed                                   |
+| `status`       | HTTP status that triggered retry (where applicable)      |
+| `response`     | First 200 chars of error response body (transient only)  |
+| `rtt`          | Round-trip time of successful attempt (success log only) |
 
 ### Key Env Vars
 
-| Variable | Default | Description |
-|---|---|---|
-| `UPSTREAM_MAX_RETRIES` | `3` | Max 429 retry attempts |
+| Variable                      | Default | Description                        |
+|-------------------------------|---------|------------------------------------|
+| `UPSTREAM_MAX_RETRIES`        | `3`     | Max 429 retry attempts             |
 | `UPSTREAM_RETRY_BASE_BACKOFF` | `500ms` | Base backoff for exponential retry |
-| `ENABLE_AUTO_TRUNCATE` | `true` | Enable context window recovery |
-| `TRANSIENT_RETRY_MAX` | `2` | Max transient error retries |
+| `ENABLE_AUTO_TRUNCATE`        | `true`  | Enable context window recovery     |
+| `TRANSIENT_RETRY_MAX`         | `2`     | Max transient error retries        |
 
 ### Metrics
 
@@ -200,10 +200,10 @@ Multi-key rotation for providers with per-key RPM limits.
 
 ### Key Env Vars
 
-| Variable | Default | Description |
-|---|---|---|
-| `ZAI_API_KEYS` | (empty) | Comma-separated API keys |
-| `UPSTREAM_RPM_LIMIT` | `40` | Per-key requests per minute |
+| Variable             | Default | Description                 |
+|----------------------|---------|-----------------------------|
+| `ZAI_API_KEYS`       | (empty) | Comma-separated API keys    |
+| `UPSTREAM_RPM_LIMIT` | `40`    | Per-key requests per minute |
 
 ---
 
@@ -252,23 +252,23 @@ System Prompt
 
 ### Per-Stage Config
 
-| Stage | Env Vars | Default |
-|---|---|---|
-| Semantic Dedup | always on | threshold 0.7 |
-| Whitespace | `ENABLE_RESPONSE_TRIM` | `true` |
-| Chunker | `CHUNKER_ENABLED`, `CHUNKER_MIN_CHUNK`, `CHUNKER_MAX_CHUNK` | `true`, 128, 4096 |
-| Delta | `DELTA_ENABLED`, `DELTA_MIN_SAVINGS_PCT` | `true`, 10% |
-| Sketch | `SKETCH_ENABLED`, `SKETCH_DIMENSIONS`, `SKETCH_THRESHOLD` | `true`, 128, 0.85 |
-| Summarizer | `SUMMARIZER_ENABLED`, `SUMMARIZER_MAX_RATIO` | `true`, 0.3 |
-| Packer | `PACKER_ENABLED`, `PACKER_MIN_UTILITY` | `true`, 0.1 |
-| Disclosure | `DISCLOSURE_ENABLED` | `true` |
-| Intent Filter | `FILTER_ENABLED` | `true` |
-| Caveman | `CAVEMAN_ENABLED`, `CAVEMAN_AUTO_DETECT` | `true`, true |
-| Warmstart | `WARMSTART_ENABLED` | `true` |
-| Prefetcher | `PREFETCHER_ENABLED` | `true` |
-| Bandit | `BANDIT_ENABLED` | `true` |
-| Cache Eviction | `CACHE_EVICTION_ENABLED` | `true` |
-| Waste Detection | `WASTE_ENABLED` | `true` |
+| Stage           | Env Vars                                                    | Default           |
+|-----------------|-------------------------------------------------------------|-------------------|
+| Semantic Dedup  | always on                                                   | threshold 0.7     |
+| Whitespace      | `ENABLE_RESPONSE_TRIM`                                      | `true`            |
+| Chunker         | `CHUNKER_ENABLED`, `CHUNKER_MIN_CHUNK`, `CHUNKER_MAX_CHUNK` | `true`, 128, 4096 |
+| Delta           | `DELTA_ENABLED`, `DELTA_MIN_SAVINGS_PCT`                    | `true`, 10%       |
+| Sketch          | `SKETCH_ENABLED`, `SKETCH_DIMENSIONS`, `SKETCH_THRESHOLD`   | `true`, 128, 0.85 |
+| Summarizer      | `SUMMARIZER_ENABLED`, `SUMMARIZER_MAX_RATIO`                | `true`, 0.3       |
+| Packer          | `PACKER_ENABLED`, `PACKER_MIN_UTILITY`                      | `true`, 0.1       |
+| Disclosure      | `DISCLOSURE_ENABLED`                                        | `true`            |
+| Intent Filter   | `FILTER_ENABLED`                                            | `true`            |
+| Caveman         | `CAVEMAN_ENABLED`, `CAVEMAN_AUTO_DETECT`                    | `true`, true      |
+| Warmstart       | `WARMSTART_ENABLED`                                         | `true`            |
+| Prefetcher      | `PREFETCHER_ENABLED`                                        | `true`            |
+| Bandit          | `BANDIT_ENABLED`                                            | `true`            |
+| Cache Eviction  | `CACHE_EVICTION_ENABLED`                                    | `true`            |
+| Waste Detection | `WASTE_ENABLED`                                             | `true`            |
 
 ### Model Capabilities
 
@@ -280,11 +280,11 @@ The optimization pipeline runs inline on every `/v1/messages` request, after sys
 
 Budget level is computed from context utilization and controls optimization intensity:
 
-| Budget Level | Condition | Effect |
-|---|---|---|
-| 0 (green) | < 60% context used | Dedup, chunker, delta, sketch, filter, caveman |
-| 1 (yellow) | 60-80% context used | All above + scaled token savings |
-| 2 (red) | > 80% context used | All above + summarizer + max compression |
+| Budget Level | Condition           | Effect                                         |
+|--------------|---------------------|------------------------------------------------|
+| 0 (green)    | < 60% context used  | Dedup, chunker, delta, sketch, filter, caveman |
+| 1 (yellow)   | 60-80% context used | All above + scaled token savings               |
+| 2 (red)      | > 80% context used  | All above + summarizer + max compression       |
 
 Budget level is exported as `api_gateway_budget_level{model}` (gauge: 0/1/2).
 
@@ -321,15 +321,15 @@ Detects and masks secrets and PII in requests, restores in streaming responses.
 
 ### Key Env Vars
 
-| Variable | Default | Description |
-|---|---|---|
-| `PASTEGUARD_ENABLED` | `true` | Master toggle |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | Secret detection |
-| `PASTEGUARD_PII_ENABLED` | `true` | PII detection |
-| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7` | Minimum PII confidence |
-| `PASTEGUARD_PII_ENTITIES` | `PERSON,EMAIL_ADDRESS,PHONE_NUMBER` | PII entity types |
-| `PASTEGUARD_PRESIDIO_URL` | `http://arl-presidio:3000` | Presidio analyzer URL |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max chars to scan |
+| Variable                         | Default                             | Description            |
+|----------------------------------|-------------------------------------|------------------------|
+| `PASTEGUARD_ENABLED`             | `true`                              | Master toggle          |
+| `PASTEGUARD_SECRETS_ENABLED`     | `true`                              | Secret detection       |
+| `PASTEGUARD_PII_ENABLED`         | `true`                              | PII detection          |
+| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7`                               | Minimum PII confidence |
+| `PASTEGUARD_PII_ENTITIES`        | `PERSON,EMAIL_ADDRESS,PHONE_NUMBER` | PII entity types       |
+| `PASTEGUARD_PRESIDIO_URL`        | `http://arl-presidio:3000`          | Presidio analyzer URL  |
+| `PASTEGUARD_MAX_SCAN_CHARS`      | `200000`                            | Max chars to scan      |
 
 ### Metrics
 
@@ -342,20 +342,20 @@ Detects and masks secrets and PII in requests, restores in streaming responses.
 
 ## 6. Middleware
 
-| Middleware | Description | Key Config |
-|---|---|---|
-| Security Headers | nosniff, DENY framing, XSS block, CSP | always on |
-| Correlation ID | Propagate or generate UUID | always on |
-| Real IP | CF-Connecting-IP > X-Real-IP > X-Forwarded-For | always on |
-| IP Filter | Whitelist/blacklist with CIDR support | `IP_WHITELIST`, `IP_BLACKLIST` |
-| Rate Limit | Distributed via external rate-limiter service; blocks recorded in `api_gateway_rate_limit_hits_total{key}` | `RATE_LIMITER_ADDR`, `GLOBAL_RATE_LIMIT`, `AGENT_RATE_LIMIT` |
-| Adaptive Concurrency | Gradient-based per-model concurrency control | `UPSTREAM_MODEL_LIMITS`, `DEFAULT_LIMIT`, `GLOBAL_LIMIT` |
-| Anomaly Detection | Welford's Z-score on latency, spike/drop/sustained | `ANOMALY_COOLDOWN_SEC`, `ANOMALY_Z_THRESHOLD` |
-| Structured Logging | JSON: method, path, status, duration_ms, agent_id | always on |
-| Runtime Metrics | Go goroutines, heap, GC, stack; Dragonfly health | 10s collection |
-| Dashboard Auth | x-api-key or arl_session cookie | `DASHBOARD_PASSWORD` |
-| Login Limiter | 5 attempts per 15 min per IP | always on |
-| Config Watcher | fsnotify on .env, WebSocket broadcast | always on |
+| Middleware           | Description                                                                                                | Key Config                                                   |
+|----------------------|------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| Security Headers     | nosniff, DENY framing, XSS block, CSP                                                                      | always on                                                    |
+| Correlation ID       | Propagate or generate UUID                                                                                 | always on                                                    |
+| Real IP              | CF-Connecting-IP > X-Real-IP > X-Forwarded-For                                                             | always on                                                    |
+| IP Filter            | Whitelist/blacklist with CIDR support                                                                      | `IP_WHITELIST`, `IP_BLACKLIST`                               |
+| Rate Limit           | Distributed via external rate-limiter service; blocks recorded in `api_gateway_rate_limit_hits_total{key}` | `RATE_LIMITER_ADDR`, `GLOBAL_RATE_LIMIT`, `AGENT_RATE_LIMIT` |
+| Adaptive Concurrency | Gradient-based per-model concurrency control                                                               | `UPSTREAM_MODEL_LIMITS`, `DEFAULT_LIMIT`, `GLOBAL_LIMIT`     |
+| Anomaly Detection    | Welford's Z-score on latency, spike/drop/sustained                                                         | `ANOMALY_COOLDOWN_SEC`, `ANOMALY_Z_THRESHOLD`                |
+| Structured Logging   | JSON: method, path, status, duration_ms, agent_id                                                          | always on                                                    |
+| Runtime Metrics      | Go goroutines, heap, GC, stack; Dragonfly health                                                           | 10s collection                                               |
+| Dashboard Auth       | x-api-key or arl_session cookie                                                                            | `DASHBOARD_PASSWORD`                                         |
+| Login Limiter        | 5 attempts per 15 min per IP                                                                               | always on                                                    |
+| Config Watcher       | fsnotify on .env, WebSocket broadcast                                                                      | always on                                                    |
 
 ### Adaptive Limiter Details
 
@@ -384,13 +384,13 @@ Multi-target routing with per-profile configuration.
 
 ### API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| GET/POST/PUT/DELETE | `/v1/profiles` | Profile CRUD |
-| POST | `/v1/profiles/copy` | Copy profile |
-| GET | `/v1/profiles/export` | Export (redacted) |
-| POST | `/v1/profiles/import` | Import |
-| POST | `/v1/profiles/delete` | Delete by name (handles special chars) |
+| Method              | Path                  | Description                            |
+|---------------------|-----------------------|----------------------------------------|
+| GET/POST/PUT/DELETE | `/v1/profiles`        | Profile CRUD                           |
+| POST                | `/v1/profiles/copy`   | Copy profile                           |
+| GET                 | `/v1/profiles/export` | Export (redacted)                      |
+| POST                | `/v1/profiles/import` | Import                                 |
+| POST                | `/v1/profiles/delete` | Delete by name (handles special chars) |
 
 ---
 
@@ -400,11 +400,11 @@ Multi-provider OAuth with token lifecycle management.
 
 ### Auth Flows
 
-| Flow | Providers |
-|---|---|
+| Flow                      | Providers              |
+|---------------------------|------------------------|
 | Authorization Code + PKCE | Claude, Gemini, Google |
-| Device Code | Cursor |
-| Session Cookie | Claude (claude.ai) |
+| Device Code               | Cursor                 |
+| Session Cookie            | Claude (claude.ai)     |
 
 ### Token Lifecycle
 
@@ -416,16 +416,16 @@ Multi-provider OAuth with token lifecycle management.
 
 ### API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/v1/providers` | List all providers |
-| POST | `/v1/providers/{id}/auth/start` | Start OAuth flow |
-| POST | `/v1/providers/{id}/auth/poll` | Poll auth status |
-| POST | `/v1/providers/{id}/auth/cancel` | Cancel auth |
-| GET | `/v1/providers/{id}/accounts` | List accounts |
-| DELETE | `/v1/providers/{id}/accounts/{aid}` | Remove account |
-| POST | `/v1/providers/{id}/accounts/{aid}/pause` | Pause account |
-| POST | `/v1/providers/{id}/accounts/{aid}/resume` | Resume account |
+| Method | Path                                       | Description        |
+|--------|--------------------------------------------|--------------------|
+| GET    | `/v1/providers`                            | List all providers |
+| POST   | `/v1/providers/{id}/auth/start`            | Start OAuth flow   |
+| POST   | `/v1/providers/{id}/auth/poll`             | Poll auth status   |
+| POST   | `/v1/providers/{id}/auth/cancel`           | Cancel auth        |
+| GET    | `/v1/providers/{id}/accounts`              | List accounts      |
+| DELETE | `/v1/providers/{id}/accounts/{aid}`        | Remove account     |
+| POST   | `/v1/providers/{id}/accounts/{aid}/pause`  | Pause account      |
+| POST   | `/v1/providers/{id}/accounts/{aid}/resume` | Resume account     |
 
 ---
 
@@ -435,88 +435,88 @@ All metrics under namespace `api_gateway`.
 
 ### Request Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `request_latency_seconds` | histogram | method, path, status |
-| `active_connections` | gauge | - |
-| `error_total` | counter | type |
-| `rate_limit_hits_total` | counter | key (agent keys SHA1-hashed) |
+| Metric                    | Type      | Labels                       |
+|---------------------------|-----------|------------------------------|
+| `request_latency_seconds` | histogram | method, path, status         |
+| `active_connections`      | gauge     | -                            |
+| `error_total`             | counter   | type                         |
+| `rate_limit_hits_total`   | counter   | key (agent keys SHA1-hashed) |
 
 ### Token & Cost Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `token_input_total` | counter | model |
-| `token_output_total` | counter | model |
-| `cost_total` | counter | model, type (input/output) |
-| `ttfb_seconds` | histogram | model |
-| `model_fallback_total` | counter | requested, selected |
+| Metric                 | Type      | Labels                     |
+|------------------------|-----------|----------------------------|
+| `token_input_total`    | counter   | model                      |
+| `token_output_total`   | counter   | model                      |
+| `cost_total`           | counter   | model, type (input/output) |
+| `ttfb_seconds`         | histogram | model                      |
+| `model_fallback_total` | counter   | requested, selected        |
 
 ### Profile Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `profile_requests_total` | counter | profile, model |
-| `profile_token_input_total` | counter | profile, model |
-| `profile_token_output_total` | counter | profile, model |
-| `profile_cost_total` | counter | profile, model, type |
+| Metric                       | Type    | Labels               |
+|------------------------------|---------|----------------------|
+| `profile_requests_total`     | counter | profile, model       |
+| `profile_token_input_total`  | counter | profile, model       |
+| `profile_token_output_total` | counter | profile, model       |
+| `profile_cost_total`         | counter | profile, model, type |
 
 ### Concurrency Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `adaptive_limit` | gauge | model |
-| `adaptive_in_flight` | gauge | model |
-| `upstream_retries_total` | counter | - |
-| `upstream_429_total` | counter | - |
-| `queue_depth` | gauge | - |
+| Metric                   | Type    | Labels |
+|--------------------------|---------|--------|
+| `adaptive_limit`         | gauge   | model  |
+| `adaptive_in_flight`     | gauge   | model  |
+| `upstream_retries_total` | counter | -      |
+| `upstream_429_total`     | counter | -      |
+| `queue_depth`            | gauge   | -      |
 
 ### Optimizer Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `optimizer_chars_saved_total` | counter | technique |
-| `optimizer_runs_total` | counter | technique |
-| `optimizer_duration_seconds` | histogram | technique |
-| `optimizer_tokens_saved_total` | counter | - |
+| Metric                         | Type      | Labels    |
+|--------------------------------|-----------|-----------|
+| `optimizer_chars_saved_total`  | counter   | technique |
+| `optimizer_runs_total`         | counter   | technique |
+| `optimizer_duration_seconds`   | histogram | technique |
+| `optimizer_tokens_saved_total` | counter   | -         |
 
 ### Recovery Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `context_truncation_total` | counter | model |
-| `transient_retry_total` | counter | status, model |
+| Metric                     | Type    | Labels        |
+|----------------------------|---------|---------------|
+| `context_truncation_total` | counter | model         |
+| `transient_retry_total`    | counter | status, model |
 
 ### Retry Log Messages
 
-| Log Level | Message | When |
-|---|---|---|
-| WARN | `upstream retry` | 429 received, about to backoff and retry |
-| INFO | `upstream retry key rotation` | 429 triggered key rotation in pool |
-| WARN | `upstream retry with refreshed token` | 401 triggered OAuth token refresh |
-| WARN | `upstream retry transient error` | 500/502/503/529, retrying |
-| WARN | `upstream retry after auto-truncation` | Context overflow, truncated messages |
-| INFO | `upstream retry success` | Request succeeded after retry (attempt > 0) |
-| ERROR | `upstream all retries exhausted` | All retry attempts failed |
+| Log Level | Message                                | When                                        |
+|-----------|----------------------------------------|---------------------------------------------|
+| WARN      | `upstream retry`                       | 429 received, about to backoff and retry    |
+| INFO      | `upstream retry key rotation`          | 429 triggered key rotation in pool          |
+| WARN      | `upstream retry with refreshed token`  | 401 triggered OAuth token refresh           |
+| WARN      | `upstream retry transient error`       | 500/502/503/529, retrying                   |
+| WARN      | `upstream retry after auto-truncation` | Context overflow, truncated messages        |
+| INFO      | `upstream retry success`               | Request succeeded after retry (attempt > 0) |
+| ERROR     | `upstream all retries exhausted`       | All retry attempts failed                   |
 
 ### Budget Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `budget_level` | gauge | model (0=green, 1=yellow, 2=red) |
-| `cost_savings_total` | counter | - |
+| Metric               | Type    | Labels                           |
+|----------------------|---------|----------------------------------|
+| `budget_level`       | gauge   | model (0=green, 1=yellow, 2=red) |
+| `cost_savings_total` | counter | -                                |
 
 ### Runtime Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `go_goroutines` | gauge | - |
-| `go_heap_alloc_bytes` | gauge | - |
-| `go_heap_objects` | gauge | - |
-| `go_gc_pause_ns` | gauge | - |
-| `go_stack_inuse_bytes` | gauge | - |
-| `dragonfly_up` | gauge | - |
-| `anomaly_total` | counter | severity (medium/high/critical) |
+| Metric                 | Type    | Labels                          |
+|------------------------|---------|---------------------------------|
+| `go_goroutines`        | gauge   | -                               |
+| `go_heap_alloc_bytes`  | gauge   | -                               |
+| `go_heap_objects`      | gauge   | -                               |
+| `go_gc_pause_ns`       | gauge   | -                               |
+| `go_stack_inuse_bytes` | gauge   | -                               |
+| `dragonfly_up`         | gauge   | -                               |
+| `anomaly_total`        | counter | severity (medium/high/critical) |
 
 ---
 
@@ -524,21 +524,21 @@ All metrics under namespace `api_gateway`.
 
 ### API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/v1/messages` | Main proxy endpoint |
-| GET | `/v1/models` | Model catalog (45+ models) |
-| GET | `/metrics` | Prometheus metrics |
-| GET/PUT | `/v1/config` | Runtime config |
-| GET/PUT | `/v1/thinking` | Thinking budget per model |
-| GET/PUT | `/v1/global-env` | Env overrides |
-| GET/PUT | `/v1/max-tokens` | Per-model max tokens override |
-| GET | `/v1/usage/*` | Usage analytics (hourly/daily/monthly/summary) |
-| GET | `/v1/quota` | Quota check |
-| GET | `/v1/overview` | Dashboard overview |
-| GET | `/health` | Health checks |
-| GET | `/v1/waste/findings` | Waste detection findings |
-| WS | `/ws` | WebSocket event hub |
+| Method  | Path                 | Description                                    |
+|---------|----------------------|------------------------------------------------|
+| POST    | `/v1/messages`       | Main proxy endpoint                            |
+| GET     | `/v1/models`         | Model catalog (45+ models)                     |
+| GET     | `/metrics`           | Prometheus metrics                             |
+| GET/PUT | `/v1/config`         | Runtime config                                 |
+| GET/PUT | `/v1/thinking`       | Thinking budget per model                      |
+| GET/PUT | `/v1/global-env`     | Env overrides                                  |
+| GET/PUT | `/v1/max-tokens`     | Per-model max tokens override                  |
+| GET     | `/v1/usage/*`        | Usage analytics (hourly/daily/monthly/summary) |
+| GET     | `/v1/quota`          | Quota check                                    |
+| GET     | `/v1/overview`       | Dashboard overview                             |
+| GET     | `/health`            | Health checks                                  |
+| GET     | `/v1/waste/findings` | Waste detection findings                       |
+| WS      | `/ws`                | WebSocket event hub                            |
 
 ### Static Dashboard
 
@@ -604,15 +604,15 @@ Background scanner that identifies wasteful token usage patterns. Runs every 60 
 
 ### Detectors
 
-| Detector | Trigger | Token Waste Estimate |
-|---|---|---|
-| `empty_response` | >10% of requests have zero output tokens | `totalTokens * emptyCount` |
-| `retry_churn` | Consecutive identical-input requests with zero output, >5000 tokens wasted | Raw `wastedTokens` |
-| `loop_detection` | Repeating input pattern (size >= 2) across records | Pattern tokens |
-| `oversized_context` | Total excess tokens (input > 100K) across requests exceeds 100K | Excess tokens |
-| `budget_exceeded` | Session used more than 3 different models | 0 (signal only) |
-| `redundant_tool_call` | Consecutive identical request-response pairs | Pair token cost |
-| `low_value_response` | >= 3 requests with >5K input but <50 output tokens | Input tokens |
+| Detector              | Trigger                                                                    | Token Waste Estimate       |
+|-----------------------|----------------------------------------------------------------------------|----------------------------|
+| `empty_response`      | >10% of requests have zero output tokens                                   | `totalTokens * emptyCount` |
+| `retry_churn`         | Consecutive identical-input requests with zero output, >5000 tokens wasted | Raw `wastedTokens`         |
+| `loop_detection`      | Repeating input pattern (size >= 2) across records                         | Pattern tokens             |
+| `oversized_context`   | Total excess tokens (input > 100K) across requests exceeds 100K            | Excess tokens              |
+| `budget_exceeded`     | Session used more than 3 different models                                  | 0 (signal only)            |
+| `redundant_tool_call` | Consecutive identical request-response pairs                               | Pair token cost            |
+| `low_value_response`  | >= 3 requests with >5K input but <50 output tokens                         | Input tokens               |
 
 ### Requirements
 
@@ -631,49 +631,49 @@ Background scanner that identifies wasteful token usage patterns. Runs every 60 
 
 7 pre-built dashboards in `grafana/provisioning/dashboards/`:
 
-| Dashboard | UID | Panels | Content |
-|---|---|---|---|
-| System Overview | `arl-overview` | 20+ | Request rate, latency, error rate, connections, model distribution |
-| Gateway Overview | `arl-gw-overview` | 15+ | Token throughput, cost, upstream health, TTFB, rate limits |
-| Runtime & Health | `arl-gw-runtime` | 12+ | Go runtime (goroutines, heap, GC, stack), Dragonfly health |
-| Cost Calculator | `arl-cost` | 10+ | Cost by model, cost savings, budget level, cost trends |
-| PasteGuard | `arl-pasteguard` | 8+ | Secrets/PII detection, mask duration, mask request stats |
-| Token Optimization | `token-optimization` | 10+ | Per-technique chars saved, runs, duration, tokens saved, waste findings |
-| AI Worker | `arl-worker` | 10+ | Worker metrics, proxy stats |
+| Dashboard          | UID                  | Panels | Content                                                                 |
+|--------------------|----------------------|--------|-------------------------------------------------------------------------|
+| System Overview    | `arl-overview`       | 20+    | Request rate, latency, error rate, connections, model distribution      |
+| Gateway Overview   | `arl-gw-overview`    | 15+    | Token throughput, cost, upstream health, TTFB, rate limits              |
+| Runtime & Health   | `arl-gw-runtime`     | 12+    | Go runtime (goroutines, heap, GC, stack), Dragonfly health              |
+| Cost Calculator    | `arl-cost`           | 10+    | Cost by model, cost savings, budget level, cost trends                  |
+| PasteGuard         | `arl-pasteguard`     | 8+     | Secrets/PII detection, mask duration, mask request stats                |
+| Token Optimization | `token-optimization` | 10+    | Per-technique chars saved, runs, duration, tokens saved, waste findings |
+| AI Worker          | `arl-worker`         | 10+    | Worker metrics, proxy stats                                             |
 
 ### Metrics Wiring Status
 
 All registered metrics are wired to production code paths:
 
-| Metric | Wired In | Trigger Condition |
-|---|---|---|
-| `request_latency_seconds` | middleware | Every request |
-| `error_total` | handler | Error responses |
-| `rate_limit_hits_total` | middleware/ratelimit.go | Request blocked by rate limiter (global or per-agent) |
-| `active_connections` | middleware | Concurrent connection tracking |
-| `queue_depth` | queue | Dragonfly queue depth |
-| `token_input/output_total` | handler | Successful proxy response with token counts |
-| `upstream_retries_total` | proxy | Any upstream retry |
-| `upstream_429_total` | proxy | Upstream returns 429 |
-| `adaptive_limit/in_flight` | middleware | Adaptive concurrency control |
-| `cost_total` | handler | Successful response with cost calculation |
-| `model_fallback_total` | handler | Model fallback triggered |
-| `ttfb_seconds` | proxy | Streaming request (time to first byte) |
-| `go_*` | runtime | 10s collection cycle |
-| `dragonfly_up` | runtime | Dragonfly health check |
-| `anomaly_total` | middleware | Z-score anomaly detected |
-| `mask_duration_seconds` | privacy | Request masked (secrets or PII) |
-| `secrets_detected_total` | privacy | Secret pattern match |
-| `pii_detected_total` | privacy | Presidio PII match |
-| `mask_requests_total` | privacy | Request processed through privacy pipeline |
-| `profile_*` | handler | Profile-routed request |
-| `optimizer_*` | handler | System prompt optimization ran |
-| `cost_savings_total` | handler/optimizers.go | Optimization saved tokens (cost estimate) |
-| `budget_level` | handler/handler.go | Every request with system prompt |
-| `context_truncation_total` | proxy/recovery.go | Context overflow error from upstream |
-| `transient_retry_total` | proxy/recovery.go | 500/502/503/529 from upstream |
-| `waste_findings_total` | waste | Waste pattern detected in session |
-| `waste_tokens_wasted_total` | waste | Waste pattern detected in session |
+| Metric                      | Wired In                | Trigger Condition                                     |
+|-----------------------------|-------------------------|-------------------------------------------------------|
+| `request_latency_seconds`   | middleware              | Every request                                         |
+| `error_total`               | handler                 | Error responses                                       |
+| `rate_limit_hits_total`     | middleware/ratelimit.go | Request blocked by rate limiter (global or per-agent) |
+| `active_connections`        | middleware              | Concurrent connection tracking                        |
+| `queue_depth`               | queue                   | Dragonfly queue depth                                 |
+| `token_input/output_total`  | handler                 | Successful proxy response with token counts           |
+| `upstream_retries_total`    | proxy                   | Any upstream retry                                    |
+| `upstream_429_total`        | proxy                   | Upstream returns 429                                  |
+| `adaptive_limit/in_flight`  | middleware              | Adaptive concurrency control                          |
+| `cost_total`                | handler                 | Successful response with cost calculation             |
+| `model_fallback_total`      | handler                 | Model fallback triggered                              |
+| `ttfb_seconds`              | proxy                   | Streaming request (time to first byte)                |
+| `go_*`                      | runtime                 | 10s collection cycle                                  |
+| `dragonfly_up`              | runtime                 | Dragonfly health check                                |
+| `anomaly_total`             | middleware              | Z-score anomaly detected                              |
+| `mask_duration_seconds`     | privacy                 | Request masked (secrets or PII)                       |
+| `secrets_detected_total`    | privacy                 | Secret pattern match                                  |
+| `pii_detected_total`        | privacy                 | Presidio PII match                                    |
+| `mask_requests_total`       | privacy                 | Request processed through privacy pipeline            |
+| `profile_*`                 | handler                 | Profile-routed request                                |
+| `optimizer_*`               | handler                 | System prompt optimization ran                        |
+| `cost_savings_total`        | handler/optimizers.go   | Optimization saved tokens (cost estimate)             |
+| `budget_level`              | handler/handler.go      | Every request with system prompt                      |
+| `context_truncation_total`  | proxy/recovery.go       | Context overflow error from upstream                  |
+| `transient_retry_total`     | proxy/recovery.go       | 500/502/503/529 from upstream                         |
+| `waste_findings_total`      | waste                   | Waste pattern detected in session                     |
+| `waste_tokens_wasted_total` | waste                   | Waste pattern detected in session                     |
 
 ### Dashboard Test Suite
 

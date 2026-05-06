@@ -591,13 +591,13 @@ Prometheus counters สำหรับติดตาม token usage:
 
 ## Documentation
 
-| ไฟล์ | สถานะ |
-|------|--------|
-| `docs/providers.md` | v1.6 - ZAI_API_KEYS split, Z.AI pricing table, usage recording |
-| `docs/architecture.md` | v3.1 - profile routing, quota enforcement, usage recording, 6 WS events |
-| `docs/known-issues.md` | v1.3 - quota enforcement wired (placeholder data remains) |
+| ไฟล์                        | สถานะ                                                                   |
+|-----------------------------|-------------------------------------------------------------------------|
+| `docs/providers.md`         | v1.6 - ZAI_API_KEYS split, Z.AI pricing table, usage recording          |
+| `docs/architecture.md`      | v3.1 - profile routing, quota enforcement, usage recording, 6 WS events |
+| `docs/known-issues.md`      | v1.3 - quota enforcement wired (placeholder data remains)               |
 | `docs/claude-code-proxy.md` | v2.7 - profile routing, quota enforcement, WS events, usage integration |
-| `docs/changelog.md` | v1.4 - Z.AI vision conversion fix (error 1210), text diagram |
-| `docs/known-issues.md` | v1.4 - vision conversion fix with text diagram (TH) |
-| `docs/architecture.md` | v3.2 - updated format conversion diagram (TH) |
-| `docs/providers.md` | v1.7 - vision format conversion notes (TH) |
+| `docs/changelog.md`         | v1.4 - Z.AI vision conversion fix (error 1210), text diagram            |
+| `docs/known-issues.md`      | v1.4 - vision conversion fix with text diagram (TH)                     |
+| `docs/architecture.md`      | v3.2 - updated format conversion diagram (TH)                           |
+| `docs/providers.md`         | v1.7 - vision format conversion notes (TH)                              |

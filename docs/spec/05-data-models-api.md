@@ -8,65 +8,65 @@ Complete reference for all data structures, Redis keys, API endpoints, and state
 
 ### 1.1 Config struct (`config/config.go`)
 
-| Field | Type | Env Var | Default |
-|-------|------|---------|---------|
-| ServerPort | string | SERVER_PORT | `:8080` |
-| RedisAddr | string | REDIS_ADDR | `dragonfly:6379` |
-| RateLimiterAddr | string | RATE_LIMITER_ADDR | `http://rate-limiter:8080` |
-| QueueName | string | QUEUE_NAME | `ai_jobs` |
-| GlobalRateLimit | int | GLOBAL_RATE_LIMIT | 100 |
-| AgentRateLimit | int | AGENT_RATE_LIMIT | 5 |
-| WorkerPoolSize | int | WORKER_POOL_SIZE | 100 |
-| ReadTimeout | duration | READ_TIMEOUT | 30s |
-| WriteTimeout | duration | WRITE_TIMEOUT | 10s |
-| OTLPEndpoint | string | OTLP_ENDPOINT | `otel-collector:4317` |
-| RedisPoolSize | int | REDIS_POOL_SIZE | 50 |
-| RedisMinIdleConns | int | REDIS_MIN_IDLE_CONNS | 10 |
-| UpstreamURL | string | UPSTREAM_URL | `https://api.z.ai/api/anthropic` |
-| AnthropicDirectURL | string | ANTHROPIC_DIRECT_URL | `https://api.anthropic.com` |
-| StreamTimeout | duration | STREAM_TIMEOUT | 300s |
-| ModelLimits | map[string]int | UPSTREAM_MODEL_LIMITS | `glm-5.1:1,glm-5-turbo:1,...` |
-| VisionModelLimits | map[string]int | UPSTREAM_VISION_MODEL_LIMITS | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3` |
-| DefaultLimit | int | UPSTREAM_DEFAULT_LIMIT | 3 |
-| GlobalLimit | int | UPSTREAM_GLOBAL_LIMIT | 9 |
-| UpstreamMaxRetries | int | UPSTREAM_MAX_RETRIES | 3 |
-| UpstreamRetryBaseBackoff | duration | UPSTREAM_RETRY_BACKOFF | 500ms |
-| EnablePromptInjection | bool | ENABLE_PROMPT_INJECTION | true |
-| EnableResponseTrim | bool | ENABLE_RESPONSE_TRIM | true |
-| EnableSmartMaxTokens | bool | ENABLE_SMART_MAX_TOKENS | true |
-| PromptInjectionText | string | PROMPT_INJECTION_TEXT | (multi-line default) |
-| EnableAutoTruncate | bool | ENABLE_AUTO_TRUNCATE | true |
-| TransientRetryMax | int | TRANSIENT_RETRY_MAX | 3 |
-| UpstreamAPIKeys | []string | ZAI_API_KEYS | (empty) |
-| UpstreamRPMLimit | int | UPSTREAM_RPM_LIMIT | 40 |
-| ProbeMultiplier | int | UPSTREAM_PROBE_MULTIPLIER | 5 |
-| ModelPricing | map[string]ModelPrice | MODEL_PRICING | (see defaults) |
-| NativeVisionURL | string | NATIVE_VISION_URL | `https://open.bigmodel.cn/api/paas/v4/chat/completions` |
-| IPWhitelist | string | IP_WHITELIST | (empty) |
-| IPBlacklist | string | IP_BLACKLIST | (empty) |
-| QuotaCacheTTL | duration | QUOTA_CACHE_TTL | 30s |
-| QuotaDailyBudget | int64 | QUOTA_DAILY_BUDGET | 57600 |
-| QuotaBlockPct | float64 | QUOTA_BLOCK_PCT | 95 |
-| QuotaRedisPoolSize | int | QUOTA_REDIS_POOL_SIZE | 5 |
-| QuotaRedisMinIdle | int | QUOTA_REDIS_MIN_IDLE | 2 |
-| ProviderModelPrefixes | string | PROVIDER_MODEL_PREFIXES | `zai:glm-;anthropic:claude-;...` |
-| MaxRequestBody | int64 | MAX_REQUEST_BODY | 10485760 (10MB) |
-| DefaultModel | string | DEFAULT_MODEL | `glm-5` |
-| DefaultProvider | string | DEFAULT_PROVIDER | `glm` |
-| DefaultTemperature | float64 | DEFAULT_TEMPERATURE | 0.7 |
-| DefaultMaxTokens | int | DEFAULT_MAX_TOKENS | 1024 |
-| GeminiCodeAssistEndpoint | string | GEMINI_CODEASSIST_ENDPOINT | `https://cloudcode-pa.googleapis.com/v1internal` |
-| GeminiAPIEndpoint | string | GEMINI_API_ENDPOINT | `https://generativelanguage.googleapis.com` |
-| GeminiDefaultModel | string | GEMINI_DEFAULT_MODEL | `models/gemini-2.5-flash-preview-05-20` |
-| AnthropicVersion | string | ANTHROPIC_API_VERSION | `2023-06-01` |
-| ModelPriority | string | MODEL_PRIORITY | `glm-5.1:100,glm-5-turbo:90,...` |
-| AnomalyCooldownSec | int | ANOMALY_COOLDOWN_SEC | 5 |
-| AnomalyZThreshold | float64 | ANOMALY_Z_THRESHOLD | 2.0 |
-| GLMMode | bool | GLM_MODE | true |
-| CLISidecarURL | string | CLI_SIDECAR_URL | `http://127.0.0.1:8081` |
-| CLISidecarEnabled | bool | CLI_SIDECAR_ENABLED | true |
-| ZAIOpenAIURL | string | ZAI_OPENAI_URL | `https://api.z.ai/api/paas/v4/chat/completions` |
-| ZAIOpenAIModels | map[string]bool | ZAI_OPENAI_MODELS | (empty) |
+| Field                    | Type                  | Env Var                      | Default                                                 |
+|--------------------------|-----------------------|------------------------------|---------------------------------------------------------|
+| ServerPort               | string                | SERVER_PORT                  | `:8080`                                                 |
+| RedisAddr                | string                | REDIS_ADDR                   | `dragonfly:6379`                                        |
+| RateLimiterAddr          | string                | RATE_LIMITER_ADDR            | `http://rate-limiter:8080`                              |
+| QueueName                | string                | QUEUE_NAME                   | `ai_jobs`                                               |
+| GlobalRateLimit          | int                   | GLOBAL_RATE_LIMIT            | 100                                                     |
+| AgentRateLimit           | int                   | AGENT_RATE_LIMIT             | 5                                                       |
+| WorkerPoolSize           | int                   | WORKER_POOL_SIZE             | 100                                                     |
+| ReadTimeout              | duration              | READ_TIMEOUT                 | 30s                                                     |
+| WriteTimeout             | duration              | WRITE_TIMEOUT                | 10s                                                     |
+| OTLPEndpoint             | string                | OTLP_ENDPOINT                | `otel-collector:4317`                                   |
+| RedisPoolSize            | int                   | REDIS_POOL_SIZE              | 50                                                      |
+| RedisMinIdleConns        | int                   | REDIS_MIN_IDLE_CONNS         | 10                                                      |
+| UpstreamURL              | string                | UPSTREAM_URL                 | `https://api.z.ai/api/anthropic`                        |
+| AnthropicDirectURL       | string                | ANTHROPIC_DIRECT_URL         | `https://api.anthropic.com`                             |
+| StreamTimeout            | duration              | STREAM_TIMEOUT               | 300s                                                    |
+| ModelLimits              | map[string]int        | UPSTREAM_MODEL_LIMITS        | `glm-5.1:1,glm-5-turbo:1,...`                           |
+| VisionModelLimits        | map[string]int        | UPSTREAM_VISION_MODEL_LIMITS | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3`                       |
+| DefaultLimit             | int                   | UPSTREAM_DEFAULT_LIMIT       | 3                                                       |
+| GlobalLimit              | int                   | UPSTREAM_GLOBAL_LIMIT        | 9                                                       |
+| UpstreamMaxRetries       | int                   | UPSTREAM_MAX_RETRIES         | 3                                                       |
+| UpstreamRetryBaseBackoff | duration              | UPSTREAM_RETRY_BACKOFF       | 500ms                                                   |
+| EnablePromptInjection    | bool                  | ENABLE_PROMPT_INJECTION      | true                                                    |
+| EnableResponseTrim       | bool                  | ENABLE_RESPONSE_TRIM         | true                                                    |
+| EnableSmartMaxTokens     | bool                  | ENABLE_SMART_MAX_TOKENS      | true                                                    |
+| PromptInjectionText      | string                | PROMPT_INJECTION_TEXT        | (multi-line default)                                    |
+| EnableAutoTruncate       | bool                  | ENABLE_AUTO_TRUNCATE         | true                                                    |
+| TransientRetryMax        | int                   | TRANSIENT_RETRY_MAX          | 3                                                       |
+| UpstreamAPIKeys          | []string              | ZAI_API_KEYS                 | (empty)                                                 |
+| UpstreamRPMLimit         | int                   | UPSTREAM_RPM_LIMIT           | 40                                                      |
+| ProbeMultiplier          | int                   | UPSTREAM_PROBE_MULTIPLIER    | 5                                                       |
+| ModelPricing             | map[string]ModelPrice | MODEL_PRICING                | (see defaults)                                          |
+| NativeVisionURL          | string                | NATIVE_VISION_URL            | `https://open.bigmodel.cn/api/paas/v4/chat/completions` |
+| IPWhitelist              | string                | IP_WHITELIST                 | (empty)                                                 |
+| IPBlacklist              | string                | IP_BLACKLIST                 | (empty)                                                 |
+| QuotaCacheTTL            | duration              | QUOTA_CACHE_TTL              | 30s                                                     |
+| QuotaDailyBudget         | int64                 | QUOTA_DAILY_BUDGET           | 57600                                                   |
+| QuotaBlockPct            | float64               | QUOTA_BLOCK_PCT              | 95                                                      |
+| QuotaRedisPoolSize       | int                   | QUOTA_REDIS_POOL_SIZE        | 5                                                       |
+| QuotaRedisMinIdle        | int                   | QUOTA_REDIS_MIN_IDLE         | 2                                                       |
+| ProviderModelPrefixes    | string                | PROVIDER_MODEL_PREFIXES      | `zai:glm-;anthropic:claude-;...`                        |
+| MaxRequestBody           | int64                 | MAX_REQUEST_BODY             | 10485760 (10MB)                                         |
+| DefaultModel             | string                | DEFAULT_MODEL                | `glm-5`                                                 |
+| DefaultProvider          | string                | DEFAULT_PROVIDER             | `glm`                                                   |
+| DefaultTemperature       | float64               | DEFAULT_TEMPERATURE          | 0.7                                                     |
+| DefaultMaxTokens         | int                   | DEFAULT_MAX_TOKENS           | 1024                                                    |
+| GeminiCodeAssistEndpoint | string                | GEMINI_CODEASSIST_ENDPOINT   | `https://cloudcode-pa.googleapis.com/v1internal`        |
+| GeminiAPIEndpoint        | string                | GEMINI_API_ENDPOINT          | `https://generativelanguage.googleapis.com`             |
+| GeminiDefaultModel       | string                | GEMINI_DEFAULT_MODEL         | `models/gemini-2.5-flash-preview-05-20`                 |
+| AnthropicVersion         | string                | ANTHROPIC_API_VERSION        | `2023-06-01`                                            |
+| ModelPriority            | string                | MODEL_PRIORITY               | `glm-5.1:100,glm-5-turbo:90,...`                        |
+| AnomalyCooldownSec       | int                   | ANOMALY_COOLDOWN_SEC         | 5                                                       |
+| AnomalyZThreshold        | float64               | ANOMALY_Z_THRESHOLD          | 2.0                                                     |
+| GLMMode                  | bool                  | GLM_MODE                     | true                                                    |
+| CLISidecarURL            | string                | CLI_SIDECAR_URL              | `http://127.0.0.1:8081`                                 |
+| CLISidecarEnabled        | bool                  | CLI_SIDECAR_ENABLED          | true                                                    |
+| ZAIOpenAIURL             | string                | ZAI_OPENAI_URL               | `https://api.z.ai/api/paas/v4/chat/completions`         |
+| ZAIOpenAIModels          | map[string]bool       | ZAI_OPENAI_MODELS            | (empty)                                                 |
 
 ### 1.2 ModelPrice struct
 
@@ -104,44 +104,44 @@ type ProviderConfig struct {
 
 ### 2.2 AuthType enum
 
-| Value | String | Description |
-|-------|--------|-------------|
-| AuthTypeAPIKey | `"api_key"` | Static API key header |
-| AuthTypeDeviceCode | `"device_code"` | OAuth device code flow |
-| AuthTypeAuthCode | `"auth_code"` | OAuth authorization code + PKCE |
-| AuthTypeSessionCookie | `"session_cookie"` | Browser session cookie |
+| Value                 | String             | Description                     |
+|-----------------------|--------------------|---------------------------------|
+| AuthTypeAPIKey        | `"api_key"`        | Static API key header           |
+| AuthTypeDeviceCode    | `"device_code"`    | OAuth device code flow          |
+| AuthTypeAuthCode      | `"auth_code"`      | OAuth authorization code + PKCE |
+| AuthTypeSessionCookie | `"session_cookie"` | Browser session cookie          |
 
 ### 2.3 Built-in Providers
 
-| ID | Name | AuthType | Upstream Default |
-|----|------|----------|------------------|
-| anthropic | Anthropic | api_key | `https://api.anthropic.com` |
-| gemini | Google Gemini | api_key | `https://generativelanguage.googleapis.com` |
-| gemini-oauth | Google Gemini (OAuth) | auth_code | `https://cloudcode-pa.googleapis.com` |
-| openai | OpenAI | api_key | `https://api.openai.com` |
-| copilot | GitHub Copilot | device_code | `https://api.github.com/copilot` |
-| zai | Z.AI | api_key | `https://api.z.ai/api/anthropic` |
-| openrouter | OpenRouter | api_key | `https://openrouter.ai/api` |
-| qwen | Qwen (Aliyun) | device_code | `https://dashscope.aliyuncs.com` |
-| claude-oauth | Claude (OAuth) | auth_code | `https://api.anthropic.com` |
-| deepseek | DeepSeek | api_key | `https://api.deepseek.com` |
-| kimi | Kimi (Moonshot) | api_key | `https://api.moonshot.cn/v1` |
-| huggingface | Hugging Face | api_key | `https://api-inference.huggingface.co/models` |
-| ollama | Ollama | api_key | `http://localhost:11434` |
-| agy | Antigravity | api_key | `https://antigravity.com` |
-| cursor | Cursor | api_key | `https://api2.cursor.sh` |
-| codebuddy | CodeBuddy | api_key | `https://api.codebuddy.io` |
-| kilo | Kilo | api_key | `https://api.kilo.ai` |
+| ID           | Name                  | AuthType    | Upstream Default                              |
+|--------------|-----------------------|-------------|-----------------------------------------------|
+| anthropic    | Anthropic             | api_key     | `https://api.anthropic.com`                   |
+| gemini       | Google Gemini         | api_key     | `https://generativelanguage.googleapis.com`   |
+| gemini-oauth | Google Gemini (OAuth) | auth_code   | `https://cloudcode-pa.googleapis.com`         |
+| openai       | OpenAI                | api_key     | `https://api.openai.com`                      |
+| copilot      | GitHub Copilot        | device_code | `https://api.github.com/copilot`              |
+| zai          | Z.AI                  | api_key     | `https://api.z.ai/api/anthropic`              |
+| openrouter   | OpenRouter            | api_key     | `https://openrouter.ai/api`                   |
+| qwen         | Qwen (Aliyun)         | device_code | `https://dashscope.aliyuncs.com`              |
+| claude-oauth | Claude (OAuth)        | auth_code   | `https://api.anthropic.com`                   |
+| deepseek     | DeepSeek              | api_key     | `https://api.deepseek.com`                    |
+| kimi         | Kimi (Moonshot)       | api_key     | `https://api.moonshot.cn/v1`                  |
+| huggingface  | Hugging Face          | api_key     | `https://api-inference.huggingface.co/models` |
+| ollama       | Ollama                | api_key     | `http://localhost:11434`                      |
+| agy          | Antigravity           | api_key     | `https://antigravity.com`                     |
+| cursor       | Cursor                | api_key     | `https://api2.cursor.sh`                      |
+| codebuddy    | CodeBuddy             | api_key     | `https://api.codebuddy.io`                    |
+| kilo         | Kilo                  | api_key     | `https://api.kilo.ai`                         |
 
 Custom providers use ID prefix `custom-` (e.g. `custom-a1b2c3`).
 
 ### 2.4 ProviderFormat enum (`provider/resolver.go`)
 
-| Value | String |
-|-------|--------|
+| Value           | String        |
+|-----------------|---------------|
 | FormatAnthropic | `"anthropic"` |
-| FormatOpenAI | `"openai"` |
-| FormatGemini | `"gemini"` |
+| FormatOpenAI    | `"openai"`    |
+| FormatGemini    | `"gemini"`    |
 
 ---
 
@@ -234,26 +234,26 @@ type RoutingDecision struct {
 
 ### 4.2 Provider Route Table
 
-| ProviderID | Format | AuthMode | URL Suffix | ModelOverride | MaxTokens | MaxContinuations | ToolMode |
-|------------|--------|----------|------------|---------------|-----------|-----------------|----------|
-| anthropic | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
-| claude-oauth | anthropic | api_key | `/v1/messages?beta=true` | - | 0 | 0 | - |
-| claude | anthropic | api_key | `/v1/messages?beta=true` | - | 0 | 0 | - |
-| zai | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
-| openai | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| copilot | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| openrouter | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| qwen | openai | bearer | `/compatible-mode/v1/chat/completions` | - | 0 | 0 | - |
-| gemini | gemini | api_key | (dynamic URL) | - | 0 | 0 | - |
-| gemini-oauth | gemini | bearer | (dynamic URL) | - | 0 | 0 | - |
-| deepseek | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| kimi | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| huggingface | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| ollama | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| agy | anthropic | api_key | `/v1/messages` | - | 0 | 0 | - |
-| cursor | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| codebuddy | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
-| kilo | openai | bearer | `/v1/chat/completions` | - | 0 | 0 | - |
+| ProviderID   | Format    | AuthMode   | URL Suffix                             | ModelOverride   | MaxTokens   | MaxContinuations  | ToolMode   |
+|--------------|-----------|------------|----------------------------------------|-----------------|-------------|-------------------|------------|
+| anthropic    | anthropic | api_key    | `/v1/messages`                         | -               | 0           | 0                 | -          |
+| claude-oauth | anthropic | api_key    | `/v1/messages?beta=true`               | -               | 0           | 0                 | -          |
+| claude       | anthropic | api_key    | `/v1/messages?beta=true`               | -               | 0           | 0                 | -          |
+| zai          | anthropic | api_key    | `/v1/messages`                         | -               | 0           | 0                 | -          |
+| openai       | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| copilot      | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| openrouter   | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| qwen         | openai    | bearer     | `/compatible-mode/v1/chat/completions` | -               | 0           | 0                 | -          |
+| gemini       | gemini    | api_key    | (dynamic URL)                          | -               | 0           | 0                 | -          |
+| gemini-oauth | gemini    | bearer     | (dynamic URL)                          | -               | 0           | 0                 | -          |
+| deepseek     | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| kimi         | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| huggingface  | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| ollama       | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| agy          | anthropic | api_key    | `/v1/messages`                         | -               | 0           | 0                 | -          |
+| cursor       | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| codebuddy    | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| kilo         | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
 
 Claude-oauth/claude extra headers (injected by route table):
 - `anthropic-beta: claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,redact-thinking-2026-02-12,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24`
@@ -265,26 +265,26 @@ OpenRouter extra headers:
 
 ### 4.3 Model Routing Rules
 
-| Prefix | Providers (priority order) |
-|--------|---------------------------|
-| `claude-` | claude-oauth, anthropic |
-| `gpt-` | openai |
-| `o1-` / `o3-` / `o4-` | openai |
-| `gemini-` | gemini-oauth, gemini |
-| `glm-` | zai |
-| `qwen-` | qwen |
-| `or-` | openrouter |
-| `anthropic/` | anthropic, openrouter (fallback) |
-| `openai/` | openrouter |
-| `google/` | openrouter |
-| `meta/` | openrouter |
-| `deepseek/` | openrouter |
-| `qwen/` | openrouter |
-| `deepseek-` | deepseek |
-| `kimi-` | kimi |
-| `huggingface/` | huggingface |
-| `ollama` | ollama |
-| `agy-` | agy |
+| Prefix                | Providers (priority order)       |
+|-----------------------|----------------------------------|
+| `claude-`             | claude-oauth, anthropic          |
+| `gpt-`                | openai                           |
+| `o1-` / `o3-` / `o4-` | openai                           |
+| `gemini-`             | gemini-oauth, gemini             |
+| `glm-`                | zai                              |
+| `qwen-`               | qwen                             |
+| `or-`                 | openrouter                       |
+| `anthropic/`          | anthropic, openrouter (fallback) |
+| `openai/`             | openrouter                       |
+| `google/`             | openrouter                       |
+| `meta/`               | openrouter                       |
+| `deepseek/`           | openrouter                       |
+| `qwen/`               | openrouter                       |
+| `deepseek-`           | deepseek                         |
+| `kimi-`               | kimi                             |
+| `huggingface/`        | huggingface                      |
+| `ollama`              | ollama                           |
+| `agy-`                | agy                              |
 
 ---
 
@@ -756,18 +756,18 @@ All endpoints use consistent error JSON:
 
 ### HTTP Status Codes
 
-| Code | Type | Used By |
-|------|------|---------|
-| 400 | invalid_request_error | Bad JSON, validation |
-| 401 | authentication_error | Missing x-api-key, invalid profile |
-| 403 | no_provider, profile_forbidden | No accounts, profile mismatch |
-| 404 | not found | Profile/account/provider not found |
-| 409 | conflict | Profile already exists |
-| 413 | invalid_request_error | Body exceeds MaxRequestBody |
-| 429 | quota_exceeded | Quota enforcement |
-| 500 | api_error | Internal errors |
-| 502 | api_error | Upstream proxy failure |
-| 503 | overloaded_error | All model slots busy |
+| Code   | Type                           | Used By                            |
+|--------|--------------------------------|------------------------------------|
+| 400    | invalid_request_error          | Bad JSON, validation               |
+| 401    | authentication_error           | Missing x-api-key, invalid profile |
+| 403    | no_provider, profile_forbidden | No accounts, profile mismatch      |
+| 404    | not found                      | Profile/account/provider not found |
+| 409    | conflict                       | Profile already exists             |
+| 413    | invalid_request_error          | Body exceeds MaxRequestBody        |
+| 429    | quota_exceeded                 | Quota enforcement                  |
+| 500    | api_error                      | Internal errors                    |
+| 502    | api_error                      | Upstream proxy failure             |
+| 503    | overloaded_error               | All model slots busy               |
 
 ---
 
@@ -777,28 +777,28 @@ All endpoints use consistent error JSON:
 
 All keys use the `arl:` prefix (except legacy `profile:` and `usage:` patterns). Dragonfly (Redis-compatible) is the backing store.
 
-| Key Pattern | Value Type | TTL | Purpose |
-|-------------|-----------|-----|---------|
-| `arl:tokens:{provider}:{accountID}` | JSON (TokenInfo) | None | OAuth/API key token data per account |
-| `arl:tokens:{provider}:_index` | SET of accountIDs | None | Account index for provider |
-| `arl:ratelimit:{provider}:{accountID}` | JSON (RateLimitStatus) | 6h | Per-account rate limit state |
-| `arl:providers:custom:{id}` | JSON (ProviderConfig) | None | Custom provider registration |
-| `profile:{name}` | JSON (Profile) | None | Profile definition |
-| `profile_token:{token}` | STRING (profile name) | Optional (token TTL) | Token-to-profile lookup |
-| `profile_tokens:{name}` | HASH {key: ProfileToken JSON} | None | All tokens for a profile |
-| `usage:hourly:{YYYY-MM-DDTHH}` | HASH {field: value} | 48h | Hourly usage aggregation |
-| `usage:daily:{YYYY-MM-DD}` | HASH {field: value} | 35d | Daily usage aggregation |
-| `usage:monthly:{YYYY-MM-01}` | HASH {field: value} | 400d | Monthly usage aggregation |
-| `usage:sessions:{YYYY-MM-DD}` | HASH {sessionID: model} | 35d | Active sessions by day |
-| `usage:profile:{name}:daily:{date}` | HASH {field: value} | 35d | Per-profile daily usage |
-| `usage:profile:{name}:summary` | HASH {field: value} | None | Per-profile cumulative totals |
-| `usage:account:{id}:daily:{date}` | HASH {field: value} | 35d | Per-account daily usage |
-| `usage:account:{id}:summary` | HASH {field: value} | None | Per-account cumulative totals |
-| `config:overrides` | JSON | None | Runtime config overrides |
-| `config:thinking` | JSON (ThinkingConfig) | None | Thinking/reasoning config |
-| `config:global-env` | JSON (GlobalEnv) | None | Global environment overrides |
-| `config:max-tokens` | JSON (MaxTokensConfig) | None | Per-model max token overrides |
-| `quota:{provider}:{accountId}` | JSON (QuotaResult) | 30s (QuotaCacheTTL) | Cached quota computation |
+| Key Pattern                            | Value Type                    | TTL                  | Purpose                              |
+|----------------------------------------|-------------------------------|----------------------|--------------------------------------|
+| `arl:tokens:{provider}:{accountID}`    | JSON (TokenInfo)              | None                 | OAuth/API key token data per account |
+| `arl:tokens:{provider}:_index`         | SET of accountIDs             | None                 | Account index for provider           |
+| `arl:ratelimit:{provider}:{accountID}` | JSON (RateLimitStatus)        | 6h                   | Per-account rate limit state         |
+| `arl:providers:custom:{id}`            | JSON (ProviderConfig)         | None                 | Custom provider registration         |
+| `profile:{name}`                       | JSON (Profile)                | None                 | Profile definition                   |
+| `profile_token:{token}`                | STRING (profile name)         | Optional (token TTL) | Token-to-profile lookup              |
+| `profile_tokens:{name}`                | HASH {key: ProfileToken JSON} | None                 | All tokens for a profile             |
+| `usage:hourly:{YYYY-MM-DDTHH}`         | HASH {field: value}           | 48h                  | Hourly usage aggregation             |
+| `usage:daily:{YYYY-MM-DD}`             | HASH {field: value}           | 35d                  | Daily usage aggregation              |
+| `usage:monthly:{YYYY-MM-01}`           | HASH {field: value}           | 400d                 | Monthly usage aggregation            |
+| `usage:sessions:{YYYY-MM-DD}`          | HASH {sessionID: model}       | 35d                  | Active sessions by day               |
+| `usage:profile:{name}:daily:{date}`    | HASH {field: value}           | 35d                  | Per-profile daily usage              |
+| `usage:profile:{name}:summary`         | HASH {field: value}           | None                 | Per-profile cumulative totals        |
+| `usage:account:{id}:daily:{date}`      | HASH {field: value}           | 35d                  | Per-account daily usage              |
+| `usage:account:{id}:summary`           | HASH {field: value}           | None                 | Per-account cumulative totals        |
+| `config:overrides`                     | JSON                          | None                 | Runtime config overrides             |
+| `config:thinking`                      | JSON (ThinkingConfig)         | None                 | Thinking/reasoning config            |
+| `config:global-env`                    | JSON (GlobalEnv)              | None                 | Global environment overrides         |
+| `config:max-tokens`                    | JSON (MaxTokensConfig)        | None                 | Per-model max token overrides        |
+| `quota:{provider}:{accountId}`         | JSON (QuotaResult)            | 30s (QuotaCacheTTL)  | Cached quota computation             |
 
 ### 16.2 Token Storage (`arl:tokens:{provider}:{accountID}`)
 
@@ -1026,16 +1026,16 @@ TTL:   None
 
 ### 16.11 Key Lifecycle Summary
 
-| Category | Write Frequency | Read Frequency | TTL Strategy |
-|----------|----------------|----------------|-------------|
-| Tokens | On refresh (30m) / auth events | Every request (routing) | None (persistent) |
-| Rate limits | Every request | Every request | 6h auto-expire |
-| Profiles | CRUD operations | Every authenticated request | None (persistent) |
-| Usage (hourly) | Every request | Dashboard queries | 48h expiry |
-| Usage (daily) | Every request | Dashboard queries | 35d expiry |
-| Usage (monthly) | Every request | Dashboard queries | 400d expiry |
-| Config overrides | Admin API | Every request | None (persistent) |
-| Quota cache | On compute | Every request | 30s short TTL |
+| Category         | Write Frequency                | Read Frequency              | TTL Strategy      |
+|------------------|--------------------------------|-----------------------------|-------------------|
+| Tokens           | On refresh (30m) / auth events | Every request (routing)     | None (persistent) |
+| Rate limits      | Every request                  | Every request               | 6h auto-expire    |
+| Profiles         | CRUD operations                | Every authenticated request | None (persistent) |
+| Usage (hourly)   | Every request                  | Dashboard queries           | 48h expiry        |
+| Usage (daily)    | Every request                  | Dashboard queries           | 35d expiry        |
+| Usage (monthly)  | Every request                  | Dashboard queries           | 400d expiry       |
+| Config overrides | Admin API                      | Every request               | None (persistent) |
+| Quota cache      | On compute                     | Every request               | 30s short TTL     |
 
 ### 16.12 Query Patterns
 

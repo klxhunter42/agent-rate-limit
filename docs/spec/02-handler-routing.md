@@ -182,7 +182,7 @@ X-Profile header present?
     +-- YES --> getProfile(redis, profileName)
     |              |
     |              +-- found --> profileOverride = profile
-    |              |              |
+|              |              |
     |              |              +-- profile.Model != "" --> override payload["model"]
     |              |              +-- profile.Target != "" AND model doesn't belong to target
     |              |              |     --> mapModelForTarget (use provider's default model)
@@ -201,17 +201,17 @@ X-Profile header present?
 
 ### 3.3 Profile Fields and Their Effects
 
-| Field | Effect |
-|-------|--------|
-| `name` | Profile identifier |
-| `baseUrl` | Overrides upstream URL in RoutingDecision |
-| `apiKey` | Static API key (fallback when no account pool) |
-| `model` | Hard override for payload["model"] |
-| `opusModel` / `sonnetModel` / `haikuModel` | Per-tier model overrides |
-| `provider` | Explicit provider ID (takes precedence over target) |
-| `accountIds` | Account pool for round-robin selection |
-| `passthroughAuth` | Forward client's own Bearer/x-api-key instead of stored tokens |
-| `targets` | Multi-target profiles for load distribution |
+| Field                                      | Effect                                                         |
+|--------------------------------------------|----------------------------------------------------------------|
+| `name`                                     | Profile identifier                                             |
+| `baseUrl`                                  | Overrides upstream URL in RoutingDecision                      |
+| `apiKey`                                   | Static API key (fallback when no account pool)                 |
+| `model`                                    | Hard override for payload["model"]                             |
+| `opusModel` / `sonnetModel` / `haikuModel` | Per-tier model overrides                                       |
+| `provider`                                 | Explicit provider ID (takes precedence over target)            |
+| `accountIds`                               | Account pool for round-robin selection                         |
+| `passthroughAuth`                          | Forward client's own Bearer/x-api-key instead of stored tokens |
+| `targets`                                  | Multi-target profiles for load distribution                    |
 
 ### 3.4 Profile Auth Modes
 
@@ -253,14 +253,14 @@ func mapModelForTarget(model, targetProvider string) string {
 ```
 
 Provider default models:
-| Provider | Default Model |
-|----------|--------------|
-| claude-oauth | claude-haiku-4-5-20251001 |
-| anthropic | claude-sonnet-4-20250514 |
-| gemini-oauth | gemini-2.5-flash |
-| openai | gpt-4o |
-| zai | glm-4.5 |
-| deepseek | deepseek-chat |
+| Provider     | Default Model                                    |
+|--------------|--------------------------------------------------|
+| claude-oauth | claude-haiku-4-5-20251001                        |
+| anthropic    | claude-sonnet-4-20250514                         |
+| gemini-oauth | gemini-2.5-flash                                 |
+| openai       | gpt-4o                                           |
+| zai          | glm-4.5                                          |
+| deepseek     | deepseek-chat                                    |
 
 ### 3.7 Profile Token System
 
@@ -518,25 +518,25 @@ if allowed, pct, _ := h.quotaHandler.CheckQuota(providerID, accountID, requested
 
 18 built-in providers, each with:
 
-| Provider ID | Auth Type | Format | Upstream Base |
-|-------------|-----------|--------|---------------|
-| anthropic | api_key | anthropic | api.anthropic.com |
-| claude-oauth | auth_code | anthropic | api.anthropic.com |
-| openai | api_key | openai | api.openai.com |
-| gemini | api_key | gemini | generativelanguage.googleapis.com |
-| gemini-oauth | auth_code | gemini | cloudcode-pa.googleapis.com |
-| copilot | device_code | openai | api.github.com/copilot |
-| zai | api_key | anthropic | api.z.ai/api/anthropic |
-| openrouter | api_key | openai | openrouter.ai/api |
-| deepseek | api_key | openai | api.deepseek.com |
-| qwen | device_code | openai | dashscope.aliyuncs.com |
-| kimi | api_key | openai | api.moonshot.cn/v1 |
-| huggingface | api_key | openai | api-inference.huggingface.co/models |
-| ollama | api_key | openai | localhost:11434 |
-| agy | api_key | openai | antigravity.com |
-| cursor | api_key | openai | api2.cursor.sh |
-| codebuddy | api_key | openai | api.codebuddy.io |
-| kilo | api_key | openai | api.kilo.ai |
+| Provider ID   | Auth Type   | Format    | Upstream Base                       |
+|---------------|-------------|-----------|-------------------------------------|
+| anthropic     | api_key     | anthropic | api.anthropic.com                   |
+| claude-oauth  | auth_code   | anthropic | api.anthropic.com                   |
+| openai        | api_key     | openai    | api.openai.com                      |
+| gemini        | api_key     | gemini    | generativelanguage.googleapis.com   |
+| gemini-oauth  | auth_code   | gemini    | cloudcode-pa.googleapis.com         |
+| copilot       | device_code | openai    | api.github.com/copilot              |
+| zai           | api_key     | anthropic | api.z.ai/api/anthropic              |
+| openrouter    | api_key     | openai    | openrouter.ai/api                   |
+| deepseek      | api_key     | openai    | api.deepseek.com                    |
+| qwen          | device_code | openai    | dashscope.aliyuncs.com              |
+| kimi          | api_key     | openai    | api.moonshot.cn/v1                  |
+| huggingface   | api_key     | openai    | api-inference.huggingface.co/models |
+| ollama        | api_key     | openai    | localhost:11434                     |
+| agy           | api_key     | openai    | antigravity.com                     |
+| cursor        | api_key     | openai    | api2.cursor.sh                      |
+| codebuddy     | api_key     | openai    | api.codebuddy.io                    |
+| kilo          | api_key     | openai    | api.kilo.ai                         |
 
 ### 6.2 Model-to-Provider Routing Rules
 
@@ -684,16 +684,16 @@ if h.cfg.EnableSmartMaxTokens {
 
 Sets `max_tokens` only when not already specified by the client. Per-model defaults:
 
-| Model | Max Tokens |
-|-------|-----------|
-| glm-5.1 | 8192 |
-| glm-5-turbo | 4096 |
-| glm-5 | 8192 |
-| glm-4.5 | 4096 |
-| claude-opus-4-7 | 200000 |
-| claude-sonnet-4-6 | 200000 |
-| claude-haiku-4-5-20251001 | 200000 |
-| fallback | 4096 |
+| Model                     | Max Tokens  |
+|---------------------------|-------------|
+| glm-5.1                   | 8192        |
+| glm-5-turbo               | 4096        |
+| glm-5                     | 8192        |
+| glm-4.5                   | 4096        |
+| claude-opus-4-7           | 200000      |
+| claude-sonnet-4-6         | 200000      |
+| claude-haiku-4-5-20251001 | 200000      |
+| fallback                  | 4096        |
 
 ### 7.3 Field Stripping
 
@@ -746,15 +746,15 @@ else           --> budgetLevel = 0 (green)
 
 **System prompt optimization** (13-stage pipeline):
 
-| Stage | Component | Condition | Description |
-|-------|-----------|-----------|-------------|
-| F7 | Semantic Dedup | Always | Tokenizer-based semantic dedup (threshold 0.7) |
-| F1 | Chunker | Configured | Chunk and reorder for cache locality |
-| F8 | Delta Encoding | Configured | Delta compression against previous version |
-| F9 | Sketch Dedup | Configured | MinHash sketch for exact/near dedup |
-| F6 | Summarizer | budgetLevel >= 2 | LLM-powered summarization on red budget |
-| F13 | Intent Filter | Configured | Remove content unrelated to user intent |
-| F16 | Caveman | Configured | Append compression directives |
+| Stage   | Component      | Condition        | Description                                    |
+|---------|----------------|------------------|------------------------------------------------|
+| F7      | Semantic Dedup | Always           | Tokenizer-based semantic dedup (threshold 0.7) |
+| F1      | Chunker        | Configured       | Chunk and reorder for cache locality           |
+| F8      | Delta Encoding | Configured       | Delta compression against previous version     |
+| F9      | Sketch Dedup   | Configured       | MinHash sketch for exact/near dedup            |
+| F6      | Summarizer     | budgetLevel >= 2 | LLM-powered summarization on red budget        |
+| F13     | Intent Filter  | Configured       | Remove content unrelated to user intent        |
+| F16     | Caveman        | Configured       | Append compression directives                  |
 
 **Message optimization**:
 - Whitespace optimization (tokenizer level)
@@ -896,11 +896,11 @@ hasImages?
     |     |
     |     +-- YES --> analyzeImagePayload() -> totalBytes, imageCount
     |     |            selectVisionModel(totalBytes, imageCount)
-    |     |            |
+|     |            |
     |     |            +-- score = totalBase64KB + (imageCount * 300)
     |     |            +-- score > 2000 OR imageCount >= 3 --> "glm-4.6v"
     |     |            +-- else --> "glm-4.6v"
-    |     |            |
+|     |            |
     |     |            +-- Rewrite payload["model"] to vision model
     |     |            +-- trySidecarOrDirect() (anthropic-compatible proxy)
     |     |
@@ -1299,30 +1299,30 @@ Watches `.env` file for changes via fsnotify. Debounced (500ms). Calls callback 
 
 All relevant env vars for the handler/routing layer:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `GLM_MODE` | `true` | Z.AI features active vs pure multi-provider proxy |
-| `SERVER_PORT` | `:8080` | Listen address |
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Z.AI upstream |
-| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Anthropic upstream |
-| `ZAI_API_KEYS` | (empty) | Comma-separated key pool |
-| `UPSTREAM_RPM_LIMIT` | `40` | Per-key RPM budget |
-| `UPSTREAM_MAX_RETRIES` | `3` | Retry count on 429 |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff |
-| `UPSTREAM_MODEL_LIMITS` | (see config.go) | Per-model concurrency limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `3` | Default model concurrency |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent upstream requests |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | maxLimit = initial * multiplier |
-| `MAX_REQUEST_BODY` | `10MB` | Request body size limit |
-| `STREAM_TIMEOUT` | `300s` | Streaming response timeout |
-| `ENABLE_PROMPT_INJECTION` | `true` | Prepend gateway rules |
-| `ENABLE_SMART_MAX_TOKENS` | `true` | Auto-set max_tokens |
-| `CLISIDECAR_ENABLED` | `true` | Enable Node.js sidecar |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar address |
-| `IP_WHITELIST` | (empty) | Allowed IPs/CIDRs |
-| `IP_BLACKLIST` | (empty) | Blocked IPs/CIDRs |
-| `QUOTA_DAILY_BUDGET` | `57600` | Daily token budget |
-| `QUOTA_BLOCK_PCT` | `95` | Block threshold percentage |
-| `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
-| `DEFAULT_MODEL` | `glm-5` | Default model |
-| `DEFAULT_PROVIDER` | `glm` | Default provider |
+| Env Var                     | Default                          | Description                                       |
+|-----------------------------|----------------------------------|---------------------------------------------------|
+| `GLM_MODE`                  | `true`                           | Z.AI features active vs pure multi-provider proxy |
+| `SERVER_PORT`               | `:8080`                          | Listen address                                    |
+| `UPSTREAM_URL`              | `https://api.z.ai/api/anthropic` | Z.AI upstream                                     |
+| `ANTHROPIC_DIRECT_URL`      | `https://api.anthropic.com`      | Anthropic upstream                                |
+| `ZAI_API_KEYS`              | (empty)                          | Comma-separated key pool                          |
+| `UPSTREAM_RPM_LIMIT`        | `40`                             | Per-key RPM budget                                |
+| `UPSTREAM_MAX_RETRIES`      | `3`                              | Retry count on 429                                |
+| `UPSTREAM_RETRY_BACKOFF`    | `500ms`                          | Base backoff                                      |
+| `UPSTREAM_MODEL_LIMITS`     | (see config.go)                  | Per-model concurrency limits                      |
+| `UPSTREAM_DEFAULT_LIMIT`    | `3`                              | Default model concurrency                         |
+| `UPSTREAM_GLOBAL_LIMIT`     | `9`                              | Total concurrent upstream requests                |
+| `UPSTREAM_PROBE_MULTIPLIER` | `5`                              | maxLimit = initial * multiplier                   |
+| `MAX_REQUEST_BODY`          | `10MB`                           | Request body size limit                           |
+| `STREAM_TIMEOUT`            | `300s`                           | Streaming response timeout                        |
+| `ENABLE_PROMPT_INJECTION`   | `true`                           | Prepend gateway rules                             |
+| `ENABLE_SMART_MAX_TOKENS`   | `true`                           | Auto-set max_tokens                               |
+| `CLISIDECAR_ENABLED`        | `true`                           | Enable Node.js sidecar                            |
+| `CLI_SIDECAR_URL`           | `http://127.0.0.1:8081`          | Sidecar address                                   |
+| `IP_WHITELIST`              | (empty)                          | Allowed IPs/CIDRs                                 |
+| `IP_BLACKLIST`              | (empty)                          | Blocked IPs/CIDRs                                 |
+| `QUOTA_DAILY_BUDGET`        | `57600`                          | Daily token budget                                |
+| `QUOTA_BLOCK_PCT`           | `95`                             | Block threshold percentage                        |
+| `ANTHROPIC_API_VERSION`     | `2023-06-01`                     | Anthropic API version header                      |
+| `DEFAULT_MODEL`             | `glm-5`                          | Default model                                     |
+| `DEFAULT_PROVIDER`          | `glm`                            | Default provider                                  |

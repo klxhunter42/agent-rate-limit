@@ -10,18 +10,18 @@ This document covers the ARL Dashboard, a Vite + React 19 single-page applicatio
 
 ### Tech Stack
 
-| Layer | Technology | Version |
-|---|---|---|
-| Build | Vite | 7.x |
-| UI Framework | React | 19.x |
-| Routing | React Router DOM | 7.x |
-| Styling | Tailwind CSS | 4.x |
-| Components | Radix UI | latest |
-| Charts | Recharts | 2.14 |
-| Icons | Lucide React | latest |
-| Language | TypeScript | 5.9 |
-| Testing | Playwright | latest |
-| Package Manager | bun | latest |
+| Layer           | Technology       | Version |
+|-----------------|------------------|---------|
+| Build           | Vite             | 7.x     |
+| UI Framework    | React            | 19.x    |
+| Routing         | React Router DOM | 7.x     |
+| Styling         | Tailwind CSS     | 4.x     |
+| Components      | Radix UI         | latest  |
+| Charts          | Recharts         | 2.14    |
+| Icons           | Lucide React     | latest  |
+| Language        | TypeScript       | 5.9     |
+| Testing         | Playwright       | latest  |
+| Package Manager | bun              | latest  |
 
 ### Build Configuration (`vite.config.ts`)
 
@@ -95,12 +95,12 @@ BrowserRouter
 
 ### Navigation Groups (Sidebar)
 
-| Group | Pages |
-|---|---|
+| Group      | Pages                                                     |
+|------------|-----------------------------------------------------------|
 | Monitoring | Overview, Health, Model Limits, Key Pool, Privacy, Models |
-| Analytics | Analytics, Metrics |
-| Management | Controls, Providers, Profiles, Quota |
-| System | Logs, Settings |
+| Analytics  | Analytics, Metrics                                        |
+| Management | Controls, Providers, Profiles, Quota                      |
+| System     | Logs, Settings                                            |
 
 ---
 
@@ -287,35 +287,35 @@ Grid display of authenticated accounts with provider, status, rate limit utiliza
 
 ### Auth Dialog Components (`src/components/auth/`)
 
-| Component | Purpose |
-|---|---|
-| `ApiKeyDialog` | API key input form |
-| `DeviceCodeDialog` | GitHub Copilot device code flow with polling |
-| `AuthCodeDialog` | OAuth authorization code flow |
-| `SessionCookieDialog` | Cookie-based session auth |
-| `OpenRouterModelPicker` | Model selection for OpenRouter provider |
+| Component               | Purpose                                      |
+|-------------------------|----------------------------------------------|
+| `ApiKeyDialog`          | API key input form                           |
+| `DeviceCodeDialog`      | GitHub Copilot device code flow with polling |
+| `AuthCodeDialog`        | OAuth authorization code flow                |
+| `SessionCookieDialog`   | Cookie-based session auth                    |
+| `OpenRouterModelPicker` | Model selection for OpenRouter provider      |
 
 ### UI Primitives (`src/components/ui/`)
 
 Thin wrappers around Radix UI primitives, styled with Tailwind:
 
-| Component | Radix Primitive | Notes |
-|---|---|---|
-| `Badge` | - | Custom, 4 variants (default/secondary/destructive/outline) |
-| `Button` | - | Custom, 6 variants + 3 sizes |
-| `Card` | - | Custom (Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter) |
-| `Collapsible` | @radix-ui/react-collapsible | Collapsible container |
-| `Dialog` | @radix-ui/react-dialog | Modal dialog with overlay |
-| `Input` | - | Custom styled input |
-| `Progress` | @radix-ui/react-progress | Progress bar with indicator |
-| `Select` | @radix-ui/react-select | Dropdown select with trigger/content/item |
-| `Separator` | @radix-ui/react-separator | Horizontal/vertical separator |
-| `Sheet` | - | Slide-in panel (side drawer) |
-| `Sidebar` | - | Custom sidebar with collapsible support |
-| `Skeleton` | - | Loading placeholder |
-| `Tabs` | @radix-ui/react-tabs | Tab navigation with content panels |
-| `Textarea` | - | Custom styled textarea |
-| `Tooltip` | @radix-ui/react-tooltip | Hover tooltip with provider |
+| Component     | Radix Primitive             | Notes                                                                          |
+|---------------|-----------------------------|--------------------------------------------------------------------------------|
+| `Badge`       | -                           | Custom, 4 variants (default/secondary/destructive/outline)                     |
+| `Button`      | -                           | Custom, 6 variants + 3 sizes                                                   |
+| `Card`        | -                           | Custom (Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter) |
+| `Collapsible` | @radix-ui/react-collapsible | Collapsible container                                                          |
+| `Dialog`      | @radix-ui/react-dialog      | Modal dialog with overlay                                                      |
+| `Input`       | -                           | Custom styled input                                                            |
+| `Progress`    | @radix-ui/react-progress    | Progress bar with indicator                                                    |
+| `Select`      | @radix-ui/react-select      | Dropdown select with trigger/content/item                                      |
+| `Separator`   | @radix-ui/react-separator   | Horizontal/vertical separator                                                  |
+| `Sheet`       | -                           | Slide-in panel (side drawer)                                                   |
+| `Sidebar`     | -                           | Custom sidebar with collapsible support                                        |
+| `Skeleton`    | -                           | Loading placeholder                                                            |
+| `Tabs`        | @radix-ui/react-tabs        | Tab navigation with content panels                                             |
+| `Textarea`    | -                           | Custom styled textarea                                                         |
+| `Tooltip`     | @radix-ui/react-tooltip     | Hover tooltip with provider                                                    |
 
 ---
 
@@ -375,21 +375,21 @@ interface KeyStatusEntry {
 
 ### Auth API (`src/lib/auth-api.ts`)
 
-| Function | Purpose |
-|---|---|
-| `startDeviceAuth` | Initiate device code flow |
-| `startAuthCode` | Initiate OAuth authorization code flow |
-| `pollAuthStatus` | Poll auth completion status |
-| `cancelAuth` | Cancel in-progress auth |
-| `listAccounts` | List all authenticated accounts |
-| `removeAccount` | Remove an account |
-| `pauseAccount` / `resumeAccount` | Toggle account active state |
-| `setDefaultAccount` | Set account as default for provider |
-| `updateAccountEmail` | Update account email |
-| `registerAPIKey` | Register new API key auth |
-| `registerSessionCookie` | Register cookie-based session |
-| `fetchRateLimits` | Get rate limits for account |
-| `login` / `logout` / `checkAuth` | Session management |
+| Function                         | Purpose                                |
+|----------------------------------|----------------------------------------|
+| `startDeviceAuth`                | Initiate device code flow              |
+| `startAuthCode`                  | Initiate OAuth authorization code flow |
+| `pollAuthStatus`                 | Poll auth completion status            |
+| `cancelAuth`                     | Cancel in-progress auth                |
+| `listAccounts`                   | List all authenticated accounts        |
+| `removeAccount`                  | Remove an account                      |
+| `pauseAccount` / `resumeAccount` | Toggle account active state            |
+| `setDefaultAccount`              | Set account as default for provider    |
+| `updateAccountEmail`             | Update account email                   |
+| `registerAPIKey`                 | Register new API key auth              |
+| `registerSessionCookie`          | Register cookie-based session          |
+| `fetchRateLimits`                | Get rate limits for account            |
+| `login` / `logout` / `checkAuth` | Session management                     |
 
 ### Polling Architecture (`src/lib/polling.ts` + `src/contexts/dashboard-context.tsx`)
 
@@ -423,13 +423,13 @@ useEffect(() => {
 
 ### Prometheus Metrics Hooks
 
-| Hook | Purpose |
-|---|---|
-| `usePrometheusMetrics` | Polls `/api/metrics`, parses Prometheus text format |
-| `useMetricsHistory` | Builds time series from metric deltas (max 120 points) |
-| `useAnomalyDetection` | Detects 5 anomaly types with 30s cooldown |
-| `useEventTimeline` | Derives timeline events from metrics/models/keyPool |
-| `useUsageApi` | Polls `/v1/usage/models` and `/v1/usage/summary` |
+| Hook                   | Purpose                                                |
+|------------------------|--------------------------------------------------------|
+| `usePrometheusMetrics` | Polls `/api/metrics`, parses Prometheus text format    |
+| `useMetricsHistory`    | Builds time series from metric deltas (max 120 points) |
+| `useAnomalyDetection`  | Detects 5 anomaly types with 30s cooldown              |
+| `useEventTimeline`     | Derives timeline events from metrics/models/keyPool    |
+| `useUsageApi`          | Polls `/v1/usage/models` and `/v1/usage/summary`       |
 
 ### Metrics Helpers (`src/lib/metrics-helpers.ts`)
 
@@ -459,15 +459,15 @@ Extracts privacy-related metrics from Prometheus:
 
 Main dashboard with 8 sub-components:
 
-| Component | Description |
-|---|---|
-| `StatCards` | Status, Queue Depth, Total Requests, Concurrency |
-| `GlobalCapacity` | Progress bar showing global in-flight vs limit |
-| `ModelUtilization` | Table of top models by utilization |
-| `KeyFlowMonitor` | Live key-to-model request flow visualization |
-| `LiveAuthMonitor` | Authenticated accounts status grid |
-| `QuickCommands` | Pre-built curl snippets for common operations |
-| `EventTimeline` | Last 10 events with severity coloring |
+| Component          | Description                                      |
+|--------------------|--------------------------------------------------|
+| `StatCards`        | Status, Queue Depth, Total Requests, Concurrency |
+| `GlobalCapacity`   | Progress bar showing global in-flight vs limit   |
+| `ModelUtilization` | Table of top models by utilization               |
+| `KeyFlowMonitor`   | Live key-to-model request flow visualization     |
+| `LiveAuthMonitor`  | Authenticated accounts status grid               |
+| `QuickCommands`    | Pre-built curl snippets for common operations    |
+| `EventTimeline`    | Last 10 events with severity coloring            |
 
 ### Health Page (`/system-health`)
 
@@ -486,21 +486,21 @@ Health check derivation (`src/lib/health-checks.ts`):
 
 Full analytics dashboard with 12+ sub-components:
 
-| Component | Type | Description |
-|---|---|---|
-| `AnalyticsSummaryCards` | 5 StatCards | Total Tokens, Total Cost, Input Cost, Output Cost, Avg Latency |
-| `UsageTrendChart` | Dual-axis AreaChart | Tokens + cost over time with 2m/5m/10m range |
-| `CostByModelCard` | List + popover | Model costs with token ratio bars |
-| `ModelDistributionChart` | Donut PieChart | Model percentage distribution |
-| `TokenBreakdownChart` | Horizontal BarChart | Input vs output per model |
-| `HourlyBreakdown` | BarChart | Requests/tokens/cost in 24h buckets |
-| `ErrorRateChart` | Stacked AreaChart | Errors by type over time |
-| `LatencyChart` | AreaChart | Average latency over time |
-| `ModelCostTable` | Table | Model, I/O tokens, cost, % of total |
-| `AnomalyInsightsCard` | List | Recent anomalies with dismiss |
-| `UsageApiSection` | Tables | Daily breakdown + session table |
-| `ModelDetailsPopover` | Modal | Detailed model view with I/O ratio, token bars |
-| `TimeRangeFilter` | Button group | 1H/6H/24H/7D/30D selection |
+| Component                | Type                | Description                                                    |
+|--------------------------|---------------------|----------------------------------------------------------------|
+| `AnalyticsSummaryCards`  | 5 StatCards         | Total Tokens, Total Cost, Input Cost, Output Cost, Avg Latency |
+| `UsageTrendChart`        | Dual-axis AreaChart | Tokens + cost over time with 2m/5m/10m range                   |
+| `CostByModelCard`        | List + popover      | Model costs with token ratio bars                              |
+| `ModelDistributionChart` | Donut PieChart      | Model percentage distribution                                  |
+| `TokenBreakdownChart`    | Horizontal BarChart | Input vs output per model                                      |
+| `HourlyBreakdown`        | BarChart            | Requests/tokens/cost in 24h buckets                            |
+| `ErrorRateChart`         | Stacked AreaChart   | Errors by type over time                                       |
+| `LatencyChart`           | AreaChart           | Average latency over time                                      |
+| `ModelCostTable`         | Table               | Model, I/O tokens, cost, % of total                            |
+| `AnomalyInsightsCard`    | List                | Recent anomalies with dismiss                                  |
+| `UsageApiSection`        | Tables              | Daily breakdown + session table                                |
+| `ModelDetailsPopover`    | Modal               | Detailed model view with I/O ratio, token bars                 |
+| `TimeRangeFilter`        | Button group        | 1H/6H/24H/7D/30D selection                                     |
 
 ### Model Limits Page (`/model-limits`)
 
@@ -653,19 +653,19 @@ Manages authentication state. Unauthenticated users are redirected to `/login`.
 
 ### Hooks as State Managers
 
-| Hook | State Held | Source |
-|---|---|---|
-| `useWebSocket` | Connection status, event buffer | WebSocket `/ws` |
-| `usePrometheusMetrics` | Parsed metrics array | `/api/metrics` polling |
-| `useMetricsHistory` | Time series arrays (120 points max) | Delta computation |
-| `useAnomalyDetection` | Active anomalies list | Delta detection on metrics |
-| `useEventTimeline` | Timeline events array | Derived from metrics/models/keyPool |
-| `useUsageApi` | Usage models + summary | `/v1/usage/*` polling |
-| `useTimeRange` | Selected time range | localStorage |
-| `useMobile` | `boolean` (768px breakpoint) | Window resize listener |
-| `useSidebar` | Expanded/collapsed state | Sidebar component state |
-| `useAuthFlow` | Auth flow state machine | Device code / OAuth polling |
-| `useKeyboardShortcuts` | No state (event handlers) | Global keyboard events |
+| Hook                   | State Held                          | Source                              |
+|------------------------|-------------------------------------|-------------------------------------|
+| `useWebSocket`         | Connection status, event buffer     | WebSocket `/ws`                     |
+| `usePrometheusMetrics` | Parsed metrics array                | `/api/metrics` polling              |
+| `useMetricsHistory`    | Time series arrays (120 points max) | Delta computation                   |
+| `useAnomalyDetection`  | Active anomalies list               | Delta detection on metrics          |
+| `useEventTimeline`     | Timeline events array               | Derived from metrics/models/keyPool |
+| `useUsageApi`          | Usage models + summary              | `/v1/usage/*` polling               |
+| `useTimeRange`         | Selected time range                 | localStorage                        |
+| `useMobile`            | `boolean` (768px breakpoint)        | Window resize listener              |
+| `useSidebar`           | Expanded/collapsed state            | Sidebar component state             |
+| `useAuthFlow`          | Auth flow state machine             | Device code / OAuth polling         |
+| `useKeyboardShortcuts` | No state (event handlers)           | Global keyboard events              |
 
 ### State Flow Pattern
 
@@ -733,7 +733,7 @@ App
     |                       +-- Layout
     |                             |
     |                             +-- SidebarProvider
-    |                             |     |
+|                             |     |
     |                             |     +-- AppSidebar
     |                             |           +-- NAV_ITEMS (14 items, 4 groups)
     |                             |           +-- DarkModeToggle
@@ -741,9 +741,9 @@ App
     |                             |           +-- ConnectionStatus
     |                             |
     |                             +-- WSBridge  <====== WebSocket /ws
-    |                             |     |
+|                             |     |
     |                             |     +-- ws-events bus (pub/sub)
-    |                             |           |
+|                             |           |
     |                             |           +-- use-ws-refresh -> triggers refresh()
     |                             |           +-- use-event-timeline -> derives events
     |                             |
@@ -854,32 +854,32 @@ App
                           /v1/*  /health  /ws  /api/metrics
                                 |
                     +-----------+-----------+
-                    |           |           |
+|           |           |
               REST polling   WebSocket   Prometheus
               (Dashboard     (real-time   (metrics
                Context)      events)     parsing)
-                    |           |           |
+|           |           |
                     v           v           v
               +-----+-----+ +--+---+ +----+----+
-              | models[]  | | ws-  | | Parsed  |
-              | global{}  | |events| | Metric[]|
+| models[]  | | ws-  | | Parsed  |
+| global{}  | |events| | Metric[]|
               | keyPool{} | | bus  | +----+----+
-              | health{}  | +--+---+      |
+| health{}  | +--+---+      |
               +-----+-----+    |     +----+----+
-                    |          |     | Metrics |
-                    |          |     | History |
+|          |     | Metrics |
+|          |     | History |
                     |          |     +----+----+
-                    |          |          |
+|          |          |
                     v          v          v
               +-----+----------+----------+----+
               |         Page Components              |
               |  Overview / Analytics / Models / ... |
               +-----+----------+----------+----+
-                    |          |          |
+|          |          |
                     v          v          v
               +----------+ +---------+ +---------+
-              | Recharts | | Radix   | | Tailwind|
-              | (charts) | | UI prims| | CSS     |
+| Recharts | | Radix   | | Tailwind|
+| (charts) | | UI prims| | CSS     |
               +----------+ +---------+ +---------+
 ```
 
@@ -931,13 +931,13 @@ Extracts from Prometheus:
 
 Five anomaly types with independent 30-second cooldowns:
 
-| Type | Detection Logic | Severity |
-|---|---|---|
-| `429_spike` | Rate limit errors > threshold | High |
-| `error_burst` | Error rate > threshold | High |
-| `queue_buildup` | Queue depth > threshold | Medium |
-| `rtt_spike` | RTT > baseline + margin | Medium |
-| `key_exhaustion` | Active keys < minimum | Critical |
+| Type             | Detection Logic               | Severity |
+|------------------|-------------------------------|----------|
+| `429_spike`      | Rate limit errors > threshold | High     |
+| `error_burst`    | Error rate > threshold        | High     |
+| `queue_buildup`  | Queue depth > threshold       | Medium   |
+| `rtt_spike`      | RTT > baseline + margin       | Medium   |
+| `key_exhaustion` | Active keys < minimum         | Critical |
 
 - Tracks previous metrics snapshot for delta computation
 - Dismiss individual anomalies (persisted in component state)
@@ -955,13 +955,13 @@ Five anomaly types with independent 30-second cooldowns:
 
 ### Test Files
 
-| File | Scope |
-|---|---|
-| `tests/dashboard.spec.ts` | Core dashboard load, navigation, data display |
-| `tests/profiles.spec.ts` | Profile CRUD operations |
-| `tests/profiles-check.spec.ts` | Profile validation checks |
-| `tests/profiles-delete.spec.ts` | Profile deletion flow |
-| `tests/profiles-edit.spec.ts` | Profile editing flow |
+| File                            | Scope                                         |
+|---------------------------------|-----------------------------------------------|
+| `tests/dashboard.spec.ts`       | Core dashboard load, navigation, data display |
+| `tests/profiles.spec.ts`        | Profile CRUD operations                       |
+| `tests/profiles-check.spec.ts`  | Profile validation checks                     |
+| `tests/profiles-delete.spec.ts` | Profile deletion flow                         |
+| `tests/profiles-edit.spec.ts`   | Profile editing flow                          |
 
 ---
 
@@ -969,15 +969,15 @@ Five anomaly types with independent 30-second cooldowns:
 
 Defined in `src/hooks/use-keyboard-shortcuts.ts`:
 
-| Shortcut | Action |
-|---|---|
-| `Cmd+K` | Open command palette |
-| `Cmd+R` | Refresh data |
-| `Cmd+B` | Toggle sidebar |
-| `Cmd+P` | Toggle privacy mode |
-| `Cmd+,` | Navigate to settings |
-| `Escape` | Close active dialog/palette |
-| `1-9` | Navigate to pages by sidebar order |
+| Shortcut | Action                             |
+|----------|------------------------------------|
+| `Cmd+K`  | Open command palette               |
+| `Cmd+R`  | Refresh data                       |
+| `Cmd+B`  | Toggle sidebar                     |
+| `Cmd+P`  | Toggle privacy mode                |
+| `Cmd+,`  | Navigate to settings               |
+| `Escape` | Close active dialog/palette        |
+| `1-9`    | Navigate to pages by sidebar order |
 
 ---
 
@@ -1004,10 +1004,10 @@ The UI is built during the Docker image build stage and the output directory is 
 
 ### Environment Variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `VITE_PROXY_TARGET` | `http://arl-gateway:8080` | API proxy target |
-| `VITE_ALLOWED_HOSTS` | `localhost` | Dev server allowed hosts (comma-separated) |
-| `VITE_HMR_HOST` | - | HMR WebSocket host (enables HMR config) |
-| `VITE_HMR_PROTOCOL` | `wss` | HMR protocol (ws or wss) |
-| `VITE_HMR_PORT` | `443` | HMR client port |
+| Variable             | Default                   | Purpose                                    |
+|----------------------|---------------------------|--------------------------------------------|
+| `VITE_PROXY_TARGET`  | `http://arl-gateway:8080` | API proxy target                           |
+| `VITE_ALLOWED_HOSTS` | `localhost`               | Dev server allowed hosts (comma-separated) |
+| `VITE_HMR_HOST`      | -                         | HMR WebSocket host (enables HMR config)    |
+| `VITE_HMR_PROTOCOL`  | `wss`                     | HMR protocol (ws or wss)                   |
+| `VITE_HMR_PORT`      | `443`                     | HMR client port                            |

@@ -66,73 +66,73 @@ The gateway entry point (`api-gateway/main.go`) initializes components in this e
 
 All config via environment variables, parsed at startup with fallback defaults.
 
-| Environment Variable | Default | Type | Description |
-|---|---|---|---|
-| `SERVER_PORT` | `:8080` | string | HTTP listen address |
-| `REDIS_ADDR` | `dragonfly:6379` | string | Dragonfly/Redis address |
-| `RATE_LIMITER_ADDR` | `http://rate-limiter:8080` | string | Java rate limiter service URL |
-| `QUEUE_NAME` | `ai_jobs` | string | Redis list key for job queue |
-| `GLOBAL_RATE_LIMIT` | `100` | int | Global requests per second |
-| `AGENT_RATE_LIMIT` | `5` | int | Per-agent requests per second |
-| `WORKER_POOL_SIZE` | `100` | int | Max concurrent upstream calls |
-| `READ_TIMEOUT` | `30s` | duration | HTTP read timeout |
-| `WRITE_TIMEOUT` | `10s` | duration | HTTP write timeout (overridden to 0 in main) |
-| `OTLP_ENDPOINT` | `otel-collector:4317` | string | OpenTelemetry gRPC endpoint |
-| `REDIS_POOL_SIZE` | `50` | int | Redis connection pool size |
-| `REDIS_MIN_IDLE_CONNS` | `10` | int | Minimum idle Redis connections |
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | string | Primary upstream API URL |
-| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | string | Direct Anthropic API URL |
-| `STREAM_TIMEOUT` | `300s` | duration | SSE streaming timeout |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,...` | map | Per-model concurrency limits |
-| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3` | map | Per-model vision concurrency limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `3` | int | Default per-model concurrency (docker-compose overrides to 1) |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | int | Total concurrent upstream requests |
-| `UPSTREAM_MAX_RETRIES` | `3` | int | Max retries on 429 |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | duration | Base backoff for retry |
-| `ZAI_API_KEYS` | (empty) | csv | API keys for rotation pool |
-| `UPSTREAM_RPM_LIMIT` | `40` | int | Per-key RPM budget |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | int | Adaptive limit probe multiplier |
-| `MODEL_PRICING` | `glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,...` | map | Per-model USD per 1M tokens (input:output) |
-| `NATIVE_VISION_URL` | `https://open.bigmodel.cn/...` | string | Zhipu native vision endpoint |
-| `IP_WHITELIST` | (empty) | csv | Whitelisted IPs/CIDRs |
-| `IP_BLACKLIST` | (empty) | csv | Blacklisted IPs/CIDRs |
-| `MAX_REQUEST_BODY` | `10485760` (10MB) | int64 | Max request body size |
-| `DEFAULT_MODEL` | `glm-5` | string | Default model for chat |
-| `DEFAULT_PROVIDER` | `glm` | string | Default provider |
-| `DEFAULT_TEMPERATURE` | `0.7` | float | Default temperature |
-| `DEFAULT_MAX_TOKENS` | `1024` | int | Default max tokens |
-| `GEMINI_CODEASSIST_ENDPOINT` | `https://cloudcode-pa.googleapis.com/v1internal` | string | Gemini CodeAssist proxy |
-| `GEMINI_API_ENDPOINT` | `https://generativelanguage.googleapis.com` | string | Gemini API endpoint |
-| `GEMINI_DEFAULT_MODEL` | `models/gemini-2.5-flash-preview-05-20` | string | Default Gemini model |
-| `ANTHROPIC_API_VERSION` | `2023-06-01` | string | Anthropic API version header |
-| `MODEL_PRIORITY` | `glm-5.1:100,...` | map | Model priority for routing |
-| `ANOMALY_COOLDOWN_SEC` | `5` | int | Anomaly detector cooldown |
-| `ANOMALY_Z_THRESHOLD` | `2.0` | float | Z-score threshold for anomaly |
-| `GLM_MODE` | `true` | bool | Enable Z.AI features (key pool, vision, model limits) |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | string | Claude Code billing sidecar URL |
-| `CLI_SIDECAR_ENABLED` | `true` | bool | Enable sidecar proxy |
-| `QUOTA_CACHE_TTL` | `30s` | duration | Quota cache TTL |
-| `QUOTA_DAILY_BUDGET` | `57600` | int64 | Daily token budget |
-| `QUOTA_BLOCK_PCT` | `95` | float | Block percentage threshold |
-| `QUOTA_REDIS_POOL_SIZE` | `5` | int | Quota Redis pool size |
-| `QUOTA_REDIS_MIN_IDLE` | `2` | int | Quota Redis min idle |
-| `PROVIDER_MODEL_PREFIXES` | `zai:glm-;anthropic:claude-;...` | string | Provider model prefix mapping |
-| `DASHBOARD_PASSWORD` | (empty) | string | Optional dashboard auth key |
-| `ZAIOpenAIURL` | `https://api.z.ai/api/paas/v4/chat/completions` | string | Z.AI OpenAI-compatible endpoint |
-| `ZAIOpenAIModels` | (empty) | map | Models to route through Z.AI OpenAI endpoint |
-| `ENABLE_AUTO_TRUNCATE` | `true` | bool | Auto-truncation recovery |
-| `TRANSIENT_RETRY_MAX` | `3` | int | Max retries on transient errors |
-| `PASTEGUARD_ENABLED` | `true` | bool | Enable PasteGuard pipeline |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | bool | Enable secrets detection |
-| `PASTEGUARD_PII_ENABLED` | `true` | bool | Enable PII detection |
-| `PASTEGUARD_SECRET_ENTITIES` | (empty) | csv | Custom secret entity types |
-| `PASTEGUARD_PII_ENTITIES` | (empty) | csv | Custom PII entity types |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | int | Max chars to scan for PII/secrets |
-| `GEMINI_OAUTH_CLIENT_ID` | (empty) | string | Gemini OAuth client ID |
-| `GEMINI_OAUTH_CLIENT_SECRET` | (empty) | string | Gemini OAuth client secret |
-| `DASHBOARD_URL` | (empty) | string | Dashboard URL for OAuth callbacks |
-| `OAUTH_CALLBACK_BASE` | (empty) | string | OAuth callback base URL |
-| `SIDECAR_PORT` | `8081` | string | Sidecar listen port |
+| Environment Variable           | Default                                                                                                                                                                                                                      | Type     | Description                                                   |
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|---------------------------------------------------------------|
+| `SERVER_PORT`                  | `:8080`                                                                                                                                                                                                                      | string   | HTTP listen address                                           |
+| `REDIS_ADDR`                   | `dragonfly:6379`                                                                                                                                                                                                             | string   | Dragonfly/Redis address                                       |
+| `RATE_LIMITER_ADDR`            | `http://rate-limiter:8080`                                                                                                                                                                                                   | string   | Java rate limiter service URL                                 |
+| `QUEUE_NAME`                   | `ai_jobs`                                                                                                                                                                                                                    | string   | Redis list key for job queue                                  |
+| `GLOBAL_RATE_LIMIT`            | `100`                                                                                                                                                                                                                        | int      | Global requests per second                                    |
+| `AGENT_RATE_LIMIT`             | `5`                                                                                                                                                                                                                          | int      | Per-agent requests per second                                 |
+| `WORKER_POOL_SIZE`             | `100`                                                                                                                                                                                                                        | int      | Max concurrent upstream calls                                 |
+| `READ_TIMEOUT`                 | `30s`                                                                                                                                                                                                                        | duration | HTTP read timeout                                             |
+| `WRITE_TIMEOUT`                | `10s`                                                                                                                                                                                                                        | duration | HTTP write timeout (overridden to 0 in main)                  |
+| `OTLP_ENDPOINT`                | `otel-collector:4317`                                                                                                                                                                                                        | string   | OpenTelemetry gRPC endpoint                                   |
+| `REDIS_POOL_SIZE`              | `50`                                                                                                                                                                                                                         | int      | Redis connection pool size                                    |
+| `REDIS_MIN_IDLE_CONNS`         | `10`                                                                                                                                                                                                                         | int      | Minimum idle Redis connections                                |
+| `UPSTREAM_URL`                 | `https://api.z.ai/api/anthropic`                                                                                                                                                                                             | string   | Primary upstream API URL                                      |
+| `ANTHROPIC_DIRECT_URL`         | `https://api.anthropic.com`                                                                                                                                                                                                  | string   | Direct Anthropic API URL                                      |
+| `STREAM_TIMEOUT`               | `300s`                                                                                                                                                                                                                       | duration | SSE streaming timeout                                         |
+| `UPSTREAM_MODEL_LIMITS`        | `glm-5.1:1,glm-5-turbo:1,...`                                                                                                                                                                                                | map      | Per-model concurrency limits                                  |
+| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,glm-4.5v:3`                                                                                                                                                                                            | map      | Per-model vision concurrency limits                           |
+| `UPSTREAM_DEFAULT_LIMIT`       | `3`                                                                                                                                                                                                                          | int      | Default per-model concurrency (docker-compose overrides to 1) |
+| `UPSTREAM_GLOBAL_LIMIT`        | `9`                                                                                                                                                                                                                          | int      | Total concurrent upstream requests                            |
+| `UPSTREAM_MAX_RETRIES`         | `3`                                                                                                                                                                                                                          | int      | Max retries on 429                                            |
+| `UPSTREAM_RETRY_BACKOFF`       | `500ms`                                                                                                                                                                                                                      | duration | Base backoff for retry                                        |
+| `ZAI_API_KEYS`                 | (empty)                                                                                                                                                                                                                      | csv      | API keys for rotation pool                                    |
+| `UPSTREAM_RPM_LIMIT`           | `40`                                                                                                                                                                                                                         | int      | Per-key RPM budget                                            |
+| `UPSTREAM_PROBE_MULTIPLIER`    | `5`                                                                                                                                                                                                                          | int      | Adaptive limit probe multiplier                               |
+| `MODEL_PRICING`                | `glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,...` | map      | Per-model USD per 1M tokens (input:output)                    |
+| `NATIVE_VISION_URL`            | `https://open.bigmodel.cn/...`                                                                                                                                                                                               | string   | Zhipu native vision endpoint                                  |
+| `IP_WHITELIST`                 | (empty)                                                                                                                                                                                                                      | csv      | Whitelisted IPs/CIDRs                                         |
+| `IP_BLACKLIST`                 | (empty)                                                                                                                                                                                                                      | csv      | Blacklisted IPs/CIDRs                                         |
+| `MAX_REQUEST_BODY`             | `10485760` (10MB)                                                                                                                                                                                                            | int64    | Max request body size                                         |
+| `DEFAULT_MODEL`                | `glm-5`                                                                                                                                                                                                                      | string   | Default model for chat                                        |
+| `DEFAULT_PROVIDER`             | `glm`                                                                                                                                                                                                                        | string   | Default provider                                              |
+| `DEFAULT_TEMPERATURE`          | `0.7`                                                                                                                                                                                                                        | float    | Default temperature                                           |
+| `DEFAULT_MAX_TOKENS`           | `1024`                                                                                                                                                                                                                       | int      | Default max tokens                                            |
+| `GEMINI_CODEASSIST_ENDPOINT`   | `https://cloudcode-pa.googleapis.com/v1internal`                                                                                                                                                                             | string   | Gemini CodeAssist proxy                                       |
+| `GEMINI_API_ENDPOINT`          | `https://generativelanguage.googleapis.com`                                                                                                                                                                                  | string   | Gemini API endpoint                                           |
+| `GEMINI_DEFAULT_MODEL`         | `models/gemini-2.5-flash-preview-05-20`                                                                                                                                                                                      | string   | Default Gemini model                                          |
+| `ANTHROPIC_API_VERSION`        | `2023-06-01`                                                                                                                                                                                                                 | string   | Anthropic API version header                                  |
+| `MODEL_PRIORITY`               | `glm-5.1:100,...`                                                                                                                                                                                                            | map      | Model priority for routing                                    |
+| `ANOMALY_COOLDOWN_SEC`         | `5`                                                                                                                                                                                                                          | int      | Anomaly detector cooldown                                     |
+| `ANOMALY_Z_THRESHOLD`          | `2.0`                                                                                                                                                                                                                        | float    | Z-score threshold for anomaly                                 |
+| `GLM_MODE`                     | `true`                                                                                                                                                                                                                       | bool     | Enable Z.AI features (key pool, vision, model limits)         |
+| `CLI_SIDECAR_URL`              | `http://127.0.0.1:8081`                                                                                                                                                                                                      | string   | Claude Code billing sidecar URL                               |
+| `CLI_SIDECAR_ENABLED`          | `true`                                                                                                                                                                                                                       | bool     | Enable sidecar proxy                                          |
+| `QUOTA_CACHE_TTL`              | `30s`                                                                                                                                                                                                                        | duration | Quota cache TTL                                               |
+| `QUOTA_DAILY_BUDGET`           | `57600`                                                                                                                                                                                                                      | int64    | Daily token budget                                            |
+| `QUOTA_BLOCK_PCT`              | `95`                                                                                                                                                                                                                         | float    | Block percentage threshold                                    |
+| `QUOTA_REDIS_POOL_SIZE`        | `5`                                                                                                                                                                                                                          | int      | Quota Redis pool size                                         |
+| `QUOTA_REDIS_MIN_IDLE`         | `2`                                                                                                                                                                                                                          | int      | Quota Redis min idle                                          |
+| `PROVIDER_MODEL_PREFIXES`      | `zai:glm-;anthropic:claude-;...`                                                                                                                                                                                             | string   | Provider model prefix mapping                                 |
+| `DASHBOARD_PASSWORD`           | (empty)                                                                                                                                                                                                                      | string   | Optional dashboard auth key                                   |
+| `ZAIOpenAIURL`                 | `https://api.z.ai/api/paas/v4/chat/completions`                                                                                                                                                                              | string   | Z.AI OpenAI-compatible endpoint                               |
+| `ZAIOpenAIModels`              | (empty)                                                                                                                                                                                                                      | map      | Models to route through Z.AI OpenAI endpoint                  |
+| `ENABLE_AUTO_TRUNCATE`         | `true`                                                                                                                                                                                                                       | bool     | Auto-truncation recovery                                      |
+| `TRANSIENT_RETRY_MAX`          | `3`                                                                                                                                                                                                                          | int      | Max retries on transient errors                               |
+| `PASTEGUARD_ENABLED`           | `true`                                                                                                                                                                                                                       | bool     | Enable PasteGuard pipeline                                    |
+| `PASTEGUARD_SECRETS_ENABLED`   | `true`                                                                                                                                                                                                                       | bool     | Enable secrets detection                                      |
+| `PASTEGUARD_PII_ENABLED`       | `true`                                                                                                                                                                                                                       | bool     | Enable PII detection                                          |
+| `PASTEGUARD_SECRET_ENTITIES`   | (empty)                                                                                                                                                                                                                      | csv      | Custom secret entity types                                    |
+| `PASTEGUARD_PII_ENTITIES`      | (empty)                                                                                                                                                                                                                      | csv      | Custom PII entity types                                       |
+| `PASTEGUARD_MAX_SCAN_CHARS`    | `200000`                                                                                                                                                                                                                     | int      | Max chars to scan for PII/secrets                             |
+| `GEMINI_OAUTH_CLIENT_ID`       | (empty)                                                                                                                                                                                                                      | string   | Gemini OAuth client ID                                        |
+| `GEMINI_OAUTH_CLIENT_SECRET`   | (empty)                                                                                                                                                                                                                      | string   | Gemini OAuth client secret                                    |
+| `DASHBOARD_URL`                | (empty)                                                                                                                                                                                                                      | string   | Dashboard URL for OAuth callbacks                             |
+| `OAUTH_CALLBACK_BASE`          | (empty)                                                                                                                                                                                                                      | string   | OAuth callback base URL                                       |
+| `SIDECAR_PORT`                 | `8081`                                                                                                                                                                                                                       | string   | Sidecar listen port                                           |
 
 ### 2.2 Parsing Functions
 
@@ -278,11 +278,11 @@ OTLP_ENDPOINT: arl-otel:4317
 
 ### 3.4 Volumes
 
-| Volume | Purpose |
-|---|---|
-| `arl-dragonfly-data` | Dragonfly persistence |
+| Volume                | Purpose                         |
+|-----------------------|---------------------------------|
+| `arl-dragonfly-data`  | Dragonfly persistence           |
 | `arl-prometheus-data` | Prometheus TSDB (30d retention) |
-| `arl-grafana-data` | Grafana dashboards, settings |
+| `arl-grafana-data`    | Grafana dashboards, settings    |
 
 ### 3.5 Network
 
@@ -393,42 +393,42 @@ When running in Docker, use `CLAUDE_CODE_SIMPLE=1` environment variable instead 
 
 ### 6.2 Pages
 
-| Page | Directory | Description |
-|---|---|---|
-| **Overview** | `pages/overview/` | Status cards (health, queue, requests, concurrency), global capacity gauge, model utilization bars, event timeline |
-| **Analytics** | `pages/analytics/` | Cost by model, token breakdown, usage trends, latency charts, hourly breakdown, model distribution, anomaly insights |
-| **Models** | `pages/models/` | Model listing and status |
-| **Model Limits** | `pages/model-limits/` | Adaptive limiter status, per-model concurrency, override controls |
-| **Key Pool** | `pages/key-pool/` | API key health indicators, pool summary, per-key RPM tracking |
-| **Providers** | `pages/providers/` | 18+ provider cards with connect dialogs (API Key, OAuth, Device Code, Session Cookie), account management, custom providers |
-| **Profiles** | `pages/profiles/` | Per-profile usage tracking |
-| **Quota** | `pages/quota/` | Daily budget, utilization percentage |
-| **Privacy** | `pages/privacy/` | PasteGuard metrics: masked requests, secrets by type, PII by type, mask duration P95 |
-| **Health** | `pages/health/` | Health check groups (gateway, queue, models, key pool, infrastructure), health gauge, summary bar |
-| **Metrics** | `pages/metrics/` | Raw Prometheus metrics viewer |
-| **Logs** | `pages/logs/` | Error log viewer |
-| **Settings** | `pages/settings/` | Language, polling interval, theme, notification preferences, history retention |
-| **Controls** | `pages/controls/` | Manual controls for limiter, mock data |
-| **Debug** | `pages/debug/` | Debug/mock data controls |
-| **Login** | `pages/login/` | Dashboard auth (DASHBOARD_PASSWORD) |
+| Page             | Directory             | Description                                                                                                                 |
+|------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| **Overview**     | `pages/overview/`     | Status cards (health, queue, requests, concurrency), global capacity gauge, model utilization bars, event timeline          |
+| **Analytics**    | `pages/analytics/`    | Cost by model, token breakdown, usage trends, latency charts, hourly breakdown, model distribution, anomaly insights        |
+| **Models**       | `pages/models/`       | Model listing and status                                                                                                    |
+| **Model Limits** | `pages/model-limits/` | Adaptive limiter status, per-model concurrency, override controls                                                           |
+| **Key Pool**     | `pages/key-pool/`     | API key health indicators, pool summary, per-key RPM tracking                                                               |
+| **Providers**    | `pages/providers/`    | 18+ provider cards with connect dialogs (API Key, OAuth, Device Code, Session Cookie), account management, custom providers |
+| **Profiles**     | `pages/profiles/`     | Per-profile usage tracking                                                                                                  |
+| **Quota**        | `pages/quota/`        | Daily budget, utilization percentage                                                                                        |
+| **Privacy**      | `pages/privacy/`      | PasteGuard metrics: masked requests, secrets by type, PII by type, mask duration P95                                        |
+| **Health**       | `pages/health/`       | Health check groups (gateway, queue, models, key pool, infrastructure), health gauge, summary bar                           |
+| **Metrics**      | `pages/metrics/`      | Raw Prometheus metrics viewer                                                                                               |
+| **Logs**         | `pages/logs/`         | Error log viewer                                                                                                            |
+| **Settings**     | `pages/settings/`     | Language, polling interval, theme, notification preferences, history retention                                              |
+| **Controls**     | `pages/controls/`     | Manual controls for limiter, mock data                                                                                      |
+| **Debug**        | `pages/debug/`        | Debug/mock data controls                                                                                                    |
+| **Login**        | `pages/login/`        | Dashboard auth (DASHBOARD_PASSWORD)                                                                                         |
 
 ### 6.3 API Layer (`src/lib/`)
 
-| File | Purpose |
-|---|---|
-| `api.ts` | Core API: limiter status, health, metrics, overrides, profile usage, account usage, waste findings, Prometheus text parser |
-| `auth-api.ts` | Auth flows: device code, auth code (PKCE), API key registration, session cookie, account CRUD (pause/resume/default/email), rate limit status, dashboard login/logout |
-| `providers.ts` | Provider info, color coding, custom provider CRUD, upstream URL update |
-| `privacy-api.ts` | Privacy metrics extraction from Prometheus data |
-| `privacy.ts` | CSS blur class for sensitive data display |
-| `metrics-helpers.ts` | Extract model tokens, costs, errors, latency, infra metrics from parsed Prometheus data |
-| `health-checks.ts` | Derive health check groups from system state (gateway, queue, models, key pool, infra) |
-| `ws-events.ts` | WebSocket event bus with typed listeners and wildcard support |
-| `format.ts` | Number/time formatting utilities |
-| `i18n.ts` | Internationalization support |
-| `polling.ts` | Configurable polling intervals |
-| `clipboard.ts` | Clipboard utilities |
-| `utils.ts` | General utilities (cn class merge) |
+| File                 | Purpose                                                                                                                                                               |
+|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api.ts`             | Core API: limiter status, health, metrics, overrides, profile usage, account usage, waste findings, Prometheus text parser                                            |
+| `auth-api.ts`        | Auth flows: device code, auth code (PKCE), API key registration, session cookie, account CRUD (pause/resume/default/email), rate limit status, dashboard login/logout |
+| `providers.ts`       | Provider info, color coding, custom provider CRUD, upstream URL update                                                                                                |
+| `privacy-api.ts`     | Privacy metrics extraction from Prometheus data                                                                                                                       |
+| `privacy.ts`         | CSS blur class for sensitive data display                                                                                                                             |
+| `metrics-helpers.ts` | Extract model tokens, costs, errors, latency, infra metrics from parsed Prometheus data                                                                               |
+| `health-checks.ts`   | Derive health check groups from system state (gateway, queue, models, key pool, infra)                                                                                |
+| `ws-events.ts`       | WebSocket event bus with typed listeners and wildcard support                                                                                                         |
+| `format.ts`          | Number/time formatting utilities                                                                                                                                      |
+| `i18n.ts`            | Internationalization support                                                                                                                                          |
+| `polling.ts`         | Configurable polling intervals                                                                                                                                        |
+| `clipboard.ts`       | Clipboard utilities                                                                                                                                                   |
+| `utils.ts`           | General utilities (cn class merge)                                                                                                                                    |
 
 ### 6.4 WebSocket Events
 
@@ -455,48 +455,48 @@ Optional auth via `DASHBOARD_PASSWORD` env var:
 
 All metrics use namespace `api_gateway`. Exposed at `/metrics` and `/api/metrics`.
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `api_gateway_request_latency_seconds` | histogram | method, path, status | Request latency (buckets: 0.05-60s) |
-| `api_gateway_queue_depth` | gauge | - | Current job queue length |
-| `api_gateway_error_total` | counter | type | Errors by category |
-| `api_gateway_rate_limit_hits_total` | counter | key | Rate-limited requests (agent keys SHA1-hashed) |
-| `api_gateway_active_connections` | gauge | - | Current active HTTP connections |
-| `api_gateway_token_input_total` | counter | model | Input tokens consumed |
-| `api_gateway_token_output_total` | counter | model | Output tokens generated |
-| `api_gateway_upstream_retries_total` | counter | - | 429 retry count |
-| `api_gateway_upstream_429_total` | counter | - | Upstream 429 responses |
-| `api_gateway_adaptive_limit` | gauge | model | Current adaptive concurrency limit |
-| `api_gateway_adaptive_in_flight` | gauge | model | Current in-flight per model |
-| `api_gateway_cost_total` | counter | model, type | Estimated cost USD (input/output) |
-| `api_gateway_model_fallback_total` | counter | requested, selected | Model fallback events |
-| `api_gateway_ttfb_seconds` | histogram | model | Time to first byte (streaming) |
-| `api_gateway_profile_requests_total` | counter | profile, model | Per-profile request count |
-| `api_gateway_profile_token_input_total` | counter | profile, model | Per-profile input tokens |
-| `api_gateway_profile_token_output_total` | counter | profile, model | Per-profile output tokens |
-| `api_gateway_profile_cost_total` | counter | profile, model, type | Per-profile cost |
-| `api_gateway_optimizer_chars_saved_total` | counter | technique | Characters saved by optimizer |
-| `api_gateway_optimizer_runs_total` | counter | technique | Optimizer execution count |
-| `api_gateway_optimizer_duration_seconds` | histogram | technique | Optimizer execution time |
-| `api_gateway_optimizer_tokens_saved_total` | counter | - | Total estimated tokens saved |
-| `api_gateway_context_truncation_total` | counter | model | Auto-truncation recovery count |
-| `api_gateway_transient_retry_total` | counter | status, model | Transient error retries |
-| `api_gateway_billing_path_requests_total` | counter | path, model, profile | Billing routing events |
-| `api_gateway_billing_path_latency_seconds` | histogram | path, model | Billing path latency |
-| `api_gateway_budget_level` | gauge | model | Budget utilization (0=green, 1=yellow, 2=red) |
-| `api_gateway_cost_savings_total` | counter | - | Total cost savings USD |
-| `api_gateway_waste_findings_total` | counter | detector, severity | Waste detection events |
-| `api_gateway_waste_tokens_wasted_total` | counter | detector | Tokens identified as waste |
-| `api_gateway_go_goroutines` | gauge | - | Goroutine count |
-| `api_gateway_go_heap_alloc_bytes` | gauge | - | Heap allocation |
-| `api_gateway_go_heap_objects` | gauge | - | Heap object count |
-| `api_gateway_go_gc_pause_ns` | gauge | - | Last GC pause |
-| `api_gateway_go_stack_inuse_bytes` | gauge | - | Stack in-use |
-| `api_gateway_dragonfly_up` | gauge | - | Dragonfly health (1/0) |
-| `api_gateway_mask_requests_total` | counter | - | PasteGuard masked requests |
-| `api_gateway_secrets_detected_total` | counter | type | Secrets detected by type |
-| `api_gateway_pii_detected_total` | counter | type | PII detected by type |
-| `api_gateway_mask_duration_seconds` | histogram | phase | PasteGuard masking latency |
+| Metric                                     | Type      | Labels               | Description                                    |
+|--------------------------------------------|-----------|----------------------|------------------------------------------------|
+| `api_gateway_request_latency_seconds`      | histogram | method, path, status | Request latency (buckets: 0.05-60s)            |
+| `api_gateway_queue_depth`                  | gauge     | -                    | Current job queue length                       |
+| `api_gateway_error_total`                  | counter   | type                 | Errors by category                             |
+| `api_gateway_rate_limit_hits_total`        | counter   | key                  | Rate-limited requests (agent keys SHA1-hashed) |
+| `api_gateway_active_connections`           | gauge     | -                    | Current active HTTP connections                |
+| `api_gateway_token_input_total`            | counter   | model                | Input tokens consumed                          |
+| `api_gateway_token_output_total`           | counter   | model                | Output tokens generated                        |
+| `api_gateway_upstream_retries_total`       | counter   | -                    | 429 retry count                                |
+| `api_gateway_upstream_429_total`           | counter   | -                    | Upstream 429 responses                         |
+| `api_gateway_adaptive_limit`               | gauge     | model                | Current adaptive concurrency limit             |
+| `api_gateway_adaptive_in_flight`           | gauge     | model                | Current in-flight per model                    |
+| `api_gateway_cost_total`                   | counter   | model, type          | Estimated cost USD (input/output)              |
+| `api_gateway_model_fallback_total`         | counter   | requested, selected  | Model fallback events                          |
+| `api_gateway_ttfb_seconds`                 | histogram | model                | Time to first byte (streaming)                 |
+| `api_gateway_profile_requests_total`       | counter   | profile, model       | Per-profile request count                      |
+| `api_gateway_profile_token_input_total`    | counter   | profile, model       | Per-profile input tokens                       |
+| `api_gateway_profile_token_output_total`   | counter   | profile, model       | Per-profile output tokens                      |
+| `api_gateway_profile_cost_total`           | counter   | profile, model, type | Per-profile cost                               |
+| `api_gateway_optimizer_chars_saved_total`  | counter   | technique            | Characters saved by optimizer                  |
+| `api_gateway_optimizer_runs_total`         | counter   | technique            | Optimizer execution count                      |
+| `api_gateway_optimizer_duration_seconds`   | histogram | technique            | Optimizer execution time                       |
+| `api_gateway_optimizer_tokens_saved_total` | counter   | -                    | Total estimated tokens saved                   |
+| `api_gateway_context_truncation_total`     | counter   | model                | Auto-truncation recovery count                 |
+| `api_gateway_transient_retry_total`        | counter   | status, model        | Transient error retries                        |
+| `api_gateway_billing_path_requests_total`  | counter   | path, model, profile | Billing routing events                         |
+| `api_gateway_billing_path_latency_seconds` | histogram | path, model          | Billing path latency                           |
+| `api_gateway_budget_level`                 | gauge     | model                | Budget utilization (0=green, 1=yellow, 2=red)  |
+| `api_gateway_cost_savings_total`           | counter   | -                    | Total cost savings USD                         |
+| `api_gateway_waste_findings_total`         | counter   | detector, severity   | Waste detection events                         |
+| `api_gateway_waste_tokens_wasted_total`    | counter   | detector             | Tokens identified as waste                     |
+| `api_gateway_go_goroutines`                | gauge     | -                    | Goroutine count                                |
+| `api_gateway_go_heap_alloc_bytes`          | gauge     | -                    | Heap allocation                                |
+| `api_gateway_go_heap_objects`              | gauge     | -                    | Heap object count                              |
+| `api_gateway_go_gc_pause_ns`               | gauge     | -                    | Last GC pause                                  |
+| `api_gateway_go_stack_inuse_bytes`         | gauge     | -                    | Stack in-use                                   |
+| `api_gateway_dragonfly_up`                 | gauge     | -                    | Dragonfly health (1/0)                         |
+| `api_gateway_mask_requests_total`          | counter   | -                    | PasteGuard masked requests                     |
+| `api_gateway_secrets_detected_total`       | counter   | type                 | Secrets detected by type                       |
+| `api_gateway_pii_detected_total`           | counter   | type                 | PII detected by type                           |
+| `api_gateway_mask_duration_seconds`        | histogram | phase                | PasteGuard masking latency                     |
 
 ### 7.2 Prometheus Scrape Config
 
@@ -547,16 +547,16 @@ scrape_configs:
 
 9 dashboards in `grafana/provisioning/dashboards/`:
 
-| Dashboard | File |
-|---|---|
-| API Gateway Overview | `api-gateway-overview.json` |
-| API Gateway Runtime | `api-gateway-runtime.json` |
-| Token Optimization | `token-optimization.json` |
-| PasteGuard Privacy | `pasteguard.json` |
-| Cost Calculator | `cost-calculator.json` |
-| System Overview | `system-overview.json` |
-| Claude OAuth Billing | `claude-oauth-billing.json` |
-| AI Worker | `ai-worker.json` |
+| Dashboard                        | File                        |
+|----------------------------------|-----------------------------|
+| API Gateway Overview             | `api-gateway-overview.json` |
+| API Gateway Runtime              | `api-gateway-runtime.json`  |
+| Token Optimization               | `token-optimization.json`   |
+| PasteGuard Privacy               | `pasteguard.json`           |
+| Cost Calculator                  | `cost-calculator.json`      |
+| System Overview                  | `system-overview.json`      |
+| Claude OAuth Billing             | `claude-oauth-billing.json` |
+| AI Worker                        | `ai-worker.json`            |
 | (duplicate) API Gateway Overview | `api-gateway/` subdirectory |
 
 ### 7.4 OpenTelemetry Pipeline
@@ -625,20 +625,20 @@ exec /app/api-gateway            # Start Go gateway (PID 1)
 
 ### 9.1 Key Patterns
 
-| Key Pattern | Type | TTL | Purpose |
-|---|---|---|---|
-| `ai_jobs` | LIST | - | Job queue (LPUSH/BRPOP) |
-| `result:{requestID}` | STRING | 10 min | Cached async job results |
-| `provider:token:{provider}:{accountID}` | HASH | - | OAuth token storage |
-| `profile:{name}` | HASH | - | Profile configuration |
-| `usage:profile:{name}` | HASH | - | Per-profile usage counters |
-| `usage:account:{accountID}` | HASH | - | Per-account usage counters |
-| `usage:model:{model}` | HASH | - | Per-model usage counters |
-| `quota:{date}` | HASH | 48h | Daily quota tracking |
-| `arl:providers:custom:{id}` | STRING (JSON) | - | Custom provider configs |
-| `config:max_tokens:*` | STRING | - | Persisted max-tokens overrides |
-| `optimizer:*` | Various | Various | Optimizer state (cache, delta, etc.) |
-| `config/session_secret` | FILE | - | Session signing secret (filesystem, not Redis) |
+| Key Pattern                             | Type          | TTL     | Purpose                                        |
+|-----------------------------------------|---------------|---------|------------------------------------------------|
+| `ai_jobs`                               | LIST          | -       | Job queue (LPUSH/BRPOP)                        |
+| `result:{requestID}`                    | STRING        | 10 min  | Cached async job results                       |
+| `provider:token:{provider}:{accountID}` | HASH          | -       | OAuth token storage                            |
+| `profile:{name}`                        | HASH          | -       | Profile configuration                          |
+| `usage:profile:{name}`                  | HASH          | -       | Per-profile usage counters                     |
+| `usage:account:{accountID}`             | HASH          | -       | Per-account usage counters                     |
+| `usage:model:{model}`                   | HASH          | -       | Per-model usage counters                       |
+| `quota:{date}`                          | HASH          | 48h     | Daily quota tracking                           |
+| `arl:providers:custom:{id}`             | STRING (JSON) | -       | Custom provider configs                        |
+| `config:max_tokens:*`                   | STRING        | -       | Persisted max-tokens overrides                 |
+| `optimizer:*`                           | Various       | Various | Optimizer state (cache, delta, etc.)           |
+| `config/session_secret`                 | FILE          | -       | Session signing secret (filesystem, not Redis) |
 
 ### 9.2 Connection Pool
 
@@ -689,12 +689,12 @@ exec /app/api-gateway            # Start Go gateway (PID 1)
 
 ### 10.3 Worker Configuration (Python)
 
-| Env Var | Default | Description |
-|---|---|---|
-| `WORKER_CONCURRENCY` | `50` | Max concurrent tasks |
-| `MAX_RETRIES` | `3` | Max retry attempts per job |
-| `BASE_BACKOFF` | `1.0` | Exponential backoff base (seconds) |
-| `RESULT_TTL` | `600` | Result cache TTL (seconds) |
+| Env Var              | Default | Description                        |
+|----------------------|---------|------------------------------------|
+| `WORKER_CONCURRENCY` | `50`    | Max concurrent tasks               |
+| `MAX_RETRIES`        | `3`     | Max retry attempts per job         |
+| `BASE_BACKOFF`       | `1.0`   | Exponential backoff base (seconds) |
+| `RESULT_TTL`         | `600`   | Result cache TTL (seconds)         |
 
 ### 10.4 Worker Multi-provider Support
 
@@ -711,25 +711,25 @@ Workers accept keys for multiple providers:
 
 ### 11.1 Built-in Providers (18)
 
-| ID | Name | Auth Type | Upstream |
-|---|---|---|---|
-| `zai` | Z.AI | API Key | `api.z.ai/api/anthropic` |
-| `anthropic` | Anthropic | API Key | `api.anthropic.com` |
-| `claude-oauth` | Claude (OAuth) | OAuth/PKCE | `api.anthropic.com` |
-| `openai` | OpenAI | API Key | `api.openai.com` |
-| `gemini` | Gemini | API Key | `generativelanguage.googleapis.com` |
-| `gemini-oauth` | Gemini (OAuth) | OAuth | `cloudcode-pa.googleapis.com` |
-| `copilot` | GitHub Copilot | Device Code | `api.github.com/copilot` |
-| `openrouter` | OpenRouter | API Key | `openrouter.ai/api` |
-| `qwen` | Qwen (Aliyun) | Device Code | `dashscope.aliyuncs.com` |
-| `deepseek` | DeepSeek | API Key | `api.deepseek.com` |
-| `kimi` | Kimi (Moonshot) | API Key | `api.moonshot.cn/v1` |
-| `huggingface` | Hugging Face | API Key | `api-inference.huggingface.co/models` |
-| `ollama` | Ollama | API Key | `localhost:11434` |
-| `agy` | Antigravity | API Key | `antigravity.com` |
-| `cursor` | Cursor | API Key | `api2.cursor.sh` |
-| `codebuddy` | CodeBuddy | API Key | `api.codebuddy.io` |
-| `kilo` | Kilo | API Key | `api.kilo.ai` |
+| ID             | Name            | Auth Type   | Upstream                              |
+|----------------|-----------------|-------------|---------------------------------------|
+| `zai`          | Z.AI            | API Key     | `api.z.ai/api/anthropic`              |
+| `anthropic`    | Anthropic       | API Key     | `api.anthropic.com`                   |
+| `claude-oauth` | Claude (OAuth)  | OAuth/PKCE  | `api.anthropic.com`                   |
+| `openai`       | OpenAI          | API Key     | `api.openai.com`                      |
+| `gemini`       | Gemini          | API Key     | `generativelanguage.googleapis.com`   |
+| `gemini-oauth` | Gemini (OAuth)  | OAuth       | `cloudcode-pa.googleapis.com`         |
+| `copilot`      | GitHub Copilot  | Device Code | `api.github.com/copilot`              |
+| `openrouter`   | OpenRouter      | API Key     | `openrouter.ai/api`                   |
+| `qwen`         | Qwen (Aliyun)   | Device Code | `dashscope.aliyuncs.com`              |
+| `deepseek`     | DeepSeek        | API Key     | `api.deepseek.com`                    |
+| `kimi`         | Kimi (Moonshot) | API Key     | `api.moonshot.cn/v1`                  |
+| `huggingface`  | Hugging Face    | API Key     | `api-inference.huggingface.co/models` |
+| `ollama`       | Ollama          | API Key     | `localhost:11434`                     |
+| `agy`          | Antigravity     | API Key     | `antigravity.com`                     |
+| `cursor`       | Cursor          | API Key     | `api2.cursor.sh`                      |
+| `codebuddy`    | CodeBuddy       | API Key     | `api.codebuddy.io`                    |
+| `kilo`         | Kilo            | API Key     | `api.kilo.ai`                         |
 
 ### 11.2 Custom Providers
 

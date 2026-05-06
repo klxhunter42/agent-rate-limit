@@ -79,19 +79,19 @@ This incentivizes the bandit to prefer strategies that maximize output-per-input
 
 ### Configuration (env vars)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BANDIT_ENABLED` | `true` | Enable/disable bandit |
-| `BANDIT_ALPHA` | `1.0` | Exploration coefficient (higher = more exploration) |
-| `BANDIT_DECAY` | `0.99` | Decay factor (reserved for future use) |
+| Variable         | Default   | Description                                         |
+|------------------|-----------|-----------------------------------------------------|
+| `BANDIT_ENABLED` | `true`    | Enable/disable bandit                               |
+| `BANDIT_ALPHA`   | `1.0`     | Exploration coefficient (higher = more exploration) |
+| `BANDIT_DECAY`   | `0.99`    | Decay factor (reserved for future use)              |
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `api_gateway_bandit_selections_total` | Counter | `arm`, `exploratory` |
-| `api_gateway_bandit_reward_total` | Counter | `arm` |
-| `api_gateway_bandit_selection_duration_seconds` | Histogram | - |
+| Metric                                          | Type      | Labels               |
+|-------------------------------------------------|-----------|----------------------|
+| `api_gateway_bandit_selections_total`           | Counter   | `arm`, `exploratory` |
+| `api_gateway_bandit_reward_total`               | Counter   | `arm`                |
+| `api_gateway_bandit_selection_duration_seconds` | Histogram | -                    |
 
 ### Computational Notes
 
@@ -170,19 +170,19 @@ Standard FNV-1a 32-bit. Good distribution, fast computation, no cryptographic re
 
 ### Configuration (env vars)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SKETCH_ENABLED` | `true` | Enable/disable sketch dedup |
-| `SKETCH_DIMENSIONS` | `128` | Bit vector width |
-| `SKETCH_THRESHOLD` | `0.85` | Similarity threshold for duplicate detection |
+| Variable            | Default   | Description                                  |
+|---------------------|-----------|----------------------------------------------|
+| `SKETCH_ENABLED`    | `true`    | Enable/disable sketch dedup                  |
+| `SKETCH_DIMENSIONS` | `128`     | Bit vector width                             |
+| `SKETCH_THRESHOLD`  | `0.85`    | Similarity threshold for duplicate detection |
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `api_gateway_sketch_checks_total` | Counter | `result` (duplicate/unique) |
+| Metric                                  | Type      | Labels                                                   |
+|-----------------------------------------|-----------|----------------------------------------------------------|
+| `api_gateway_sketch_checks_total`       | Counter   | `result` (duplicate/unique)                              |
 | `api_gateway_sketch_hamming_similarity` | Histogram | - (buckets: 0, 0.1, 0.3, 0.5, 0.7, 0.85, 0.9, 0.95, 1.0) |
-| `api_gateway_sketch_chars_saved_total` | Counter | - |
+| `api_gateway_sketch_chars_saved_total`  | Counter   | -                                                        |
 
 ### Accuracy and Memory
 
@@ -221,13 +221,13 @@ type Job struct {
 
 ### Queue Operations
 
-| Operation | Redis Command | Timeout | Description |
-|-----------|---------------|---------|-------------|
-| `PushJob` | `LPUSH` | 3s | Push job JSON to head of list |
-| `QueueDepth` | `LLEN` | 2s | Get current queue length |
-| `GetResult` | `GET` | 2s | Retrieve cached result by request ID |
-| `SetResult` | `SET` with TTL | 2s | Store result with custom TTL |
-| `SetResultWithDefaultTTL` | `SET` with 10m TTL | 2s | Store result with default TTL |
+| Operation                 | Redis Command      | Timeout   | Description                          |
+|---------------------------|--------------------|-----------|--------------------------------------|
+| `PushJob`                 | `LPUSH`            | 3s        | Push job JSON to head of list        |
+| `QueueDepth`              | `LLEN`             | 2s        | Get current queue length             |
+| `GetResult`               | `GET`              | 2s        | Retrieve cached result by request ID |
+| `SetResult`               | `SET` with TTL     | 2s        | Store result with custom TTL         |
+| `SetResultWithDefaultTTL` | `SET` with 10m TTL | 2s        | Store result with default TTL        |
 
 ### Connection Pool Configuration
 
@@ -261,10 +261,10 @@ defaultTTL   = 10m  // Result cache TTL
 
 ### Key Patterns
 
-| Redis Key | Type | TTL | Description |
-|-----------|------|-----|-------------|
-| `<queueName>` | List | - | Job queue (configured via `cfg.QueueName`) |
-| `result:<requestID>` | String | 10m | Cached inference result |
+| Redis Key            | Type   | TTL   | Description                                |
+|----------------------|--------|-------|--------------------------------------------|
+| `<queueName>`        | List   | -     | Job queue (configured via `cfg.QueueName`) |
+| `result:<requestID>` | String | 10m   | Cached inference result                    |
 
 ### Integration
 
@@ -297,12 +297,12 @@ The name "Caveman" refers to the progression from verbose modern language to inc
 
 ### Compression Tiers
 
-| Tier | Index | Trigger | Estimated Ratio | Style |
-|------|-------|---------|-----------------|-------|
-| `TierLite` | 0 | Budget green (0) or content < 500 chars | 0.7 | Bullet points, skip pleasantries |
-| `TierFull` | 1 | Budget yellow (1) | 0.5 | Code only, terse, one-line answers |
-| `TierUltra` | 2 | Budget red (2) | 0.25 | Raw output, no markdown, compressed notation |
-| `TierWenyan` | 3 | (Reserved) | 0.3 | Classical notation, minimal grammar |
+| Tier         | Index   | Trigger                                 | Estimated Ratio   | Style                                        |
+|--------------|---------|-----------------------------------------|-------------------|----------------------------------------------|
+| `TierLite`   | 0       | Budget green (0) or content < 500 chars | 0.7               | Bullet points, skip pleasantries             |
+| `TierFull`   | 1       | Budget yellow (1)                       | 0.5               | Code only, terse, one-line answers           |
+| `TierUltra`  | 2       | Budget red (2)                          | 0.25              | Raw output, no markdown, compressed notation |
+| `TierWenyan` | 3       | (Reserved)                              | 0.3               | Classical notation, minimal grammar          |
 
 ### Tier Selection Logic
 
@@ -336,19 +336,19 @@ One sentence answers when possible.
 
 ### Configuration (env vars)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CAVEMAN_ENABLED` | `true` | Enable/disable compression |
-| `CAVEMAN_AUTO_DETECT` | `true` | Auto-select tier based on budget |
-| `CAVEMAN_MIN_SIZE` | `500` | Minimum content length to compress |
+| Variable              | Default   | Description                        |
+|-----------------------|-----------|------------------------------------|
+| `CAVEMAN_ENABLED`     | `true`    | Enable/disable compression         |
+| `CAVEMAN_AUTO_DETECT` | `true`    | Auto-select tier based on budget   |
+| `CAVEMAN_MIN_SIZE`    | `500`     | Minimum content length to compress |
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `api_gateway_caveman_compressions_total` | Counter | `tier`, `result` (valid/invalid/skipped) |
-| `api_gateway_caveman_compression_ratio` | Histogram | - (buckets: 0.1-1.0) |
-| `api_gateway_caveman_validation_duration_seconds` | Histogram | - |
+| Metric                                            | Type      | Labels                                   |
+|---------------------------------------------------|-----------|------------------------------------------|
+| `api_gateway_caveman_compressions_total`          | Counter   | `tier`, `result` (valid/invalid/skipped) |
+| `api_gateway_caveman_compression_ratio`           | Histogram | - (buckets: 0.1-1.0)                     |
+| `api_gateway_caveman_validation_duration_seconds` | Histogram | -                                        |
 
 ### Integration in Optimizer Pipeline
 
@@ -400,13 +400,13 @@ Layer 3: Token Budget Optimization (optimizer pipeline)
 
 **Key behavior:**
 
-| Event | Action |
-|-------|--------|
-| Upstream 429/503 | `limit = max(minLimit, limit * 0.5)` -- halve the limit |
-| Upstream 200 (every 5th) | `gradient = (minRTT + buffer) / sampleRTT` then `limit = min(maxLimit, gradient * limit + sqrt(limit))` |
-| Within 5s cooldown after 429 | No limit increase |
-| Learned ceiling | After a 429, the pre-429 limit is stored as a ceiling. New limit cannot exceed this for 5 minutes. |
-| Manual override | Pins limit to a specific value, disables auto-adjustment |
+| Event                        | Action                                                                                                  |
+|------------------------------|---------------------------------------------------------------------------------------------------------|
+| Upstream 429/503             | `limit = max(minLimit, limit * 0.5)` -- halve the limit                                                 |
+| Upstream 200 (every 5th)     | `gradient = (minRTT + buffer) / sampleRTT` then `limit = min(maxLimit, gradient * limit + sqrt(limit))` |
+| Within 5s cooldown after 429 | No limit increase                                                                                       |
+| Learned ceiling              | After a 429, the pre-429 limit is stored as a ceiling. New limit cannot exceed this for 5 minutes.      |
+| Manual override              | Pins limit to a specific value, disables auto-adjustment                                                |
 
 **Model series and fallback:**
 - Models are grouped by series (e.g., "glm-5.1" and "glm-5-turbo" are both series 5)
@@ -424,14 +424,14 @@ Layer 3: Token Budget Optimization (optimizer pipeline)
 
 **Model priority (default):**
 
-| Model | Priority |
-|-------|----------|
-| glm-5.1 | 100 |
-| glm-5-turbo | 90 |
-| glm-5 | 80 |
-| glm-4.7 | 70 |
-| glm-4.6 | 60 |
-| glm-4.5 | 50 |
+| Model       | Priority   |
+|-------------|------------|
+| glm-5.1     | 100        |
+| glm-5-turbo | 90         |
+| glm-5       | 80         |
+| glm-4.7     | 70         |
+| glm-4.6     | 60         |
+| glm-4.5     | 50         |
 
 ### Distributed Rate Limiter Middleware
 
@@ -455,24 +455,24 @@ POST <rateLimiterCheckURL>
 
 The `Optimizers` struct wires all optimization stages together. Applied to every system prompt in this order:
 
-| Stage | Component | Trigger | Effect |
-|-------|-----------|---------|--------|
-| F7 | Semantic Dedup | Always | Remove duplicate sentences (>0.7 similarity) |
-| F1 | Chunker | Always | Chunk and reorder content |
-| F8 | Delta Encoding | Always | Encode diffs from previous prompts |
-| F9 | Sketch Dedup | Always | Skip near-duplicate prompts (>=0.85 similarity) |
-| F6 | Summarizer | Budget red (2) only | Summarize long system prompts |
-| F13 | Intent Filter | Always | Classify intent, filter irrelevant content |
-| F16 | Caveman | Content >= 500 chars | Append output-style compression directive |
+| Stage   | Component      | Trigger              | Effect                                          |
+|---------|----------------|----------------------|-------------------------------------------------|
+| F7      | Semantic Dedup | Always               | Remove duplicate sentences (>0.7 similarity)    |
+| F1      | Chunker        | Always               | Chunk and reorder content                       |
+| F8      | Delta Encoding | Always               | Encode diffs from previous prompts              |
+| F9      | Sketch Dedup   | Always               | Skip near-duplicate prompts (>=0.85 similarity) |
+| F6      | Summarizer     | Budget red (2) only  | Summarize long system prompts                   |
+| F13     | Intent Filter  | Always               | Classify intent, filter irrelevant content      |
+| F16     | Caveman        | Content >= 500 chars | Append output-style compression directive       |
 
 Post-proxy feedback loop:
 
-| Stage | Component | Trigger | Data |
-|-------|-----------|---------|------|
-| F4 | Prefetcher | After response | Record session/model for warm cache |
-| F11 | Waste Detection | After response | Track input/output ratio |
-| F14 | Cache ROI | After response | Estimate cache hit savings |
-| F5 | Bandit Feedback | After response | Update arm rewards (output/input ratio) |
+| Stage   | Component       | Trigger        | Data                                    |
+|---------|-----------------|----------------|-----------------------------------------|
+| F4      | Prefetcher      | After response | Record session/model for warm cache     |
+| F11     | Waste Detection | After response | Track input/output ratio                |
+| F14     | Cache ROI       | After response | Estimate cache hit savings              |
+| F5      | Bandit Feedback | After response | Update arm rewards (output/input ratio) |
 
 ---
 
@@ -489,10 +489,10 @@ Post-proxy feedback loop:
                           +---------+---------+
                           |                   |
                    +------+------+    +-------+-------+
-                   | Distributed |    |   Internal    |
-                   | Rate Limiter |    |  path bypass  |
-                   | (global +    |    | (/health,     |
-                   |  per-agent)  |    |  /metrics)    |
+| Distributed |    |   Internal    |
+| Rate Limiter |    |  path bypass  |
+| (global +    |    | (/health,     |
+|  per-agent)  |    |  /metrics)    |
                    +------+------+    +---------------+
                           |
                      [allowed?]
@@ -501,7 +501,7 @@ Post-proxy feedback loop:
                    |             |
               +----+----+       v
               | 429     |  +------------------------+
-              | Response|  | Adaptive Concurrency    |
+| Response|  | Adaptive Concurrency    |
               +---------+  | Limiter (Acquire slot)  |
                            |                          |
                            | Per-model limits,        |
@@ -515,7 +515,7 @@ Post-proxy feedback loop:
                                 |                   |
                         +-------+-----+            v
                         | 503 Timeout |  +-------------------------+
-                        | Response    |  | 13-Stage Optimizer      |
+| Response    |  | 13-Stage Optimizer      |
                         +-------------+  | Pipeline                |
                                          |                         |
                                          | 1. Semantic Dedup (F7)  |
@@ -547,15 +547,15 @@ Post-proxy feedback loop:
                                          |                     |
                                          v                     v
                                    +-----+------+    +---------+--------+
-                                   | Adaptive   |    | Post-Proxy       |
-                                   | Feedback   |    | Feedback Loop    |
-                                   |            |    |                  |
-                                   | - Halve    |    | - Bandit Update  |
-                                   |   limit    |    |   (reward =      |
-                                   | - Record   |    |    output/input) |
-                                   |   peak     |    | - Prefetcher     |
-                                   | - 5s       |    |   Record         |
-                                   |   cooldown |    | - Waste Detect   |
+| Adaptive   |    | Post-Proxy       |
+| Feedback   |    | Feedback Loop    |
+|            |    |                  |
+| - Halve    |    | - Bandit Update  |
+|   limit    |    |   (reward =      |
+| - Record   |    |    output/input) |
+|   peak     |    | - Prefetcher     |
+| - 5s       |    |   Record         |
+|   cooldown |    | - Waste Detect   |
                                    +------------+    | - Cache ROI      |
                                                      +------------------+
                                                             |
@@ -575,8 +575,8 @@ Post-proxy feedback loop:
                                                     |              |
                                                     v              v
                                            +--------+---+  +------+------+
-                                           | Dragonfly   |  | HTTP Response|
-                                           | Job Queue   |  | to client    |
+| Dragonfly   |  | HTTP Response|
+| Job Queue   |  | to client    |
                                            |             |  +-------------+
                                            | LPUSH job   |
                                            | Result cache |

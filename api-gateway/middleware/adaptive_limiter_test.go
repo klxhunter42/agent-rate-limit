@@ -18,7 +18,7 @@ func newTestLimiter() *AdaptiveLimiter {
 			"glm-4.7":     6,
 			"glm-4.5":     4,
 		},
-		2,  // defaultLimit
+		nil, 2,  // defaultLimit
 		50, // globalLimit
 		10, // probeMultiplier
 	)
@@ -115,7 +115,7 @@ func TestNewAdaptiveLimiter_GlobalZero_Panics(t *testing.T) {
 			t.Error("expected panic for globalLimit <= 0")
 		}
 	}()
-	NewAdaptiveLimiter(map[string]int{"glm-5.1": 10}, 2, 0, 10)
+	NewAdaptiveLimiter(map[string]int{"glm-5.1": 10}, nil, 2, 0, 10)
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ func TestAcquireRelease_Basic(t *testing.T) {
 func TestAcquire_GlobalLimit(t *testing.T) {
 	al := NewAdaptiveLimiter(
 		map[string]int{"glm-5.1": 50},
-		2,
+		nil, 2,
 		3, // global limit = 3
 		10,
 	)
@@ -200,7 +200,7 @@ func TestAcquire_ModelLimit_Fallback(t *testing.T) {
 			"glm-5.1":     2,
 			"glm-5-turbo": 2,
 		},
-		2,
+		nil, 2,
 		50,
 		10,
 	)
@@ -727,7 +727,7 @@ func TestConcurrentAcquireRelease(t *testing.T) {
 			"glm-5-turbo": 20,
 			"glm-4.7":     20,
 		},
-		5,
+		nil, 5,
 		100,
 		10,
 	)
@@ -898,7 +898,7 @@ func TestFeedback_Success_NoMinRTT_IncrementBy1(t *testing.T) {
 	t.Parallel()
 	al := NewAdaptiveLimiter(
 		map[string]int{"glm-5.1": 10},
-		2,
+		nil, 2,
 		50,
 		10,
 	)
@@ -978,7 +978,7 @@ func TestAcquireBlocking_Timeout(t *testing.T) {
 	t.Parallel()
 	al := NewAdaptiveLimiter(
 		map[string]int{"glm-5.1": 1},
-		1,
+		nil, 1,
 		50,
 		10,
 	)

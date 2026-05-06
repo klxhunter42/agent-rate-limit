@@ -39,22 +39,22 @@ Transparent passthrough preserves the original payload byte-for-byte and forward
                       |                         |
                       v                         v
             +------------------+      +------------------+
-            |  TRANSPARENT     |      |  NORMAL PATH     |
-            |  MODE            |      |                  |
-            |                  |      | 1. clampMaxTokens|
-            |  body = rawBody  |      | 2. injectSystem  |
-            |  (no changes)    |      |    Prompt        |
-            |                  |      | 3. OptimizeSystem|
+|  TRANSPARENT     |      |  NORMAL PATH     |
+|  MODE            |      |                  |
+|                  |      | 1. clampMaxTokens|
+|  body = rawBody  |      | 2. injectSystem  |
+|  (no changes)    |      |    Prompt        |
+|                  |      | 3. OptimizeSystem|
             +------------------+      |    Prompt        |
-                      |               | 4. applySmartMax |
-                      |               |    Tokens        |
-                      |               | 5. stripUnsupp   |
-                      |               |    ortedFields   |
-                      |               | 6. filterUnsupp  |
-                      |               |    ortedContent  |
-                      |               | 7. json.Marshal  |
-                      |               | 8. privacy.Mask  |
-                      |               |    Request       |
+|               | 4. applySmartMax |
+|               |    Tokens        |
+|               | 5. stripUnsupp   |
+|               |    ortedFields   |
+|               | 6. filterUnsupp  |
+|               |    ortedContent  |
+|               | 7. json.Marshal  |
+|               | 8. privacy.Mask  |
+|               |    Request       |
                       |               +------------------+
                       |                         |
                       +-------------+-----------+
@@ -70,15 +70,15 @@ Transparent passthrough preserves the original payload byte-for-byte and forward
                       |                           |
                       v                           v
             +------------------+      +------------------+
-            | Forward raw body |      | Run whitespace   |
-            | Forward client   |      | dedup on system  |
-            |  anthropic-beta  |      | Set static       |
-            | Forward client   |      |  anthropic-      |
-            |  anthropic-      |      |  version         |
-            |  version         |      | Merge/override   |
-            | Skip beta strip  |      |  anthropic-beta  |
+| Forward raw body |      | Run whitespace   |
+| Forward client   |      | dedup on system  |
+|  anthropic-beta  |      | Set static       |
+| Forward client   |      |  anthropic-      |
+|  anthropic-      |      |  version         |
+|  version         |      | Merge/override   |
+| Skip beta strip  |      |  anthropic-beta  |
             +------------------+      | Strip unsupported|
-                      |               |  betas           |
+|               |  betas           |
                       |               +------------------+
                       +-------------+-----------+
                                     |
@@ -136,18 +136,18 @@ This ensures the CLI's own valid OAuth session is used instead of potentially st
 
 ## Modification Pipeline Comparison
 
-| Pipeline Stage | Normal Mode | Transparent Mode |
-|---|---|---|
-| `clampMaxTokens` | Applied (caps to model hard limit) | SKIPPED |
-| `injectSystemPrompt` | Applied (prepends token efficiency prompt) | SKIPPED |
-| `OptimizeSystemPrompt` | Applied (13-stage optimizer pipeline) | SKIPPED |
-| `applySmartMaxTokens` | Applied (sets default max_tokens) | SKIPPED |
-| `stripUnsupportedFields` | Applied (removes context_management, thinking for haiku) | SKIPPED |
-| `filterUnsupportedContent` | Applied (removes server_tool_use, rewrites images) | SKIPPED |
-| `json.Marshal` | Applied (re-encodes modified payload) | SKIPPED |
-| `privacy.MaskRequest` | Applied (masks secrets/PII) | SKIPPED |
-| `OptimizeWhitespace` | Applied in ProxyTransparent (system prompt) | SKIPPED |
-| `DeduplicateSentences` | Applied in ProxyTransparent (system prompt) | SKIPPED |
+| Pipeline Stage             | Normal Mode                                              | Transparent Mode |
+|----------------------------|----------------------------------------------------------|------------------|
+| `clampMaxTokens`           | Applied (caps to model hard limit)                       | SKIPPED          |
+| `injectSystemPrompt`       | Applied (prepends token efficiency prompt)               | SKIPPED          |
+| `OptimizeSystemPrompt`     | Applied (13-stage optimizer pipeline)                    | SKIPPED          |
+| `applySmartMaxTokens`      | Applied (sets default max_tokens)                        | SKIPPED          |
+| `stripUnsupportedFields`   | Applied (removes context_management, thinking for haiku) | SKIPPED          |
+| `filterUnsupportedContent` | Applied (removes server_tool_use, rewrites images)       | SKIPPED          |
+| `json.Marshal`             | Applied (re-encodes modified payload)                    | SKIPPED          |
+| `privacy.MaskRequest`      | Applied (masks secrets/PII)                              | SKIPPED          |
+| `OptimizeWhitespace`       | Applied in ProxyTransparent (system prompt)              | SKIPPED          |
+| `DeduplicateSentences`     | Applied in ProxyTransparent (system prompt)              | SKIPPED          |
 
 Handler-side skip (lines 524-621):
 
@@ -172,9 +172,9 @@ if (maskResult == nil || (!maskResult.HasSecrets && !maskResult.HasPII)) && (opt
 
 ### anthropic-version
 
-| Mode | Behavior |
-|---|---|
-| Normal | Set to `cfg.AnthropicVersion` (static config value) |
+| Mode        | Behavior                                                                                                                               |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| Normal      | Set to `cfg.AnthropicVersion` (static config value)                                                                                    |
 | Transparent | Forwarded from client's `anthropic-version` header as-is. Falls back to `cfg.AnthropicVersion` only if client did not send the header. |
 
 ```go
@@ -192,9 +192,9 @@ if opts != nil && opts.Transparent {
 
 ### anthropic-beta
 
-| Mode | Behavior |
-|---|---|
-| Normal | Client's beta header is merged with `ExtraHeaders["anthropic-beta"]` via `mergeBetas()`. Unsupported betas are stripped by `stripUnsupportedBetas()`. |
+| Mode        | Behavior                                                                                                                                                                                              |
+|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Normal      | Client's beta header is merged with `ExtraHeaders["anthropic-beta"]` via `mergeBetas()`. Unsupported betas are stripped by `stripUnsupportedBetas()`.                                                 |
 | Transparent | Client's `anthropic-beta` header is forwarded directly, no merge. `ExtraHeaders["anthropic-beta"]` is explicitly skipped. Other ExtraHeaders are still applied. `stripUnsupportedBetas()` is skipped. |
 
 ```go
@@ -226,14 +226,14 @@ if opts == nil || !opts.Transparent {
 
 These headers are always set regardless of transparent mode:
 
-| Header | Source |
-|---|---|
-| `Content-Type` | Always `application/json` |
-| `Authorization` | `Bearer <apiKey>` (client's OAuth token in transparent mode) |
-| `x-client-request-id` | From client header or generated UUID |
-| `X-Claude-Code-Session-Id` | From client header or generated UUID |
-| `x-anthropic-billing-header` | From client header (if present) |
-| `x-mcp-client-session-id` | From client header (if present) |
+| Header                       | Source                                                       |
+|------------------------------|--------------------------------------------------------------|
+| `Content-Type`               | Always `application/json`                                    |
+| `Authorization`              | `Bearer <apiKey>` (client's OAuth token in transparent mode) |
+| `x-client-request-id`        | From client header or generated UUID                         |
+| `X-Claude-Code-Session-Id`   | From client header or generated UUID                         |
+| `x-anthropic-billing-header` | From client header (if present)                              |
+| `x-mcp-client-session-id`    | From client header (if present)                              |
 
 
 ## Configuration

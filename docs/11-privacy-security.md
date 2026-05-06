@@ -6,47 +6,47 @@
 
 The original PasteGuard PII pipeline used Microsoft Presidio Analyzer (NLP container) for entity detection. This caused severe latency problems:
 
-| Issue | Detail |
-|---|---|
-| **Slow HTTP calls** | Each Presidio `/analyze` call took 7-14 seconds per text span |
-| **Compounding latency** | Multiple spans per request = 30+ seconds total request time |
-| **Overkill NLP** | Only 2 entity types were used (`EMAIL_ADDRESS`, `PHONE_NUMBER`) - far too light to justify a 2GB NLP container |
-| **Regex is faster** | Compiled regex detection is <1ms vs 7-14s per Presidio call |
-| **Container removed** | Presidio container (2GB RAM) is no longer needed for default deployment |
+| Issue                   | Detail                                                                                                         |
+|-------------------------|----------------------------------------------------------------------------------------------------------------|
+| **Slow HTTP calls**     | Each Presidio `/analyze` call took 7-14 seconds per text span                                                  |
+| **Compounding latency** | Multiple spans per request = 30+ seconds total request time                                                    |
+| **Overkill NLP**        | Only 2 entity types were used (`EMAIL_ADDRESS`, `PHONE_NUMBER`) - far too light to justify a 2GB NLP container |
+| **Regex is faster**     | Compiled regex detection is <1ms vs 7-14s per Presidio call                                                    |
+| **Container removed**   | Presidio container (2GB RAM) is no longer needed for default deployment                                        |
 
 The replacement is `RegexDetector` -- a pure Go regex engine with zero external dependencies.
 
 ### RegexDetector Supported Entities
 
-| Entity | Pattern | Example |
-|---|---|---|
-| `EMAIL_ADDRESS` | Standard email format | `user@example.com` |
-| `PHONE_NUMBER` | International phone numbers | `+1-555-123-4567` |
-| `CREDIT_CARD` | Visa / Mastercard / Amex / Discover | `4111-1111-1111-1111` |
-| `SSN` | US Social Security Number | `123-45-6789` |
-| `IBAN` | International Bank Account Number | `GB82WEST12345698765432` |
-| `IP_ADDRESS` | IPv4 addresses | `192.168.1.1` |
-| `THAI_NATIONAL_ID` | Thai citizen ID (13 digits) | `1-1001-00001-23-4` |
-| `THAI_PHONE` | Thai phone format | `081-234-5678`, `+66812345678` |
+| Entity             | Pattern                             | Example                        |
+|--------------------|-------------------------------------|--------------------------------|
+| `EMAIL_ADDRESS`    | Standard email format               | `user@example.com`             |
+| `PHONE_NUMBER`     | International phone numbers         | `+1-555-123-4567`              |
+| `CREDIT_CARD`      | Visa / Mastercard / Amex / Discover | `4111-1111-1111-1111`          |
+| `SSN`              | US Social Security Number           | `123-45-6789`                  |
+| `IBAN`             | International Bank Account Number   | `GB82WEST12345698765432`       |
+| `IP_ADDRESS`       | IPv4 addresses                      | `192.168.1.1`                  |
+| `THAI_NATIONAL_ID` | Thai citizen ID (13 digits)         | `1-1001-00001-23-4`            |
+| `THAI_PHONE`       | Thai phone format                   | `081-234-5678`, `+66812345678` |
 
 Default: all 8 entities are enabled. Customize via `PASTEGUARD_PII_ENTITIES` env var.
 
 ### PasteGuard Secret Detection Entities
 
-| Entity | Pattern | Example |
-|---|---|---|
-| `OPENSSH_PRIVATE_KEY` | OpenSSH private key block | `-----BEGIN OPENSSH PRIVATE KEY-----` |
-| `PEM_PRIVATE_KEY` | RSA / PKCS8 / encrypted private key blocks | `-----BEGIN RSA PRIVATE KEY-----` |
-| `API_KEY_SK` | `sk-` prefixed keys (20+ chars) | `sk-abcdef...` |
-| `API_KEY_AWS` | AWS access key ID | `AKIAIOSFODNN7EXAMPLE` |
-| `API_KEY_GITHUB` | GitHub PAT / token | `ghp_xBnf...` |
-| `API_KEY_GITLAB` | GitLab PAT / deploy token | `glpat-abcdef...` |
-| `JWT_TOKEN` | JWT format (3 base64 segments) | `eyJhbG...` |
-| `BEARER_TOKEN` | Bearer auth header value (40+ chars) | `Bearer abc123...` |
-| `ENV_PASSWORD` | `PASSWORD=` / `_PWD=` env vars | `DB_PASSWORD=secret123` |
-| `ENV_SECRET` | `_SECRET=` env vars | `API_SECRET=mysecret` |
-| `CONNECTION_STRING` | Database/queue connection URIs | `postgresql://user:pass@host` |
-| `THAI_NATIONAL_ID` | 13-digit Thai citizen ID (no dashes) | `1100100000123` |
+| Entity                | Pattern                                    | Example                               |
+|-----------------------|--------------------------------------------|---------------------------------------|
+| `OPENSSH_PRIVATE_KEY` | OpenSSH private key block                  | `-----BEGIN OPENSSH PRIVATE KEY-----` |
+| `PEM_PRIVATE_KEY`     | RSA / PKCS8 / encrypted private key blocks | `-----BEGIN RSA PRIVATE KEY-----`     |
+| `API_KEY_SK`          | `sk-` prefixed keys (20+ chars)            | `sk-abcdef...`                        |
+| `API_KEY_AWS`         | AWS access key ID                          | `AKIAIOSFODNN7EXAMPLE`                |
+| `API_KEY_GITHUB`      | GitHub PAT / token                         | `ghp_xBnf...`                         |
+| `API_KEY_GITLAB`      | GitLab PAT / deploy token                  | `glpat-abcdef...`                     |
+| `JWT_TOKEN`           | JWT format (3 base64 segments)             | `eyJhbG...`                           |
+| `BEARER_TOKEN`        | Bearer auth header value (40+ chars)       | `Bearer abc123...`                    |
+| `ENV_PASSWORD`        | `PASSWORD=` / `_PWD=` env vars             | `DB_PASSWORD=secret123`               |
+| `ENV_SECRET`          | `_SECRET=` env vars                        | `API_SECRET=mysecret`                 |
+| `CONNECTION_STRING`   | Database/queue connection URIs             | `postgresql://user:pass@host`         |
+| `THAI_NATIONAL_ID`    | 13-digit Thai citizen ID (no dashes)       | `1100100000123`                       |
 
 Default: 7 entities enabled (OPENSSH_PRIVATE_KEY, PEM_PRIVATE_KEY, API_KEY_SK, API_KEY_AWS, API_KEY_GITHUB, JWT_TOKEN, BEARER_TOKEN). The remaining 5 (API_KEY_GITLAB, ENV_PASSWORD, ENV_SECRET, CONNECTION_STRING, THAI_NATIONAL_ID) are available but not in the default set. Customize via `PASTEGUARD_SECRET_ENTITIES` env var.
 
@@ -68,12 +68,12 @@ docker-compose up
 
 ### Files
 
-| File | Purpose |
-|---|---|
+| File                    | Purpose                                                      |
+|-------------------------|--------------------------------------------------------------|
 | `privacy/pii/detect.go` | `RegexDetector` -- regex pattern matching for all 8 entities |
-| `privacy/pii/mask.go` | PII masking with placeholder generation |
-| `privacy/config.go` | Env var loading, default config |
-| `privacy/pipeline.go` | Full mask/unmask pipeline (secrets + PII) |
+| `privacy/pii/mask.go`   | PII masking with placeholder generation                      |
+| `privacy/config.go`     | Env var loading, default config                              |
+| `privacy/pipeline.go`   | Full mask/unmask pipeline (secrets + PII)                    |
 
 ---
 

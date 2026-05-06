@@ -425,18 +425,18 @@ style: |
 +======================+=========+==========================+
                        |                    |
             +----------+----------+    +----+----+
-            |    Sync Proxy       |    |  Async  |
-            |  /v1/messages SSE   |    |  Queue  |
+|    Sync Proxy       |    |  Async  |
+|  /v1/messages SSE   |    |  Queue  |
             +----------+----------+    +----+----+
                        |                    |
               +--------+--------+     +----+----+
-              |  17 Providers    |     | Worker  |
-              |  4 Auth Types    |     | 50 coro |
+|  17 Providers    |     | Worker  |
+|  4 Auth Types    |     | 50 coro |
               +------------------+     +---------+
 
   +----------+   +------------+   +-----------+   +---------+
-  | Dragonfly|   | Prometheus |   |  Grafana  |   | Presidio|
-  |  :6379   |   |   :9090    |   |   :3000   |   |  :3000  |
+| Dragonfly|   | Prometheus |   |  Grafana  |   | Presidio|
+|  :6379   |   |   :9090    |   |   :3000   |   |  :3000  |
   +----------+   +------------+   +-----------+   +---------+
 ```
 
@@ -454,13 +454,13 @@ style: |
 
 ## Sync vs Async Mode
 
-| | Sync (<code>/v1/messages</code>) | Async (<code>/v1/chat/completions</code>) |
-|---|---|---|
-| **Use case** | Claude Code (real-time) | Batch agents, CI/CD |
-| **Flow** | Gateway -> Proxy -> Upstream -> Response | Gateway -> Queue -> Worker -> Cache |
-| **Response** | Real-time SSE streaming | Request ID -> Poll <code>GET /v1/results/{id}</code> |
-| **Rate limit** | Global + Per API key | Global + Per agent_id |
-| **Timeout** | <code>STREAM_TIMEOUT</code> (300s) | Worker poll 5s |
+|                | Sync (<code>/v1/messages</code>)         | Async (<code>/v1/chat/completions</code>)            |
+|----------------|------------------------------------------|------------------------------------------------------|
+| **Use case**   | Claude Code (real-time)                  | Batch agents, CI/CD                                  |
+| **Flow**       | Gateway -> Proxy -> Upstream -> Response | Gateway -> Queue -> Worker -> Cache                  |
+| **Response**   | Real-time SSE streaming                  | Request ID -> Poll <code>GET /v1/results/{id}</code> |
+| **Rate limit** | Global + Per API key                     | Global + Per agent_id                                |
+| **Timeout**    | <code>STREAM_TIMEOUT</code> (300s)       | Worker poll 5s                                       |
 
 <br>
 
@@ -590,20 +590,20 @@ Client Request
 
 ### 12 Secret Entity Types
 
-| Entity | Example |
-|---|---|
+| Entity              | Example                 |
+|---------------------|-------------------------|
 | OpenSSH Private Key | `-----BEGIN OPENSSH...` |
-| PEM Private Key | `-----BEGIN RSA...` |
-| API Key (sk-) | `sk-proj-xxxx...` |
-| AWS Access Key | `AKIAxxxxxxxxxxxxxxxx` |
-| GitHub PAT | `ghp_xxxxxxxxxxxxxxxx` |
-| GitLab Token | `glpat-xxxxxxxxxxxxxx` |
-| JWT Token | `eyJhbGciOi...` |
-| Bearer Token | `Bearer xxxxxxxx...` |
-| ENV Password | `PASSWORD=...` |
-| ENV Secret | `_SECRET=...` |
-| Connection String | `postgres://user:pass@` |
-| Thai National ID | `[1-8]xxxxxxxxxxxxx` |
+| PEM Private Key     | `-----BEGIN RSA...`     |
+| API Key (sk-)       | `sk-proj-xxxx...`       |
+| AWS Access Key      | `AKIAxxxxxxxxxxxxxxxx`  |
+| GitHub PAT          | `ghp_xxxxxxxxxxxxxxxx`  |
+| GitLab Token        | `glpat-xxxxxxxxxxxxxx`  |
+| JWT Token           | `eyJhbGciOi...`         |
+| Bearer Token        | `Bearer xxxxxxxx...`    |
+| ENV Password        | `PASSWORD=...`          |
+| ENV Secret          | `_SECRET=...`           |
+| Connection String   | `postgres://user:pass@` |
+| Thai National ID    | `[1-8]xxxxxxxxxxxxx`    |
 
 <br>
 
@@ -782,11 +782,11 @@ After 5 min: ceiling decays, re-probing allowed
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| <code>UPSTREAM_MODEL_LIMITS</code> | (per model) | Concurrent request limits |
-| <code>UPSTREAM_GLOBAL_LIMIT</code> | 9 | Total concurrent cap |
-| <code>UPSTREAM_PROBE_MULTIPLIER</code> | 5 | maxLimit = initial * this |
+| Env Var                                | Default     | Description               |
+|----------------------------------------|-------------|---------------------------|
+| <code>UPSTREAM_MODEL_LIMITS</code>     | (per model) | Concurrent request limits |
+| <code>UPSTREAM_GLOBAL_LIMIT</code>     | 9           | Total concurrent cap      |
+| <code>UPSTREAM_PROBE_MULTIPLIER</code> | 5           | maxLimit = initial * this |
 
 <br>
 
@@ -806,29 +806,29 @@ Auto-discovers real upstream limit. Starts conservative, probes upward, backs of
 
 ### API Key Auth (13 providers)
 
-| Provider | Upstream | Default Model |
-|---|---|---|
-| **Anthropic** | api.anthropic.com | claude-sonnet-4 |
-| **OpenAI** | api.openai.com | gpt-4o |
-| **Google Gemini** | generativelanguage.googleapis.com | gemini-2.0-flash |
-| **OpenRouter** | openrouter.ai/api/v1 | openai/gpt-4o |
-| **DeepSeek** | api.deepseek.com | deepseek-chat |
-| **Kimi** | api.moonshot.cn/v1 | moonshot-v1-8k |
-| **Hugging Face** | api-inference.huggingface.co | model repo ID |
-| **Ollama** | localhost:11434 | local model |
-| **AGY, Cursor, CodeBuddy, Kilo** | Various | Various |
+| Provider                         | Upstream                          | Default Model    |
+|----------------------------------|-----------------------------------|------------------|
+| **Anthropic**                    | api.anthropic.com                 | claude-sonnet-4  |
+| **OpenAI**                       | api.openai.com                    | gpt-4o           |
+| **Google Gemini**                | generativelanguage.googleapis.com | gemini-2.0-flash |
+| **OpenRouter**                   | openrouter.ai/api/v1              | openai/gpt-4o    |
+| **DeepSeek**                     | api.deepseek.com                  | deepseek-chat    |
+| **Kimi**                         | api.moonshot.cn/v1                | moonshot-v1-8k   |
+| **Hugging Face**                 | api-inference.huggingface.co      | model repo ID    |
+| **Ollama**                       | localhost:11434                   | local model      |
+| **AGY, Cursor, CodeBuddy, Kilo** | Various                           | Various          |
 
 </div>
 <div>
 
 ### OAuth / Device Code (4 providers)
 
-| Provider | Auth Type | Flow |
-|---|---|---|
-| **Claude (OAuth)** | Auth code + PKCE | platform.claude.com |
-| **Gemini (OAuth)** | Auth code | Google Code Assist |
-| **GitHub Copilot** | Device code | github.com/login/device |
-| **Qwen (Aliyun)** | Device code | dashscope.aliyuncs.com |
+| Provider           | Auth Type        | Flow                    |
+|--------------------|------------------|-------------------------|
+| **Claude (OAuth)** | Auth code + PKCE | platform.claude.com     |
+| **Gemini (OAuth)** | Auth code        | Google Code Assist      |
+| **GitHub Copilot** | Device code      | github.com/login/device |
+| **Qwen (Aliyun)**  | Device code      | dashscope.aliyuncs.com  |
 
 <br>
 
@@ -1016,23 +1016,23 @@ Request enters
 
 ### Measured Results
 
-| Technique | Before | After | Saved |
-|-----------|--------|-------|-------|
-| Whitespace | 1253 tok | 1252 tok | 0.1% |
-| Dedup | 1253 tok | 1209 tok | **3.5%** |
+| Technique       | Before   | After    | Saved     |
+|-----------------|----------|----------|-----------|
+| Whitespace      | 1253 tok | 1252 tok | 0.1%      |
+| Dedup           | 1253 tok | 1209 tok | **3.5%**  |
 | Head/Tail Trunc | 4423 tok | 1265 tok | **71.4%** |
 
 <br>
 
 ### Budget Thresholds
 
-| Usage | Level | Action |
-|-------|-------|--------|
-| < 50% | GREEN | Normal operation |
-| 50-75% | YELLOW | WS opt + dedup |
-| 80% | Auto | Proactive optimization |
-| > 75% | RED | Force truncation |
-| 90% | Emergency | Aggressive truncation |
+| Usage   | Level     | Action                 |
+|---------|-----------|------------------------|
+| < 50%   | GREEN     | Normal operation       |
+| 50-75%  | YELLOW    | WS opt + dedup         |
+| 80%     | Auto      | Proactive optimization |
+| > 75%   | RED       | Force truncation       |
+| 90%     | Emergency | Aggressive truncation  |
 
 <br>
 
@@ -1092,28 +1092,28 @@ DELETE /v1/profiles/{name}/tokens/{keyName}
 
 ### Profile CRUD + Extras
 
-| Method | Path | Description |
-|---|---|---|
-| GET | <code>/v1/profiles</code> | List all |
-| POST | <code>/v1/profiles</code> | Create |
-| GET | <code>/v1/profiles/{name}</code> | Get by name |
-| PUT | <code>/v1/profiles/{name}</code> | Update |
-| DELETE | <code>/v1/profiles/{name}</code> | Delete + revoke tokens |
-| POST | <code>/v1/profiles/{name}/copy</code> | Copy (clears API key) |
-| POST | <code>/v1/profiles/{name}/export</code> | Export bundle |
-| POST | <code>/v1/profiles/import</code> | Import from bundle |
-| GET | <code>/v1/profiles/recommended-models</code> | Per-provider list |
+| Method | Path                                         | Description            |
+|--------|----------------------------------------------|------------------------|
+| GET    | <code>/v1/profiles</code>                    | List all               |
+| POST   | <code>/v1/profiles</code>                    | Create                 |
+| GET    | <code>/v1/profiles/{name}</code>             | Get by name            |
+| PUT    | <code>/v1/profiles/{name}</code>             | Update                 |
+| DELETE | <code>/v1/profiles/{name}</code>             | Delete + revoke tokens |
+| POST   | <code>/v1/profiles/{name}/copy</code>        | Copy (clears API key)  |
+| POST   | <code>/v1/profiles/{name}/export</code>      | Export bundle          |
+| POST   | <code>/v1/profiles/import</code>             | Import from bundle     |
+| GET    | <code>/v1/profiles/recommended-models</code> | Per-provider list      |
 
 <br>
 
 ### Recommended Models per Provider
 
-| Provider | Flagship | Standard | Light |
-|---|---|---|---|
-| Claude OAuth | opus-4-7 | sonnet-4 | haiku-4 |
-| Gemini OAuth | 2.5-pro | 2.5-flash | 2.0-flash |
-| OpenAI | o3 | gpt-4o | gpt-4o-mini |
-| DeepSeek | deepseek-chat | - | - |
+| Provider     | Flagship      | Standard  | Light       |
+|--------------|---------------|-----------|-------------|
+| Claude OAuth | opus-4-7      | sonnet-4  | haiku-4     |
+| Gemini OAuth | 2.5-pro       | 2.5-flash | 2.0-flash   |
+| OpenAI       | o3            | gpt-4o    | gpt-4o-mini |
+| DeepSeek     | deepseek-chat | -         | -           |
 
 <br>
 
@@ -1164,23 +1164,23 @@ Fail-open: if Redis is down, quota check logs a warning and the request proceeds
 
 Auto-recorded via <code>metrics.RecordTokens()</code> callback on every request.
 
-| Bucket | Key Pattern | TTL |
-|---|---|---|
-| Hourly | <code>usage:hourly:YYYY-MM-DDTHH</code> | 48h |
-| Daily | <code>usage:daily:YYYY-MM-DD</code> | 35d |
-| Monthly | <code>usage:monthly:YYYY-MM</code> | 400d |
-| Session | <code>usage:sessions:YYYY-MM-DD</code> | 35d |
+| Bucket  | Key Pattern                             | TTL  |
+|---------|-----------------------------------------|------|
+| Hourly  | <code>usage:hourly:YYYY-MM-DDTHH</code> | 48h  |
+| Daily   | <code>usage:daily:YYYY-MM-DD</code>     | 35d  |
+| Monthly | <code>usage:monthly:YYYY-MM</code>      | 400d |
+| Session | <code>usage:sessions:YYYY-MM-DD</code>  | 35d  |
 
 <br>
 
 ### Query Endpoints
 
-| Endpoint | Description |
-|---|---|
-| <code>/v1/usage/summary</code> | Aggregated totals |
-| <code>/v1/usage/hourly</code> | Hourly breakdown |
-| <code>/v1/usage/daily</code> | Last 30 days |
-| <code>/v1/usage/models</code> | Per-model breakdown |
+| Endpoint                        | Description         |
+|---------------------------------|---------------------|
+| <code>/v1/usage/summary</code>  | Aggregated totals   |
+| <code>/v1/usage/hourly</code>   | Hourly breakdown    |
+| <code>/v1/usage/daily</code>    | Last 30 days        |
+| <code>/v1/usage/models</code>   | Per-model breakdown |
 | <code>/v1/usage/sessions</code> | Session-level usage |
 
 </div>
@@ -1225,14 +1225,14 @@ Per-profile tracking:
 
 ### Model Pricing (USD / 1M tokens)
 
-| Model | Input | Output |
-|-------|-------|--------|
-| claude-opus-4-7 | $15.00 | $75.00 |
-| claude-sonnet-4 | $3.00 | $15.00 |
-| claude-haiku-4 | $0.80 | $4.00 |
-| gpt-4o | $2.50 | $10.00 |
-| gemini-2.5-pro | $1.25 | $10.00 |
-| deepseek-chat | $0.27 | $1.10 |
+| Model           | Input   | Output   |
+|-----------------|---------|----------|
+| claude-opus-4-7 | $15.00  | $75.00   |
+| claude-sonnet-4 | $3.00   | $15.00   |
+| claude-haiku-4  | $0.80   | $4.00    |
+| gpt-4o          | $2.50   | $10.00   |
+| gemini-2.5-pro  | $1.25   | $10.00   |
+| deepseek-chat   | $0.27   | $1.10    |
 
 <p style="color: #64748b; font-size: 0.75em;">Configurable via <code>MODEL_PRICING</code> env var</p>
 
@@ -1240,13 +1240,13 @@ Per-profile tracking:
 
 ### Query Endpoints
 
-| Endpoint | Description |
-|---|---|
-| <code>/v1/usage/summary</code> | Aggregated totals |
-| <code>/v1/usage/hourly</code> | Per-hour breakdown |
-| <code>/v1/usage/daily</code> | Last 30 days |
-| <code>/v1/usage/monthly</code> | Last 12 months |
-| <code>/v1/usage/models</code> | Per-model breakdown |
+| Endpoint                        | Description            |
+|---------------------------------|------------------------|
+| <code>/v1/usage/summary</code>  | Aggregated totals      |
+| <code>/v1/usage/hourly</code>   | Per-hour breakdown     |
+| <code>/v1/usage/daily</code>    | Last 30 days           |
+| <code>/v1/usage/monthly</code>  | Last 12 months         |
+| <code>/v1/usage/models</code>   | Per-model breakdown    |
 | <code>/v1/usage/profiles</code> | Per-profile aggregated |
 
 </div>
@@ -1260,19 +1260,19 @@ Per-profile tracking:
 
 ### 21 Prometheus Metrics
 
-| Metric | Type |
-|---|---|
+| Metric                                | Type      |
+|---------------------------------------|-----------|
 | <code>request_duration_seconds</code> | Histogram |
-| <code>token_input/output_total</code> | Counter |
-| <code>cost_total</code> | Counter |
-| <code>adaptive_limit</code> | Gauge |
-| <code>ttfb_seconds</code> | Histogram |
-| <code>model_fallback_total</code> | Counter |
-| <code>anomaly_total</code> | Counter |
-| <code>upstream_429_total</code> | Counter |
-| <code>upstream_retries_total</code> | Counter |
-| <code>go_goroutines</code> | Gauge |
-| <code>dragonfly_up</code> | Gauge |
+| <code>token_input/output_total</code> | Counter   |
+| <code>cost_total</code>               | Counter   |
+| <code>adaptive_limit</code>           | Gauge     |
+| <code>ttfb_seconds</code>             | Histogram |
+| <code>model_fallback_total</code>     | Counter   |
+| <code>anomaly_total</code>            | Counter   |
+| <code>upstream_429_total</code>       | Counter   |
+| <code>upstream_retries_total</code>   | Counter   |
+| <code>go_goroutines</code>            | Gauge     |
+| <code>dragonfly_up</code>             | Gauge     |
 
 <br>
 
@@ -1286,10 +1286,10 @@ Scrape interval: **5s**
 Z-score ring buffer (1000 samples):
 
 | z-score | Severity |
-|---|---|
-| > 4.0 | Critical |
-| > 3.0 | High |
-| > 2.0 | Medium |
+|---------|----------|
+| > 4.0   | Critical |
+| > 3.0   | High     |
+| > 2.0   | Medium   |
 
 5+ consecutive = **Sustained** anomaly
 
@@ -1384,13 +1384,13 @@ gateway -> OTel Collector -> Prometheus -> Grafana
 
 ### UX Features
 
-| Feature | Shortcut |
-|---|---|
-| Privacy Mode (blur sensitive) | <code>Cmd+P</code> |
-| Command Palette (fuzzy) | <code>Cmd+K</code> |
-| Navigate pages 1-9 | <code>1-9</code> keys |
-| Toggle sidebar | <code>Cmd+B</code> |
-| Refresh data | <code>Cmd+R</code> |
+| Feature                       | Shortcut              |
+|-------------------------------|-----------------------|
+| Privacy Mode (blur sensitive) | <code>Cmd+P</code>    |
+| Command Palette (fuzzy)       | <code>Cmd+K</code>    |
+| Navigate pages 1-9            | <code>1-9</code> keys |
+| Toggle sidebar                | <code>Cmd+B</code>    |
+| Refresh data                  | <code>Cmd+R</code>    |
 
 <br>
 
@@ -1407,19 +1407,19 @@ gateway -> OTel Collector -> Prometheus -> Grafana
 
 ### All Features Work
 
-| Feature | Status |
-|---|---|
+| Feature                    | Status                       |
+|----------------------------|------------------------------|
 | Read / Edit / Bash / Write | <span class="ok">PASS</span> |
-| Grep / Glob | <span class="ok">PASS</span> |
-| Streaming (SSE) | <span class="ok">PASS</span> |
-| Skills (slash commands) | <span class="ok">PASS</span> |
-| Memory | <span class="ok">PASS</span> |
-| Extended thinking | <span class="ok">PASS</span> |
-| Image / Vision | <span class="ok">PASS</span> |
-| MCP Servers | <span class="ok">PASS</span> |
-| Multi-turn conversation | <span class="ok">PASS</span> |
-| NotebookEdit | <span class="ok">PASS</span> |
-| TodoRead / TodoWrite | <span class="ok">PASS</span> |
+| Grep / Glob                | <span class="ok">PASS</span> |
+| Streaming (SSE)            | <span class="ok">PASS</span> |
+| Skills (slash commands)    | <span class="ok">PASS</span> |
+| Memory                     | <span class="ok">PASS</span> |
+| Extended thinking          | <span class="ok">PASS</span> |
+| Image / Vision             | <span class="ok">PASS</span> |
+| MCP Servers                | <span class="ok">PASS</span> |
+| Multi-turn conversation    | <span class="ok">PASS</span> |
+| NotebookEdit               | <span class="ok">PASS</span> |
+| TodoRead / TodoWrite       | <span class="ok">PASS</span> |
 
 </div>
 <div>
@@ -1466,23 +1466,23 @@ Gateway   -> pass-through only
 
 ## API Routes Summary
 
-| Method | Path | Description |
-|---|---|---|
-| POST | <code>/v1/messages</code> | Sync transparent proxy |
-| POST | <code>/v1/chat/completions</code> | Async enqueue |
-| GET | <code>/v1/results/{id}</code> | Poll async result |
-| GET | <code>/v1/profiles</code> | Profile CRUD |
-| GET | <code>/v1/usage/*</code> | Usage analytics (5 endpoints) |
-| GET | <code>/quota/{provider}</code> | Per-account quota |
-| GET | <code>/v1/overview</code> | Dashboard summary |
-| GET | <code>/v1/health/detailed</code> | 6 health checks |
-| GET/PUT | <code>/v1/config</code> | Server config management |
-| GET/PUT | <code>/v1/thinking</code> | Thinking budget config |
-| GET | <code>/v1/limiter-status</code> | Adaptive limiter state |
-| POST | <code>/v1/limiter-override</code> | Pin/clear model limit |
-| GET | <code>/ws</code> | WebSocket (6 event types) |
-| POST | <code>/v1/auth/*</code> | OAuth + API key auth flows |
-| GET | <code>/</code> | Dashboard SPA |
+| Method  | Path                              | Description                   |
+|---------|-----------------------------------|-------------------------------|
+| POST    | <code>/v1/messages</code>         | Sync transparent proxy        |
+| POST    | <code>/v1/chat/completions</code> | Async enqueue                 |
+| GET     | <code>/v1/results/{id}</code>     | Poll async result             |
+| GET     | <code>/v1/profiles</code>         | Profile CRUD                  |
+| GET     | <code>/v1/usage/*</code>          | Usage analytics (5 endpoints) |
+| GET     | <code>/quota/{provider}</code>    | Per-account quota             |
+| GET     | <code>/v1/overview</code>         | Dashboard summary             |
+| GET     | <code>/v1/health/detailed</code>  | 6 health checks               |
+| GET/PUT | <code>/v1/config</code>           | Server config management      |
+| GET/PUT | <code>/v1/thinking</code>         | Thinking budget config        |
+| GET     | <code>/v1/limiter-status</code>   | Adaptive limiter state        |
+| POST    | <code>/v1/limiter-override</code> | Pin/clear model limit         |
+| GET     | <code>/ws</code>                  | WebSocket (6 event types)     |
+| POST    | <code>/v1/auth/*</code>           | OAuth + API key auth flows    |
+| GET     | <code>/</code>                    | Dashboard SPA                 |
 
 ---
 
@@ -1493,28 +1493,28 @@ Gateway   -> pass-through only
 
 ### Service Limits
 
-| Service | Memory | CPU |
-|---|---|---|
-| gateway | 512M | 1.0 |
-| rate-limiter | 768M | 1.0 |
-| dragonfly | 6G | 2.0 |
-| worker | 1G | 2.0 |
-| prometheus | 512M | 0.5 |
-| grafana | 256M | 0.5 |
-| otel | 256M | 0.5 |
+| Service      | Memory | CPU |
+|--------------|--------|-----|
+| gateway      | 512M   | 1.0 |
+| rate-limiter | 768M   | 1.0 |
+| dragonfly    | 6G     | 2.0 |
+| worker       | 1G     | 2.0 |
+| prometheus   | 512M   | 0.5 |
+| grafana      | 256M   | 0.5 |
+| otel         | 256M   | 0.5 |
 
 </div>
 <div>
 
 ### Ports
 
-| Port | Service | Access |
-|---|---|---|
-| **8080** | API Gateway | External |
-| **3000** | Grafana | External |
-| 6379 | Dragonfly | Internal |
-| 9090 | Worker / Prometheus | Internal |
-| 4317/4318 | OTel Collector | Internal |
+| Port      | Service             | Access   |
+|-----------|---------------------|----------|
+| **8080**  | API Gateway         | External |
+| **3000**  | Grafana             | External |
+| 6379      | Dragonfly           | Internal |
+| 9090      | Worker / Prometheus | Internal |
+| 4317/4318 | OTel Collector      | Internal |
 
 <br>
 

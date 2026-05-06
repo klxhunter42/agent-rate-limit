@@ -21,37 +21,37 @@ docker-compose up -d --build arl-worker
 
 ### API Key Auth (add in `.env`)
 
-| Provider ID | Env Var | Upstream | Format |
-|------------|---------|----------|--------|
-| `anthropic` | `ANTHROPIC_API_KEYS` | api.anthropic.com | Anthropic |
-| `gemini` | `GEMINI_API_KEYS` | generativelanguage.googleapis.com | Gemini |
-| `openai` | `OPENAI_API_KEYS` | api.openai.com | OpenAI |
-| `zai` | `ZAI_API_KEYS` | api.z.ai/api/anthropic | Anthropic |
-| `openrouter` | `OPENROUTER_API_KEYS` | openrouter.ai/api | OpenAI |
-| `deepseek` | `DEEPSEEK_API_KEYS` | api.deepseek.com | OpenAI |
-| `kimi` | `KIMI_API_KEYS` | api.moonshot.cn/v1 | OpenAI |
-| `huggingface` | `HUGGINGFACE_API_KEYS` | api-inference.huggingface.co/models | OpenAI |
-| `ollama` | `OLLAMA_API_KEYS` | localhost:11434 | OpenAI |
-| `agy` | `AGY_API_KEYS` | antigravity.com | Anthropic |
-| `cursor` | `CURSOR_API_KEYS` | api2.cursor.sh | OpenAI |
-| `codebuddy` | `CODEBUDDY_API_KEYS` | api.codebuddy.io | OpenAI |
-| `kilo` | `KILO_API_KEYS` | api.kilo.ai | OpenAI |
+| Provider ID   | Env Var                | Upstream                            | Format    |
+|---------------|------------------------|-------------------------------------|-----------|
+| `anthropic`   | `ANTHROPIC_API_KEYS`   | api.anthropic.com                   | Anthropic |
+| `gemini`      | `GEMINI_API_KEYS`      | generativelanguage.googleapis.com   | Gemini    |
+| `openai`      | `OPENAI_API_KEYS`      | api.openai.com                      | OpenAI    |
+| `zai`         | `ZAI_API_KEYS`         | api.z.ai/api/anthropic              | Anthropic |
+| `openrouter`  | `OPENROUTER_API_KEYS`  | openrouter.ai/api                   | OpenAI    |
+| `deepseek`    | `DEEPSEEK_API_KEYS`    | api.deepseek.com                    | OpenAI    |
+| `kimi`        | `KIMI_API_KEYS`        | api.moonshot.cn/v1                  | OpenAI    |
+| `huggingface` | `HUGGINGFACE_API_KEYS` | api-inference.huggingface.co/models | OpenAI    |
+| `ollama`      | `OLLAMA_API_KEYS`      | localhost:11434                     | OpenAI    |
+| `agy`         | `AGY_API_KEYS`         | antigravity.com                     | Anthropic |
+| `cursor`      | `CURSOR_API_KEYS`      | api2.cursor.sh                      | OpenAI    |
+| `codebuddy`   | `CODEBUDDY_API_KEYS`   | api.codebuddy.io                    | OpenAI    |
+| `kilo`        | `KILO_API_KEYS`        | api.kilo.ai                         | OpenAI    |
 
 ### OAuth / Device Code Auth (via Dashboard UI)
 
-| Provider ID | Name | Auth Method | Upstream | Notes |
-|------------|------|-------------|----------|-------|
-| `claude-oauth` | Claude (OAuth) | OAuth PKCE + Bearer token | api.anthropic.com | Uses Claude Code Client ID |
-| `claude` | Claude (alias) | OAuth PKCE + Bearer token | api.anthropic.com | Alias for claude-oauth |
-| `gemini-oauth` | Google Gemini (OAuth) | OAuth auth code | cloudcode-pa.googleapis.com | Uses Code Assist proxy |
-| `copilot` | GitHub Copilot | Device code flow | api.github.com/copilot | Uses GitHub device code |
-| `qwen` | Qwen (Aliyun) | Device code flow | dashscope.aliyuncs.com | Aliyun DashScope |
+| Provider ID    | Name                  | Auth Method               | Upstream                    | Notes                      |
+|----------------|-----------------------|---------------------------|-----------------------------|----------------------------|
+| `claude-oauth` | Claude (OAuth)        | OAuth PKCE + Bearer token | api.anthropic.com           | Uses Claude Code Client ID |
+| `claude`       | Claude (alias)        | OAuth PKCE + Bearer token | api.anthropic.com           | Alias for claude-oauth     |
+| `gemini-oauth` | Google Gemini (OAuth) | OAuth auth code           | cloudcode-pa.googleapis.com | Uses Code Assist proxy     |
+| `copilot`      | GitHub Copilot        | Device code flow          | api.github.com/copilot      | Uses GitHub device code    |
+| `qwen`         | Qwen (Aliyun)         | Device code flow          | dashscope.aliyuncs.com      | Aliyun DashScope           |
 
 ## anthropic vs claude-oauth
 
-| Provider | Auth | Use Case |
-|----------|------|----------|
-| `anthropic` | API Key (`x-api-key` header) | Has direct Anthropic API key |
+| Provider       | Auth                                         | Use Case                                         |
+|----------------|----------------------------------------------|--------------------------------------------------|
+| `anthropic`    | API Key (`x-api-key` header)                 | Has direct Anthropic API key                     |
 | `claude-oauth` | OAuth Bearer token (`Authorization: Bearer`) | Uses Claude Code subscription, no API key needed |
 
 > **Note**: Provider `claude-oauth` uses OAuth PKCE flow:
@@ -62,10 +62,10 @@ docker-compose up -d --build arl-worker
 
 ## gemini vs gemini-oauth
 
-| Provider | Auth | Use Case |
-|----------|------|----------|
-| `gemini` | API Key (query param `?key=`) | Has direct Google AI API key |
-| `gemini-oauth` | OAuth Bearer token | Uses Google account + Code Assist |
+| Provider       | Auth                          | Use Case                          |
+|----------------|-------------------------------|-----------------------------------|
+| `gemini`       | API Key (query param `?key=`) | Has direct Google AI API key      |
+| `gemini-oauth` | OAuth Bearer token            | Uses Google account + Code Assist |
 
 > **Important**: `gemini-oauth` and `gemini` are separate providers. Gemini OAuth does NOT fallback to direct Gemini API. If you need both, register the `gemini` API key separately.
 
@@ -90,53 +90,53 @@ Runs every 30 minutes. On startup, calls `refreshAll()` immediately before the f
 
 Model requests are routed by prefix matching. Each rule lists providers in priority order:
 
-| Model Prefix | Providers (priority order) |
-|-------------|---------------------------|
-| `claude-` | `claude-oauth` -> `anthropic` |
-| `gpt-` | `openai` |
-| `o1-` | `openai` |
-| `o3-` | `openai` |
-| `o4-` | `openai` |
-| `gemini-` | `gemini-oauth` -> `gemini` |
-| `glm-` | `zai` |
-| `qwen-` | `qwen` |
-| `or-` | `openrouter` |
-| `anthropic/` | `anthropic` -> `openrouter` |
-| `openai/` | `openrouter` |
-| `google/` | `openrouter` |
-| `meta/` | `openrouter` |
-| `deepseek/` | `openrouter` |
-| `qwen/` | `openrouter` |
-| `deepseek-` | `deepseek` |
-| `kimi-` | `kimi` |
-| `huggingface/` | `huggingface` |
-| `ollama` | `ollama` |
-| `agy-` | `agy` |
+| Model Prefix   | Providers (priority order)    |
+|----------------|-------------------------------|
+| `claude-`      | `claude-oauth` -> `anthropic` |
+| `gpt-`         | `openai`                      |
+| `o1-`          | `openai`                      |
+| `o3-`          | `openai`                      |
+| `o4-`          | `openai`                      |
+| `gemini-`      | `gemini-oauth` -> `gemini`    |
+| `glm-`         | `zai`                         |
+| `qwen-`        | `qwen`                        |
+| `or-`          | `openrouter`                  |
+| `anthropic/`   | `anthropic` -> `openrouter`   |
+| `openai/`      | `openrouter`                  |
+| `google/`      | `openrouter`                  |
+| `meta/`        | `openrouter`                  |
+| `deepseek/`    | `openrouter`                  |
+| `qwen/`        | `openrouter`                  |
+| `deepseek-`    | `deepseek`                    |
+| `kimi-`        | `kimi`                        |
+| `huggingface/` | `huggingface`                 |
+| `ollama`       | `ollama`                      |
+| `agy-`         | `agy`                         |
 
 In GLM mode, unknown models fall back to `zai`.
 
 ### Provider Route Table
 
-| Provider ID | Format | Auth Mode | URL Suffix | Special Headers |
-|-------------|--------|-----------|------------|-----------------|
-| `anthropic` | Anthropic | `api_key` | `/v1/messages` | - |
-| `claude-oauth` | Anthropic | `api_key` | `/v1/messages?beta=true` | anthropic-beta, x-app, User-Agent, X-Stainless-* |
-| `claude` | Anthropic | `api_key` | `/v1/messages?beta=true` | Same as claude-oauth |
-| `zai` | Anthropic | `api_key` | `/v1/messages` | - |
-| `openai` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `copilot` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `openrouter` | OpenAI | `bearer` | `/v1/chat/completions` | HTTP-Referer header |
-| `qwen` | OpenAI | `bearer` | `/compatible-mode/v1/chat/completions` | - |
-| `gemini` | Gemini | `api_key` | (model + key in query) | - |
-| `gemini-oauth` | Gemini | `bearer` | (model in path) | - |
-| `deepseek` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `kimi` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `huggingface` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `ollama` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `agy` | Anthropic | `api_key` | `/v1/messages` | - |
-| `cursor` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `codebuddy` | OpenAI | `bearer` | `/v1/chat/completions` | - |
-| `kilo` | OpenAI | `bearer` | `/v1/chat/completions` | - |
+| Provider ID    | Format    | Auth Mode   | URL Suffix                             | Special Headers                                                                     |
+|----------------|-----------|-------------|----------------------------------------|-------------------------------------------------------------------------------------|
+| `anthropic`    | Anthropic | `api_key`   | `/v1/messages`                         | -                                                                                   |
+| `claude-oauth` | Anthropic | `api_key`   | `/v1/messages?beta=true`               | anthropic-beta, x-app, User-Agent, X-Stainless-*                                    |
+| `claude`       | Anthropic | `api_key`   | `/v1/messages?beta=true`               | Same as claude-oauth                                                                |
+| `zai`          | Anthropic | `api_key`   | `/v1/messages`                         | -                                                                                   |
+| `openai`       | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `copilot`      | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `openrouter`   | OpenAI    | `bearer`    | `/v1/chat/completions`                 | HTTP-Referer header                                                                 |
+| `qwen`         | OpenAI    | `bearer`    | `/compatible-mode/v1/chat/completions` | -                                                                                   |
+| `gemini`       | Gemini    | `api_key`   | (model + key in query)                 | -                                                                                   |
+| `gemini-oauth` | Gemini    | `bearer`    | (model in path)                        | -                                                                                   |
+| `deepseek`     | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `kimi`         | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `huggingface`  | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `ollama`       | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `agy`          | Anthropic | `api_key`   | `/v1/messages`                         | -                                                                                   |
+| `cursor`       | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `codebuddy`    | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `kilo`         | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
 
 ### Round-Robin Behavior
 
@@ -302,14 +302,14 @@ Path 2: OAuth Token (Claude Code)
 
 ### Required Headers for OAuth on /v1/messages
 
-| Header | Value | Required |
-|--------|-------|:--------:|
-| `Authorization` | `Bearer sk-ant-oat01-*` | YES |
-| `anthropic-beta` | Must include `oauth-2025-04-20` | YES |
-| `anthropic-version` | `2023-06-01` | YES |
-| `x-app` | `cli` | YES |
-| `anthropic-dangerous-direct-browser-access` | `true` | Recommended |
-| `User-Agent` | `claude-cli/2.1.123 (external, cli)` | Recommended |
+| Header                                      | Value                                |   Required  |
+|---------------------------------------------|--------------------------------------|:-----------:|
+| `Authorization`                             | `Bearer sk-ant-oat01-*`              |     YES     |
+| `anthropic-beta`                            | Must include `oauth-2025-04-20`      |     YES     |
+| `anthropic-version`                         | `2023-06-01`                         |     YES     |
+| `x-app`                                     | `cli`                                |     YES     |
+| `anthropic-dangerous-direct-browser-access` | `true`                               | Recommended |
+| `User-Agent`                                | `claude-cli/2.1.123 (external, cli)` | Recommended |
 
 Full `anthropic-beta` value (from resolver route table):
 
@@ -367,48 +367,48 @@ Step 5: Inject identity as system[1]
 
 ### Files
 
-| File | Purpose |
-|------|---------|
-| `api-gateway/sidecar/index.js` | Node.js proxy (~170 lines, zero dependencies) |
-| `api-gateway/sidecar/entrypoint.sh` | Starts Go + Node processes |
-| `api-gateway/sidecar/package.json` | No dependencies (built-in modules only) |
-| `api-gateway/Dockerfile` | Multi-stage build, `apk add nodejs`, copies sidecar/ |
-| `api-gateway/handler/handler.go` | Profile routing, transparent detection, header fix |
-| `api-gateway/proxy/anthropic.go` | `ProxyTransparent()`, `ProxySidecar()`, billing injection |
-| `api-gateway/proxy/claude_session.go` | `ClaudeSessionManager` for bootstrapping CLI sessions |
+| File                                  | Purpose                                                   |
+|---------------------------------------|-----------------------------------------------------------|
+| `api-gateway/sidecar/index.js`        | Node.js proxy (~170 lines, zero dependencies)             |
+| `api-gateway/sidecar/entrypoint.sh`   | Starts Go + Node processes                                |
+| `api-gateway/sidecar/package.json`    | No dependencies (built-in modules only)                   |
+| `api-gateway/Dockerfile`              | Multi-stage build, `apk add nodejs`, copies sidecar/      |
+| `api-gateway/handler/handler.go`      | Profile routing, transparent detection, header fix        |
+| `api-gateway/proxy/anthropic.go`      | `ProxyTransparent()`, `ProxySidecar()`, billing injection |
+| `api-gateway/proxy/claude_session.go` | `ClaudeSessionManager` for bootstrapping CLI sessions     |
 
 ### Claude Session Manager
 
 When a Claude OAuth token is first used, the gateway bootstraps a session by fetching profile data from Anthropic:
 
-| Endpoint | Purpose |
-|----------|---------|
-| `api.anthropic.com/api/oauth/profile` | User profile |
-| `api.anthropic.com/api/oauth/claude_cli/roles` | CLI roles (required) |
-| `api.anthropic.com/api/claude_code/settings` | CLI settings |
-| `api.anthropic.com/api/claude_code/policy_limits` | Policy limits |
+| Endpoint                                          | Purpose              |
+|---------------------------------------------------|----------------------|
+| `api.anthropic.com/api/oauth/profile`             | User profile         |
+| `api.anthropic.com/api/oauth/claude_cli/roles`    | CLI roles (required) |
+| `api.anthropic.com/api/claude_code/settings`      | CLI settings         |
+| `api.anthropic.com/api/claude_code/policy_limits` | Policy limits        |
 
 Sessions are cached in-memory (`sync.Map`) keyed by token. Required headers for bootstrap: `Authorization: Bearer`, `anthropic-version: 2023-06-01`, `user-agent: claude-cli/2.1.123`, `x-app: cli`.
 
 ### Config Env Vars
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `CLI_SIDECAR_ENABLED` | `true` | Enable/disable sidecar routing |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL (same container) |
-| `SIDECAR_PORT` | `8081` | Node.js sidecar listen port |
+| Env Var               | Default                 | Description                    |
+|-----------------------|-------------------------|--------------------------------|
+| `CLI_SIDECAR_ENABLED` | `true`                  | Enable/disable sidecar routing |
+| `CLI_SIDECAR_URL`     | `http://127.0.0.1:8081` | Sidecar URL (same container)   |
+| `SIDECAR_PORT`        | `8081`                  | Node.js sidecar listen port    |
 
 ### Error Codes and Causes
 
-| HTTP | Error Message | Cause | Fix |
-|------|--------------|-------|-----|
-| 401 | `invalid x-api-key` | OAuth token sent as `x-api-key` header | Use `Authorization: Bearer` instead |
-| 401 | `OAuth authentication is currently not supported` | Missing `oauth-2025-04-20` in `anthropic-beta` | Add the beta flag |
-| 401 | `Invalid bearer token` | Token expired or revoked | Re-auth via gateway OAuth flow |
-| 400 | `reserved keyword` | Billing header rejected by Anthropic | TLS fingerprint mismatch (sidecar fixes this) |
-| 404 | `not_found_error: model: X` | Wrong model name | Use `claude-sonnet-4-20250514`, not `claude-sonnet-4-6-20250514` |
-| 429 | `rate_limit_error` | Rate limit exceeded (generic OAuth bucket) | Must route through sidecar for billing header |
-| 502 | (empty) | Gateway panic (slice bounds) | Fixed with `truncate()` helper in proxy |
+| HTTP   | Error Message                                     | Cause                                          | Fix                                                              |
+|--------|---------------------------------------------------|------------------------------------------------|------------------------------------------------------------------|
+| 401    | `invalid x-api-key`                               | OAuth token sent as `x-api-key` header         | Use `Authorization: Bearer` instead                              |
+| 401    | `OAuth authentication is currently not supported` | Missing `oauth-2025-04-20` in `anthropic-beta` | Add the beta flag                                                |
+| 401    | `Invalid bearer token`                            | Token expired or revoked                       | Re-auth via gateway OAuth flow                                   |
+| 400    | `reserved keyword`                                | Billing header rejected by Anthropic           | TLS fingerprint mismatch (sidecar fixes this)                    |
+| 404    | `not_found_error: model: X`                       | Wrong model name                               | Use `claude-sonnet-4-20250514`, not `claude-sonnet-4-6-20250514` |
+| 429    | `rate_limit_error`                                | Rate limit exceeded (generic OAuth bucket)     | Must route through sidecar for billing header                    |
+| 502    | (empty)                                           | Gateway panic (slice bounds)                   | Fixed with `truncate()` helper in proxy                          |
 
 ### Setup: CLI on Remote Machine
 

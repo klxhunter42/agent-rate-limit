@@ -573,7 +573,7 @@ export default function ProvidersPage() {
         status={authCodeStatus}
         error={authFlow.error ?? undefined}
         needsEmail={authFlow.needsEmail}
-        onSubmitCallback={(url) => authFlow.submitCallback(authFlow.provider ?? '', url)}
+        onSubmitCallback={(url) => { authFlow.submitCallback(authFlow.provider ?? '', url); setTimeout(loadAccounts, 1000); }}
         onSubmitEmail={(email) => authFlow.submitEmail(email)}
       />
     </div>

@@ -207,7 +207,7 @@
       }
     },
     {
-      "title": "Anomalies",
+      "title": "Waste Detection Findings",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -221,8 +221,8 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type, severity) (rate(api_gateway_anomaly_total[$__interval])))",
-          "legendFormat": "{{type}} ({{severity}})",
+          "expr": "(sum by (detector, severity) (rate(api_gateway_waste_findings_total[$__interval])))",
+          "legendFormat": "{{detector}} ({{severity}})",
           "refId": "A"
         }
       ],

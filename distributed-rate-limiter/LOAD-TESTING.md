@@ -84,12 +84,12 @@ The CI/CD pipeline:
 
 Based on the existing benchmark infrastructure and testing, the following performance targets have been established:
 
-| Metric | Target | Threshold |
-|--------|--------|-----------|
-| **Response Time (Average)** | < 250ms | < 500ms |
-| **Response Time (Max)** | < 500ms | < 1000ms |
-| **Throughput** | > 500 req/sec | > 250 req/sec |
-| **Success Rate** | > 95% | > 90% |
+| Metric                      | Target        | Threshold     |
+|-----------------------------|---------------|---------------|
+| **Response Time (Average)** | < 250ms       | < 500ms       |
+| **Response Time (Max)**     | < 500ms       | < 1000ms      |
+| **Throughput**              | > 500 req/sec | > 250 req/sec |
+| **Success Rate**            | > 95%         | > 90%         |
 
 ### Baseline Storage
 
@@ -105,11 +105,11 @@ Performance baselines are stored in JSON format and include:
 
 The system automatically detects performance regressions using configurable thresholds:
 
-| Regression Type | Default Threshold | Severity Levels |
-|-----------------|-------------------|-----------------|
-| **Response Time Increase** | 20% | Minor (20-30%), Moderate (30-40%), Major (40-60%), Critical (>60%) |
-| **Throughput Decrease** | 15% | Minor (15-22%), Moderate (22-30%), Major (30-45%), Critical (>45%) |
-| **Success Rate Decrease** | 5% | Minor (5-7%), Moderate (7-10%), Major (10-15%), Critical (>15%) |
+| Regression Type            | Default Threshold   | Severity Levels                                                    |
+|----------------------------|---------------------|--------------------------------------------------------------------|
+| **Response Time Increase** | 20%                 | Minor (20-30%), Moderate (30-40%), Major (40-60%), Critical (>60%) |
+| **Throughput Decrease**    | 15%                 | Minor (15-22%), Moderate (22-30%), Major (30-45%), Critical (>45%) |
+| **Success Rate Decrease**  | 5%                  | Minor (5-7%), Moderate (7-10%), Major (10-15%), Critical (>15%)    |
 
 ## API Endpoints
 

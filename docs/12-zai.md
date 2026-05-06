@@ -69,20 +69,20 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 
 ## Changes
 
-| Point | Before | After |
-|---|---|---|
-| `filterUnsupportedContent()` | Removes `server_tool_use` + converts `image` to `image_url` | Removes `server_tool_use` only |
-| Vision endpoint | Sent to `open.bigmodel.cn` (GLM native) + format conversion | Sent to `api.z.ai` (Anthropic-compatible) + no format conversion |
-| Image format received by upstream | `image_url` (GLM) -> 400 error | `image` (Anthropic) -> 200 OK |
+| Point                             | Before                                                      | After                                                            |
+|-----------------------------------|-------------------------------------------------------------|------------------------------------------------------------------|
+| `filterUnsupportedContent()`      | Removes `server_tool_use` + converts `image` to `image_url` | Removes `server_tool_use` only                                   |
+| Vision endpoint                   | Sent to `open.bigmodel.cn` (GLM native) + format conversion | Sent to `api.z.ai` (Anthropic-compatible) + no format conversion |
+| Image format received by upstream | `image_url` (GLM) -> 400 error                              | `image` (Anthropic) -> 200 OK                                    |
 
 ## Related Files
 
-| File | Relevant Section |
-|---|---|
-| `api-gateway/handler/handler.go` | `filterUnsupportedContent()`, `HasImageContent()`, vision routing block |
-| `api-gateway/proxy/anthropic.go` | `HasImageContent()`, `rewriteImageToGLMFormat()` (no longer called) |
-| `api-gateway/config/config.go` | `VisionModelLimits`, `UPSTREAM_VISION_MODEL_LIMITS` |
-| `api-gateway/middleware/adaptive_limiter.go` | Vision limits separated from language limits |
+| File                                         | Relevant Section                                                        |
+|----------------------------------------------|-------------------------------------------------------------------------|
+| `api-gateway/handler/handler.go`             | `filterUnsupportedContent()`, `HasImageContent()`, vision routing block |
+| `api-gateway/proxy/anthropic.go`             | `HasImageContent()`, `rewriteImageToGLMFormat()` (no longer called)     |
+| `api-gateway/config/config.go`               | `VisionModelLimits`, `UPSTREAM_VISION_MODEL_LIMITS`                     |
+| `api-gateway/middleware/adaptive_limiter.go` | Vision limits separated from language limits                            |
 
 ## Lesson Learned
 
@@ -100,21 +100,21 @@ Initial compression used WebP (`bimg.WEBP`) which caused hallucinated image desc
 
 Comprehensive POC testing (60+ combinations) with real photos revealed optimal settings:
 
-| Config | Before | After (POC-validated) |
-|---|---|---|
-| Format | JPEG | JPEG (no change) |
-| Quality | 85 | **75** (better accuracy, smaller size) |
-| Max dimension | unused | **1600px** (resize wired up) |
+| Config               | Before  | After (POC-validated)                      |
+|----------------------|---------|--------------------------------------------|
+| Format               | JPEG    | JPEG (no change)                           |
+| Quality              | 85      | **75** (better accuracy, smaller size)     |
+| Max dimension        | unused  | **1600px** (resize wired up)               |
 | Default vision model | glm-5.1 | **glm-4.6v** (90% accuracy on real photos) |
 
 POC results showed counter-intuitive finding: JPEG q75 outperforms q85 for accuracy. glm-4.6v scored 90% vs glm-5.1 at 80% on the same image.
 
 ### Files Changed
 
-| File | Change |
-|---|---|
+| File                 | Change                                                                     |
+|----------------------|----------------------------------------------------------------------------|
 | `handler/handler.go` | `bimg.WEBP` -> `bimg.JPEG`, added size guard, `image/webp` -> `image/jpeg` |
-| `metrics/metrics.go` | `ImageCompressions`, `ImageBytesSaved`, `ImageBytesOriginal` counters |
+| `metrics/metrics.go` | `ImageCompressions`, `ImageBytesSaved`, `ImageBytesOriginal` counters      |
 
 ## Additional Routing: ZAI OpenAI Models
 

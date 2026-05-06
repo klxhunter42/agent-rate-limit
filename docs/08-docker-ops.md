@@ -19,28 +19,28 @@ External port: **9000** (Caddy proxy). All other services are internal-only.
 
 ## Services
 
-| Service | Container | Image/Build | Internal Port | External |
-|---------|-----------|-------------|:-------------:|:--------:|
-| API Gateway | `arl-gateway` | `./api-gateway/Dockerfile` | 8080 | via proxy |
-| Rate Limiter | `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile` | 8080 | - |
-| Dragonfly | `arl-dragonfly` | `ghcr.io/dragonflydb/dragonfly:v1.37.2` | 6379 | - |
-| AI Worker | `arl-worker` | `./ai-worker/Dockerfile` | 9090, 9091 | - |
-| Prometheus | `arl-prometheus` | `prom/prometheus:v2.54.1` | 9090 | - |
-| Grafana | `arl-grafana` | `grafana/grafana:11.3.0` | 3000 | via proxy |
-| OTel Collector | `arl-otel` | `otel/opentelemetry-collector-contrib:0.112.0` | 4317, 4318, 8889 | - |
-| Rate Limiter Dashboard | `arl-rl-dashboard` | `./distributed-rate-limiter/examples/web-dashboard/Dockerfile` | - | - |
-| Dashboard UI | `arl-dashboard` | `./ui/Dockerfile.dev` | 5173 | via proxy |
-| Caddy Proxy | `arl-proxy` | `caddy:2-alpine` | 9000 | **9000** |
-| Presidio PII | `arl-presidio` | `mcr.microsoft.com/presidio-analyzer:2.2.362` | 3000 | - |
-| Claude Code (test) | `claude-code-meow` | `./docker/Dockerfile.claude-code` | - | - |
-| Claude Code (test) | `claude-code-test` | `./docker/Dockerfile.claude-code` | - | - |
+| Service                | Container          | Image/Build                                                    |  Internal Port   |  External  |
+|------------------------|--------------------|----------------------------------------------------------------|:----------------:|:----------:|
+| API Gateway            | `arl-gateway`      | `./api-gateway/Dockerfile`                                     |       8080       | via proxy  |
+| Rate Limiter           | `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile`                        |       8080       |     -      |
+| Dragonfly              | `arl-dragonfly`    | `ghcr.io/dragonflydb/dragonfly:v1.37.2`                        |       6379       |     -      |
+| AI Worker              | `arl-worker`       | `./ai-worker/Dockerfile`                                       |    9090, 9091    |     -      |
+| Prometheus             | `arl-prometheus`   | `prom/prometheus:v2.54.1`                                      |       9090       |     -      |
+| Grafana                | `arl-grafana`      | `grafana/grafana:11.3.0`                                       |       3000       | via proxy  |
+| OTel Collector         | `arl-otel`         | `otel/opentelemetry-collector-contrib:0.112.0`                 | 4317, 4318, 8889 |     -      |
+| Rate Limiter Dashboard | `arl-rl-dashboard` | `./distributed-rate-limiter/examples/web-dashboard/Dockerfile` |        -         |     -      |
+| Dashboard UI           | `arl-dashboard`    | `./ui/Dockerfile.dev`                                          |       5173       | via proxy  |
+| Caddy Proxy            | `arl-proxy`        | `caddy:2-alpine`                                               |       9000       |  **9000**  |
+| Presidio PII           | `arl-presidio`     | `mcr.microsoft.com/presidio-analyzer:2.2.362`                  |       3000       |     -      |
+| Claude Code (test)     | `claude-code-meow` | `./docker/Dockerfile.claude-code`                              |        -         |     -      |
+| Claude Code (test)     | `claude-code-test` | `./docker/Dockerfile.claude-code`                              |        -         |     -      |
 
 ### Optional Profiles
 
-| Profile | Services | Purpose |
-|---------|----------|---------|
-| `pii` | `arl-presidio` | Presidio PII analyzer (legacy, replaced by regex) |
-| `test-client` | `claude-code-meow`, `claude-code-test` | Claude Code test clients |
+| Profile       | Services                               | Purpose                                           |
+|---------------|----------------------------------------|---------------------------------------------------|
+| `pii`         | `arl-presidio`                         | Presidio PII analyzer (legacy, replaced by regex) |
+| `test-client` | `claude-code-meow`, `claude-code-test` | Claude Code test clients                          |
 
 ---
 
@@ -98,16 +98,16 @@ The sidecar is enabled by default (`CLI_SIDECAR_ENABLED=true`) and runs a Node.j
 
 ## Resource Limits
 
-| Service | Memory Limit | CPU Limit | Memory Reserve |
-|---------|:-----------:|:---------:|:--------------:|
-| arl-gateway | 1G | 2.0 | 256M |
-| arl-rate-limiter | 1.5G | 2.0 | 512M |
-| arl-dragonfly | 8G | 2.0 | 1G |
-| arl-worker | 2G | 2.0 | 512M |
-| arl-prometheus | 2G | 2.0 | 256M |
-| arl-grafana | 1G | 2.0 | 256M |
-| arl-otel | 512M | 1.0 | 128M |
-| arl-proxy | 128M | 0.5 | 32M |
+| Service          |  Memory Limit |  CPU Limit  |  Memory Reserve  |
+|------------------|:-------------:|:-----------:|:----------------:|
+| arl-gateway      |       1G      |     2.0     |       256M       |
+| arl-rate-limiter |      1.5G     |     2.0     |       512M       |
+| arl-dragonfly    |       8G      |     2.0     |        1G        |
+| arl-worker       |       2G      |     2.0     |       512M       |
+| arl-prometheus   |       2G      |     2.0     |       256M       |
+| arl-grafana      |       1G      |     2.0     |       256M       |
+| arl-otel         |      512M     |     1.0     |       128M       |
+| arl-proxy        |      128M     |     0.5     |       32M        |
 
 ---
 
@@ -115,49 +115,49 @@ The sidecar is enabled by default (`CLI_SIDECAR_ENABLED=true`) and runs a Node.j
 
 ### Common (shared via `x-common-env`)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_ADDR` | `arl-dragonfly:6379` | Redis/Dragonfly address |
+| Variable            | Default                        | Description              |
+|---------------------|--------------------------------|--------------------------|
+| `REDIS_ADDR`        | `arl-dragonfly:6379`           | Redis/Dragonfly address  |
 | `RATE_LIMITER_ADDR` | `http://arl-rate-limiter:8080` | Rate limiter service URL |
-| `QUEUE_NAME` | `ai_jobs` | Job queue name |
-| `OTLP_ENDPOINT` | `arl-otel:4317` | OpenTelemetry collector |
+| `QUEUE_NAME`        | `ai_jobs`                      | Job queue name           |
+| `OTLP_ENDPOINT`     | `arl-otel:4317`                | OpenTelemetry collector  |
 
 ### Gateway-specific
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SERVER_PORT` | `:8080` | Listen address |
-| `GLM_MODE` | `true` | Enable Z.AI features vs multi-provider proxy |
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Default upstream |
-| `ZAI_API_KEYS` | - | Comma-separated API keys for rotation |
-| `UPSTREAM_MODEL_LIMITS` | (see config.go) | Per-model concurrency limits |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent upstream requests |
-| `CLI_SIDECAR_ENABLED` | `true` | Enable Node.js billing sidecar |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
-| `DASHBOARD_PASSWORD` | - | Dashboard auth key (empty = no auth) |
-| `GLOBAL_RATE_LIMIT` | `100` | Global rate limit |
-| `AGENT_RATE_LIMIT` | `5` | Per-agent rate limit |
+| Variable                | Default                          | Description                                  |
+|-------------------------|----------------------------------|----------------------------------------------|
+| `SERVER_PORT`           | `:8080`                          | Listen address                               |
+| `GLM_MODE`              | `true`                           | Enable Z.AI features vs multi-provider proxy |
+| `UPSTREAM_URL`          | `https://api.z.ai/api/anthropic` | Default upstream                             |
+| `ZAI_API_KEYS`          | -                                | Comma-separated API keys for rotation        |
+| `UPSTREAM_MODEL_LIMITS` | (see config.go)                  | Per-model concurrency limits                 |
+| `UPSTREAM_GLOBAL_LIMIT` | `9`                              | Total concurrent upstream requests           |
+| `CLI_SIDECAR_ENABLED`   | `true`                           | Enable Node.js billing sidecar               |
+| `CLI_SIDECAR_URL`       | `http://127.0.0.1:8081`          | Sidecar URL                                  |
+| `DASHBOARD_PASSWORD`    | -                                | Dashboard auth key (empty = no auth)         |
+| `GLOBAL_RATE_LIMIT`     | `100`                            | Global rate limit                            |
+| `AGENT_RATE_LIMIT`      | `5`                              | Per-agent rate limit                         |
 
 ### Proxy (Caddy)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROXY_PORT` | `9000` | External port |
-| `PROXY_SCHEME` | `http` | URL scheme |
+| Variable        | Default     | Description       |
+|-----------------|-------------|-------------------|
+| `PROXY_PORT`    | `9000`      | External port     |
+| `PROXY_SCHEME`  | `http`      | URL scheme        |
 | `EXTERNAL_HOST` | `localhost` | External hostname |
 
 ---
 
 ## Health Checks
 
-| Service | Check | Interval | Timeout | Retries |
-|---------|-------|:--------:|:-------:|:-------:|
-| arl-gateway | `curl -sf http://localhost:8080/health` | 10s | 5s | 3 |
-| arl-rate-limiter | `curl -f http://localhost:8080/actuator/health` | 15s | 5s | 5 (start: 30s) |
-| arl-dragonfly | `redis-cli ping` | 5s | 3s | 5 |
-| arl-worker | `curl -f http://localhost:9091/metrics-internal` | 15s | 5s | 3 (start: 10s) |
-| arl-dashboard | `curl -sf http://localhost:5173` | 10s | 5s | 10 (start: 15s) |
-| arl-proxy | `wget -q --spider http://localhost:9000/health` | 10s | 5s | 3 |
+| Service          | Check                                            |  Interval  |  Timeout  |     Retries     |
+|------------------|--------------------------------------------------|:----------:|:---------:|:---------------:|
+| arl-gateway      | `curl -sf http://localhost:8080/health`          |    10s     |     5s    |        3        |
+| arl-rate-limiter | `curl -f http://localhost:8080/actuator/health`  |    15s     |     5s    |  5 (start: 30s) |
+| arl-dragonfly    | `redis-cli ping`                                 |     5s     |     3s    |        5        |
+| arl-worker       | `curl -f http://localhost:9091/metrics-internal` |    15s     |     5s    |  3 (start: 10s) |
+| arl-dashboard    | `curl -sf http://localhost:5173`                 |    10s     |     5s    | 10 (start: 15s) |
+| arl-proxy        | `wget -q --spider http://localhost:9000/health`  |    10s     |     5s    |        3        |
 
 ---
 
@@ -177,11 +177,11 @@ docker exec -it arl-dragonfly redis-cli
 
 ## Volumes
 
-| Volume | Service | Purpose |
-|--------|---------|---------|
-| `arl-dragonfly-data` | arl-dragonfly | Persistent Redis data |
-| `arl-prometheus-data` | arl-prometheus | Metrics retention (30d) |
-| `arl-grafana-data` | arl-grafana | Dashboard & config persistence |
+| Volume                | Service        | Purpose                        |
+|-----------------------|----------------|--------------------------------|
+| `arl-dragonfly-data`  | arl-dragonfly  | Persistent Redis data          |
+| `arl-prometheus-data` | arl-prometheus | Metrics retention (30d)        |
+| `arl-grafana-data`    | arl-grafana    | Dashboard & config persistence |
 
 ---
 

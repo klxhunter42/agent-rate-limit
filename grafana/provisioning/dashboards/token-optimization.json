@@ -562,12 +562,12 @@
           "refId": "A"
         },
         {
-          "expr": "sum(increase(api_gateway_delta_encodes_total[$__range])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) or on() vector(0)",
           "legendFormat": "delta",
           "refId": "B"
         },
         {
-          "expr": "sum(increase(api_gateway_sketch_checks_total[$__range])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range])) or on() vector(0)",
           "legendFormat": "sketch",
           "refId": "C"
         }

@@ -81,14 +81,14 @@ GLM mode toggle does not create separate code paths for masking/unmasking. The `
 
 ## Unmasking Coverage Matrix (After Fix)
 
-| Proxy Handler | Non-Stream | Stream | Error | Flush |
-|---|---|---|---|---|
-| AnthropicProxy (transparent) | OK | FIXED | N/A (passes through) | FIXED |
-| AnthropicProxy (OpenAI convert) | OK | OK | FIXED | OK |
-| OpenAIProxy | OK | FIXED | FIXED | FIXED |
-| GeminiAPIProxy | OK | OK | FIXED | OK |
-| GeminiCodeAssistProxy | OK | OK | FIXED | OK |
-| ClaudeSessionProxy | N/A (stream only) | FIXED | N/A | FIXED |
+| Proxy Handler                   | Non-Stream        | Stream | Error                | Flush |
+|---------------------------------|-------------------|--------|----------------------|-------|
+| AnthropicProxy (transparent)    | OK                | FIXED  | N/A (passes through) | FIXED |
+| AnthropicProxy (OpenAI convert) | OK                | OK     | FIXED                | OK    |
+| OpenAIProxy                     | OK                | FIXED  | FIXED                | FIXED |
+| GeminiAPIProxy                  | OK                | OK     | FIXED                | OK    |
+| GeminiCodeAssistProxy           | OK                | OK     | FIXED                | OK    |
+| ClaudeSessionProxy              | N/A (stream only) | FIXED  | N/A                  | FIXED |
 
 ## Files Changed
 

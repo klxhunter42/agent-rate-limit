@@ -32,16 +32,16 @@ Complete infrastructure documentation covering Docker Compose, Dockerfiles, Helm
                         +-----------+-----------+
                                     |
              +----------------------+----------------------+
-             |                      |                      |
+|                      |                      |
              v                      v                      v
    /v1/*, /api/*,         /grafana, /grafana/*       /*
    /ws, /health,          (Grafana UI)               (Dashboard UI)
    /metrics, /callback
-             |                      |                      |
+|                      |                      |
              v                      v                      v
    +---------+--------+  +---------+--------+  +---------+--------+
-   |   arl-gateway     |  |   arl-grafana    |  |   arl-dashboard  |
-   |   (Go, :8080)     |  |   (:3000)        |  |   (Vite, :5173)  |
+|   arl-gateway     |  |   arl-grafana    |  |   arl-dashboard  |
+|   (Go, :8080)     |  |   (:3000)        |  |   (Vite, :5173)  |
    +---------+--------+  +------------------+  +------------------+
              |
              +-- sidecar (Node.js, :8081) --> api.anthropic.com
@@ -168,35 +168,35 @@ Client polls until status=completed or error
 
 ### 2.1 Network
 
-| Name | Driver | Scope |
-|------|--------|-------|
-| `arl-network` | bridge | All services |
+| Name          | Driver   | Scope        |
+|---------------|----------|--------------|
+| `arl-network` | bridge   | All services |
 
 ### 2.2 Volumes
 
-| Name | Used By | Purpose |
-|------|---------|---------|
-| `arl-dragonfly-data` | `arl-dragonfly` | Dragonfly persistence |
-| `arl-prometheus-data` | `arl-prometheus` | TSDB retention (30d, 10GB) |
-| `arl-grafana-data` | `arl-grafana` | Grafana dashboards/settings |
+| Name                  | Used By          | Purpose                     |
+|-----------------------|------------------|-----------------------------|
+| `arl-dragonfly-data`  | `arl-dragonfly`  | Dragonfly persistence       |
+| `arl-prometheus-data` | `arl-prometheus` | TSDB retention (30d, 10GB)  |
+| `arl-grafana-data`    | `arl-grafana`    | Grafana dashboards/settings |
 
 ### 2.3 Services Overview
 
-| Service | Image / Build | Container Port | External Port | Profile | Health Check |
-|---------|---------------|----------------|---------------|---------|--------------|
-| `arl-gateway` | `./api-gateway/Dockerfile` | 8080 | - | default | `curl -sf http://localhost:8080/health` |
-| `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile` | 8080 | - | default | `curl -f http://localhost:8080/actuator/health` |
-| `arl-dragonfly` | `ghcr.io/dragonflydb/dragonfly:v1.37.2` | 6379 | - | default | `redis-cli ping` |
-| `arl-worker` | `./ai-worker/Dockerfile` | 9090, 9091 | - | default | `curl -f http://localhost:9091/metrics-internal` |
-| `arl-prometheus` | `prom/prometheus:v2.54.1` | 9090 | - | default | N/A (uses image default) |
-| `arl-grafana` | `grafana/grafana:11.3.0` | 3000 | - | default | N/A (uses image default) |
-| `arl-otel` | `otel/opentelemetry-collector-contrib:0.112.0` | 4317, 4318, 8889 | - | default | N/A |
-| `arl-proxy` | `caddy:2-alpine` | 9000 | **9000** | default | `wget -q --spider http://localhost:9000/health` |
-| `arl-dashboard` | `./ui/Dockerfile.dev` | 5173 | - | default | `curl -sf http://localhost:5173` |
-| `arl-rl-dashboard` | `./distributed-rate-limiter/examples/web-dashboard/Dockerfile` | 8080 | - | `rl-dashboard` | N/A |
-| `arl-presidio` | `mcr.microsoft.com/presidio-analyzer:2.2.362` | 3000 | - | `pii` | N/A |
-| `claude-code-meow` | `./docker/Dockerfile.claude-code` | - | - | `test-client` | N/A |
-| `claude-code-test` | `./docker/Dockerfile.claude-code` | - | - | `test-client` | N/A |
+| Service            | Image / Build                                                  | Container Port   | External Port   | Profile        | Health Check                                     |
+|--------------------|----------------------------------------------------------------|------------------|-----------------|----------------|--------------------------------------------------|
+| `arl-gateway`      | `./api-gateway/Dockerfile`                                     | 8080             | -               | default        | `curl -sf http://localhost:8080/health`          |
+| `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile`                        | 8080             | -               | default        | `curl -f http://localhost:8080/actuator/health`  |
+| `arl-dragonfly`    | `ghcr.io/dragonflydb/dragonfly:v1.37.2`                        | 6379             | -               | default        | `redis-cli ping`                                 |
+| `arl-worker`       | `./ai-worker/Dockerfile`                                       | 9090, 9091       | -               | default        | `curl -f http://localhost:9091/metrics-internal` |
+| `arl-prometheus`   | `prom/prometheus:v2.54.1`                                      | 9090             | -               | default        | N/A (uses image default)                         |
+| `arl-grafana`      | `grafana/grafana:11.3.0`                                       | 3000             | -               | default        | N/A (uses image default)                         |
+| `arl-otel`         | `otel/opentelemetry-collector-contrib:0.112.0`                 | 4317, 4318, 8889 | -               | default        | N/A                                              |
+| `arl-proxy`        | `caddy:2-alpine`                                               | 9000             | **9000**        | default        | `wget -q --spider http://localhost:9000/health`  |
+| `arl-dashboard`    | `./ui/Dockerfile.dev`                                          | 5173             | -               | default        | `curl -sf http://localhost:5173`                 |
+| `arl-rl-dashboard` | `./distributed-rate-limiter/examples/web-dashboard/Dockerfile` | 8080             | -               | `rl-dashboard` | N/A                                              |
+| `arl-presidio`     | `mcr.microsoft.com/presidio-analyzer:2.2.362`                  | 3000             | -               | `pii`          | N/A                                              |
+| `claude-code-meow` | `./docker/Dockerfile.claude-code`                              | -                | -               | `test-client`  | N/A                                              |
+| `claude-code-test` | `./docker/Dockerfile.claude-code`                              | -                | -               | `test-client`  | N/A                                              |
 
 ### 2.4 Shared Environment (`x-common-env`)
 
@@ -232,45 +232,45 @@ arl-rl-dashboard
 
 ### 2.6 Resource Limits
 
-| Service | Memory Limit | CPU Limit | Memory Reserve | CPU Reserve |
-|---------|-------------|-----------|----------------|-------------|
-| `arl-gateway` | 1G | 2.0 | 256M | 0.5 |
-| `arl-rate-limiter` | 1.5G | 2.0 | 512M | 0.5 |
-| `arl-dragonfly` | 8G | 2.0 | 1G | 0.5 |
-| `arl-worker` | 2G | 2.0 | 512M | 0.5 |
-| `arl-prometheus` | 2G | 2.0 | 256M | - |
-| `arl-grafana` | 1G | 2.0 | 256M | - |
-| `arl-otel` | 512M | 1.0 | 128M | - |
-| `arl-proxy` | 128M | 0.5 | 32M | - |
-| `arl-dashboard` | 1G | 2.0 | 256M | - |
-| `arl-rl-dashboard` | 256M | 0.5 | 64M | - |
-| `arl-presidio` | 2G | 2.0 | 512M | - |
+| Service            | Memory Limit  | CPU Limit   | Memory Reserve   | CPU Reserve   |
+|--------------------|---------------|-------------|------------------|---------------|
+| `arl-gateway`      | 1G            | 2.0         | 256M             | 0.5           |
+| `arl-rate-limiter` | 1.5G          | 2.0         | 512M             | 0.5           |
+| `arl-dragonfly`    | 8G            | 2.0         | 1G               | 0.5           |
+| `arl-worker`       | 2G            | 2.0         | 512M             | 0.5           |
+| `arl-prometheus`   | 2G            | 2.0         | 256M             | -             |
+| `arl-grafana`      | 1G            | 2.0         | 256M             | -             |
+| `arl-otel`         | 512M          | 1.0         | 128M             | -             |
+| `arl-proxy`        | 128M          | 0.5         | 32M              | -             |
+| `arl-dashboard`    | 1G            | 2.0         | 256M             | -             |
+| `arl-rl-dashboard` | 256M          | 0.5         | 64M              | -             |
+| `arl-presidio`     | 2G            | 2.0         | 512M             | -             |
 
 ### 2.7 Docker Compose Profiles
 
-| Profile | Services | Purpose |
-|---------|----------|---------|
-| (default) | All core services | Production/staging stack |
-| `rl-dashboard` | `arl-rl-dashboard` | Rate limiter web dashboard (optional) |
-| `pii` | `arl-presidio` | Presidio PII analyzer (legacy, replaced by regex) |
-| `test-client` | `claude-code-meow`, `claude-code-test` | Claude Code test clients with auto-token provisioning |
+| Profile        | Services                               | Purpose                                               |
+|----------------|----------------------------------------|-------------------------------------------------------|
+| (default)      | All core services                      | Production/staging stack                              |
+| `rl-dashboard` | `arl-rl-dashboard`                     | Rate limiter web dashboard (optional)                 |
+| `pii`          | `arl-presidio`                         | Presidio PII analyzer (legacy, replaced by regex)     |
+| `test-client`  | `claude-code-meow`, `claude-code-test` | Claude Code test clients with auto-token provisioning |
 
 ### 2.8 Caddy Proxy Routes
 
 **File**: `docker/proxy/Caddyfile`
 
-| Route Pattern | Upstream | Notes |
-|--------------|----------|-------|
-| `/ws` | `arl-gateway:8080` | WebSocket, flush immediately |
-| `/hmr` | `arl-dashboard:5173` | Vite HMR (dev mode) |
-| `/v1/*` | `arl-gateway:8080` | API messages endpoint, streaming |
-| `/health` | `arl-gateway:8080` | Health check |
-| `/api/*` | `arl-gateway:8080` | Internal API, streaming |
-| `/metrics` | `arl-gateway:8080` | Prometheus metrics |
-| `/callback` | `arl-gateway:8080` | OAuth callback |
-| `/grafana`, `/grafana/*` | `arl-grafana:3000` | Grafana UI |
-| `/rl/*` | `arl-rl-dashboard:8080` | Rate limiter dashboard |
-| `*` (default) | `arl-dashboard:5173` | Dashboard UI (Vite dev server) |
+| Route Pattern            | Upstream                | Notes                            |
+|--------------------------|-------------------------|----------------------------------|
+| `/ws`                    | `arl-gateway:8080`      | WebSocket, flush immediately     |
+| `/hmr`                   | `arl-dashboard:5173`    | Vite HMR (dev mode)              |
+| `/v1/*`                  | `arl-gateway:8080`      | API messages endpoint, streaming |
+| `/health`                | `arl-gateway:8080`      | Health check                     |
+| `/api/*`                 | `arl-gateway:8080`      | Internal API, streaming          |
+| `/metrics`               | `arl-gateway:8080`      | Prometheus metrics               |
+| `/callback`              | `arl-gateway:8080`      | OAuth callback                   |
+| `/grafana`, `/grafana/*` | `arl-grafana:3000`      | Grafana UI                       |
+| `/rl/*`                  | `arl-rl-dashboard:8080` | Rate limiter dashboard           |
+| `*` (default)            | `arl-dashboard:5173`    | Dashboard UI (Vite dev server)   |
 
 ### 2.9 Logging Configuration
 
@@ -287,10 +287,10 @@ All services use `json-file` log driver with rotation:
 
 **Multi-stage build** (Go production):
 
-| Stage | Base Image | Purpose |
-|-------|-----------|---------|
+| Stage   | Base Image           | Purpose           |
+|---------|----------------------|-------------------|
 | Builder | `golang:1.25-alpine` | Compile Go binary |
-| Runtime | `alpine:3.20` | Minimal runtime |
+| Runtime | `alpine:3.20`        | Minimal runtime   |
 
 **Build optimizations**:
 - `CGO_ENABLED=0` - Static binary, no C dependencies
@@ -309,23 +309,23 @@ All services use `json-file` log driver with rotation:
 
 **Standalone sidecar image** (for K8s separate deployment):
 
-| Property | Value |
-|----------|-------|
-| Base | `node:20-alpine` |
-| Extra packages | `curl` |
-| Install | `npm install --omit=dev` (production only) |
-| User | `1000` (non-root) |
-| Port | 8081 |
-| CMD | `node index.js` |
+| Property       | Value                                      |
+|----------------|--------------------------------------------|
+| Base           | `node:20-alpine`                           |
+| Extra packages | `curl`                                     |
+| Install        | `npm install --omit=dev` (production only) |
+| User           | `1000` (non-root)                          |
+| Port           | 8081                                       |
+| CMD            | `node index.js`                            |
 
 ### 3.3 Claude Code Test Client (`docker/Dockerfile.claude-code`)
 
-| Property | Value |
-|----------|-------|
-| Base | `node:22-slim` |
-| Extra packages | `git`, `curl`, `python3` |
+| Property       | Value                       |
+|----------------|-----------------------------|
+| Base           | `node:22-slim`              |
+| Extra packages | `git`, `curl`, `python3`    |
 | Global install | `@anthropic-ai/claude-code` |
-| Entrypoint | `entrypoint-claude.sh` |
+| Entrypoint     | `entrypoint-claude.sh`      |
 
 **Entrypoint behavior** (`docker/entrypoint-claude.sh`):
 1. Wait for gateway health (`/health` on arl-gateway:8080)
@@ -346,12 +346,12 @@ All services use `json-file` log driver with rotation:
 
 ### 4.1 Chart Metadata
 
-| Property | Value |
-|----------|-------|
-| Name | `ai-gateway` |
-| Version | `0.2.0` |
-| AppVersion | `1.1.0` |
-| Type | `application` |
+| Property   | Value         |
+|------------|---------------|
+| Name       | `ai-gateway`  |
+| Version    | `0.2.0`       |
+| AppVersion | `1.1.0`       |
+| Type       | `application` |
 
 ### 4.2 Values Structure (Global)
 
@@ -385,15 +385,15 @@ Each component follows a consistent pattern with:
 
 #### 4.3.1 Gateway
 
-| Property | Value |
-|----------|-------|
-| Replicas | 2 |
-| Image | `earth4242/ai-gateway` |
-| Port | 8080 |
-| Resources | 256Mi-1Gi RAM, 500m-2 CPU |
-| HPA | Optional (2-10 replicas, CPU 70%, Memory 80%) |
-| Probes | Readiness: `/health` (5s delay), Liveness: `/health` (10s delay) |
-| Config checksum | Secrets template hash triggers rollout on change |
+| Property        | Value                                                                                    |
+|-----------------|------------------------------------------------------------------------------------------|
+| Replicas        | 2                                                                                        |
+| Image           | `earth4242/ai-gateway`                                                                   |
+| Port            | 8080                                                                                     |
+| Resources       | 256Mi-1Gi RAM, 500m-2 CPU                                                                |
+| HPA             | Optional (2-10 replicas, CPU 70%, Memory 80%)                                            |
+| Probes          | Readiness: `/health` (5s delay), Liveness: `/health` (10s delay)                         |
+| Config checksum | Secrets template hash triggers rollout on change                                         |
 
 **Gateway HPA** (optional, controlled by `gateway.hpa.enabled`):
 - Min replicas: 2
@@ -403,144 +403,144 @@ Each component follows a consistent pattern with:
 
 #### 4.3.2 Worker
 
-| Property | Value |
-|----------|-------|
-| Replicas | 2 |
-| Image | `earth4242/ai-worker` |
-| Ports | 9090 (metrics), 9091 (internal) |
-| Resources | 512Mi-2Gi RAM, 500m-2 CPU |
-| Probes | `/metrics-internal` on port 9091 |
+| Property        | Value                                                                                                               |
+|-----------------|---------------------------------------------------------------------------------------------------------------------|
+| Replicas        | 2                                                                                                                   |
+| Image           | `earth4242/ai-worker`                                                                                               |
+| Ports           | 9090 (metrics), 9091 (internal)                                                                                     |
+| Resources       | 512Mi-2Gi RAM, 500m-2 CPU                                                                                           |
+| Probes          | `/metrics-internal` on port 9091                                                                                    |
 
 #### 4.3.3 Rate Limiter
 
-| Property | Value |
-|----------|-------|
-| Replicas | 2 |
-| Image | `earth4242/distributed-rate-limiter` |
-| Port | 8080 |
-| Resources | 512Mi-1536Mi RAM, 500m-2 CPU |
-| Probes | Startup: `/actuator/health` (30s initial), Readiness: `/actuator/health/readiness`, Liveness: `/actuator/health/liveness` |
-| JVM opts | G1GC, 75% RAM, string deduplication |
+| Property   | Value                                                                                                                     |
+|------------|---------------------------------------------------------------------------------------------------------------------------|
+| Replicas   | 2                                                                                                                         |
+| Image      | `earth4242/distributed-rate-limiter`                                                                                      |
+| Port       | 8080                                                                                                                      |
+| Resources  | 512Mi-1536Mi RAM, 500m-2 CPU                                                                                              |
+| Probes     | Startup: `/actuator/health` (30s initial), Readiness: `/actuator/health/readiness`, Liveness: `/actuator/health/liveness` |
+| JVM opts   | G1GC, 75% RAM, string deduplication                                                                                       |
 
 #### 4.3.4 Dragonfly (StatefulSet)
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `ghcr.io/dragonflydb/dragonfly:v1.37.2` |
-| Port | 6379 |
-| Resources | 1Gi-8Gi RAM, 500m-2 CPU |
-| Persistence | PVC (20Gi, configurable storageClass) |
-| Services | ClusterIP + Headless service |
-| Probes | `redis-cli ping` |
-| Args | `maxmemory=4gb`, `proactor_threads=4`, `cache_mode=true`, `tcp_keepalive=60`, `pipeline_squash=10` |
+| Property    | Value                                                                                              |
+|-------------|----------------------------------------------------------------------------------------------------|
+| Replicas    | 1                                                                                                  |
+| Image       | `ghcr.io/dragonflydb/dragonfly:v1.37.2`                                                            |
+| Port        | 6379                                                                                               |
+| Resources   | 1Gi-8Gi RAM, 500m-2 CPU                                                                            |
+| Persistence | PVC (20Gi, configurable storageClass)                                                              |
+| Services    | ClusterIP + Headless service                                                                       |
+| Probes      | `redis-cli ping`                                                                                   |
+| Args        | `maxmemory=4gb`, `proactor_threads=4`, `cache_mode=true`, `tcp_keepalive=60`, `pipeline_squash=10` |
 
 #### 4.3.5 Prometheus
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `prom/prometheus:v2.54.1` |
-| Port | 9090 |
-| Resources | 256Mi-2Gi RAM, 250m-2 CPU |
-| Persistence | PVC (50Gi, configurable storageClass) |
-| Retention | 30d, 10GB max |
-| Config | ConfigMap with scrape targets |
-| Probes | Readiness: `/-/ready`, Liveness: `/-/healthy` |
-| fsGroup | 65534 |
+| Property    | Value                                         |
+|-------------|-----------------------------------------------|
+| Replicas    | 1                                             |
+| Image       | `prom/prometheus:v2.54.1`                     |
+| Port        | 9090                                          |
+| Resources   | 256Mi-2Gi RAM, 250m-2 CPU                     |
+| Persistence | PVC (50Gi, configurable storageClass)         |
+| Retention   | 30d, 10GB max                                 |
+| Config      | ConfigMap with scrape targets                 |
+| Probes      | Readiness: `/-/ready`, Liveness: `/-/healthy` |
+| fsGroup     | 65534                                         |
 
 #### 4.3.6 Grafana
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `grafana/grafana:11.3.0` |
-| Port | 3000 |
-| Resources | 256Mi-1Gi RAM, 250m-2 CPU |
-| Persistence | PVC (10Gi, configurable storageClass) |
+| Property       | Value                                                         |
+|----------------|---------------------------------------------------------------|
+| Replicas       | 1                                                             |
+| Image          | `grafana/grafana:11.3.0`                                      |
+| Port           | 3000                                                          |
+| Resources      | 256Mi-1Gi RAM, 250m-2 CPU                                     |
+| Persistence    | PVC (10Gi, configurable storageClass)                         |
 | Admin password | From secret `ai-gateway-secrets` key `grafana-admin-password` |
-| Provisioning | ConfigMap with datasources + dashboards |
-| fsGroup | 472 |
-| Root URL | `%(protocol)s://%(domain)s/grafana` (sub-path) |
+| Provisioning   | ConfigMap with datasources + dashboards                       |
+| fsGroup        | 472                                                           |
+| Root URL       | `%(protocol)s://%(domain)s/grafana` (sub-path)                |
 
 #### 4.3.7 OpenTelemetry Collector
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `otel/opentelemetry-collector-contrib:0.112.0` |
-| Ports | 4317 (gRPC), 4318 (HTTP), 8889 (metrics) |
-| Resources | 128Mi-512Mi RAM, 250m-1 CPU |
-| Config | ConfigMap (receivers, processors, exporters) |
+| Property   | Value                                          |
+|------------|------------------------------------------------|
+| Replicas   | 1                                              |
+| Image      | `otel/opentelemetry-collector-contrib:0.112.0` |
+| Ports      | 4317 (gRPC), 4318 (HTTP), 8889 (metrics)       |
+| Resources  | 128Mi-512Mi RAM, 250m-1 CPU                    |
+| Config     | ConfigMap (receivers, processors, exporters)   |
 
 #### 4.3.8 Proxy (Caddy)
 
-| Property | Value |
-|----------|-------|
-| Replicas | 2 |
-| Image | `caddy:2-alpine` |
-| Port | 9000 |
-| Resources | 32Mi-128Mi RAM, 100m-500m CPU |
-| Config | ConfigMap with Caddyfile |
-| Probes | `/health` on port 9000 |
+| Property   | Value                         |
+|------------|-------------------------------|
+| Replicas   | 2                             |
+| Image      | `caddy:2-alpine`              |
+| Port       | 9000                          |
+| Resources  | 32Mi-128Mi RAM, 100m-500m CPU |
+| Config     | ConfigMap with Caddyfile      |
+| Probes     | `/health` on port 9000        |
 
 #### 4.3.9 Dashboard
 
-| Property | Value |
-|----------|-------|
-| Replicas | 2 |
-| Image | `earth4242/ai-dashboard` |
-| Port | 80 |
-| Resources | 64Mi-256Mi RAM, 100m-500m CPU |
-| Probes | `/` on port 80 |
+| Property   | Value                         |
+|------------|-------------------------------|
+| Replicas   | 2                             |
+| Image      | `earth4242/ai-dashboard`      |
+| Port       | 80                            |
+| Resources  | 64Mi-256Mi RAM, 100m-500m CPU |
+| Probes     | `/` on port 80                |
 
 #### 4.3.10 RL Dashboard
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `earth4242/ai-rl-dashboard` |
-| Port | 8080 |
-| Resources | 64Mi-256Mi RAM, 100m-500m CPU |
-| Probes | `/` on port 8080 |
+| Property   | Value                         |
+|------------|-------------------------------|
+| Replicas   | 1                             |
+| Image      | `earth4242/ai-rl-dashboard`   |
+| Port       | 8080                          |
+| Resources  | 64Mi-256Mi RAM, 100m-500m CPU |
+| Probes     | `/` on port 8080              |
 
 #### 4.3.11 Sidecar
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `earth4242/ai-sidecar` |
-| Port | 8081 |
-| Resources | 128Mi-256Mi RAM, 100m-500m CPU |
-| Probes | `/health` on port 8081 |
-| Secrets mounted | `ZAI_API_KEYS` (optional) |
+| Property        | Value                          |
+|-----------------|--------------------------------|
+| Replicas        | 1                              |
+| Image           | `earth4242/ai-sidecar`         |
+| Port            | 8081                           |
+| Resources       | 128Mi-256Mi RAM, 100m-500m CPU |
+| Probes          | `/health` on port 8081         |
+| Secrets mounted | `ZAI_API_KEYS` (optional)      |
 
 #### 4.3.12 Presidio (Disabled by Default)
 
-| Property | Value |
-|----------|-------|
-| Replicas | 1 |
-| Image | `mcr.microsoft.com/presidio-analyzer:2.2.362` |
-| Port | 3000 |
-| Resources | 512Mi-2Gi RAM, 250m-2 CPU |
-| Probes | `/healthcheck` on port 3000 |
+| Property   | Value                                         |
+|------------|-----------------------------------------------|
+| Replicas   | 1                                             |
+| Image      | `mcr.microsoft.com/presidio-analyzer:2.2.362` |
+| Port       | 3000                                          |
+| Resources  | 512Mi-2Gi RAM, 250m-2 CPU                     |
+| Probes     | `/healthcheck` on port 3000                   |
 
 ### 4.4 Secrets
 
 Managed via `templates/secrets.yaml`, creating `ai-gateway-secrets`:
 
-| Key | Source Value |
-|-----|-------------|
-| `upstream-api-keys` | `secrets.upstreamApiKeys` |
-| `glm-api-keys` | `secrets.glmApiKeys` |
-| `openai-api-keys` | `secrets.openaiApiKeys` |
-| `anthropic-api-keys` | `secrets.anthropicApiKeys` |
-| `gemini-api-keys` | `secrets.geminiApiKeys` |
-| `openrouter-api-keys` | `secrets.openrouterApiKeys` |
-| `gemini-oauth-client-id` | `secrets.geminiOAuthClientId` |
-| `gemini-oauth-client-secret` | `secrets.geminiOAuthClientSecret` |
-| `grafana-admin-password` | `secrets.grafanaAdminPassword` (default: `devopscore`) |
-| `dashboard-api-key` | `secrets.dashboardApiKey` |
+| Key                          | Source Value                                           |
+|------------------------------|--------------------------------------------------------|
+| `upstream-api-keys`          | `secrets.upstreamApiKeys`                              |
+| `glm-api-keys`               | `secrets.glmApiKeys`                                   |
+| `openai-api-keys`            | `secrets.openaiApiKeys`                                |
+| `anthropic-api-keys`         | `secrets.anthropicApiKeys`                             |
+| `gemini-api-keys`            | `secrets.geminiApiKeys`                                |
+| `openrouter-api-keys`        | `secrets.openrouterApiKeys`                            |
+| `gemini-oauth-client-id`     | `secrets.geminiOAuthClientId`                          |
+| `gemini-oauth-client-secret` | `secrets.geminiOAuthClientSecret`                      |
+| `grafana-admin-password`     | `secrets.grafanaAdminPassword` (default: `devopscore`) |
+| `dashboard-api-key`          | `secrets.dashboardApiKey`                              |
 
 ### 4.5 Istio VirtualService
 
@@ -550,14 +550,14 @@ When `istio.enabled=true`, creates a VirtualService routing to the proxy service
 
 Grafana provisioning ConfigMap embeds all JSON dashboard files from `files/dashboards/`:
 
-| Dashboard | File |
-|-----------|------|
-| AI Worker | `files/dashboards/ai-worker.json` |
+| Dashboard            | File                                         |
+|----------------------|----------------------------------------------|
+| AI Worker            | `files/dashboards/ai-worker.json`            |
 | API Gateway Overview | `files/dashboards/api-gateway-overview.json` |
-| API Gateway Runtime | `files/dashboards/api-gateway-runtime.json` |
-| Cost Calculator | `files/dashboards/cost-calculator.json` |
-| PasteGuard | `files/dashboards/pasteguard.json` |
-| System Overview | `files/dashboards/system-overview.json` |
+| API Gateway Runtime  | `files/dashboards/api-gateway-runtime.json`  |
+| Cost Calculator      | `files/dashboards/cost-calculator.json`      |
+| PasteGuard           | `files/dashboards/pasteguard.json`           |
+| System Overview      | `files/dashboards/system-overview.json`      |
 
 ---
 
@@ -574,13 +574,13 @@ Grafana provisioning ConfigMap embeds all JSON dashboard files from `files/dashb
 
 **Scrape Targets**:
 
-| Job Name | Target | Metrics Path | Interval |
-|----------|--------|-------------|----------|
-| `api-gateway` | `arl-gateway:8080` | `/metrics` | 10s |
-| `ai-worker` | `arl-worker:9090` | `/metrics` | 10s |
-| `rate-limiter` | `arl-rate-limiter:8080` | `/actuator/prometheus` | 10s |
-| `otel-collector` | `arl-otel:8889` | `/metrics` | 10s |
-| `prometheus` | `localhost:9090` | `/metrics` | default |
+| Job Name         | Target                  | Metrics Path           | Interval   |
+|------------------|-------------------------|------------------------|------------|
+| `api-gateway`    | `arl-gateway:8080`      | `/metrics`             | 10s        |
+| `ai-worker`      | `arl-worker:9090`       | `/metrics`             | 10s        |
+| `rate-limiter`   | `arl-rate-limiter:8080` | `/actuator/prometheus` | 10s        |
+| `otel-collector` | `arl-otel:8889`         | `/metrics`             | 10s        |
+| `prometheus`     | `localhost:9090`        | `/metrics`             | default    |
 
 Dragonfly is commented out (Redis protocol on port 6379 does not expose Prometheus metrics; requires `--metrics` flag or `redis_exporter` sidecar).
 
@@ -606,10 +606,10 @@ Dragonfly is commented out (Redis protocol on port 6379 does not expose Promethe
 - `debug`: Basic verbosity (Docker Compose only; K8s Helm removes this)
 
 **Pipelines**:
-| Pipeline | Receivers | Processors | Exporters |
-|----------|-----------|------------|-----------|
-| Traces | otlp | memory_limiter, batch | debug (Docker) / none (K8s) |
-| Metrics | otlp | memory_limiter, batch | prometheus |
+| Pipeline   | Receivers   | Processors            | Exporters                   |
+|------------|-------------|-----------------------|-----------------------------|
+| Traces     | otlp        | memory_limiter, batch | debug (Docker) / none (K8s) |
+| Metrics    | otlp        | memory_limiter, batch | prometheus                  |
 
 ### 5.3 Grafana
 
@@ -621,17 +621,17 @@ Dragonfly is commented out (Redis protocol on port 6379 does not expose Promethe
 
 **Dashboards** (10 total in Docker Compose, 6 in Helm):
 
-| Dashboard | Docker Compose | Helm Chart |
-|-----------|---------------|------------|
-| API Gateway Overview | Yes | Yes |
-| API Gateway Runtime | Yes | Yes |
-| System Overview | Yes | Yes |
-| AI Worker | Yes | Yes |
-| Cost Calculator | Yes | Yes |
-| PasteGuard | Yes | Yes |
-| Claude OAuth Billing | Yes | No |
-| Token Optimization | Yes | No |
-| Token Usage | Yes | No |
+| Dashboard            | Docker Compose  | Helm Chart   |
+|----------------------|-----------------|--------------|
+| API Gateway Overview | Yes             | Yes          |
+| API Gateway Runtime  | Yes             | Yes          |
+| System Overview      | Yes             | Yes          |
+| AI Worker            | Yes             | Yes          |
+| Cost Calculator      | Yes             | Yes          |
+| PasteGuard           | Yes             | Yes          |
+| Claude OAuth Billing | Yes             | No           |
+| Token Optimization   | Yes             | No           |
+| Token Usage          | Yes             | No           |
 
 **Grafana Configuration**:
 - Anonymous access: disabled
@@ -649,14 +649,14 @@ Dragonfly is commented out (Redis protocol on port 6379 does not expose Promethe
 
 **Strategy**: Matrix build (6 images, parallel)
 
-| Matrix Name | Context | Dockerfile | Image Name |
-|-------------|---------|------------|------------|
-| gateway | `./api-gateway` | `Dockerfile` | `ai-gateway` |
-| worker | `./ai-worker` | `Dockerfile` | `ai-worker` |
-| rate-limiter | `./distributed-rate-limiter` | `Dockerfile` | `distributed-rate-limiter` |
-| dashboard | `./ui` | `Dockerfile.dev` | `ai-dashboard` |
-| rl-dashboard | `./distributed-rate-limiter/examples/web-dashboard` | `Dockerfile` | `ai-rl-dashboard` |
-| sidecar | `./api-gateway/sidecar` | `Dockerfile` | `ai-sidecar` |
+| Matrix Name   | Context                                             | Dockerfile       | Image Name                 |
+|---------------|-----------------------------------------------------|------------------|----------------------------|
+| gateway       | `./api-gateway`                                     | `Dockerfile`     | `ai-gateway`               |
+| worker        | `./ai-worker`                                       | `Dockerfile`     | `ai-worker`                |
+| rate-limiter  | `./distributed-rate-limiter`                        | `Dockerfile`     | `distributed-rate-limiter` |
+| dashboard     | `./ui`                                              | `Dockerfile.dev` | `ai-dashboard`             |
+| rl-dashboard  | `./distributed-rate-limiter/examples/web-dashboard` | `Dockerfile`     | `ai-rl-dashboard`          |
+| sidecar       | `./api-gateway/sidecar`                             | `Dockerfile`     | `ai-sidecar`               |
 
 **Per-job steps**:
 1. Checkout (`actions/checkout@v4`)
@@ -741,220 +741,220 @@ Simple concurrent stress test for sync endpoint.
 
 #### Core Server
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SERVER_PORT` | `:8080` | Gateway listen address |
-| `DASHBOARD_URL` | `https://ai.klxhub.com` | Dashboard base URL for OAuth callbacks |
-| `OAUTH_CALLBACK_BASE` | `https://ai.klxhub.com` | OAuth callback base URL |
-| `GLOBAL_RATE_LIMIT` | `100` | Global requests per second |
-| `AGENT_RATE_LIMIT` | `5` | Per-agent requests per second |
-| `WORKER_POOL_SIZE` | `100` | Max concurrent worker goroutines |
-| `REDIS_ADDR` | `arl-dragonfly:6379` | Redis/Dragonfly address |
-| `REDIS_POOL_SIZE` | `50` | Redis connection pool size |
-| `REDIS_MIN_IDLE_CONNS` | `10` | Minimum idle Redis connections |
-| `RATE_LIMITER_ADDR` | `http://arl-rate-limiter:8080` | Rate limiter service address |
-| `QUEUE_NAME` | `ai_jobs` | Redis queue name for async jobs |
-| `OTLP_ENDPOINT` | `arl-otel:4317` | OpenTelemetry OTLP endpoint |
-| `MAX_REQUEST_BODY` | `10485760` | Max request body size (10MB) |
+| Variable               | Default                        | Description                            |
+|------------------------|--------------------------------|----------------------------------------|
+| `SERVER_PORT`          | `:8080`                        | Gateway listen address                 |
+| `DASHBOARD_URL`        | `https://ai.klxhub.com`        | Dashboard base URL for OAuth callbacks |
+| `OAUTH_CALLBACK_BASE`  | `https://ai.klxhub.com`        | OAuth callback base URL                |
+| `GLOBAL_RATE_LIMIT`    | `100`                          | Global requests per second             |
+| `AGENT_RATE_LIMIT`     | `5`                            | Per-agent requests per second          |
+| `WORKER_POOL_SIZE`     | `100`                          | Max concurrent worker goroutines       |
+| `REDIS_ADDR`           | `arl-dragonfly:6379`           | Redis/Dragonfly address                |
+| `REDIS_POOL_SIZE`      | `50`                           | Redis connection pool size             |
+| `REDIS_MIN_IDLE_CONNS` | `10`                           | Minimum idle Redis connections         |
+| `RATE_LIMITER_ADDR`    | `http://arl-rate-limiter:8080` | Rate limiter service address           |
+| `QUEUE_NAME`           | `ai_jobs`                      | Redis queue name for async jobs        |
+| `OTLP_ENDPOINT`        | `arl-otel:4317`                | OpenTelemetry OTLP endpoint            |
+| `MAX_REQUEST_BODY`     | `10485760`                     | Max request body size (10MB)           |
 
 #### Upstream Provider
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Primary upstream URL |
-| `STREAM_TIMEOUT` | `300s` | Stream response timeout |
-| `UPSTREAM_MODEL_LIMITS` | (see .env.example) | Per-model concurrency limits (model:limit) |
-| `UPSTREAM_VISION_MODEL_LIMITS` | (see .env.example) | Per-vision-model concurrency limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default per-model concurrency limit |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent upstream requests |
-| `UPSTREAM_MAX_RETRIES` | `3` | Max retries on 429 errors |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Retry backoff duration |
-| `UPSTREAM_RPM_LIMIT` | `40` | Upstream requests per minute |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | RPM probe multiplier |
+| Variable                       | Default                          | Description                                |
+|--------------------------------|----------------------------------|--------------------------------------------|
+| `UPSTREAM_URL`                 | `https://api.z.ai/api/anthropic` | Primary upstream URL                       |
+| `STREAM_TIMEOUT`               | `300s`                           | Stream response timeout                    |
+| `UPSTREAM_MODEL_LIMITS`        | (see .env.example)               | Per-model concurrency limits (model:limit) |
+| `UPSTREAM_VISION_MODEL_LIMITS` | (see .env.example)               | Per-vision-model concurrency limits        |
+| `UPSTREAM_DEFAULT_LIMIT`       | `1`                              | Default per-model concurrency limit        |
+| `UPSTREAM_GLOBAL_LIMIT`        | `9`                              | Total concurrent upstream requests         |
+| `UPSTREAM_MAX_RETRIES`         | `3`                              | Max retries on 429 errors                  |
+| `UPSTREAM_RETRY_BACKOFF`       | `500ms`                          | Retry backoff duration                     |
+| `UPSTREAM_RPM_LIMIT`           | `40`                             | Upstream requests per minute               |
+| `UPSTREAM_PROBE_MULTIPLIER`    | `5`                              | RPM probe multiplier                       |
 
 #### API Keys
 
-| Variable | Description |
-|----------|-------------|
-| `ZAI_API_KEYS` | Z.AI API keys (comma-separated for rotation) |
-| `GEMINI_OAUTH_CLIENT_ID` | Google OAuth client ID |
-| `GEMINI_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
+| Variable                     | Description                                  |
+|------------------------------|----------------------------------------------|
+| `ZAI_API_KEYS`               | Z.AI API keys (comma-separated for rotation) |
+| `GEMINI_OAUTH_CLIENT_ID`     | Google OAuth client ID                       |
+| `GEMINI_OAUTH_CLIENT_SECRET` | Google OAuth client secret                   |
 
 #### Token Optimization
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ENABLE_PROMPT_INJECTION` | `true` | Enable prompt injection/optimization |
-| `ENABLE_RESPONSE_TRIM` | `true` | Trim response whitespace |
-| `ENABLE_SMART_MAX_TOKENS` | `true` | Smart max_tokens estimation |
-| `PROMPT_INJECTION_TEXT` | (empty) | Custom prompt injection text |
+| Variable                  | Default   | Description                          |
+|---------------------------|-----------|--------------------------------------|
+| `ENABLE_PROMPT_INJECTION` | `true`    | Enable prompt injection/optimization |
+| `ENABLE_RESPONSE_TRIM`    | `true`    | Trim response whitespace             |
+| `ENABLE_SMART_MAX_TOKENS` | `true`    | Smart max_tokens estimation          |
+| `PROMPT_INJECTION_TEXT`   | (empty)   | Custom prompt injection text         |
 
 #### PasteGuard
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PASTEGUARD_ENABLED` | `true` | Enable PasteGuard privacy masking |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | Enable secret detection |
-| `PASTEGUARD_SECRET_ENTITIES` | (empty, uses defaults) | Custom secret entity types |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max characters to scan |
-| `PASTEGUARD_PII_ENABLED` | `true` | Enable PII detection |
-| `PASTEGUARD_PII_ENTITIES` | (empty, uses defaults) | Custom PII entity types |
-| `PASTEGUARD_PRESIDIO_URL` | `http://arl-presidio:3000` | Presidio analyzer URL |
-| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7` | PII confidence threshold |
-| `PASTEGUARD_PII_LANGUAGE` | `en` | PII detection language |
+| Variable                         | Default                    | Description                       |
+|----------------------------------|----------------------------|-----------------------------------|
+| `PASTEGUARD_ENABLED`             | `true`                     | Enable PasteGuard privacy masking |
+| `PASTEGUARD_SECRETS_ENABLED`     | `true`                     | Enable secret detection           |
+| `PASTEGUARD_SECRET_ENTITIES`     | (empty, uses defaults)     | Custom secret entity types        |
+| `PASTEGUARD_MAX_SCAN_CHARS`      | `200000`                   | Max characters to scan            |
+| `PASTEGUARD_PII_ENABLED`         | `true`                     | Enable PII detection              |
+| `PASTEGUARD_PII_ENTITIES`        | (empty, uses defaults)     | Custom PII entity types           |
+| `PASTEGUARD_PRESIDIO_URL`        | `http://arl-presidio:3000` | Presidio analyzer URL             |
+| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7`                      | PII confidence threshold          |
+| `PASTEGUARD_PII_LANGUAGE`        | `en`                       | PII detection language            |
 
 #### Provider Routing
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GLM_MODE` | `true` | Enable Z.AI/GLM provider mode |
-| `CLI_SIDECAR_ENABLED` | `true` | Enable Claude Code sidecar |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar service URL |
-| `SIDECAR_PORT` | `8081` | Sidecar listen port |
+| Variable              | Default                           | Description                   |
+|-----------------------|-----------------------------------|-------------------------------|
+| `GLM_MODE`            | `true`                            | Enable Z.AI/GLM provider mode |
+| `CLI_SIDECAR_ENABLED` | `true`                            | Enable Claude Code sidecar    |
+| `CLI_SIDECAR_URL`     | `http://127.0.0.1:8081`           | Sidecar service URL           |
+| `SIDECAR_PORT`        | `8081`                            | Sidecar listen port           |
 
 #### Model Pricing
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable        | Default                            | Description                      |
+|-----------------|------------------------------------|----------------------------------|
 | `MODEL_PRICING` | (model:input:output per 1M tokens) | Pricing config for cost tracking |
 
 #### Quota
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `QUOTA_CACHE_TTL` | `30s` | Quota cache TTL |
-| `QUOTA_DAILY_BUDGET` | `57600` | Daily token budget |
-| `QUOTA_BLOCK_PCT` | `95` | Block percentage threshold |
-| `QUOTA_REDIS_POOL_SIZE` | `5` | Quota Redis pool size |
-| `QUOTA_REDIS_MIN_IDLE` | `2` | Minimum idle quota Redis connections |
+| Variable                | Default   | Description                          |
+|-------------------------|-----------|--------------------------------------|
+| `QUOTA_CACHE_TTL`       | `30s`     | Quota cache TTL                      |
+| `QUOTA_DAILY_BUDGET`    | `57600`   | Daily token budget                   |
+| `QUOTA_BLOCK_PCT`       | `95`      | Block percentage threshold           |
+| `QUOTA_REDIS_POOL_SIZE` | `5`       | Quota Redis pool size                |
+| `QUOTA_REDIS_MIN_IDLE`  | `2`       | Minimum idle quota Redis connections |
 
 #### Default Request Values
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEFAULT_MODEL` | `glm-5` | Default model for requests |
-| `DEFAULT_PROVIDER` | `glm` | Default provider |
-| `DEFAULT_TEMPERATURE` | `0.7` | Default temperature |
-| `DEFAULT_MAX_TOKENS` | `1024` | Default max tokens |
+| Variable              | Default   | Description                |
+|-----------------------|-----------|----------------------------|
+| `DEFAULT_MODEL`       | `glm-5`   | Default model for requests |
+| `DEFAULT_PROVIDER`    | `glm`     | Default provider           |
+| `DEFAULT_TEMPERATURE` | `0.7`     | Default temperature        |
+| `DEFAULT_MAX_TOKENS`  | `1024`    | Default max tokens         |
 
 #### Adaptive Limiter
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANOMALY_COOLDOWN_SEC` | `5` | Anomaly detection cooldown |
-| `ANOMALY_Z_THRESHOLD` | `2.0` | Z-score threshold for anomaly detection |
+| Variable               | Default   | Description                             |
+|------------------------|-----------|-----------------------------------------|
+| `ANOMALY_COOLDOWN_SEC` | `5`       | Anomaly detection cooldown              |
+| `ANOMALY_Z_THRESHOLD`  | `2.0`     | Z-score threshold for anomaly detection |
 
 ### 8.2 Rate Limiter (arl-rate-limiter)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SPRING_DATA_REDIS_HOST` | `arl-dragonfly` | Redis host |
-| `SPRING_DATA_REDIS_PORT` | `6379` | Redis port |
-| `RATELIMITER_CAPACITY` | `1000` | Token bucket capacity |
-| `RATELIMITER_REFILL_RATE` | `100` | Token refill rate |
-| `RATELIMITER_REFILL_PERIOD_SECONDS` | `1` | Refill period in seconds |
-| `RATELIMITER_SECURITY_IP_WHITELIST` | (empty) | IP whitelist |
-| `RATELIMITER_SECURITY_API_KEYS_ENABLED` | `false` | API key auth |
-| `RATELIMITER_ADAPTIVE_ENABLED` | `true` | Adaptive rate limiting |
-| `RATELIMITER_GEOGRAPHIC_ENABLED` | `false` | Geographic rate limiting |
-| `SPRING_PROFILES_ACTIVE` | `docker` | Spring profile |
-| `SERVER_PORT` | `8080` | Server port |
-| `JAVA_OPTS` | (G1GC, 75% RAM, string dedup) | JVM options |
+| Variable                                | Default                       | Description              |
+|-----------------------------------------|-------------------------------|--------------------------|
+| `SPRING_DATA_REDIS_HOST`                | `arl-dragonfly`               | Redis host               |
+| `SPRING_DATA_REDIS_PORT`                | `6379`                        | Redis port               |
+| `RATELIMITER_CAPACITY`                  | `1000`                        | Token bucket capacity    |
+| `RATELIMITER_REFILL_RATE`               | `100`                         | Token refill rate        |
+| `RATELIMITER_REFILL_PERIOD_SECONDS`     | `1`                           | Refill period in seconds |
+| `RATELIMITER_SECURITY_IP_WHITELIST`     | (empty)                       | IP whitelist             |
+| `RATELIMITER_SECURITY_API_KEYS_ENABLED` | `false`                       | API key auth             |
+| `RATELIMITER_ADAPTIVE_ENABLED`          | `true`                        | Adaptive rate limiting   |
+| `RATELIMITER_GEOGRAPHIC_ENABLED`        | `false`                       | Geographic rate limiting |
+| `SPRING_PROFILES_ACTIVE`                | `docker`                      | Spring profile           |
+| `SERVER_PORT`                           | `8080`                        | Server port              |
+| `JAVA_OPTS`                             | (G1GC, 75% RAM, string dedup) | JVM options              |
 
 ### 8.3 AI Worker (arl-worker)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_URL` | `redis://arl-dragonfly:6379` | Redis connection URL |
-| `WORKER_CONCURRENCY` | `50` | Concurrent coroutine count |
-| `MAX_RETRIES` | `3` | Max job retries |
-| `BASE_BACKOFF` | `1.0` | Retry backoff base (seconds) |
-| `RESULT_TTL` | `600` | Result TTL in Redis (seconds) |
-| `METRICS_PORT` | `9090` | Prometheus metrics port |
-| `GLM_API_KEYS` | (empty) | Z.AI API keys |
-| `GLM_ENDPOINT` | `https://api.z.ai/api/anthropic` | Z.AI endpoint |
-| `OPENAI_API_KEYS` | (empty) | OpenAI API keys |
-| `ANTHROPIC_API_KEYS` | (empty) | Anthropic API keys |
-| `GEMINI_API_KEYS` | (empty) | Gemini API keys |
-| `OPENROUTER_API_KEYS` | (empty) | OpenRouter API keys |
-| `UPSTREAM_MODEL_LIMITS` | (same as gateway) | Per-model concurrency limits |
-| `UPSTREAM_VISION_MODEL_LIMITS` | (same as gateway) | Vision model limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default per-model limit |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Global concurrent limit |
-| `PROVIDER_RPM_LIMITS` | `glm:5` | Per-provider RPM limits |
+| Variable                       | Default                          | Description                   |
+|--------------------------------|----------------------------------|-------------------------------|
+| `REDIS_URL`                    | `redis://arl-dragonfly:6379`     | Redis connection URL          |
+| `WORKER_CONCURRENCY`           | `50`                             | Concurrent coroutine count    |
+| `MAX_RETRIES`                  | `3`                              | Max job retries               |
+| `BASE_BACKOFF`                 | `1.0`                            | Retry backoff base (seconds)  |
+| `RESULT_TTL`                   | `600`                            | Result TTL in Redis (seconds) |
+| `METRICS_PORT`                 | `9090`                           | Prometheus metrics port       |
+| `GLM_API_KEYS`                 | (empty)                          | Z.AI API keys                 |
+| `GLM_ENDPOINT`                 | `https://api.z.ai/api/anthropic` | Z.AI endpoint                 |
+| `OPENAI_API_KEYS`              | (empty)                          | OpenAI API keys               |
+| `ANTHROPIC_API_KEYS`           | (empty)                          | Anthropic API keys            |
+| `GEMINI_API_KEYS`              | (empty)                          | Gemini API keys               |
+| `OPENROUTER_API_KEYS`          | (empty)                          | OpenRouter API keys           |
+| `UPSTREAM_MODEL_LIMITS`        | (same as gateway)                | Per-model concurrency limits  |
+| `UPSTREAM_VISION_MODEL_LIMITS` | (same as gateway)                | Vision model limits           |
+| `UPSTREAM_DEFAULT_LIMIT`       | `1`                              | Default per-model limit       |
+| `UPSTREAM_GLOBAL_LIMIT`        | `9`                              | Global concurrent limit       |
+| `PROVIDER_RPM_LIMITS`          | `glm:5`                          | Per-provider RPM limits       |
 
 ### 8.4 Grafana (arl-grafana)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GF_SECURITY_ADMIN_PASSWORD` | (required) | Admin password (from `.env`) |
-| `GF_AUTH_ANONYMOUS_ENABLED` | `false` | Anonymous access |
-| `GF_LOG_LEVEL` | `warn` | Log level |
-| `GF_SERVER_ROOT_URL` | `http://localhost:9000/grafana` | Root URL |
-| `GF_SERVER_SERVE_FROM_SUB_PATH` | `true` | Sub-path serving |
+| Variable                        | Default                         | Description                  |
+|---------------------------------|---------------------------------|------------------------------|
+| `GF_SECURITY_ADMIN_PASSWORD`    | (required)                      | Admin password (from `.env`) |
+| `GF_AUTH_ANONYMOUS_ENABLED`     | `false`                         | Anonymous access             |
+| `GF_LOG_LEVEL`                  | `warn`                          | Log level                    |
+| `GF_SERVER_ROOT_URL`            | `http://localhost:9000/grafana` | Root URL                     |
+| `GF_SERVER_SERVE_FROM_SUB_PATH` | `true`                          | Sub-path serving             |
 
 ### 8.5 Dashboard UI (arl-dashboard)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable             | Default     | Description        |
+|----------------------|-------------|--------------------|
 | `VITE_ALLOWED_HOSTS` | `localhost` | CORS allowed hosts |
-| `VITE_HMR_HOST` | (empty) | Vite HMR host |
-| `VITE_HMR_PORT` | `443` | Vite HMR port |
+| `VITE_HMR_HOST`      | (empty)     | Vite HMR host      |
+| `VITE_HMR_PORT`      | `443`       | Vite HMR port      |
 
 ### 8.6 Caddy Proxy (arl-proxy)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable     | Default      | Description     |
+|--------------|--------------|-----------------|
 | `PROXY_HOST` | (IP address) | Proxy bind host |
-| `PROXY_PORT` | `9000` | Proxy port |
+| `PROXY_PORT` | `9000`       | Proxy port      |
 
 ### 8.7 Dragonfly (arl-dragonfly)
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--maxmemory` | `4gb` | Max memory |
-| `--proactor_threads` | `4` | Thread count |
-| `--cache_mode` | `true` | Cache mode (evict on memory pressure) |
-| `--tcp_keepalive` | `60` | TCP keepalive seconds |
-| `--pipeline_squash` | `10` | Pipeline squashing |
+| Argument             | Default   | Description                           |
+|----------------------|-----------|---------------------------------------|
+| `--maxmemory`        | `4gb`     | Max memory                            |
+| `--proactor_threads` | `4`       | Thread count                          |
+| `--cache_mode`       | `true`    | Cache mode (evict on memory pressure) |
+| `--tcp_keepalive`    | `60`      | TCP keepalive seconds                 |
+| `--pipeline_squash`  | `10`      | Pipeline squashing                    |
 
 ### 8.8 Sidecar
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SIDECAR_PORT` | `8081` | Listen port |
+| Variable       | Default   | Description   |
+|----------------|-----------|---------------|
+| `SIDECAR_PORT` | `8081`    | Listen port   |
 
 ### 8.9 Claude Code Test Clients
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROFILE_NAME` | `meow` / `test` | Profile for token provisioning |
-| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Disable telemetry |
-| `CLAUDE_CODE_DISABLE_ANALYTICS` | `1` | Disable analytics |
-| `CLAUDE_CODE_SIMPLE` | `1` (auto-set when no TTY) | Simple mode for Docker |
-| `CLAUDE_OAUTH_TOKEN` | (optional) | OAuth token for passthrough |
+| Variable                                   | Default                    | Description                    |
+|--------------------------------------------|----------------------------|--------------------------------|
+| `PROFILE_NAME`                             | `meow` / `test`            | Profile for token provisioning |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1`                        | Disable telemetry              |
+| `CLAUDE_CODE_DISABLE_ANALYTICS`            | `1`                        | Disable analytics              |
+| `CLAUDE_CODE_SIMPLE`                       | `1` (auto-set when no TTY) | Simple mode for Docker         |
+| `CLAUDE_OAUTH_TOKEN`                       | (optional)                 | OAuth token for passthrough    |
 
 ### 8.10 Docker Platform
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable          | Default       | Description                |
+|-------------------|---------------|----------------------------|
 | `DOCKER_PLATFORM` | `linux/arm64` | Target platform for builds |
 
 ### 8.11 Upstream Provider URLs (from .env.example)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ANTHROPIC_UPSTREAM_BASE` | `https://api.anthropic.com` | Anthropic API base |
-| `CLAUDE_UPSTREAM_BASE` | `https://claude.ai` | Claude.ai base |
-| `GEMINI_UPSTREAM_BASE` | `https://generativelanguage.googleapis.com` | Gemini API base |
-| `GEMINI_CODEASSIST_BASE` | `https://cloudcode-pa.googleapis.com/v1internal` | CodeAssist base |
-| `OPENAI_UPSTREAM_BASE` | `https://api.openai.com` | OpenAI API base |
-| `OPENROUTER_UPSTREAM_BASE` | `https://openrouter.ai/api` | OpenRouter API base |
-| `DEEPSEEK_UPSTREAM_BASE` | `https://api.deepseek.com` | DeepSeek API base |
-| `KIMI_UPSTREAM_BASE` | `https://api.moonshot.cn/v1` | Kimi/Moonshot API base |
-| `HUGGINGFACE_UPSTREAM_BASE` | `https://api-inference.huggingface.co/models` | HuggingFace base |
-| `OLLAMA_UPSTREAM_BASE` | `http://localhost:11434` | Ollama local base |
-| `QWEN_UPSTREAM_BASE` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | Qwen API base |
+| Variable                    | Default                                             | Description            |
+|-----------------------------|-----------------------------------------------------|------------------------|
+| `ANTHROPIC_UPSTREAM_BASE`   | `https://api.anthropic.com`                         | Anthropic API base     |
+| `CLAUDE_UPSTREAM_BASE`      | `https://claude.ai`                                 | Claude.ai base         |
+| `GEMINI_UPSTREAM_BASE`      | `https://generativelanguage.googleapis.com`         | Gemini API base        |
+| `GEMINI_CODEASSIST_BASE`    | `https://cloudcode-pa.googleapis.com/v1internal`    | CodeAssist base        |
+| `OPENAI_UPSTREAM_BASE`      | `https://api.openai.com`                            | OpenAI API base        |
+| `OPENROUTER_UPSTREAM_BASE`  | `https://openrouter.ai/api`                         | OpenRouter API base    |
+| `DEEPSEEK_UPSTREAM_BASE`    | `https://api.deepseek.com`                          | DeepSeek API base      |
+| `KIMI_UPSTREAM_BASE`        | `https://api.moonshot.cn/v1`                        | Kimi/Moonshot API base |
+| `HUGGINGFACE_UPSTREAM_BASE` | `https://api-inference.huggingface.co/models`       | HuggingFace base       |
+| `OLLAMA_UPSTREAM_BASE`      | `http://localhost:11434`                            | Ollama local base      |
+| `QWEN_UPSTREAM_BASE`        | `https://dashscope.aliyuncs.com/compatible-mode/v1` | Qwen API base          |
 
 ---
 
@@ -1036,11 +1036,11 @@ The sidecar runs as a background process; the Go gateway is PID 1 (receives sign
 
 ### 9.5 Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SIDECAR_PORT` | `8081` | Listen port |
-| `CLI_SIDECAR_ENABLED` | `true` | Enable/disable sidecar routing |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL (gateway uses this) |
+| Variable              | Default                 | Description                     |
+|-----------------------|-------------------------|---------------------------------|
+| `SIDECAR_PORT`        | `8081`                  | Listen port                     |
+| `CLI_SIDECAR_ENABLED` | `true`                  | Enable/disable sidecar routing  |
+| `CLI_SIDECAR_URL`     | `http://127.0.0.1:8081` | Sidecar URL (gateway uses this) |
 
 When `CLI_SIDECAR_ENABLED=true`, the gateway routes Claude Code OAuth requests through the sidecar. When disabled, requests go directly to the configured upstream provider.
 
@@ -1048,38 +1048,38 @@ When `CLI_SIDECAR_ENABLED=true`, the gateway routes Claude Code OAuth requests t
 
 ## Appendix: Port Summary
 
-| Port | Service | Protocol | External |
-|------|---------|----------|----------|
-| 9000 | arl-proxy (Caddy) | HTTP | Yes (only exposed port) |
-| 8080 | arl-gateway | HTTP | No |
-| 8080 | arl-rate-limiter | HTTP | No |
-| 8080 | arl-rl-dashboard | HTTP | No |
-| 8081 | sidecar | HTTP | No |
-| 6379 | arl-dragonfly | Redis | No |
-| 9090 | arl-worker (metrics) | HTTP | No |
-| 9090 | arl-prometheus | HTTP | No |
-| 9091 | arl-worker (internal) | HTTP | No |
-| 3000 | arl-grafana | HTTP | No |
-| 3000 | arl-presidio | HTTP | No |
-| 4317 | arl-otel (gRPC) | gRPC | No |
-| 4318 | arl-otel (HTTP) | HTTP | No |
-| 8889 | arl-otel (metrics) | HTTP | No |
-| 5173 | arl-dashboard (Vite) | HTTP | No |
-| 8999 | Scripts (proxy) | HTTP | No (local only) |
+| Port   | Service               | Protocol   | External                |
+|--------|-----------------------|------------|-------------------------|
+| 9000   | arl-proxy (Caddy)     | HTTP       | Yes (only exposed port) |
+| 8080   | arl-gateway           | HTTP       | No                      |
+| 8080   | arl-rate-limiter      | HTTP       | No                      |
+| 8080   | arl-rl-dashboard      | HTTP       | No                      |
+| 8081   | sidecar               | HTTP       | No                      |
+| 6379   | arl-dragonfly         | Redis      | No                      |
+| 9090   | arl-worker (metrics)  | HTTP       | No                      |
+| 9090   | arl-prometheus        | HTTP       | No                      |
+| 9091   | arl-worker (internal) | HTTP       | No                      |
+| 3000   | arl-grafana           | HTTP       | No                      |
+| 3000   | arl-presidio          | HTTP       | No                      |
+| 4317   | arl-otel (gRPC)       | gRPC       | No                      |
+| 4318   | arl-otel (HTTP)       | HTTP       | No                      |
+| 8889   | arl-otel (metrics)    | HTTP       | No                      |
+| 5173   | arl-dashboard (Vite)  | HTTP       | No                      |
+| 8999   | Scripts (proxy)       | HTTP       | No (local only)         |
 
 ## Appendix: Image Registry
 
-| Image | Registry | Notes |
-|-------|----------|-------|
-| `earth4242/ai-gateway` | GHCR | Built from `./api-gateway` |
-| `earth4242/ai-worker` | GHCR | Built from `./ai-worker` |
-| `earth4242/distributed-rate-limiter` | GHCR | Built from `./distributed-rate-limiter` |
-| `earth4242/ai-dashboard` | GHCR | Built from `./ui` |
-| `earth4242/ai-rl-dashboard` | GHCR | Built from `./distributed-rate-limiter/examples/web-dashboard` |
-| `earth4242/ai-sidecar` | GHCR | Built from `./api-gateway/sidecar` |
-| `ghcr.io/dragonflydb/dragonfly:v1.37.2` | GHCR | External |
-| `prom/prometheus:v2.54.1` | Docker Hub | External |
-| `grafana/grafana:11.3.0` | Docker Hub | External |
-| `otel/opentelemetry-collector-contrib:0.112.0` | Docker Hub | External |
-| `caddy:2-alpine` | Docker Hub | External |
-| `mcr.microsoft.com/presidio-analyzer:2.2.362` | MCR | External |
+| Image                                          | Registry   | Notes                                                          |
+|------------------------------------------------|------------|----------------------------------------------------------------|
+| `earth4242/ai-gateway`                         | GHCR       | Built from `./api-gateway`                                     |
+| `earth4242/ai-worker`                          | GHCR       | Built from `./ai-worker`                                       |
+| `earth4242/distributed-rate-limiter`           | GHCR       | Built from `./distributed-rate-limiter`                        |
+| `earth4242/ai-dashboard`                       | GHCR       | Built from `./ui`                                              |
+| `earth4242/ai-rl-dashboard`                    | GHCR       | Built from `./distributed-rate-limiter/examples/web-dashboard` |
+| `earth4242/ai-sidecar`                         | GHCR       | Built from `./api-gateway/sidecar`                             |
+| `ghcr.io/dragonflydb/dragonfly:v1.37.2`        | GHCR       | External                                                       |
+| `prom/prometheus:v2.54.1`                      | Docker Hub | External                                                       |
+| `grafana/grafana:11.3.0`                       | Docker Hub | External                                                       |
+| `otel/opentelemetry-collector-contrib:0.112.0` | Docker Hub | External                                                       |
+| `caddy:2-alpine`                               | Docker Hub | External                                                       |
+| `mcr.microsoft.com/presidio-analyzer:2.2.362`  | MCR        | External                                                       |

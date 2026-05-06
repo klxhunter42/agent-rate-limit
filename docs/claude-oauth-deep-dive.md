@@ -55,11 +55,11 @@ Anthropic API key (`sk-ant-api03-*`) ต้องจ่ายเงินต่�
 
 เมื่อเริ่มใช้ claude-oauth transparent passthrough ครั้งแรก (ประมาณ 2026-04-29):
 
-| Model | ผ่าน Gateway | ผลลัพธ์ |
-|-------|:-----------:|---------|
-| `claude-haiku-4-5-20251001` | Yes | **200 OK** |
-| `claude-sonnet-4-6-20250514` | Yes | **429 Rate Limit** |
-| `claude-opus-4-7-20250514` | Yes | **429 Rate Limit** |
+| Model                        |  ผ่าน Gateway | ผลลัพธ์            |
+|------------------------------|:-------------:|--------------------|
+| `claude-haiku-4-5-20251001`  |      Yes      | **200 OK**         |
+| `claude-sonnet-4-6-20250514` |      Yes      | **429 Rate Limit** |
+| `claude-opus-4-7-20250514`   |      Yes      | **429 Rate Limit** |
 
 Haiku ใช้ได้ปกติ แต่ Sonnet และ Opus โดน 429 ทุกครั้ง
 
@@ -287,12 +287,12 @@ curl -X POST https://api.anthropic.com/v1/messages \
 
 ### ทดสอบเพิ่มเติม
 
-| Test | Result | หมายเหตุ |
-|------|--------|----------|
-| curl ไม่มี billing header (sonnet) | 429 | 7-day exhausted |
-| curl มี billing header (sonnet) | **400** | Reserved keyword blocked |
-| CLI ตัวจริง (sonnet) | **200** | CLI ใช้ได้เพราะ TLS fingerprint |
-| Gateway transparent mode (sonnet, CLI ส่งตรง) | **200** | Forward headers ตรง, billing header มาจาก CLI |
+| Test                                          | Result   | หมายเหตุ                                      |
+|-----------------------------------------------|----------|-----------------------------------------------|
+| curl ไม่มี billing header (sonnet)            | 429      | 7-day exhausted                               |
+| curl มี billing header (sonnet)               | **400**  | Reserved keyword blocked                      |
+| CLI ตัวจริง (sonnet)                          | **200**  | CLI ใช้ได้เพราะ TLS fingerprint               |
+| Gateway transparent mode (sonnet, CLI ส่งตรง) | **200**  | Forward headers ตรง, billing header มาจาก CLI |
 
 ---
 
@@ -623,24 +623,24 @@ Path D: curl (debugging)
 
 ### Files
 
-| File | หน้าที่ | ขนาด |
-|------|---------|------|
-| `api-gateway/sidecar/index.js` | Node.js proxy, billing injection, zero dependencies | ~170 lines |
-| `api-gateway/sidecar/entrypoint.sh` | เริ่ม Go + Node พร้อมกันใน container เดียว | ~13 lines |
-| `api-gateway/sidecar/package.json` | No dependencies | 6 lines |
-| `api-gateway/Dockerfile` | Multi-stage build, `apk add nodejs`, copy sidecar/ | - |
-| `api-gateway/config/config.go` | Sidecar config: URL, enabled | - |
-| `api-gateway/handler/handler.go` | Profile routing, transparent detection, header fix | - |
-| `api-gateway/proxy/anthropic.go` | `ProxySidecar()`, `ProxyTransparent()`, `truncate()` | - |
+| File                                | หน้าที่                                              | ขนาด       |
+|-------------------------------------|------------------------------------------------------|------------|
+| `api-gateway/sidecar/index.js`      | Node.js proxy, billing injection, zero dependencies  | ~170 lines |
+| `api-gateway/sidecar/entrypoint.sh` | เริ่ม Go + Node พร้อมกันใน container เดียว           | ~13 lines  |
+| `api-gateway/sidecar/package.json`  | No dependencies                                      | 6 lines    |
+| `api-gateway/Dockerfile`            | Multi-stage build, `apk add nodejs`, copy sidecar/   | -          |
+| `api-gateway/config/config.go`      | Sidecar config: URL, enabled                         | -          |
+| `api-gateway/handler/handler.go`    | Profile routing, transparent detection, header fix   | -          |
+| `api-gateway/proxy/anthropic.go`    | `ProxySidecar()`, `ProxyTransparent()`, `truncate()` | -          |
 
 ### Config Env Vars
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `CLI_SIDECAR_ENABLED` | `true` | เปิด/ปิด sidecar routing |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL (same container) |
-| `SIDECAR_PORT` | `8081` | Node.js sidecar listen port |
-| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Anthropic direct URL |
+| Env Var                | Default                     | Description                  |
+|------------------------|-----------------------------|------------------------------|
+| `CLI_SIDECAR_ENABLED`  | `true`                      | เปิด/ปิด sidecar routing     |
+| `CLI_SIDECAR_URL`      | `http://127.0.0.1:8081`     | Sidecar URL (same container) |
+| `SIDECAR_PORT`         | `8081`                      | Node.js sidecar listen port  |
+| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Anthropic direct URL         |
 
 ---
 
@@ -718,24 +718,24 @@ curl -s -X POST http://GATEWAY:9000/v1/messages \
 
 ## 11. Timeline
 
-| วันที่ | เหตุการณ์ |
-|--------|-----------|
-| **2026-04-23** | เริ่มใช้ claude-oauth transparent passthrough ครั้งแรก, Haiku ผ่าน |
-| **2026-04-29** | พบว่า Sonnet/Opus โดน 429 ตลอด, เริ่ม investigate |
-| **2026-04-30 00:00** | จับ mitmproxy flows 28 flows, CLI ตัวจริงได้ 200 |
-| **2026-04-30 early** | พบ transparent mode bug ใน handler.go, แก้ |
-| **2026-04-30 mid** | Token corruption: agents เขียน "null" ทับ Redis |
-| **2026-04-30 mid** | Re-authenticate PKCE, token ใหม่ `claude-oauth_C8A-88LMMwAA` |
-| **2026-04-30 mid** | พบ token refresh URL bug (`platform.claude.com` → `api.anthropic.com`) |
-| **2026-04-30 mid** | เพิ่ม empty token guard ใน token-refresh.go |
-| **2026-04-30 late** | Test remote CLI sonnet/opus ผ่าน gateway = **200 OK** |
-| **2026-04-30 late** | พบ billing header = **400 reserved keyword** → ต้องใช้ sidecar |
-| **2026-05-01** | สร้าง Node.js sidecar (`sidecar/index.js`) สำหรับ billing header injection |
-| **2026-05-01** | Deploy sidecar, test curl → Caddy → gateway → sidecar → Anthropic = **200** |
-| **2026-05-01** | พบ bug: sidecar แปลง Bearer → x-api-key → **401** → แก้ |
-| **2026-05-01** | พบ bug: ขาด `oauth-2025-04-20` → **401** → แก้ |
-| **2026-05-02** | Profile route: `arl_` token → profile → OAuth → sidecar → Anthropic = **200** |
-| **2026-05-02** | พบ bug: slice bounds panic → แก้ด้วย `truncate()` helper |
-| **2026-05-02** | พบ bug: profile route ไม่ set transparent → แก้ |
-| **2026-05-02** | พบ bug: OAuth token ไปเป็น x-api-key ไม่ใช่ Bearer → แก้ header fix |
-| **2026-05-02** | CLI จริงบน 192.168.5.221 ใช้ Sonnet + Opus ผ่าน gateway ได้สำเร็จ |
+| วันที่               | เหตุการณ์                                                                     |
+|----------------------|-------------------------------------------------------------------------------|
+| **2026-04-23**       | เริ่มใช้ claude-oauth transparent passthrough ครั้งแรก, Haiku ผ่าน            |
+| **2026-04-29**       | พบว่า Sonnet/Opus โดน 429 ตลอด, เริ่ม investigate                             |
+| **2026-04-30 00:00** | จับ mitmproxy flows 28 flows, CLI ตัวจริงได้ 200                              |
+| **2026-04-30 early** | พบ transparent mode bug ใน handler.go, แก้                                    |
+| **2026-04-30 mid**   | Token corruption: agents เขียน "null" ทับ Redis                               |
+| **2026-04-30 mid**   | Re-authenticate PKCE, token ใหม่ `claude-oauth_C8A-88LMMwAA`                  |
+| **2026-04-30 mid**   | พบ token refresh URL bug (`platform.claude.com` → `api.anthropic.com`)        |
+| **2026-04-30 mid**   | เพิ่ม empty token guard ใน token-refresh.go                                   |
+| **2026-04-30 late**  | Test remote CLI sonnet/opus ผ่าน gateway = **200 OK**                         |
+| **2026-04-30 late**  | พบ billing header = **400 reserved keyword** → ต้องใช้ sidecar                |
+| **2026-05-01**       | สร้าง Node.js sidecar (`sidecar/index.js`) สำหรับ billing header injection    |
+| **2026-05-01**       | Deploy sidecar, test curl → Caddy → gateway → sidecar → Anthropic = **200**   |
+| **2026-05-01**       | พบ bug: sidecar แปลง Bearer → x-api-key → **401** → แก้                       |
+| **2026-05-01**       | พบ bug: ขาด `oauth-2025-04-20` → **401** → แก้                                |
+| **2026-05-02**       | Profile route: `arl_` token → profile → OAuth → sidecar → Anthropic = **200** |
+| **2026-05-02**       | พบ bug: slice bounds panic → แก้ด้วย `truncate()` helper                      |
+| **2026-05-02**       | พบ bug: profile route ไม่ set transparent → แก้                               |
+| **2026-05-02**       | พบ bug: OAuth token ไปเป็น x-api-key ไม่ใช่ Bearer → แก้ header fix           |
+| **2026-05-02**       | CLI จริงบน 192.168.5.221 ใช้ Sonnet + Opus ผ่าน gateway ได้สำเร็จ             |

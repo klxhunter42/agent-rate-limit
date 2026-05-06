@@ -139,16 +139,16 @@ dev.bnacar.distributedratelimiter
 
 ### 1.4 Key Dependencies
 
-| Dependency | Version | Purpose |
-|---|---|---|
-| Spring Boot | 3.5.7 | Web, Redis, Actuator, Validation |
-| spring-boot-starter-data-redis | (managed) | Redis via Lettuce client |
-| commons-pool2 | (managed) | Lettuce connection pooling |
-| MaxMind GeoIP2 | 4.4.0 | Geographic IP lookup |
-| springdoc-openapi | 2.7.0 | Swagger UI at `/swagger-ui/index.html` |
-| logstash-logback-encoder | 8.1 | JSON structured logging |
-| micrometer-tracing | (managed) | Distributed tracing |
-| Gatling | 3.14.7 | Load testing (test scope) |
+| Dependency                     | Version   | Purpose                                |
+|--------------------------------|-----------|----------------------------------------|
+| Spring Boot                    | 3.5.7     | Web, Redis, Actuator, Validation       |
+| spring-boot-starter-data-redis | (managed) | Redis via Lettuce client               |
+| commons-pool2                  | (managed) | Lettuce connection pooling             |
+| MaxMind GeoIP2                 | 4.4.0     | Geographic IP lookup                   |
+| springdoc-openapi              | 2.7.0     | Swagger UI at `/swagger-ui/index.html` |
+| logstash-logback-encoder       | 8.1       | JSON structured logging                |
+| micrometer-tracing             | (managed) | Distributed tracing                    |
+| Gatling                        | 3.14.7    | Load testing (test scope)              |
 
 ---
 
@@ -273,13 +273,13 @@ ARGV[1] = capacity, ARGV[2] = leakRate, ARGV[3] = tokensToConsume, ARGV[4] = cur
 
 **Algorithm**: Combines multiple rate limiters with configurable combination logic:
 
-| Logic | Behavior |
-|---|---|
-| `ALL_MUST_PASS` | AND - all components must allow (pre-check then consume all) |
-| `ANY_CAN_PASS` | OR - at least one component must allow (consume from first that allows) |
-| `WEIGHTED_AVERAGE` | Weighted score >= 50% threshold to allow |
-| `HIERARCHICAL_AND` | Check in scope order: USER -> TENANT -> GLOBAL |
-| `PRIORITY_BASED` | Highest priority first, fail-fast on denial |
+| Logic              | Behavior                                                                |
+|--------------------|-------------------------------------------------------------------------|
+| `ALL_MUST_PASS`    | AND - all components must allow (pre-check then consume all)            |
+| `ANY_CAN_PASS`     | OR - at least one component must allow (consume from first that allows) |
+| `WEIGHTED_AVERAGE` | Weighted score >= 50% threshold to allow                                |
+| `HIERARCHICAL_AND` | Check in scope order: USER -> TENANT -> GLOBAL                          |
+| `PRIORITY_BASED`   | Highest priority first, fail-fast on denial                             |
 
 **Components**: Each `LimitComponent` has a name, `RateLimiter` instance, weight (double), priority (int), and scope (String: USER, TENANT, GLOBAL, etc.).
 
@@ -356,14 +356,14 @@ Core rate limiting endpoint. The Go gateway calls this for every request.
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `key` | String | Yes | Rate limit key (e.g. `user:123`, `api:v1:users`) |
-| `tokens` | Integer | Yes | Tokens to consume (min 1) |
-| `apiKey` | String | If enabled | API key for authentication |
-| `algorithm` | Enum | No | Override algorithm (TOKEN_BUCKET, SLIDING_WINDOW, FIXED_WINDOW, LEAKY_BUCKET, COMPOSITE) |
-| `compositeConfig` | Object | No | Composite rate limit configuration |
-| `clientInfo` | Object | No | Geographic client info |
+| Field             | Type    | Required   | Description                                                                              |
+|-------------------|---------|------------|------------------------------------------------------------------------------------------|
+| `key`             | String  | Yes        | Rate limit key (e.g. `user:123`, `api:v1:users`)                                         |
+| `tokens`          | Integer | Yes        | Tokens to consume (min 1)                                                                |
+| `apiKey`          | String  | If enabled | API key for authentication                                                               |
+| `algorithm`       | Enum    | No         | Override algorithm (TOKEN_BUCKET, SLIDING_WINDOW, FIXED_WINDOW, LEAKY_BUCKET, COMPOSITE) |
+| `compositeConfig` | Object  | No         | Composite rate limit configuration                                                       |
+| `clientInfo`      | Object  | No         | Geographic client info                                                                   |
 
 **Response** (`RateLimitResponse`): HTTP 200 or 429
 ```json
@@ -439,16 +439,16 @@ List all active keys with stats: `AdminKeysResponse { keys: AdminKeyStats[], tot
 
 Base path: `/api/ratelimit/schedule`
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/` | Create schedule |
-| GET | `/` | List all schedules |
-| GET | `/{name}` | Get schedule by name |
-| PUT | `/{name}` | Update schedule |
-| DELETE | `/{name}` | Delete schedule |
-| POST | `/{name}/activate` | Activate schedule |
-| POST | `/{name}/deactivate` | Deactivate schedule |
-| POST | `/emergency` | Create emergency schedule (high priority, event-driven) |
+| Method | Path                 | Description                                             |
+|--------|----------------------|---------------------------------------------------------|
+| POST   | `/`                  | Create schedule                                         |
+| GET    | `/`                  | List all schedules                                      |
+| GET    | `/{name}`            | Get schedule by name                                    |
+| PUT    | `/{name}`            | Update schedule                                         |
+| DELETE | `/{name}`            | Delete schedule                                         |
+| POST   | `/{name}/activate`   | Activate schedule                                       |
+| POST   | `/{name}/deactivate` | Deactivate schedule                                     |
+| POST   | `/emergency`         | Create emergency schedule (high priority, event-driven) |
 
 **Schedule types** (`ScheduleType`):
 - `ONE_TIME`: Active between `startTime` and `endTime`
@@ -459,34 +459,34 @@ Base path: `/api/ratelimit/schedule`
 
 Base path: `/api/ratelimit/adaptive`
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/{key}/status` | Get adaptive status for key |
-| POST | `/{key}/override` | Set manual override |
-| DELETE | `/{key}/override` | Remove manual override |
-| GET | `/config` | Get adaptive configuration |
+| Method | Path              | Description                 |
+|--------|-------------------|-----------------------------|
+| GET    | `/{key}/status`   | Get adaptive status for key |
+| POST   | `/{key}/override` | Set manual override         |
+| DELETE | `/{key}/override` | Remove manual override      |
+| GET    | `/config`         | Get adaptive configuration  |
 
 ### 4.6 Geographic Rate Limiting
 
 Base path: `/api/ratelimit/geographic` (only available when `ratelimiter.geographic.enabled=true`)
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/rules` | List all geographic rules |
-| POST | `/rules` | Add geographic rule |
-| DELETE | `/rules/{ruleId}` | Remove geographic rule |
-| GET | `/detect` | Detect location for current request |
-| GET | `/stats` | Cache statistics |
-| POST | `/cache/clear` | Clear geographic caches |
+| Method | Path              | Description                         |
+|--------|-------------------|-------------------------------------|
+| GET    | `/rules`          | List all geographic rules           |
+| POST   | `/rules`          | Add geographic rule                 |
+| DELETE | `/rules/{ruleId}` | Remove geographic rule              |
+| GET    | `/detect`         | Detect location for current request |
+| GET    | `/stats`          | Cache statistics                    |
+| POST   | `/cache/clear`    | Clear geographic caches             |
 
 ### 4.7 Metrics & Monitoring
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/metrics` | Per-key metrics, Redis status, totals |
-| GET | `/actuator/health` | Application health (liveness, readiness) |
-| GET | `/actuator/metrics` | Spring Boot metrics |
-| GET | `/actuator/prometheus` | Prometheus-compatible metrics |
+| Method | Path                   | Description                              |
+|--------|------------------------|------------------------------------------|
+| GET    | `/metrics`             | Per-key metrics, Redis status, totals    |
+| GET    | `/actuator/health`     | Application health (liveness, readiness) |
+| GET    | `/actuator/metrics`    | Spring Boot metrics                      |
+| GET    | `/actuator/prometheus` | Prometheus-compatible metrics            |
 
 **MetricsResponse** structure:
 ```json
@@ -506,10 +506,10 @@ Base path: `/api/ratelimit/geographic` (only available when `ratelimiter.geograp
 
 ### 4.8 Benchmark
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/benchmark/run` | Execute performance benchmark |
-| GET | `/api/benchmark/health` | Benchmark service health |
+| Method | Path                    | Description                   |
+|--------|-------------------------|-------------------------------|
+| POST   | `/api/benchmark/run`    | Execute performance benchmark |
+| GET    | `/api/benchmark/health` | Benchmark service health      |
 
 **BenchmarkRequest**: `concurrentThreads`, `requestsPerThread`, `durationSeconds`, `keyPrefix`, `tokensPerRequest`, `delayBetweenRequestsMs`
 
@@ -517,14 +517,14 @@ Base path: `/api/ratelimit/geographic` (only available when `ratelimiter.geograp
 
 ### 4.9 Performance
 
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/performance/baseline` | Store performance baseline |
-| POST | `/api/performance/regression/analyze` | Analyze regression vs baselines |
-| POST | `/api/performance/baseline/store-and-analyze` | Analyze then store |
-| GET | `/api/performance/baseline/{testName}` | Get historical baselines |
-| GET | `/api/performance/trend/{testName}` | Get performance trend |
-| GET | `/api/performance/health` | Service health |
+| Method | Path                                          | Description                     |
+|--------|-----------------------------------------------|---------------------------------|
+| POST   | `/api/performance/baseline`                   | Store performance baseline      |
+| POST   | `/api/performance/regression/analyze`         | Analyze regression vs baselines |
+| POST   | `/api/performance/baseline/store-and-analyze` | Analyze then store              |
+| GET    | `/api/performance/baseline/{testName}`        | Get historical baselines        |
+| GET    | `/api/performance/trend/{testName}`           | Get performance trend           |
+| GET    | `/api/performance/health`                     | Service health                  |
 
 ---
 
@@ -582,13 +582,13 @@ All configuration is under the `ratelimiter` prefix via `@ConfigurationPropertie
 
 #### Core Rate Limiting
 
-| Property | Default | Description |
-|---|---|---|
-| `ratelimiter.capacity` | 10 | Default max tokens |
-| `ratelimiter.refillRate` | 2 | Default tokens/second refill |
-| `ratelimiter.cleanupIntervalMs` | 60000 | Bucket cleanup interval |
-| `ratelimiter.algorithm` | TOKEN_BUCKET | Default algorithm |
-| `ratelimiter.redis.enabled` | true | Enable Redis backend |
+| Property                        | Default      | Description                  |
+|---------------------------------|--------------|------------------------------|
+| `ratelimiter.capacity`          | 10           | Default max tokens           |
+| `ratelimiter.refillRate`        | 2            | Default tokens/second refill |
+| `ratelimiter.cleanupIntervalMs` | 60000        | Bucket cleanup interval      |
+| `ratelimiter.algorithm`         | TOKEN_BUCKET | Default algorithm            |
+| `ratelimiter.redis.enabled`     | true         | Enable Redis backend         |
 
 #### Per-Key Configuration
 
@@ -610,24 +610,24 @@ Pattern matching supports `*` wildcard: `user:*` matches `user:123`, `api:v1:*` 
 
 #### Security
 
-| Property | Default | Description |
-|---|---|---|
-| `ratelimiter.security.api-keys.enabled` | true | Enable API key auth |
+| Property                                   | Default                 | Description                |
+|--------------------------------------------|-------------------------|----------------------------|
+| `ratelimiter.security.api-keys.enabled`    | true                    | Enable API key auth        |
 | `ratelimiter.security.api-keys.valid-keys` | api-key-1,api-key-2,... | Comma-separated valid keys |
-| `ratelimiter.security.ip.whitelist` | 127.0.0.1,::1 | IP whitelist |
-| `ratelimiter.security.ip.blacklist` | (empty) | IP blacklist |
-| `ratelimiter.security.max-request-size` | 1MB | Max request body |
-| `ratelimiter.security.headers.enabled` | true | Security response headers |
+| `ratelimiter.security.ip.whitelist`        | 127.0.0.1,::1           | IP whitelist               |
+| `ratelimiter.security.ip.blacklist`        | (empty)                 | IP blacklist               |
+| `ratelimiter.security.max-request-size`    | 1MB                     | Max request body           |
+| `ratelimiter.security.headers.enabled`     | true                    | Security response headers  |
 
 #### Geographic Rate Limiting
 
-| Property | Default | Description |
-|---|---|---|
-| `ratelimiter.geographic.enabled` | true | Enable geo rate limiting |
-| `ratelimiter.geographic.ip-database-path` | /data/GeoLite2-City.mmdb | MaxMind DB path |
-| `ratelimiter.geographic.update-interval-hours` | 24 | DB refresh interval |
-| `ratelimiter.geographic.cache-size` | 10000 | Location cache size |
-| `ratelimiter.geographic.cache-ttl-hours` | 1 | Cache TTL |
+| Property                                       | Default                  | Description              |
+|------------------------------------------------|--------------------------|--------------------------|
+| `ratelimiter.geographic.enabled`               | true                     | Enable geo rate limiting |
+| `ratelimiter.geographic.ip-database-path`      | /data/GeoLite2-City.mmdb | MaxMind DB path          |
+| `ratelimiter.geographic.update-interval-hours` | 24                       | DB refresh interval      |
+| `ratelimiter.geographic.cache-size`            | 10000                    | Location cache size      |
+| `ratelimiter.geographic.cache-ttl-hours`       | 1                        | Cache TTL                |
 
 Geographic rules are configured via properties (indexed):
 ```properties
@@ -642,51 +642,51 @@ ratelimiter.geographic.rules[0].priority=100
 
 #### Adaptive Rate Limiting
 
-| Property | Default | Description |
-|---|---|---|
-| `ratelimiter.adaptive.enabled` | false | Enable adaptive ML |
-| `ratelimiter.adaptive.evaluation-interval-ms` | 300000 | Evaluation cycle (5 min) |
-| `ratelimiter.adaptive.min-confidence-threshold` | 0.7 | Min confidence to apply |
-| `ratelimiter.adaptive.max-adjustment-factor` | 2.0 | Max capacity multiplier |
-| `ratelimiter.adaptive.min-capacity` | 10 | Minimum capacity |
-| `ratelimiter.adaptive.max-capacity` | 100000 | Maximum capacity |
-| `ratelimiter.adaptive.learning-window-days` | 30 | Learning period |
-| `ratelimiter.adaptive.min-data-points` | 1000 | Min data before adaptation |
+| Property                                        | Default | Description                |
+|-------------------------------------------------|---------|----------------------------|
+| `ratelimiter.adaptive.enabled`                  | false   | Enable adaptive ML         |
+| `ratelimiter.adaptive.evaluation-interval-ms`   | 300000  | Evaluation cycle (5 min)   |
+| `ratelimiter.adaptive.min-confidence-threshold` | 0.7     | Min confidence to apply    |
+| `ratelimiter.adaptive.max-adjustment-factor`    | 2.0     | Max capacity multiplier    |
+| `ratelimiter.adaptive.min-capacity`             | 10      | Minimum capacity           |
+| `ratelimiter.adaptive.max-capacity`             | 100000  | Maximum capacity           |
+| `ratelimiter.adaptive.learning-window-days`     | 30      | Learning period            |
+| `ratelimiter.adaptive.min-data-points`          | 1000    | Min data before adaptation |
 
 #### Redis Connection
 
-| Property | Default | Description |
-|---|---|---|
-| `spring.data.redis.host` | localhost | Redis host |
-| `spring.data.redis.port` | 6379 | Redis port |
-| `spring.data.redis.password` | (none) | Redis password |
-| `spring.data.redis.database` | 0 | Redis database |
-| `spring.data.redis.timeout` | 2000ms | Command timeout |
+| Property                     | Default   | Description     |
+|------------------------------|-----------|-----------------|
+| `spring.data.redis.host`     | localhost | Redis host      |
+| `spring.data.redis.port`     | 6379      | Redis port      |
+| `spring.data.redis.password` | (none)    | Redis password  |
+| `spring.data.redis.database` | 0         | Redis database  |
+| `spring.data.redis.timeout`  | 2000ms    | Command timeout |
 
 #### Observability
 
-| Property | Default | Description |
-|---|---|---|
-| `observability.correlation-id.enabled` | true | MDC correlation IDs |
-| `observability.tracing.enabled` | true | Distributed tracing |
-| `observability.structured-logging.enabled` | true | JSON log format |
+| Property                                   | Default | Description         |
+|--------------------------------------------|---------|---------------------|
+| `observability.correlation-id.enabled`     | true    | MDC correlation IDs |
+| `observability.tracing.enabled`            | true    | Distributed tracing |
+| `observability.structured-logging.enabled` | true    | JSON log format     |
 
 ### 6.2 Environment Variables
 
 Used primarily in Kubernetes/Docker:
 
-| Env Var | Purpose |
-|---|---|
-| `SPRING_DATA_REDIS_HOST` | Redis host override |
-| `SPRING_DATA_REDIS_PORT` | Redis port override |
-| `SPRING_PROFILES_ACTIVE` | Spring profile (docker, production) |
-| `JAVA_OPTS` | JVM options (default: `-Xmx512m -Xms256m`) |
-| `REDIS_PASSWORD` | From K8s secret |
-| `ADMIN_USERNAME` | From K8s secret |
-| `ADMIN_PASSWORD` | From K8s secret |
-| `API_KEYS` | From K8s secret |
-| `SERVER_SHUTDOWN` | Set to `graceful` for K8s |
-| `NVD_API_KEY` | For OWASP dependency check |
+| Env Var                  | Purpose                                    |
+|--------------------------|--------------------------------------------|
+| `SPRING_DATA_REDIS_HOST` | Redis host override                        |
+| `SPRING_DATA_REDIS_PORT` | Redis port override                        |
+| `SPRING_PROFILES_ACTIVE` | Spring profile (docker, production)        |
+| `JAVA_OPTS`              | JVM options (default: `-Xmx512m -Xms256m`) |
+| `REDIS_PASSWORD`         | From K8s secret                            |
+| `ADMIN_USERNAME`         | From K8s secret                            |
+| `ADMIN_PASSWORD`         | From K8s secret                            |
+| `API_KEYS`               | From K8s secret                            |
+| `SERVER_SHUTDOWN`        | Set to `graceful` for K8s                  |
+| `NVD_API_KEY`            | For OWASP dependency check                 |
 
 ---
 
@@ -694,15 +694,15 @@ Used primarily in Kubernetes/Docker:
 
 ### 7.1 Base Manifests (`k8s/base/`)
 
-| File | Resource | Description |
-|---|---|---|
-| `namespace.yaml` | Namespace | `rate-limiter` namespace |
-| `deployment.yaml` | Deployment + Service + PDB | 3 replicas, ClusterIP service on port 80 -> 8080 |
-| `configmap.yaml` | ConfigMap | `application.properties` + `logback-spring.xml` |
-| `secrets.yaml` | Secret | Redis password, admin credentials, API keys |
-| `redis.yaml` | Deployment + Service + PVC + ConfigMap | Redis 7.4 with persistence, redis-exporter sidecar |
-| `ingress.yaml` | Ingress | NGINX ingress with TLS, rate limiting, security headers |
-| `rbac.yaml` | SA + Role + RoleBinding | Minimal RBAC (get/list pods, configmaps, secrets) |
+| File              | Resource                               | Description                                             |
+|-------------------|----------------------------------------|---------------------------------------------------------|
+| `namespace.yaml`  | Namespace                              | `rate-limiter` namespace                                |
+| `deployment.yaml` | Deployment + Service + PDB             | 3 replicas, ClusterIP service on port 80 -> 8080        |
+| `configmap.yaml`  | ConfigMap                              | `application.properties` + `logback-spring.xml`         |
+| `secrets.yaml`    | Secret                                 | Redis password, admin credentials, API keys             |
+| `redis.yaml`      | Deployment + Service + PVC + ConfigMap | Redis 7.4 with persistence, redis-exporter sidecar      |
+| `ingress.yaml`    | Ingress                                | NGINX ingress with TLS, rate limiting, security headers |
+| `rbac.yaml`       | SA + Role + RoleBinding                | Minimal RBAC (get/list pods, configmaps, secrets)       |
 
 ### 7.2 Rate Limiter Deployment Details
 
@@ -991,19 +991,19 @@ Client libraries are documented in `docs/examples/`:
                               |  (Spring Boot 3.5.7)  |
                               |  Java 21              |
                               +---+-------+-------+---+
-                                  |       |       |
+|       |       |
                      +------------+   +---+---+   +------------+
-                     |                |       |                |
+|                |       |                |
               +------v------+  +------v--+ +--v-------+  +----v------+
-              | RateLimiter |  | Config  | | Schedule |  | Adaptive  |
-              | Service     |  | Resolver| | Manager  |  | Engine    |
-              | (in-memory) |  |         | |          |  | (ML-based)|
+| RateLimiter |  | Config  | | Schedule |  | Adaptive  |
+| Service     |  | Resolver| | Manager  |  | Engine    |
+| (in-memory) |  |         | |          |  | (ML-based)|
               +------+------+  +----+----+ +----+-----+  +-----+----+
-                     |               |           |              |
+|               |           |              |
                      |        +------v------+
-                     |        | Per-Key     |
-                     |        | Patterns    |
-                     |        | Defaults    |
+|        | Per-Key     |
+|        | Patterns    |
+|        | Defaults    |
                      |        +-------------+
                      |
               +------v------+
@@ -1014,9 +1014,9 @@ Client libraries are documented in `docs/examples/`:
               +--+------+---+
                  |      |
         +--------v--+ ++---------+
-        | Redis     | | In-Memory|
-        | Backend   | | Backend  |
-        | (primary) | | (fallback|
+| Redis     | | In-Memory|
+| Backend   | | Backend  |
+| (primary) | | (fallback|
         +-----+-----+ +----------+
               |
     +---------v----------+
@@ -1028,24 +1028,24 @@ Client libraries are documented in `docs/examples/`:
 
     Lua Scripts (atomic operations):
     +---------------------+---------------------+---------------------+
-    | token-bucket.lua    | fixed-window.lua    | leaky-bucket.lua    |
-    | HMGET/HMSET         | HMGET/HMSET         | HMGET + LIST ops    |
-    | Time-based refill   | Window boundary     | Queue + drain rate  |
-    | TTL 24h             | TTL window+1h       | TTL 24h             |
+| token-bucket.lua    | fixed-window.lua    | leaky-bucket.lua    |
+| HMGET/HMSET         | HMGET/HMSET         | HMGET + LIST ops    |
+| Time-based refill   | Window boundary     | Queue + drain rate  |
+| TTL 24h             | TTL window+1h       | TTL 24h             |
     +---------------------+---------------------+---------------------+
 
     Algorithms:
     +-------------+-------------+-------------+-------------+-------------+
-    | TOKEN_BUCKET| SLIDING_WIN | FIXED_WINDOW| LEAKY_BUCKET| COMPOSITE   |
-    | Burst allow | Precise     | Simple      | Constant    | Multi-algo  |
-    | Steady fill | Rolling win | Fixed intv  | Queue drain | AND/OR/Wght |
+| TOKEN_BUCKET| SLIDING_WIN | FIXED_WINDOW| LEAKY_BUCKET| COMPOSITE   |
+| Burst allow | Precise     | Simple      | Constant    | Multi-algo  |
+| Steady fill | Rolling win | Fixed intv  | Queue drain | AND/OR/Wght |
     +-------------+-------------+-------------+-------------+-------------+
 
     Security Layer:
     +------------------+------------------+------------------+
-    | API Key Auth     | IP Whitelist/    | Geo Rate Limit   |
-    | (ApiKeyService)  | Blacklist        | (MaxMind GeoIP2) |
-    |                  | (IpSecuritySvc)  | (CDN headers)    |
+| API Key Auth     | IP Whitelist/    | Geo Rate Limit   |
+| (ApiKeyService)  | Blacklist        | (MaxMind GeoIP2) |
+|                  | (IpSecuritySvc)  | (CDN headers)    |
     +------------------+------------------+------------------+
 
     Kubernetes:
@@ -1053,30 +1053,30 @@ Client libraries are documented in `docs/examples/`:
     | Namespace: rate-limiter                                   |
     |                                                           |
     | +--------------------+  +------------------+              |
-    | | rate-limiter       |  | redis            |              |
-    | | Deployment (3 rep) |  | Deployment (1)   |              |
-    | | HPA: 3-10 pods     |  | PVC: 10Gi SSD    |              |
-    | | PDB: min 2         |  | exporter sidecar |              |
+| | rate-limiter       |  | redis            |              |
+| | Deployment (3 rep) |  | Deployment (1)   |              |
+| | HPA: 3-10 pods     |  | PVC: 10Gi SSD    |              |
+| | PDB: min 2         |  | exporter sidecar |              |
     | +--------+-----------+  +--------+---------+              |
-    |          |                        |                        |
+|          |                        |                        |
     | +--------v-----------+  +---------v--------+              |
-    | | ClusterIP Service  |  | ClusterIP Service|              |
-    | | port 80 -> 8080    |  | port 6379, 9121  |              |
+| | ClusterIP Service  |  | ClusterIP Service|              |
+| | port 80 -> 8080    |  | port 6379, 9121  |              |
     | +--------------------+  +------------------+              |
     |                                                           |
     | +--------------------+  +--------------------+            |
-    | | NGINX Ingress      |  | ConfigMap/Secrets  |            |
-    | | TLS + rate limit   |  | RBAC               |            |
+| | NGINX Ingress      |  | ConfigMap/Secrets  |            |
+| | TLS + rate limit   |  | RBAC               |            |
     | +--------------------+  +--------------------+            |
     +----------------------------------------------------------+
 
     Monitoring:
     +---------------------------+---------------------------+
-    | Spring Actuator           | Prometheus + Grafana      |
-    | /actuator/health          | Redis exporter (9121)     |
-    | /actuator/metrics         | Application metrics       |
-    | /actuator/prometheus      | Grafana dashboard JSON    |
-    | /metrics (custom)         | Alert rules               |
+| Spring Actuator           | Prometheus + Grafana      |
+| /actuator/health          | Redis exporter (9121)     |
+| /actuator/metrics         | Application metrics       |
+| /actuator/prometheus      | Grafana dashboard JSON    |
+| /metrics (custom)         | Alert rules               |
     +---------------------------+---------------------------+
 ```
 
@@ -1098,13 +1098,13 @@ The pipeline includes:
 
 ## Appendix B: Quality Tools
 
-| Tool | Purpose | Config |
-|---|---|---|
-| JaCoCo | Code coverage | 50% instruction + branch minimum |
-| SpotBugs | Static analysis | `spotbugs-exclude.xml` |
-| PMD | Code quality | `quickstart.xml` ruleset |
-| Checkstyle | Code style | Google checks |
-| OWASP | Vulnerability scanning | `owasp-suppressions.xml`, CVSS > 7 |
+| Tool       | Purpose                | Config                             |
+|------------|------------------------|------------------------------------|
+| JaCoCo     | Code coverage          | 50% instruction + branch minimum   |
+| SpotBugs   | Static analysis        | `spotbugs-exclude.xml`             |
+| PMD        | Code quality           | `quickstart.xml` ruleset           |
+| Checkstyle | Code style             | Google checks                      |
+| OWASP      | Vulnerability scanning | `owasp-suppressions.xml`, CVSS > 7 |
 
 ## Appendix C: Docker
 

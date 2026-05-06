@@ -11,11 +11,11 @@ Request flow:
 
 Three core mechanisms:
 
-| Mechanism | Purpose |
-|---|---|
-| Per-model concurrent slots | Prevents overloading any single upstream model |
-| Global slot pool | Caps total upstream API key concurrency |
-| Gradient-based feedback | Auto-tunes per-model limits from real RTT/429 data |
+| Mechanism                  | Purpose                                            |
+|----------------------------|----------------------------------------------------|
+| Per-model concurrent slots | Prevents overloading any single upstream model     |
+| Global slot pool           | Caps total upstream API key concurrency            |
+| Gradient-based feedback    | Auto-tunes per-model limits from real RTT/429 data |
 
 ---
 
@@ -54,14 +54,14 @@ If all phases fail, the handler returns `503 Overloaded`.
 
 Models are sorted by priority (higher = preferred):
 
-| Model | Priority | Series |
-|---|---|---|
-| glm-5.1 | 100 | 5 |
-| glm-5-turbo | 90 | 5 |
-| glm-5 | 80 | 5 |
-| glm-4.7 | 70 | 4 |
-| glm-4.6 | 60 | 4 |
-| glm-4.5 | 50 | 4 |
+| Model       | Priority | Series |
+|-------------|----------|--------|
+| glm-5.1     | 100      | 5      |
+| glm-5-turbo | 90       | 5      |
+| glm-5       | 80       | 5      |
+| glm-4.7     | 70       | 4      |
+| glm-4.6     | 60       | 4      |
+| glm-4.5     | 50       | 4      |
 
 Series is extracted from the model name: `glm-5.1` -> series 5, `glm-4.7` -> series 4, `glm-5-turbo` -> series 5.
 
@@ -179,12 +179,12 @@ This ensures the request is routed to the correct upstream endpoint and uses the
 
 ## Configuration Defaults
 
-| Environment Variable | Default | Description |
-|---|---|---|
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model initial concurrent request limits |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Hard cap on total concurrent upstream requests |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | maxLimit = initialLimit * probeMultiplier |
-| `MODEL_PRIORITY` | (built-in map) | Model priority ordering for fallback |
+| Environment Variable        | Default                                                          | Description                                    |
+|-----------------------------|------------------------------------------------------------------|------------------------------------------------|
+| `UPSTREAM_MODEL_LIMITS`     | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model initial concurrent request limits    |
+| `UPSTREAM_GLOBAL_LIMIT`     | `9`                                                              | Hard cap on total concurrent upstream requests |
+| `UPSTREAM_PROBE_MULTIPLIER` | `5`                                                              | maxLimit = initialLimit * probeMultiplier      |
+| `MODEL_PRIORITY`            | (built-in map)                                                   | Model priority ordering for fallback           |
 
 Key points:
 - These are **concurrent request limits**, not RPM
@@ -194,14 +194,14 @@ Key points:
 
 ### Per-Model Limit Range
 
-| Model | Initial | Max (x5) |
-|---|---|---|
-| glm-5.1 | 1 | 5 |
-| glm-5-turbo | 1 | 5 |
-| glm-5 | 2 | 10 |
-| glm-4.7 | 2 | 10 |
-| glm-4.6 | 3 | 15 |
-| glm-4.5 | 10 | 50 |
+| Model       | Initial | Max (x5) |
+|-------------|---------|----------|
+| glm-5.1     | 1       | 5        |
+| glm-5-turbo | 1       | 5        |
+| glm-5       | 2       | 10       |
+| glm-4.7     | 2       | 10       |
+| glm-4.6     | 3       | 15       |
+| glm-4.5     | 10      | 50       |
 
 Sum of initial limits (19) exceeds global limit (9), so contention is expected and fallback is normal under load.
 
@@ -213,30 +213,30 @@ Sum of initial limits (19) exceeds global limit (9), so contention is expected a
 
 Controls how aggressively the limiter probes for higher concurrency.
 
-| Scenario | Action |
-|---|---|
-| Frequent 429s even at low concurrency | Decrease to 3 (more conservative) |
+| Scenario                                  | Action                                     |
+|-------------------------------------------|--------------------------------------------|
+| Frequent 429s even at low concurrency     | Decrease to 3 (more conservative)          |
 | Limits stuck well below upstream capacity | Increase to 8-10 (more aggressive probing) |
-| Default (5) works for most upstreams | No change needed |
+| Default (5) works for most upstreams      | No change needed                           |
 
 ### Global Limit
 
 Sets the total concurrent request cap. This should match or slightly exceed the upstream API key's true concurrent request capacity.
 
-| Scenario | Action |
-|---|---|
-| Upstream returns 429 even when individual model limits are low | Global limit is too high; decrease |
+| Scenario                                                          | Action                                     |
+|-------------------------------------------------------------------|--------------------------------------------|
+| Upstream returns 429 even when individual model limits are low    | Global limit is too high; decrease         |
 | Global limit blocks requests when individual models have capacity | Increase global limit or add more API keys |
-| Multiple API keys in rotation | Set global limit = sum of per-key limits |
+| Multiple API keys in rotation                                     | Set global limit = sum of per-key limits   |
 
 ### Cooldown Period
 
 The 5-second cooldown after any 429 prevents rapid oscillation.
 
-| Scenario | Action |
-|---|---|
-| Recovery too slow after transient 429 | Reduce to 2-3s (faster ramp-up) |
-| Oscillating limits (up/down/up) | Increase to 8-10s (more damping) |
+| Scenario                              | Action                           |
+|---------------------------------------|----------------------------------|
+| Recovery too slow after transient 429 | Reduce to 2-3s (faster ramp-up)  |
+| Oscillating limits (up/down/up)       | Increase to 8-10s (more damping) |
 
 Cooldown is hardcoded. To change it, modify the constant in `Feedback()`.
 
@@ -268,16 +268,16 @@ GET /v1/limiter-status
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `limit` | Current adaptive concurrency limit |
-| `max_limit` | Upper bound (initial * probeMultiplier) |
+| Field             | Meaning                                                 |
+|-------------------|---------------------------------------------------------|
+| `limit`           | Current adaptive concurrency limit                      |
+| `max_limit`       | Upper bound (initial * probeMultiplier)                 |
 | `learned_ceiling` | Limit value before last 429 (0 if decayed or never hit) |
-| `in_flight` | Currently active requests for this model |
-| `min_rtt_ms` | Lowest observed RTT (baseline for gradient) |
-| `ewma_rtt_ms` | Smoothed RTT (for pressure detection) |
-| `total_429s` | Cumulative 429/503 responses received |
-| `overridden` | Manual override active (limit is pinned) |
+| `in_flight`       | Currently active requests for this model                |
+| `min_rtt_ms`      | Lowest observed RTT (baseline for gradient)             |
+| `ewma_rtt_ms`     | Smoothed RTT (for pressure detection)                   |
+| `total_429s`      | Cumulative 429/503 responses received                   |
+| `overridden`      | Manual override active (limit is pinned)                |
 
 **Diagnostic patterns:**
 

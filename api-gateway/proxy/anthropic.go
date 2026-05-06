@@ -843,6 +843,13 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 			text, _ = delta["reasoning_content"].(string)
 		}
 
+		// Flush any partial placeholder buffer before switching to tool_calls
+		if unmasker != nil && started {
+			if remaining := unmasker.Flush(); remaining != "" {
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			}
+		}
 		// Handle tool_calls: forward arguments with unmasking.
 		if text == "" {
 			if toolCalls, ok := delta["tool_calls"].([]any); ok && len(toolCalls) > 0 {
@@ -904,11 +911,16 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		}
 	}
 
-	// Emit any remaining unmasker buffer after stream ended without [DONE].
-	if unmasker != nil {
+	// Emit any remaining unmasker buffer after stream ended without [DONE]
+	if unmasker != nil && started {
 		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+			// Emit closing events for streams that ended without [DONE]
+			fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+			fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
+			fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+			if flusher != nil {
+				flusher.Flush()
+			}
 		}
 	}
 
@@ -1610,6 +1622,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 		filteredBlocks := make(map[int]bool)
 		var sidecarInputTokens, sidecarOutputTokens int
+		var lastUnmaskBlockIdx int = -1
 
 		for scanner.Scan() {
 			line := scanner.Text()
@@ -1654,6 +1667,15 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							} `json:"delta"`
 						}
 						if json.Unmarshal([]byte(data), &evt) == nil {
+							// Flush on block index change to prevent cross-block buffer contamination
+							if evt.Index != lastUnmaskBlockIdx && lastUnmaskBlockIdx >= 0 {
+								if remaining := unmasker.Flush(); remaining != "" {
+									escaped, _ := json.Marshal(remaining)
+									fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+								}
+							}
+							lastUnmaskBlockIdx = evt.Index
+
 							var changed bool
 							if evt.Delta.Text != "" {
 								before := evt.Delta.Text
@@ -1665,7 +1687,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
-								evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = unmasker.ReplaceDirect(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							}
 							if changed {
@@ -1686,7 +1708,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 						if remaining := unmasker.Flush(); remaining != "" {
 							escaped, _ := json.Marshal(remaining)
-							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
 						}
 					} else if strings.Contains(data, "[[") {
 						unmasked := unmasker.ReplaceDirectJSON(data)
@@ -1733,7 +1755,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		if unmasker != nil {
 			if remaining := unmasker.Flush(); remaining != "" {
 				escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
 			}
 		}
 		return nil
@@ -2026,7 +2048,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						changed = evt.Delta.Thinking != before
 					} else if evt.Delta.PartialJSON != "" {
 						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ProcessChunk(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = unmasker.ReplaceDirect(evt.Delta.PartialJSON)
 						changed = evt.Delta.PartialJSON != before
 					}
 					if changed {
@@ -2100,6 +2122,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		isClientGone := ctx.Err() != nil
 		slog.Warn("anthropic stream scanner error", "error", err, "client_gone", isClientGone, "output_tokens", outputTokens, "elapsed", time.Since(streamStart).Round(time.Millisecond))
 		if isClientGone {
+			// Flush unmasker buffer before emitting closing events to prevent placeholder leaks
+			if unmasker != nil {
+				if remaining := unmasker.Flush(); remaining != "" {
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				}
+			}
 			return nil
 		}
 		if f, ok := w.(http.Flusher); ok {

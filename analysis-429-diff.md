@@ -6,14 +6,14 @@ One 429 response found in 28 total flows. The 429 was NOT caused by request head
 
 ## Status Code Breakdown
 
-| Status | Count | Endpoint Pattern |
-|--------|-------|-----------------|
-| 200    | 13    | /api/hello, /v1/oauth/*, /api/claude_code/*, /v1/mcp/* (after retry), /v1/messages |
-| 401    | 9     | /v1/mcp/mcpsrv_* (MCP servers requiring OAuth) |
-| 502    | 3     | /v1/mcp/mcpsrv_* (Cloudflare bad gateway) |
-| 429    | 1     | /v1/mcp/mcpsrv_01WWRm1Vv89C83sk5dRf1G3L |
-| 404    | 1     | /v1/mcp_servers?limit=1000 |
-| 202    | 1     | /v1/mcp/mcpsrv_* (notifications) |
+| Status   | Count   | Endpoint Pattern                                                                   |
+|----------|---------|------------------------------------------------------------------------------------|
+| 200      | 13      | /api/hello, /v1/oauth/*, /api/claude_code/*, /v1/mcp/* (after retry), /v1/messages |
+| 401      | 9       | /v1/mcp/mcpsrv_* (MCP servers requiring OAuth)                                     |
+| 502      | 3       | /v1/mcp/mcpsrv_* (Cloudflare bad gateway)                                          |
+| 429      | 1       | /v1/mcp/mcpsrv_01WWRm1Vv89C83sk5dRf1G3L                                            |
+| 404      | 1       | /v1/mcp_servers?limit=1000                                                         |
+| 202      | 1       | /v1/mcp/mcpsrv_* (notifications)                                                   |
 
 ## 429 Request Details
 

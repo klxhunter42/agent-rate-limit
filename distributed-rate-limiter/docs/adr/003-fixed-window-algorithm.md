@@ -151,13 +151,13 @@ curl -X POST http://localhost:8080/api/ratelimit/config/patterns/api:* \
 
 ## Performance Characteristics
 
-| Metric | Fixed Window | Token Bucket | Sliding Window |
-|--------|--------------|--------------|----------------|
-| Memory/Key | ~4KB | ~8KB | ~8KB |
-| CPU Overhead | Baseline | +15% | +25% |
-| Reset Predictability | Excellent | Poor | Good |
-| Boundary Behavior | Spike Risk | Smooth | Smooth |
-| Implementation Complexity | Simple | Medium | Complex |
+| Metric                    | Fixed Window   | Token Bucket   | Sliding Window   |
+|---------------------------|----------------|----------------|------------------|
+| Memory/Key                | ~4KB           | ~8KB           | ~8KB             |
+| CPU Overhead              | Baseline       | +15%           | +25%             |
+| Reset Predictability      | Excellent      | Poor           | Good             |
+| Boundary Behavior         | Spike Risk     | Smooth         | Smooth           |
+| Implementation Complexity | Simple         | Medium         | Complex          |
 
 ## Monitoring Considerations
 

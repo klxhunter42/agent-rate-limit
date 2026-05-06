@@ -55,7 +55,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count[$__range]))) or on() vector(0)",
+          "expr": "(sum by (path) (increase(api_gateway_billing_path_requests_total[$__range]))) or on() vector(0)",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -152,7 +152,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (path) (rate(api_gateway_request_latency_seconds_count[$__interval])))",
+          "expr": "(sum by (path) (rate(api_gateway_billing_path_requests_total[$__interval])))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -231,17 +231,17 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Go Direct",
           "refId": "A"
         },
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"sidecar\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"sidecar\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Sidecar",
           "refId": "B"
         },
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"billing_rejected\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"billing_rejected\"}[$__range]))) or on() vector(0)",
           "legendFormat": "Rejected",
           "refId": "C"
         }
@@ -305,7 +305,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_request_latency_seconds_count{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_billing_path_requests_total{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100) or on() vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -349,17 +349,17 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "p50 {{path}}",
           "refId": "A"
         },
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "p95 {{path}}",
           "refId": "B"
         },
         {
-          "expr": "(histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "p99 {{path}}",
           "refId": "C"
         }
@@ -401,7 +401,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_request_latency_seconds_count{path=\"go_direct\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "requests",
           "refId": "A"
         }
@@ -433,12 +433,12 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval])))",
+          "expr": "(sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval])))",
           "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval])))",
+          "expr": "(sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval])))",
           "legendFormat": "{{model}} out",
           "refId": "B"
         }
@@ -597,7 +597,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_cost_total[$__interval])) * 3600)",
+          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }
@@ -629,7 +629,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_cost_total[$__interval])) * 3600)",
+          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }

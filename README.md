@@ -216,37 +216,37 @@ That's it. Claude Code works as-is -- tools, streaming, multi-turn conversations
 
 ### Access Dashboards
 
-| Dashboard | URL |
-|-----------|-----|
-| Admin UI | `http://localhost:9000/` |
-| Grafana | `http://localhost:9000/grafana` |
-| Health | `http://localhost:9000/health` |
-| Metrics | `http://localhost:9000/metrics` |
+| Dashboard   | URL                             |
+|-------------|---------------------------------|
+| Admin UI    | `http://localhost:9000/`        |
+| Grafana     | `http://localhost:9000/grafana` |
+| Health      | `http://localhost:9000/health`  |
+| Metrics     | `http://localhost:9000/metrics` |
 
 <br/>
 
 ## Supported Providers
 
-| Provider | Format | Auth | Models |
-|----------|--------|------|--------|
-| Z.AI | Anthropic | API Key | GLM-5.1, GLM-5, GLM-4.6v (vision) |
-| Claude OAuth | Anthropic | Bearer | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5 |
-| Anthropic | Anthropic | API Key | Claude full model family |
-| OpenAI | OpenAI | Bearer | GPT-4o, o1, o3, o4 |
-| Gemini | Gemini | API Key | Gemini 2.5 Pro, Flash |
-| Gemini OAuth | Gemini | Bearer | Code Assist |
-| OpenRouter | OpenAI | Bearer | Multi-vendor (anthropic/, openai/, meta/, google/) |
-| DeepSeek | OpenAI | Bearer | DeepSeek V3/R1 |
-| Qwen | OpenAI | Bearer | Qwen models |
-| Kimi | OpenAI | Bearer | Moonshot models |
-| HuggingFace | OpenAI | Bearer | HF Inference API |
-| Ollama | OpenAI | Bearer | Local models |
-| Copilot | OpenAI | Bearer | GitHub Copilot |
-| Cursor | OpenAI | Bearer | Cursor AI |
-| CodeBuddy | OpenAI | Bearer | CodeBuddy |
-| Kilo | OpenAI | Bearer | Kilo AI |
-| AGY | Anthropic | API Key | AGY models |
-| Custom | Any | Any | Register via API at runtime |
+| Provider     | Format    | Auth    | Models                                             |
+|--------------|-----------|---------|----------------------------------------------------|
+| Z.AI         | Anthropic | API Key | GLM-5.1, GLM-5, GLM-4.6v (vision)                  |
+| Claude OAuth | Anthropic | Bearer  | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5             |
+| Anthropic    | Anthropic | API Key | Claude full model family                           |
+| OpenAI       | OpenAI    | Bearer  | GPT-4o, o1, o3, o4                                 |
+| Gemini       | Gemini    | API Key | Gemini 2.5 Pro, Flash                              |
+| Gemini OAuth | Gemini    | Bearer  | Code Assist                                        |
+| OpenRouter   | OpenAI    | Bearer  | Multi-vendor (anthropic/, openai/, meta/, google/) |
+| DeepSeek     | OpenAI    | Bearer  | DeepSeek V3/R1                                     |
+| Qwen         | OpenAI    | Bearer  | Qwen models                                        |
+| Kimi         | OpenAI    | Bearer  | Moonshot models                                    |
+| HuggingFace  | OpenAI    | Bearer  | HF Inference API                                   |
+| Ollama       | OpenAI    | Bearer  | Local models                                       |
+| Copilot      | OpenAI    | Bearer  | GitHub Copilot                                     |
+| Cursor       | OpenAI    | Bearer  | Cursor AI                                          |
+| CodeBuddy    | OpenAI    | Bearer  | CodeBuddy                                          |
+| Kilo         | OpenAI    | Bearer  | Kilo AI                                            |
+| AGY          | Anthropic | API Key | AGY models                                         |
+| Custom       | Any       | Any     | Register via API at runtime                        |
 
 <br/>
 
@@ -261,13 +261,13 @@ Throughput = Keys x RPM per key
 All providers           --> 200+ RPM
 ```
 
-| Scale | Mode | Config |
-|-------|------|--------|
-| Solo developer | Sync | Single key |
-| 2-5 developers | Sync | 1 key per person |
-| Team + CI/CD | Sync + Async | Dev sync, CI async |
-| Agent framework (5-50) | Async | 50 workers, multi-key |
-| Heavy batch (100+) | Async | Multi-key + multi-provider |
+| Scale                  | Mode         | Config                     |
+|------------------------|--------------|----------------------------|
+| Solo developer         | Sync         | Single key                 |
+| 2-5 developers         | Sync         | 1 key per person           |
+| Team + CI/CD           | Sync + Async | Dev sync, CI async         |
+| Agent framework (5-50) | Async        | 50 workers, multi-key      |
+| Heavy batch (100+)     | Async        | Multi-key + multi-provider |
 
 <br/>
 
@@ -293,43 +293,43 @@ All providers           --> 200+ RPM
 
 ### User Guides
 
-| # | Document | Description |
-|---|----------|-------------|
-| 01 | [Getting Started](docs/01-getting-started.md) | Architecture, install, env vars, ports |
-| 02 | [Claude Code Guide](docs/02-claude-code.md) | Setup, tool loop, compatibility, rate limits |
-| 03 | [API Reference](docs/03-api-reference.md) | All 100+ API endpoints |
-| 04 | [Providers](docs/04-providers.md) | 18 providers, OAuth flows, token management |
-| 05 | [Routing](docs/05-routing.md) | Profile-based routing, model mapping |
-| 06 | [Dashboards](docs/06-dashboards.md) | Grafana, admin UI, pricing |
-| 07 | [Observability](docs/07-observability.md) | 36+ Prometheus metrics reference |
-| 08 | [Docker Ops](docs/08-docker-ops.md) | Build, deploy, service management |
-| 09 | [Features](docs/09-features.md) | Vision, multi-agent, message optimization |
-| 11 | [Privacy & Security](docs/11-privacy-security.md) | PasteGuard, streaming unmask, GLM isolation |
-| 12 | [Z.AI Vision](docs/12-zai.md) | Image format routing fix |
-| 13 | [Troubleshooting](docs/13-troubleshooting.md) | Common issues, reset, port reference |
+| #   | Document                                          | Description                                  |
+|-----|---------------------------------------------------|----------------------------------------------|
+| 01  | [Getting Started](docs/01-getting-started.md)     | Architecture, install, env vars, ports       |
+| 02  | [Claude Code Guide](docs/02-claude-code.md)       | Setup, tool loop, compatibility, rate limits |
+| 03  | [API Reference](docs/03-api-reference.md)         | All 100+ API endpoints                       |
+| 04  | [Providers](docs/04-providers.md)                 | 18 providers, OAuth flows, token management  |
+| 05  | [Routing](docs/05-routing.md)                     | Profile-based routing, model mapping         |
+| 06  | [Dashboards](docs/06-dashboards.md)               | Grafana, admin UI, pricing                   |
+| 07  | [Observability](docs/07-observability.md)         | 36+ Prometheus metrics reference             |
+| 08  | [Docker Ops](docs/08-docker-ops.md)               | Build, deploy, service management            |
+| 09  | [Features](docs/09-features.md)                   | Vision, multi-agent, message optimization    |
+| 11  | [Privacy & Security](docs/11-privacy-security.md) | PasteGuard, streaming unmask, GLM isolation  |
+| 12  | [Z.AI Vision](docs/12-zai.md)                     | Image format routing fix                     |
+| 13  | [Troubleshooting](docs/13-troubleshooting.md)     | Common issues, reset, port reference         |
 
 ### Implementation Specs
 
 > Detailed enough to re-implement the entire system from scratch.
 
-| # | Spec | Description |
-|---|------|-------------|
-| S1 | [Proxy Layer](docs/spec/01-proxy-layer.md) | All proxy types, SSE state machines, format conversion, retry matrix |
-| S2 | [Handler & Routing](docs/spec/02-handler-routing.md) | Request lifecycle, auth flow, rate limiting, provider fallback |
-| S3 | [Optimizer & Privacy](docs/spec/03-optimizer-privacy.md) | 13 components, PII patterns, streaming unmask algorithms |
-| S4 | [Infra & Config](docs/spec/04-infra-config.md) | 30-step startup, 50+ env vars, 14 Docker services |
-| S5 | [Data Models & API](docs/spec/05-data-models-api.md) | All structs, API contracts, 22 Redis key patterns |
+| #   | Spec                                                     | Description                                                          |
+|-----|----------------------------------------------------------|----------------------------------------------------------------------|
+| S1  | [Proxy Layer](docs/spec/01-proxy-layer.md)               | All proxy types, SSE state machines, format conversion, retry matrix |
+| S2  | [Handler & Routing](docs/spec/02-handler-routing.md)     | Request lifecycle, auth flow, rate limiting, provider fallback       |
+| S3  | [Optimizer & Privacy](docs/spec/03-optimizer-privacy.md) | 13 components, PII patterns, streaming unmask algorithms             |
+| S4  | [Infra & Config](docs/spec/04-infra-config.md)           | 30-step startup, 50+ env vars, 14 Docker services                    |
+| S5  | [Data Models & API](docs/spec/05-data-models-api.md)     | All structs, API contracts, 22 Redis key patterns                    |
 
 <br/>
 
 ## Requirements
 
-| Requirement | Minimum | Recommended |
-|-------------|---------|-------------|
-| Docker | Engine + Compose v2 | Docker Desktop |
-| RAM | 4 GB | 8 GB+ |
-| Disk | 5 GB | 10 GB+ |
-| Network | 1 provider API access | Multi-provider for fallback |
+| Requirement   | Minimum               | Recommended                 |
+|---------------|-----------------------|-----------------------------|
+| Docker        | Engine + Compose v2   | Docker Desktop              |
+| RAM           | 4 GB                  | 8 GB+                       |
+| Disk          | 5 GB                  | 10 GB+                      |
+| Network       | 1 provider API access | Multi-provider for fallback |
 
 <br/>
 

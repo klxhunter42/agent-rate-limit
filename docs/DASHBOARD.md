@@ -34,12 +34,12 @@ http://localhost:8080/
 
 **4 StatCards:**
 
-| Card | ข้อมูล | สี |
-|---|---|---|
-| Status | healthy/unhealthy + uptime duration | green/red |
-| Queue Depth | pending requests count, เหลืองถ้า > 0 | warning/default |
-| Total Requests | cumulative count + rate-limited count | default |
-| Concurrency | in-flight / max global limit | warning ถ้า > 80% |
+| Card           | ข้อมูล                                | สี                |
+|----------------|---------------------------------------|-------------------|
+| Status         | healthy/unhealthy + uptime duration   | green/red         |
+| Queue Depth    | pending requests count, เหลืองถ้า > 0 | warning/default   |
+| Total Requests | cumulative count + rate-limited count | default           |
+| Concurrency    | in-flight / max global limit          | warning ถ้า > 80% |
 
 **Global Capacity:** Progress bar แสดง total in-flight vs max limit ทุก model รวมกัน
 
@@ -100,19 +100,19 @@ http://localhost:8080/
 
 ตารางแสดง concurrency limits ของแต่ละ model
 
-| Column | คำอธิบาย |
-|---|---|
-| Model | ชื่อ model (font-mono) |
-| Series | model series grouping |
-| In-Flight | concurrent requests ปัจจุบัน |
-| Limit | concurrency limit ปัจจุบัน |
-| Max | max limit ที่ตั้งไว้ |
-| Ceiling | learned ceiling จาก adaptive limiter (แสดง `-` ถ้ายังไม่มี) |
-| Min RTT | minimum round-trip time (ms) |
-| EWMA RTT | exponentially weighted moving average RTT (ms) |
-| Requests | cumulative request count |
-| 429s | cumulative 429 responses (สีแดงถ้า > 0) |
-| Status | `Pinned` (badge, manual override) หรือ `Adaptive` (badge, auto-scaling) |
+| Column    | คำอธิบาย                                                                |
+|-----------|-------------------------------------------------------------------------|
+| Model     | ชื่อ model (font-mono)                                                  |
+| Series    | model series grouping                                                   |
+| In-Flight | concurrent requests ปัจจุบัน                                            |
+| Limit     | concurrency limit ปัจจุบัน                                              |
+| Max       | max limit ที่ตั้งไว้                                                    |
+| Ceiling   | learned ceiling จาก adaptive limiter (แสดง `-` ถ้ายังไม่มี)             |
+| Min RTT   | minimum round-trip time (ms)                                            |
+| EWMA RTT  | exponentially weighted moving average RTT (ms)                          |
+| Requests  | cumulative request count                                                |
+| 429s      | cumulative 429 responses (สีแดงถ้า > 0)                                 |
+| Status    | `Pinned` (badge, manual override) หรือ `Adaptive` (badge, auto-scaling) |
 
 ข้อมูลมาจาก `GET /v1/limiter-status`
 
@@ -124,25 +124,25 @@ http://localhost:8080/
 
 **3 StatCards:**
 
-| Card | ข้อมูล |
-|---|---|
-| Total Keys | จำนวน keys ใน pool (แสดง "passthrough mode" ถ้า 0) |
-| Global Concurrency | in-flight / global limit |
-| Queue Depth | pending requests |
+| Card               | ข้อมูล                                             |
+|--------------------|----------------------------------------------------|
+| Total Keys         | จำนวน keys ใน pool (แสดง "passthrough mode" ถ้า 0) |
+| Global Concurrency | in-flight / global limit                           |
+| Queue Depth        | pending requests                                   |
 
 **Pool Health Summary:** Summary component แสดงสถานะรวมของ key pool
 
 **Key Table:** แสดงรายละเอียดแต่ละ key:
 
-| Column | คำอธิบาย |
-|---|---|
-| Key | suffix ของ key (เช่น `...abc123`), blur เมื่อเปิด privacy mode |
-| RPM | current RPM / RPM limit |
-| RPM Util | progress bar + percentage |
-| Success | success count (สีเขียว) |
-| Errors | error count (สีแดง) |
-| Error Rate | percentage, เหลือง > 0%, แดง > 10% |
-| Status | health indicator (active/cooldown/error) |
+| Column     | คำอธิบาย                                                       |
+|------------|----------------------------------------------------------------|
+| Key        | suffix ของ key (เช่น `...abc123`), blur เมื่อเปิด privacy mode |
+| RPM        | current RPM / RPM limit                                        |
+| RPM Util   | progress bar + percentage                                      |
+| Success    | success count (สีเขียว)                                        |
+| Errors     | error count (สีแดง)                                            |
+| Error Rate | percentage, เหลือง > 0%, แดง > 10%                             |
+| Status     | health indicator (active/cooldown/error)                       |
 
 **Passthrough Mode:** เมื่อไม่มี keys ใน pool (`ZAI_API_KEYS` ว่าง):
 - แสดง icon + "Passthrough mode" message
@@ -158,13 +158,13 @@ Usage analytics แสดง token usage, cost, และ model distribution
 
 **5 Summary StatCards:**
 
-| Card | ข้อมูล | Privacy-blurrable |
-|---|---|---|
-| Total Tokens | cumulative input + output tokens | yes |
-| Total Cost | cumulative cost | yes |
-| Input Cost | cumulative input cost | yes |
-| Output Cost | cumulative output cost | yes |
-| Avg Latency | average request latency | yes |
+| Card         | ข้อมูล                           | Privacy-blurrable |
+|--------------|----------------------------------|-------------------|
+| Total Tokens | cumulative input + output tokens | yes               |
+| Total Cost   | cumulative cost                  | yes               |
+| Input Cost   | cumulative input cost            | yes               |
+| Output Cost  | cumulative output cost           | yes               |
+| Avg Latency  | average request latency          | yes               |
 
 **Usage Trend Chart:** Dual-axis area chart:
 - Left Y-axis: tokens (blue area)
@@ -234,12 +234,12 @@ Privacy metrics dashboard แสดง data masking และ PII detection
 
 **4 StatCards:**
 
-| Card | ข้อมูล | Icon |
-|---|---|---|
-| Total Masked Requests | cumulative masked requests | Shield (blue) |
-| Secrets Detected | 24h aggregate by type | Eye (red) |
-| PII Detected | 24h aggregate by type | Fingerprint (orange) |
-| Mask Duration p95 | slowest masking phase in ms | Timer (purple) |
+| Card                  | ข้อมูล                      | Icon                 |
+|-----------------------|-----------------------------|----------------------|
+| Total Masked Requests | cumulative masked requests  | Shield (blue)        |
+| Secrets Detected      | 24h aggregate by type       | Eye (red)            |
+| PII Detected          | 24h aggregate by type       | Fingerprint (orange) |
+| Mask Duration p95     | slowest masking phase in ms | Timer (purple)       |
 
 **Charts:**
 - Secrets by Type: bar chart แสดง count ต่อ secret type (สีแดง)
@@ -256,13 +256,13 @@ Privacy metrics dashboard แสดง data masking และ PII detection
 
 **5 Provider Cards:**
 
-| Provider | Icon | Auth Type | Badge Color |
-|---|---|---|---|
-| Z.AI | Sparkles | API Key | amber |
-| Anthropic | Bot | API Key | amber |
-| OpenAI | Zap | API Key | amber |
-| Gemini | Sparkles | OAuth | green |
-| GitHub Copilot | Github | Device Code | blue |
+| Provider       | Icon     | Auth Type   | Badge Color |
+|----------------|----------|-------------|-------------|
+| Z.AI           | Sparkles | API Key     | amber       |
+| Anthropic      | Bot      | API Key     | amber       |
+| OpenAI         | Zap      | API Key     | amber       |
+| Gemini         | Sparkles | OAuth       | green       |
+| GitHub Copilot | Github   | Device Code | blue        |
 
 แต่ละ card แสดง:
 - Icon + provider name
@@ -354,33 +354,33 @@ Toggle ที่ sidebar footer:
 
 Commands ที่มี:
 
-| Group | Command | Shortcut |
-|---|---|---|
-| Navigation | Go to Overview | - |
-| Navigation | Go to Health | 2 |
-| Navigation | Go to Model Limits | 3 |
-| Navigation | Go to Key Pool | 4 |
-| Navigation | Go to Analytics | 5 |
-| Navigation | Go to Metrics | 6 |
-| Navigation | Go to Controls | 7 |
-| Navigation | Go to Privacy | 8 |
-| Navigation | Go to Settings | 9 |
-| Actions | Toggle Privacy Mode | Cmd+P |
-| Actions | Toggle Theme | - |
-| Actions | Refresh Data | Cmd+R |
-| Quick | Copy Limiter Status URL | - |
-| Quick | Copy Health URL | - |
+| Group      | Command                 | Shortcut |
+|------------|-------------------------|----------|
+| Navigation | Go to Overview          | -        |
+| Navigation | Go to Health            | 2        |
+| Navigation | Go to Model Limits      | 3        |
+| Navigation | Go to Key Pool          | 4        |
+| Navigation | Go to Analytics         | 5        |
+| Navigation | Go to Metrics           | 6        |
+| Navigation | Go to Controls          | 7        |
+| Navigation | Go to Privacy           | 8        |
+| Navigation | Go to Settings          | 9        |
+| Actions    | Toggle Privacy Mode     | Cmd+P    |
+| Actions    | Toggle Theme            | -        |
+| Actions    | Refresh Data            | Cmd+R    |
+| Quick      | Copy Limiter Status URL | -        |
+| Quick      | Copy Health URL         | -        |
 
 ### Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Cmd+K` | เปิด Command Palette |
-| `Cmd+R` | Refresh data |
-| `Cmd+B` | Toggle sidebar |
-| `Cmd+P` | Toggle privacy mode |
-| `Cmd+,` | เปิด Settings |
-| `1-9` | Navigate ไปยัง page ตามลำดับ |
+| Shortcut | Action                       |
+|----------|------------------------------|
+| `Cmd+K`  | เปิด Command Palette         |
+| `Cmd+R`  | Refresh data                 |
+| `Cmd+B`  | Toggle sidebar               |
+| `Cmd+P`  | Toggle privacy mode          |
+| `Cmd+,`  | เปิด Settings                |
+| `1-9`    | Navigate ไปยัง page ตามลำดับ |
 
 ### Toast Notifications
 
@@ -413,27 +413,27 @@ Commands ที่มี:
 
 ## Backend Endpoints Reference
 
-| Endpoint | Method | ใช้ในหน้า |
-|---|---|---|
-| `/health` | GET | Overview, Health |
-| `/v1/limiter-status` | GET | Overview, Model Limits, Key Pool |
-| `/v1/limiter-override` | POST | Controls |
-| `/metrics` | GET | Metrics, Analytics |
-| `/v1/auth/check` | GET | Auth guard |
-| `/v1/auth/login` | POST | Login page |
-| `/v1/auth/logout` | POST | Login page |
-| `/v1/auth/{provider}/start` | POST | Providers (device code) |
-| `/v1/auth/{provider}/start-url` | POST | Providers (OAuth) |
-| `/v1/auth/{provider}/register` | POST | Providers (API key) |
-| `/v1/auth/{provider}/callback` | GET | Providers (OAuth callback) |
-| `/v1/auth/{provider}/status` | GET | Providers (poll status) |
-| `/v1/auth/{provider}/cancel` | POST | Providers (cancel flow) |
-| `/v1/auth/accounts` | GET | Providers |
-| `/v1/auth/accounts/{provider}` | GET | Providers |
-| `/v1/auth/accounts/{provider}/{id}` | DELETE | Providers (remove) |
-| `/v1/auth/accounts/{provider}/{id}/pause` | POST | Providers (pause) |
-| `/v1/auth/accounts/{provider}/{id}/resume` | POST | Providers (resume) |
-| `/v1/auth/accounts/{provider}/{id}/default` | POST | Providers (set default) |
+| Endpoint                                    | Method | ใช้ในหน้า                        |
+|---------------------------------------------|--------|----------------------------------|
+| `/health`                                   | GET    | Overview, Health                 |
+| `/v1/limiter-status`                        | GET    | Overview, Model Limits, Key Pool |
+| `/v1/limiter-override`                      | POST   | Controls                         |
+| `/metrics`                                  | GET    | Metrics, Analytics               |
+| `/v1/auth/check`                            | GET    | Auth guard                       |
+| `/v1/auth/login`                            | POST   | Login page                       |
+| `/v1/auth/logout`                           | POST   | Login page                       |
+| `/v1/auth/{provider}/start`                 | POST   | Providers (device code)          |
+| `/v1/auth/{provider}/start-url`             | POST   | Providers (OAuth)                |
+| `/v1/auth/{provider}/register`              | POST   | Providers (API key)              |
+| `/v1/auth/{provider}/callback`              | GET    | Providers (OAuth callback)       |
+| `/v1/auth/{provider}/status`                | GET    | Providers (poll status)          |
+| `/v1/auth/{provider}/cancel`                | POST   | Providers (cancel flow)          |
+| `/v1/auth/accounts`                         | GET    | Providers                        |
+| `/v1/auth/accounts/{provider}`              | GET    | Providers                        |
+| `/v1/auth/accounts/{provider}/{id}`         | DELETE | Providers (remove)               |
+| `/v1/auth/accounts/{provider}/{id}/pause`   | POST   | Providers (pause)                |
+| `/v1/auth/accounts/{provider}/{id}/resume`  | POST   | Providers (resume)               |
+| `/v1/auth/accounts/{provider}/{id}/default` | POST   | Providers (set default)          |
 
 ---
 
@@ -483,14 +483,14 @@ UPSTREAM_GLOBAL_LIMIT=9
 
 ข้อมูลที่เก็บใน localStorage:
 
-| Key | ค่า | Default |
-|---|---|---|
-| `theme` | `dark` / `light` | `dark` |
-| `arl-polling-interval` | `5s` / `10s` / `30s` / `60s` | `10s` |
-| `arl-default-theme` | `dark` / `light` / `system` | `dark` |
-| `arl-history-retention` | `2min` / `5min` / `10min` | `5min` |
-| `arl-lang` | `en` / `th` | `en` |
-| `arl-notify-*` | `true` / `false` | `false` |
-| Privacy mode | (via context) | `false` |
+| Key                     | ค่า                          | Default |
+|-------------------------|------------------------------|---------|
+| `theme`                 | `dark` / `light`             | `dark`  |
+| `arl-polling-interval`  | `5s` / `10s` / `30s` / `60s` | `10s`   |
+| `arl-default-theme`     | `dark` / `light` / `system`  | `dark`  |
+| `arl-history-retention` | `2min` / `5min` / `10min`    | `5min`  |
+| `arl-lang`              | `en` / `th`                  | `en`    |
+| `arl-notify-*`          | `true` / `false`             | `false` |
+| Privacy mode            | (via context)                | `false` |
 
 Reset ทั้งหมดได้จาก Settings > About > Reset All

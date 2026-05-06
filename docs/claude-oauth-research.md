@@ -4,24 +4,24 @@
 
 Claude OAuth ใช้ **Authorization Code Flow + PKCE** (RFC 7636) แบบ public client (ไม่มี client_secret)
 
-| Parameter | Value |
-|---|---|
-| Client ID | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` |
-| Override env | `CLAUDE_CODE_OAUTH_CLIENT_ID` |
-| Auth URL (claude.ai) | `https://claude.ai/oauth/authorize` |
-| Auth URL (console) | `https://platform.claude.com/oauth/authorize` |
-| Token URL | `https://api.anthropic.com/v1/oauth/token` (หรือ `https://platform.claude.com/v1/oauth/token`) |
-| Client Metadata URL | `https://claude.ai/oauth/claude-code-client-metadata` |
-| Profile URL | `https://api.anthropic.com/api/oauth/profile` |
-| Token format (access) | `sk-ant-oat01-...` (108 chars) |
-| Token format (refresh) | `sk-ant-ort01-...` (108 chars) |
+| Parameter              | Value                                                                                          |
+|------------------------|------------------------------------------------------------------------------------------------|
+| Client ID              | `9d1c250a-e61b-44d9-88ed-5944d1962f5e`                                                         |
+| Override env           | `CLAUDE_CODE_OAUTH_CLIENT_ID`                                                                  |
+| Auth URL (claude.ai)   | `https://claude.ai/oauth/authorize`                                                            |
+| Auth URL (console)     | `https://platform.claude.com/oauth/authorize`                                                  |
+| Token URL              | `https://api.anthropic.com/v1/oauth/token` (หรือ `https://platform.claude.com/v1/oauth/token`) |
+| Client Metadata URL    | `https://claude.ai/oauth/claude-code-client-metadata`                                          |
+| Profile URL            | `https://api.anthropic.com/api/oauth/profile`                                                  |
+| Token format (access)  | `sk-ant-oat01-...` (108 chars)                                                                 |
+| Token format (refresh) | `sk-ant-ort01-...` (108 chars)                                                                 |
 
 ### Scopes
 
-| Mode | Scopes |
-|---|---|
-| Console OAuth (minimal) | `org:create_api_key user:profile` |
-| Claude.ai OAuth (full) | `user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload` |
+| Mode                    | Scopes                                                                                    |
+|-------------------------|-------------------------------------------------------------------------------------------|
+| Console OAuth (minimal) | `org:create_api_key user:profile`                                                         |
+| Claude.ai OAuth (full)  | `user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload` |
 
 ### Non-Standard Behaviors (RFC deviance)
 
@@ -77,38 +77,38 @@ anthropic-version: 2023-06-01
 
 Claude Code CLI เพิ่ม betas เข้าไปอีก (comma-separated) ตาม condition:
 
-| Beta | Condition |
-|---|---|
-| `claude-code-20250219` | Non-haiku models (always) |
-| `oauth-2025-04-20` | OAuth active |
-| `interleaved-thinking-2025-05-14` | Model supports thinking |
-| `context-management-2025-06-27` | Context window management |
-| `fast-mode-2026-02-01` | Fast mode |
-| `redact-thinking-2026-02-12` | OAuth + thinking + hide summaries |
+| Beta                              | Condition                         |
+|-----------------------------------|-----------------------------------|
+| `claude-code-20250219`            | Non-haiku models (always)         |
+| `oauth-2025-04-20`                | OAuth active                      |
+| `interleaved-thinking-2025-05-14` | Model supports thinking           |
+| `context-management-2025-06-27`   | Context window management         |
+| `fast-mode-2026-02-01`            | Fast mode                         |
+| `redact-thinking-2026-02-12`      | OAuth + thinking + hide summaries |
 
 Additional CLI headers:
 
-| Header | Value |
-|---|---|
-| `x-app` | `cli` or `cli-bg` |
-| `x-client-request-id` | UUID |
-| `User-Agent` | `claude-code/{version}` |
-| `X-Claude-Code-Session-Id` | Session UUID |
+| Header                     | Value                   |
+|----------------------------|-------------------------|
+| `x-app`                    | `cli` or `cli-bg`       |
+| `x-client-request-id`      | UUID                    |
+| `User-Agent`               | `claude-code/{version}` |
+| `X-Claude-Code-Session-Id` | Session UUID            |
 
 ---
 
 ## Repo Comparison
 
-| | **ProxyPilot** (Go) | **ccproxy-api** (Python) | **ccs** (TypeScript) |
-|---|---|---|---|
-| Auth flow | PKCE Authorization Code | PKCE Authorization Code | Delegated ให้ CLIProxyAPI binary |
-| Callback port | 54545 | 35593 | 54545 |
-| Token storage | `~/.auth/claude-{email}.json` | `~/.claude/.credentials.json` + keychain | `~/.ccs/cliproxy/auth/claude-*.json` |
-| Auto-refresh | Yes (4h lead, 5s poll, 16 workers) | Yes (120s grace, background) | **ไม่มี** - manual re-auth เท่านั้น |
-| Refresh trigger | Time-based + lazy on 401 | Time-based proactive | Expiry detected แต่ไม่ทำอะไร |
-| Token URL | `api.anthropic.com/v1/oauth/token` | `console.anthropic.com/v1/oauth/token` | ผ่าน CLIProxyAPI |
-| Multi-account | Yes (file-per-account) | Yes (single file + keychain fallback) | Yes (accounts.json registry) |
-| Headless support | No | No | Yes (paste-callback / port-forward) |
+|                  | **ProxyPilot** (Go)                | **ccproxy-api** (Python)                 | **ccs** (TypeScript)                 |
+|------------------|------------------------------------|------------------------------------------|--------------------------------------|
+| Auth flow        | PKCE Authorization Code            | PKCE Authorization Code                  | Delegated ให้ CLIProxyAPI binary     |
+| Callback port    | 54545                              | 35593                                    | 54545                                |
+| Token storage    | `~/.auth/claude-{email}.json`      | `~/.claude/.credentials.json` + keychain | `~/.ccs/cliproxy/auth/claude-*.json` |
+| Auto-refresh     | Yes (4h lead, 5s poll, 16 workers) | Yes (120s grace, background)             | **ไม่มี** - manual re-auth เท่านั้น  |
+| Refresh trigger  | Time-based + lazy on 401           | Time-based proactive                     | Expiry detected แต่ไม่ทำอะไร         |
+| Token URL        | `api.anthropic.com/v1/oauth/token` | `console.anthropic.com/v1/oauth/token`   | ผ่าน CLIProxyAPI                     |
+| Multi-account    | Yes (file-per-account)             | Yes (single file + keychain fallback)    | Yes (accounts.json registry)         |
+| Headless support | No                                 | No                                       | Yes (paste-callback / port-forward)  |
 
 ### ProxyPilot specifics
 - Background refresh: min-heap scheduler, 16 concurrent workers, checks ทุก 5s

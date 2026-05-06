@@ -9,15 +9,15 @@ Source: 7 improvement projects analyzed (`improvements/` directory)
 
 ## Summary of Analyzed Projects
 
-| Project | Focus | Key Techniques |
-|---------|-------|----------------|
-| caveman | LLM-based markdown compression | Output style injection, validation pipeline, intensity levels |
-| claude-context | Vector DB / RAG context | Hybrid search (Dense+BM25+RRF), AST chunking, ~40% token reduction validated |
-| claude-token-optimizer | Methodology documentation | 10 patterns: progressive loading, dedup, token budget, semantic routing |
-| context-mode | Context mode switching | Head+tail truncation, intent-driven filtering, session continuity |
-| token-optimizer-mcp | MCP server with implementations | Brotli compression, whitespace opt, Levenshtein dedup, tiktoken, summarization |
-| token-optimizer | Skills-based optimizer | Delta encoding, QJL near-duplicate detection, waste pattern detection, model routing |
-| token-savior | Python TCA engine | LinUCB bandit, PPM prefetcher, knapsack packing, DCP chunking, community detection |
+| Project                | Focus                           | Key Techniques                                                                       |
+|------------------------|---------------------------------|--------------------------------------------------------------------------------------|
+| caveman                | LLM-based markdown compression  | Output style injection, validation pipeline, intensity levels                        |
+| claude-context         | Vector DB / RAG context         | Hybrid search (Dense+BM25+RRF), AST chunking, ~40% token reduction validated         |
+| claude-token-optimizer | Methodology documentation       | 10 patterns: progressive loading, dedup, token budget, semantic routing              |
+| context-mode           | Context mode switching          | Head+tail truncation, intent-driven filtering, session continuity                    |
+| token-optimizer-mcp    | MCP server with implementations | Brotli compression, whitespace opt, Levenshtein dedup, tiktoken, summarization       |
+| token-optimizer        | Skills-based optimizer          | Delta encoding, QJL near-duplicate detection, waste pattern detection, model routing |
+| token-savior           | Python TCA engine               | LinUCB bandit, PPM prefetcher, knapsack packing, DCP chunking, community detection   |
 
 ---
 
@@ -63,23 +63,23 @@ Per-session token budget monitoring:
 
 ## Future Candidates (Not Yet Implemented)
 
-| Priority | Technique | Impact | Complexity |
-|----------|-----------|--------|------------|
-| 1 | DCP Chunking + Reorder for cache prefix | Directly improves Anthropic prompt cache hit rate | High |
-| 2 | Knapsack Context Packing | Maximize info density within token budget | High |
-| 3 | Progressive Disclosure (3-layer) | Avoid fetching full cached bodies | Medium |
-| 4 | ROI-Based Cache Eviction | Auto-clean low-value cache entries | Medium |
-| 5 | PPM Prefetcher | Predict next request, pre-warm connections | Medium |
-| 6 | LinUCB Bandit | Learn which injections actually save tokens | High |
-| 7 | LLM-Based Summarization | Use cheap model to compress conversation history | Medium |
-| 8 | Semantic Dedup (Jaccard) | Avoid caching near-duplicate completions | Medium |
-| 9 | Delta Encoding | Serve only changes for cached content | High |
-| 10 | QJL 1-Bit Sketch Near-Duplicate Detection | Detect near-duplicate requests across sessions | High |
-| 11 | Multi-Provider Pricing Engine | Real-time cost per request, cost-based routing | Medium |
-| 12 | Waste Pattern Detection (14 detectors) | Flag empty runs, loop detection, retry churn | Medium |
-| 13 | Output Compression Tiers (lite/full/ultra) | 30-75% output token reduction via system prompt injection | Low |
-| 14 | Intent-Driven Output Filtering | Index large responses, return only matching sections | Medium |
-| 15 | Session Warm Start (Cosine Similarity) | Pre-load caches from similar past sessions | High |
+| Priority   | Technique                                  | Impact                                                    | Complexity   |
+|------------|--------------------------------------------|-----------------------------------------------------------|--------------|
+| 1          | DCP Chunking + Reorder for cache prefix    | Directly improves Anthropic prompt cache hit rate         | High         |
+| 2          | Knapsack Context Packing                   | Maximize info density within token budget                 | High         |
+| 3          | Progressive Disclosure (3-layer)           | Avoid fetching full cached bodies                         | Medium       |
+| 4          | ROI-Based Cache Eviction                   | Auto-clean low-value cache entries                        | Medium       |
+| 5          | PPM Prefetcher                             | Predict next request, pre-warm connections                | Medium       |
+| 6          | LinUCB Bandit                              | Learn which injections actually save tokens               | High         |
+| 7          | LLM-Based Summarization                    | Use cheap model to compress conversation history          | Medium       |
+| 8          | Semantic Dedup (Jaccard)                   | Avoid caching near-duplicate completions                  | Medium       |
+| 9          | Delta Encoding                             | Serve only changes for cached content                     | High         |
+| 10         | QJL 1-Bit Sketch Near-Duplicate Detection  | Detect near-duplicate requests across sessions            | High         |
+| 11         | Multi-Provider Pricing Engine              | Real-time cost per request, cost-based routing            | Medium       |
+| 12         | Waste Pattern Detection (14 detectors)     | Flag empty runs, loop detection, retry churn              | Medium       |
+| 13         | Output Compression Tiers (lite/full/ultra) | 30-75% output token reduction via system prompt injection | Low          |
+| 14         | Intent-Driven Output Filtering             | Index large responses, return only matching sections      | Medium       |
+| 15         | Session Warm Start (Cosine Similarity)     | Pre-load caches from similar past sessions                | High         |
 
 ---
 
@@ -178,26 +178,26 @@ Client Response
 
 ### Configuration (Environment Variables)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PASTEGUARD_ENABLED` | `true` | Enable/disable the entire pipeline |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | Enable regex-based secret detection |
-| `PASTEGUARD_SECRET_ENTITIES` | All 7 types | Comma-separated list of secret entity types to detect |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max characters to scan per request |
-| `PASTEGUARD_PII_ENABLED` | `true` | Enable Presidio-based PII detection |
-| `PASTEGUARD_PRESIDIO_URL` | `http://arl-presidio:3000` | Presidio analyzer service URL |
-| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7` | Minimum confidence score for PII detection |
-| `PASTEGUARD_PII_ENTITIES` | `PERSON,EMAIL_ADDRESS,PHONE_NUMBER` | Comma-separated PII entity types |
-| `PASTEGUARD_PII_LANGUAGE` | `en` | Language for Presidio NLP analysis |
+| Variable                         | Default                             | Description                                           |
+|----------------------------------|-------------------------------------|-------------------------------------------------------|
+| `PASTEGUARD_ENABLED`             | `true`                              | Enable/disable the entire pipeline                    |
+| `PASTEGUARD_SECRETS_ENABLED`     | `true`                              | Enable regex-based secret detection                   |
+| `PASTEGUARD_SECRET_ENTITIES`     | All 7 types                         | Comma-separated list of secret entity types to detect |
+| `PASTEGUARD_MAX_SCAN_CHARS`      | `200000`                            | Max characters to scan per request                    |
+| `PASTEGUARD_PII_ENABLED`         | `true`                              | Enable Presidio-based PII detection                   |
+| `PASTEGUARD_PRESIDIO_URL`        | `http://arl-presidio:3000`          | Presidio analyzer service URL                         |
+| `PASTEGUARD_PII_SCORE_THRESHOLD` | `0.7`                               | Minimum confidence score for PII detection            |
+| `PASTEGUARD_PII_ENTITIES`        | `PERSON,EMAIL_ADDRESS,PHONE_NUMBER` | Comma-separated PII entity types                      |
+| `PASTEGUARD_PII_LANGUAGE`        | `en`                                | Language for Presidio NLP analysis                    |
 
 ### Prometheus Metrics
 
-| Metric | Labels | Description |
-|--------|--------|-------------|
-| `api_gateway_mask_duration_seconds` | `phase` (secrets_detect, pii_detect, mask, unmask) | Duration histogram per phase |
-| `api_gateway_secrets_detected_total` | `type` | Secrets detected by entity type |
-| `api_gateway_pii_detected_total` | `type` | PII entities detected by type |
-| `api_gateway_mask_requests_total` | `has_secrets`, `has_pii` | Requests processed by the pipeline |
+| Metric                               | Labels                                             | Description                        |
+|--------------------------------------|----------------------------------------------------|------------------------------------|
+| `api_gateway_mask_duration_seconds`  | `phase` (secrets_detect, pii_detect, mask, unmask) | Duration histogram per phase       |
+| `api_gateway_secrets_detected_total` | `type`                                             | Secrets detected by entity type    |
+| `api_gateway_pii_detected_total`     | `type`                                             | PII entities detected by type      |
+| `api_gateway_mask_requests_total`    | `has_secrets`, `has_pii`                           | Requests processed by the pipeline |
 
 ### Integration Point
 

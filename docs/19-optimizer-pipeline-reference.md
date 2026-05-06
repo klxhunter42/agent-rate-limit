@@ -42,11 +42,11 @@ Request → Handler.HandleMessages()
 
 ### Budget Levels
 
-| Level | Trigger | Stages Activated |
-|-------|---------|-----------------|
-| Green | < 50% of context window | semantic_dedup, chunker, delta, sketch, textcomp |
-| Yellow | 50-75% | All green stages + packer (if enabled) |
-| Red | > 75% | All stages including summarizer, intent_filter, caveman ultra |
+| Level   | Trigger                 | Stages Activated                                              |
+|---------|-------------------------|---------------------------------------------------------------|
+| Green   | < 50% of context window | semantic_dedup, chunker, delta, sketch, textcomp              |
+| Yellow  | 50-75%                  | All green stages + packer (if enabled)                        |
+| Red     | > 75%                   | All stages including summarizer, intent_filter, caveman ultra |
 
 ---
 
@@ -267,21 +267,21 @@ Request → Handler.HandleMessages()
 
 ## Data Flow Matrix
 
-| Stage | System Prompt | Message Text | tool_result | tool_use | Output Response |
-|-------|:---:|:---:|:---:|:---:|:---:|
-| semantic_dedup | Y | - | - | - | - |
-| chunker | Y | - | - | - | - |
-| delta | Y | - | - | - | - |
-| sketch | Y | - | - | - | - |
-| summarizer | Y (red) | - | - | - | - |
-| intent_filter | Y | - | - | - | - |
-| textcomp | Y | Y | - | - | - |
-| caveman | Y | - | - | - | Y* |
-| whitespace+dedup | - | Y | Y | - | - |
-| message_textcomp | - | Y | - | - | - |
-| toolcomp | - | - | Y | - | - |
-| toolfilter | - | - | - | - | - |
-| compcache | - | - | - | - | - |
+| Stage            | System Prompt | Message Text | tool_result | tool_use | Output Response |
+|------------------|:-------------:|:------------:|:-----------:|:--------:|:---------------:|
+| semantic_dedup   |       Y       |      -       |      -      |    -     |        -        |
+| chunker          |       Y       |      -       |      -      |    -     |        -        |
+| delta            |       Y       |      -       |      -      |    -     |        -        |
+| sketch           |       Y       |      -       |      -      |    -     |        -        |
+| summarizer       |    Y (red)    |      -       |      -      |    -     |        -        |
+| intent_filter    |       Y       |      -       |      -      |    -     |        -        |
+| textcomp         |       Y       |      Y       |      -      |    -     |        -        |
+| caveman          |       Y       |      -       |      -      |    -     |        Y*       |
+| whitespace+dedup |       -       |      Y       |      Y      |    -     |        -        |
+| message_textcomp |       -       |      Y       |      -      |    -     |        -        |
+| toolcomp         |       -       |      -       |      Y      |    -     |        -        |
+| toolfilter       |       -       |      -       |      -      |    -     |        -        |
+| compcache        |       -       |      -       |      -      |    -     |        -        |
 
 *Y* = caveman injects style into system prompt to affect output, does not modify response directly
 
@@ -297,32 +297,32 @@ Request → Handler.HandleMessages()
 
 **Caveman is special**: it REPLACES the system prompt with a short `[OUTPUT STYLE]` directive (229 chars). This is NOT a direct output token measurement - it replaces input content to influence output behavior. The "chars saved" number (e.g. 815 chars) is the system prompt text that was replaced, not output tokens saved. Actual output savings depend on the model following the style directive.
 
-| Category | Stages | What it does | Where savings happen |
-|----------|--------|-------------|---------------------|
-| **INPUT savings** | semantic_dedup, chunker, delta, sketch, summarizer, textcomp, message ws+dedup, message_textcomp, toolcomp, toolfilter | Compress or truncate request content | Fewer input tokens sent to provider |
-| **OUTPUT influence** | caveman | Replace system prompt with brevity directive | Model generates shorter responses (indirect) |
-| **OUTPUT savings** | intent_filter | Filter response after receiving it | Fewer output tokens returned to client |
-| **Indirect/meta** | prefetcher, bandit, waste, cache eviction, warmstart, packer, compcache | Improve other stages' effectiveness | Better optimization decisions over time |
+| Category             | Stages                                                                                                                 | What it does                                 | Where savings happen                         |
+|----------------------|------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|----------------------------------------------|
+| **INPUT savings**    | semantic_dedup, chunker, delta, sketch, summarizer, textcomp, message ws+dedup, message_textcomp, toolcomp, toolfilter | Compress or truncate request content         | Fewer input tokens sent to provider          |
+| **OUTPUT influence** | caveman                                                                                                                | Replace system prompt with brevity directive | Model generates shorter responses (indirect) |
+| **OUTPUT savings**   | intent_filter                                                                                                          | Filter response after receiving it           | Fewer output tokens returned to client       |
+| **Indirect/meta**    | prefetcher, bandit, waste, cache eviction, warmstart, packer, compcache                                                | Improve other stages' effectiveness          | Better optimization decisions over time      |
 
 ---
 
 ## Per-Technique Savings Summary
 
-| Stage | Saves | Mechanism | Typical % | Activation |
-|-------|-------|-----------|-----------|------------|
-| semantic_dedup | INPUT | Deduplicate sentences in system prompt | 3-5% chars | always |
-| chunker | INPUT | Reorder stable chunks for cache hits | 5-15% cache | always |
-| delta | INPUT | Diff-encode repeated system prompts | 20-60% chars | always |
-| sketch | INPUT | Detect near-duplicate system prompts | 5-30% chars | always |
-| summarizer | INPUT | Extractive summary on red budget | 50-70% chars | red only |
-| textcomp | INPUT | Remove filler/verbose text | 5-15% chars | always |
-| message ws+dedup | INPUT | Whitespace + sentence dedup | 3-8% chars | always |
-| message_textcomp | INPUT | TextComp on message strings | 5-15% chars | always |
-| toolcomp | INPUT | Format-aware tool_result compression | 40-80% chars | always |
-| toolfilter | INPUT | Filter tool manifest to relevant subset | 60-80% manifest | >15 tools |
-| caveman | OUTPUT (indirect) | Replace system prompt with brevity directive | 30-75% output | all tiers |
-| intent_filter | OUTPUT | Filter response by intent classification | 10-40% output | always |
-| compcache | Redis memory | Compress cached values | 60-80% Redis | always |
+| Stage            | Saves             | Mechanism                                    | Typical %       | Activation   |
+|------------------|-------------------|----------------------------------------------|-----------------|--------------|
+| semantic_dedup   | INPUT             | Deduplicate sentences in system prompt       | 3-5% chars      | always       |
+| chunker          | INPUT             | Reorder stable chunks for cache hits         | 5-15% cache     | always       |
+| delta            | INPUT             | Diff-encode repeated system prompts          | 20-60% chars    | always       |
+| sketch           | INPUT             | Detect near-duplicate system prompts         | 5-30% chars     | always       |
+| summarizer       | INPUT             | Extractive summary on red budget             | 50-70% chars    | red only     |
+| textcomp         | INPUT             | Remove filler/verbose text                   | 5-15% chars     | always       |
+| message ws+dedup | INPUT             | Whitespace + sentence dedup                  | 3-8% chars      | always       |
+| message_textcomp | INPUT             | TextComp on message strings                  | 5-15% chars     | always       |
+| toolcomp         | INPUT             | Format-aware tool_result compression         | 40-80% chars    | always       |
+| toolfilter       | INPUT             | Filter tool manifest to relevant subset      | 60-80% manifest | >15 tools    |
+| caveman          | OUTPUT (indirect) | Replace system prompt with brevity directive | 30-75% output   | all tiers    |
+| intent_filter    | OUTPUT            | Filter response by intent classification     | 10-40% output   | always       |
+| compcache        | Redis memory      | Compress cached values                       | 60-80% Redis    | always       |
 
 **Note**: Savings are cumulative but not additive - stages operate on the output of previous stages.
 
@@ -330,53 +330,53 @@ Request → Handler.HandleMessages()
 
 ## Configuration Quick Reference
 
-| Env Var | Default | Stage |
-|---------|---------|-------|
-| `CHUNKER_ENABLED` | true | F1 |
-| `CHUNKER_MIN_CHUNK` | 128 | F1 |
-| `CHUNKER_MAX_CHUNK` | 4096 | F1 |
-| `CHUNKER_WINDOW_SIZE` | 48 | F1 |
-| `CHUNKER_STABLE_THRESHOLD` | 2 | F1 |
-| `DELTA_ENABLED` | true | F8 |
-| `DELTA_MIN_SAVINGS_PCT` | 10.0 | F8 |
-| `SKETCH_ENABLED` | true | F9 |
-| `SKETCH_DIMENSIONS` | 128 | F9 |
-| `SKETCH_THRESHOLD` | 0.85 | F9 |
-| `SUMMARIZER_ENABLED` | true | F6 |
-| `SUMMARIZER_MAX_RATIO` | 0.3 | F6 |
-| `SUMMARIZER_METHOD` | firstsentence | F6 |
-| `FILTER_ENABLED` | true | F13 |
-| `TEXTCOMP_ENABLED` | true | F17 |
-| `TEXTCOMP_MODE` | balanced | F17 |
-| `CAVEMAN_ENABLED` | true | F16 |
-| `CAVEMAN_AUTO_DETECT` | true | F16 |
-| `CAVEMAN_MIN_SIZE` | 500 | F16 |
-| `PACKER_ENABLED` | true | F12 |
-| `PACKER_MIN_UTILITY` | 0.1 | F12 |
-| `PREFETCHER_ENABLED` | true | F4 |
-| `PREFETCHER_MAX_ORDER` | 5 | F4 |
-| `PREFETCHER_TOP_K` | 3 | F4 |
-| `BANDIT_ENABLED` | true | F5 |
-| `BANDIT_ALPHA` | 1.0 | F5 |
-| `BANDIT_DECAY` | 0.99 | F5 |
-| `WASTE_ENABLED` | true | F11 |
-| `WASTE_MIN_REQUESTS` | 10 | F11 |
-| `CACHE_EVICTION_ENABLED` | true | F14 |
-| `CACHE_EVICTION_PCT` | 10.0 | F14 |
-| `WARMSTART_ENABLED` | true | F10 |
-| `WARMSTART_TOP_K` | 3 | F10 |
-| `WARMSTART_MIN_SIMILARITY` | 0.5 | F10 |
-| `DISCLOSURE_ENABLED` | true | F15 |
-| `DISCLOSURE_L1_TOKENS` | 15 | F15 |
-| `DISCLOSURE_L2_TOKENS` | 60 | F15 |
-| `TOOLCOMP_ENABLED` | true | F18 |
-| `TOOLCOMP_MAX_LINES` | 50 | F18 |
-| `TOOLFILTER_ENABLED` | true | F19 |
-| `TOOLFILTER_MAX_TOOLS` | 15 | F19 |
-| `TOOLFILTER_ALWAYS_KEEP` | Read,Edit,Write,Bash | F19 |
-| `COMPCACHE_ENABLED` | true | F20 |
-| `COMPCACHE_MIN_SIZE` | 512 | F20 |
-| `COMPCACHE_LEVEL` | 3 | F20 |
+| Env Var                    | Default              | Stage   |
+|----------------------------|----------------------|---------|
+| `CHUNKER_ENABLED`          | true                 | F1      |
+| `CHUNKER_MIN_CHUNK`        | 128                  | F1      |
+| `CHUNKER_MAX_CHUNK`        | 4096                 | F1      |
+| `CHUNKER_WINDOW_SIZE`      | 48                   | F1      |
+| `CHUNKER_STABLE_THRESHOLD` | 2                    | F1      |
+| `DELTA_ENABLED`            | true                 | F8      |
+| `DELTA_MIN_SAVINGS_PCT`    | 10.0                 | F8      |
+| `SKETCH_ENABLED`           | true                 | F9      |
+| `SKETCH_DIMENSIONS`        | 128                  | F9      |
+| `SKETCH_THRESHOLD`         | 0.85                 | F9      |
+| `SUMMARIZER_ENABLED`       | true                 | F6      |
+| `SUMMARIZER_MAX_RATIO`     | 0.3                  | F6      |
+| `SUMMARIZER_METHOD`        | firstsentence        | F6      |
+| `FILTER_ENABLED`           | true                 | F13     |
+| `TEXTCOMP_ENABLED`         | true                 | F17     |
+| `TEXTCOMP_MODE`            | balanced             | F17     |
+| `CAVEMAN_ENABLED`          | true                 | F16     |
+| `CAVEMAN_AUTO_DETECT`      | true                 | F16     |
+| `CAVEMAN_MIN_SIZE`         | 500                  | F16     |
+| `PACKER_ENABLED`           | true                 | F12     |
+| `PACKER_MIN_UTILITY`       | 0.1                  | F12     |
+| `PREFETCHER_ENABLED`       | true                 | F4      |
+| `PREFETCHER_MAX_ORDER`     | 5                    | F4      |
+| `PREFETCHER_TOP_K`         | 3                    | F4      |
+| `BANDIT_ENABLED`           | true                 | F5      |
+| `BANDIT_ALPHA`             | 1.0                  | F5      |
+| `BANDIT_DECAY`             | 0.99                 | F5      |
+| `WASTE_ENABLED`            | true                 | F11     |
+| `WASTE_MIN_REQUESTS`       | 10                   | F11     |
+| `CACHE_EVICTION_ENABLED`   | true                 | F14     |
+| `CACHE_EVICTION_PCT`       | 10.0                 | F14     |
+| `WARMSTART_ENABLED`        | true                 | F10     |
+| `WARMSTART_TOP_K`          | 3                    | F10     |
+| `WARMSTART_MIN_SIMILARITY` | 0.5                  | F10     |
+| `DISCLOSURE_ENABLED`       | true                 | F15     |
+| `DISCLOSURE_L1_TOKENS`     | 15                   | F15     |
+| `DISCLOSURE_L2_TOKENS`     | 60                   | F15     |
+| `TOOLCOMP_ENABLED`         | true                 | F18     |
+| `TOOLCOMP_MAX_LINES`       | 50                   | F18     |
+| `TOOLFILTER_ENABLED`       | true                 | F19     |
+| `TOOLFILTER_MAX_TOOLS`     | 15                   | F19     |
+| `TOOLFILTER_ALWAYS_KEEP`   | Read,Edit,Write,Bash | F19     |
+| `COMPCACHE_ENABLED`        | true                 | F20     |
+| `COMPCACHE_MIN_SIZE`       | 512                  | F20     |
+| `COMPCACHE_LEVEL`          | 3                    | F20     |
 
 ---
 
@@ -384,16 +384,16 @@ Request → Handler.HandleMessages()
 
 Techniques from 7 improvement repos (`improvements/`) not yet in the gateway:
 
-| Technique | Source | Impact | Feasibility | Status |
-|-----------|--------|--------|-------------|--------|
-| TextRank summarization | token-reducer | High | High | **Implemented** (`summarizer/`, `SUMMARIZER_METHOD=textrank`) |
-| Tool result format compression | context-mode, trs | High | High | **Implemented** (`toolcomp/`, `TOOLCOMP_ENABLED=true`) |
-| Budget-aware progressive disclosure | token-savior | Medium | High | **Implemented** (`disclosure/`, `BudgetAwareEscalate`) |
-| Tool manifest filtering | token-savior (ts_search) | Very High | Medium | **Implemented** (`toolfilter/`, `TOOLFILTER_ENABLED=true`) |
-| Zstd Redis cache compression | token-optimizer-mcp | Medium | High | **Implemented** (`compcache/`, `COMPCACHE_ENABLED=true`) |
-| AST code graph navigation | code-review-graph, token-savior | Very High | Low (requires MCP) | Future |
-| Persistent memory engine | token-savior | High | Low (requires MCP) | Future |
-| BM25+vector hybrid search | token-reducer, token-savior | High | Low (requires embeddings) | Future |
+| Technique                           | Source                          | Impact    | Feasibility               | Status                                                        |
+|-------------------------------------|---------------------------------|-----------|---------------------------|---------------------------------------------------------------|
+| TextRank summarization              | token-reducer                   | High      | High                      | **Implemented** (`summarizer/`, `SUMMARIZER_METHOD=textrank`) |
+| Tool result format compression      | context-mode, trs               | High      | High                      | **Implemented** (`toolcomp/`, `TOOLCOMP_ENABLED=true`)        |
+| Budget-aware progressive disclosure | token-savior                    | Medium    | High                      | **Implemented** (`disclosure/`, `BudgetAwareEscalate`)        |
+| Tool manifest filtering             | token-savior (ts_search)        | Very High | Medium                    | **Implemented** (`toolfilter/`, `TOOLFILTER_ENABLED=true`)    |
+| Zstd Redis cache compression        | token-optimizer-mcp             | Medium    | High                      | **Implemented** (`compcache/`, `COMPCACHE_ENABLED=true`)      |
+| AST code graph navigation           | code-review-graph, token-savior | Very High | Low (requires MCP)        | Future                                                        |
+| Persistent memory engine            | token-savior                    | High      | Low (requires MCP)        | Future                                                        |
+| BM25+vector hybrid search           | token-reducer, token-savior     | High      | Low (requires embeddings) | Future                                                        |
 
 ---
 
@@ -431,16 +431,16 @@ To disable mock data: remove the `go seedOptimizers()` call in `metrics/metrics.
 
 #### Per-Test Token Usage
 
-| Test | Model | Input Tokens | Output Tokens | Output Chars | Stop |
-|------|-------|-------------|--------------|-------------|------|
-| T1: System Prompt (verbose) | glm-5-turbo | 74 | 61 | 287 | end_turn |
-| T2: K8s Debug (logs) | glm-5.1 | 439 | 50 | 233 | end_turn |
-| T3: Tool Filter (27 tools) | glm-5.1 | 1,071 | 11 | 0 | tool_use |
-| T4: Code Review (diff) | glm-5-turbo | 242 | 139 | 482 | end_turn |
-| T5: JSON Config | glm-5.1 | 252 | 12 | 34 | end_turn |
-| T6: Multi-turn Dedup | glm-5.1 | 264 | 193 | 681 | end_turn |
-| T7: Shell Output (ls -la) | glm-5-turbo | 451 | 56 | 193 | end_turn |
-| **TOTAL** | | **2,793** | **522** | | |
+| Test                        | Model       | Input Tokens  | Output Tokens  | Output Chars  | Stop     |
+|-----------------------------|-------------|---------------|----------------|---------------|----------|
+| T1: System Prompt (verbose) | glm-5-turbo | 74            | 61             | 287           | end_turn |
+| T2: K8s Debug (logs)        | glm-5.1     | 439           | 50             | 233           | end_turn |
+| T3: Tool Filter (27 tools)  | glm-5.1     | 1,071         | 11             | 0             | tool_use |
+| T4: Code Review (diff)      | glm-5-turbo | 242           | 139            | 482           | end_turn |
+| T5: JSON Config             | glm-5.1     | 252           | 12             | 34            | end_turn |
+| T6: Multi-turn Dedup        | glm-5.1     | 264           | 193            | 681           | end_turn |
+| T7: Shell Output (ls -la)   | glm-5-turbo | 451           | 56             | 193           | end_turn |
+| **TOTAL**                   |             | **2,793**     | **522**        |               |          |
 
 ---
 
@@ -450,86 +450,86 @@ Each row shows the optimizer stages that activated for that request, with before
 
 **T1: System Prompt** (verbose system prompt about Go expert)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 1,067 | 1,044 | 23 | Repeated "You are" directives |
-| caveman | 1,044 | 229 | 815 | Lite tier compression |
-| **Total** | **1,067** | **229** | **838** | **78.5% reduction** |
+| Stage          | Before    | After   | Saved   | Notes                         |
+|----------------|-----------|---------|---------|-------------------------------|
+| semantic_dedup | 1,067     | 1,044   | 23      | Repeated "You are" directives |
+| caveman        | 1,044     | 229     | 815     | Lite tier compression         |
+| **Total**      | **1,067** | **229** | **838** | **78.5% reduction**           |
 
 **T2: K8s Debug** (multi-turn with log output)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 577 | 565 | 12 | Minor dedup |
-| caveman | 565 | 229 | 336 | Lite tier compression |
-| **Total** | **577** | **229** | **348** | **60.3% reduction** |
+| Stage          | Before   | After   | Saved   | Notes                 |
+|----------------|----------|---------|---------|-----------------------|
+| semantic_dedup | 577      | 565     | 12      | Minor dedup           |
+| caveman        | 565      | 229     | 336     | Lite tier compression |
+| **Total**      | **577**  | **229** | **348** | **60.3% reduction**   |
 
 **T3: Tool Filter (27 tools)** (27-tool manifest + Read/Write tools)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 633 | 620 | 13 | System prompt dedup |
-| caveman | 620 | 229 | 391 | Lite tier compression |
-| **Total** | **633** | **229** | **404** | **63.8% reduction** |
+| Stage          | Before   | After   | Saved   | Notes                 |
+|----------------|----------|---------|---------|-----------------------|
+| semantic_dedup | 633      | 620     | 13      | System prompt dedup   |
+| caveman        | 620      | 229     | 391     | Lite tier compression |
+| **Total**      | **633**  | **229** | **404** | **63.8% reduction**   |
 
 Note: toolfilter also removed 960 chars from the 27-tool manifest (not shown in stage log, measured via Prometheus)
 
 **T4: Code Review** (multi-turn code diff review)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 577 | 565 | 12 | System prompt dedup |
-| sketch_dedup | 565 | 565 | 565* | Duplicate prompt detected |
-| caveman | 565 | 229 | 336 | Lite tier compression |
-| message_textcomp | 503 | 465 | 38 | Filler removal on messages |
-| **Total** | **577** | **229** | **348** | **60.3% reduction** |
+| Stage            | Before   | After   | Saved   | Notes                      |
+|------------------|----------|---------|---------|----------------------------|
+| semantic_dedup   | 577      | 565     | 12      | System prompt dedup        |
+| sketch_dedup     | 565      | 565     | 565*    | Duplicate prompt detected  |
+| caveman          | 565      | 229     | 336     | Lite tier compression      |
+| message_textcomp | 503      | 465     | 38      | Filler removal on messages |
+| **Total**        | **577**  | **229** | **348** | **60.3% reduction**        |
 
 *sketch_dedup records total content chars as "saved" for diagnostic purposes (duplicate flag)
 
 **T5: JSON Config** (JSON config analysis)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 577 | 565 | 12 | System prompt dedup |
-| sketch_dedup | 565 | 565 | 565* | Duplicate prompt detected |
-| caveman | 565 | 229 | 336 | Lite tier compression |
-| message_textcomp | 587 | 553 | 34 | Filler removal on messages |
-| **Total** | **577** | **229** | **348** | **60.3% reduction** |
+| Stage            | Before   | After   | Saved   | Notes                      |
+|------------------|----------|---------|---------|----------------------------|
+| semantic_dedup   | 577      | 565     | 12      | System prompt dedup        |
+| sketch_dedup     | 565      | 565     | 565*    | Duplicate prompt detected  |
+| caveman          | 565      | 229     | 336     | Lite tier compression      |
+| message_textcomp | 587      | 553     | 34      | Filler removal on messages |
+| **Total**        | **577**  | **229** | **348** | **60.3% reduction**        |
 
 **T6: Multi-turn Dedup** (4-turn Go LRU conversation with repeated system prompt)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 973 | 952 | 21 | Longer system prompt dedup |
-| sketch_dedup | 952 | 952 | 952* | Duplicate prompt detected |
-| caveman | 952 | 229 | 723 | Lite tier compression |
-| message_text | 489 | 486 | 1 | Whitespace on user message |
-| message_textcomp | 486 | 430 | 56 | Filler removal on messages |
-| **Total** | **973** | **229** | **744** | **76.5% reduction** |
+| Stage            | Before   | After   | Saved   | Notes                      |
+|------------------|----------|---------|---------|----------------------------|
+| semantic_dedup   | 973      | 952     | 21      | Longer system prompt dedup |
+| sketch_dedup     | 952      | 952     | 952*    | Duplicate prompt detected  |
+| caveman          | 952      | 229     | 723     | Lite tier compression      |
+| message_text     | 489      | 486     | 1       | Whitespace on user message |
+| message_textcomp | 486      | 430     | 56      | Filler removal on messages |
+| **Total**        | **973**  | **229** | **744** | **76.5% reduction**        |
 
 **T7: Shell Output** (ls -la output analysis)
 
-| Stage | Before | After | Saved | Notes |
-|-------|--------|-------|-------|-------|
-| semantic_dedup | 577 | 565 | 12 | System prompt dedup |
-| sketch_dedup | 565 | 565 | 565* | Duplicate prompt detected |
-| caveman | 565 | 229 | 336 | Lite tier compression |
-| message_text | 1,009 | 1,008 | 1 | Whitespace on user message |
-| message_textcomp | 1,008 | 900 | 108 | Filler removal on ls output |
-| **Total** | **577** | **229** | **348** | **60.3% reduction** |
+| Stage            | Before   | After   | Saved   | Notes                       |
+|------------------|----------|---------|---------|-----------------------------|
+| semantic_dedup   | 577      | 565     | 12      | System prompt dedup         |
+| sketch_dedup     | 565      | 565     | 565*    | Duplicate prompt detected   |
+| caveman          | 565      | 229     | 336     | Lite tier compression       |
+| message_text     | 1,009    | 1,008   | 1       | Whitespace on user message  |
+| message_textcomp | 1,008    | 900     | 108     | Filler removal on ls output |
+| **Total**        | **577**  | **229** | **348** | **60.3% reduction**         |
 
 ---
 
 ### Per-Stage Aggregate Summary (from Prometheus)
 
-| Stage | Chars Affected | Runs | Avg/Run | Saves | What it does |
-|-------|----------------|------|---------|-------|--------------|
-| semantic_dedup | 28 reduced | 7 | 4.0 | INPUT | Deduplicates sentences in system prompt |
-| sketch_dedup | 2,647 flagged | 4 | 661.8 | INPUT | Flags near-duplicate system prompts |
-| caveman | 3,273 replaced* | 7 | 467.6 | OUTPUT (indirect) | Replaces system prompt with brevity directive |
-| message_textcomp | 236 reduced | 4 | 59.0 | INPUT | Removes filler from messages |
-| message_text | 2 reduced | 2 | 1.0 | INPUT | Whitespace normalization |
-| toolfilter | 960 removed | 1 | 960.0 | INPUT | Filters tool manifest |
+| Stage            | Chars Affected   | Runs   | Avg/Run   | Saves             | What it does                                  |
+|------------------|------------------|--------|-----------|-------------------|-----------------------------------------------|
+| semantic_dedup   | 28 reduced       | 7      | 4.0       | INPUT             | Deduplicates sentences in system prompt       |
+| sketch_dedup     | 2,647 flagged    | 4      | 661.8     | INPUT             | Flags near-duplicate system prompts           |
+| caveman          | 3,273 replaced*  | 7      | 467.6     | OUTPUT (indirect) | Replaces system prompt with brevity directive |
+| message_textcomp | 236 reduced      | 4      | 59.0      | INPUT             | Removes filler from messages                  |
+| message_text     | 2 reduced        | 2      | 1.0       | INPUT             | Whitespace normalization                      |
+| toolfilter       | 960 removed      | 1      | 960.0     | INPUT             | Filters tool manifest                         |
 
 *caveman: chars REPLACED, not removed. System prompt (avg 577-1067 chars) replaced with 229-char style directive.
 Prometheus shows 0 for caveman due to code bug (`m.RecordOptimization("caveman", 0, "input")`).
@@ -539,49 +539,49 @@ Prometheus shows 0 for caveman due to code bug (`m.RecordOptimization("caveman",
 
 ### INPUT vs OUTPUT Breakdown
 
-| Direction | Stages | Chars Affected | Est. Tokens | What this means |
-|-----------|--------|----------------|-------------|-----------------|
-| **INPUT** | semantic_dedup, sketch_dedup, message_text, message_textcomp, toolfilter | 3,873 reduced | ~968 saved | Input tokens not sent to provider |
-| **OUTPUT influence** | caveman | 3,273 replaced | ~818 fewer chars in system prompt | System prompt replaced with brevity directive - model may produce shorter output |
-| **OUTPUT direct** | intent_filter | 0 | 0 | Did not activate (all requests classified as "chat") |
+| Direction            | Stages                                                                   | Chars Affected   | Est. Tokens                       | What this means                                                                  |
+|----------------------|--------------------------------------------------------------------------|------------------|-----------------------------------|----------------------------------------------------------------------------------|
+| **INPUT**            | semantic_dedup, sketch_dedup, message_text, message_textcomp, toolfilter | 3,873 reduced    | ~968 saved                        | Input tokens not sent to provider                                                |
+| **OUTPUT influence** | caveman                                                                  | 3,273 replaced   | ~818 fewer chars in system prompt | System prompt replaced with brevity directive - model may produce shorter output |
+| **OUTPUT direct**    | intent_filter                                                            | 0                | 0                                 | Did not activate (all requests classified as "chat")                             |
 
 **Caveman clarification**: The 3,273 chars is the system prompt text that was REPLACED (not removed). The model receives a 229-char style directive instead of the original system prompt. This saves input tokens (shorter prompt) and may reduce output tokens (model follows brevity directive), but the actual output savings are indirect and unmeasured in this test.
 
 ### Cost Analysis
 
-| Metric | Value |
-|--------|-------|
-| Actual tokens consumed | 2,793 input + 522 output = **3,315 total** |
-| Actual cost | $0.0055 (glm-5 pricing) |
+| Metric                 | Value                                            |
+|------------------------|--------------------------------------------------|
+| Actual tokens consumed | 2,793 input + 522 output = **3,315 total**       |
+| Actual cost            | $0.0055 (glm-5 pricing)                          |
 | Estimated cost savings | $0.00002 (from `api_gateway_cost_savings_total`) |
-| Model fallbacks | glm-5 -> glm-5-turbo (3x), glm-5 -> glm-5.1 (2x) |
+| Model fallbacks        | glm-5 -> glm-5-turbo (3x), glm-5 -> glm-5.1 (2x) |
 
 ### Performance Overhead
 
-| Stage | Total Time | Runs | Avg/Run |
-|-------|-----------|------|---------|
-| semantic_dedup | 1.84ms | 7 | 0.26ms |
-| sketch | 0.46ms | 4 | 0.11ms |
-| caveman | 0.19ms | 7 | 0.03ms |
-| chunker | 4.05ms | 7 | 0.58ms |
+| Stage          | Total Time  | Runs   | Avg/Run   |
+|----------------|-------------|--------|-----------|
+| semantic_dedup | 1.84ms      | 7      | 0.26ms    |
+| sketch         | 0.46ms      | 4      | 0.11ms    |
+| caveman        | 0.19ms      | 7      | 0.03ms    |
+| chunker        | 4.05ms      | 7      | 0.58ms    |
 
 All stages complete in < 1ms average. Total optimization overhead per request: < 3ms.
 
 ### Stage Coverage
 
-| Stage | Activated | Runs | Notes |
-|-------|-----------|------|-------|
-| F7 semantic_dedup | Yes | 7 | Every request (system prompt dedup) |
-| F16 caveman | Yes | 7 | Every request (lite tier) |
-| F1 chunker | Yes | 7 | Every request (cache reorder) |
-| F9 sketch_dedup | Yes | 4 | Duplicate system prompts (T4-T7) |
-| F17 textcomp (message) | Yes | 4 | Message filler removal (T4-T7) |
-| F19 toolfilter | Yes | 1 | 27-tool manifest filtered (T3) |
-| message_text | Yes | 2 | Whitespace normalization (T6, T7) |
-| F8 delta | No | 0 | No repeated system prompt edits |
-| F6 summarizer | No | 0 | Budget stayed green (<50%) |
-| F13 intent_filter | No | 0 | Intent was "chat" for all |
-| F18 toolcomp | No | 0 | No tool_result blocks in input |
+| Stage                  | Activated   | Runs   | Notes                               |
+|------------------------|-------------|--------|-------------------------------------|
+| F7 semantic_dedup      | Yes         | 7      | Every request (system prompt dedup) |
+| F16 caveman            | Yes         | 7      | Every request (lite tier)           |
+| F1 chunker             | Yes         | 7      | Every request (cache reorder)       |
+| F9 sketch_dedup        | Yes         | 4      | Duplicate system prompts (T4-T7)    |
+| F17 textcomp (message) | Yes         | 4      | Message filler removal (T4-T7)      |
+| F19 toolfilter         | Yes         | 1      | 27-tool manifest filtered (T3)      |
+| message_text           | Yes         | 2      | Whitespace normalization (T6, T7)   |
+| F8 delta               | No          | 0      | No repeated system prompt edits     |
+| F6 summarizer          | No          | 0      | Budget stayed green (<50%)          |
+| F13 intent_filter      | No          | 0      | Intent was "chat" for all           |
+| F18 toolcomp           | No          | 0      | No tool_result blocks in input      |
 
 ### Notes
 

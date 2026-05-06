@@ -60,6 +60,9 @@ func DefaultDetector() *SecretDetector {
 		string(EntityBasicAuthURL),
 		string(EntityVaultToken),
 		string(EntityAzureCredential),
+		string(EntityCLIAuth),
+		string(EntityCurlBasicAuth),
+		string(EntityEnvUser),
 	}, 200000)
 }
 

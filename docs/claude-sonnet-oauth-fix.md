@@ -193,12 +193,12 @@ Commit `a320545` -- disable adaptive thinking ใน container (ลด complexit
 
 ## สรุปสิ่งที่แก้ (4 fixes)
 
-| # | ปัญหา | สาเหตุ | แก้ | Commit |
-|---|-------|--------|-----|--------|
-| 1 | OAuth 403 | ขาด `code=true` param | เพิ่ม param ใน auth URL | `9d1a0b9` |
-| 2 | Token refresh fail | ส่ง form-urlencoded แทน JSON | เลือก content type ตาม provider | `5f20635` |
-| 3 | Headers ไม่ครบ | ส่งแค่ beta + UA 3 ตัว | Full header set เหมือน CLI จริง | `4c94fc2` |
-| 4 | Beta flags ขัดแย้ง | Overwrite แทน merge | mergeBetas + stripUnsupported | `4c94fc2` |
+| #   | ปัญหา              | สาเหตุ                       | แก้                             | Commit    |
+|-----|--------------------|------------------------------|---------------------------------|-----------|
+| 1   | OAuth 403          | ขาด `code=true` param        | เพิ่ม param ใน auth URL         | `9d1a0b9` |
+| 2   | Token refresh fail | ส่ง form-urlencoded แทน JSON | เลือก content type ตาม provider | `5f20635` |
+| 3   | Headers ไม่ครบ     | ส่งแค่ beta + UA 3 ตัว       | Full header set เหมือน CLI จริง | `4c94fc2` |
+| 4   | Beta flags ขัดแย้ง | Overwrite แทน merge          | mergeBetas + stripUnsupported   | `4c94fc2` |
 
 ## สิ่งที่เรียนรู้
 

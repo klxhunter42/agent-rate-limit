@@ -605,15 +605,15 @@ All endpoints return consistent error responses:
 
 ### Common Status Codes
 
-| Code | Description | Common Scenarios |
-|------|-------------|------------------|
-| 200  | OK | Successful operation |
-| 400  | Bad Request | Invalid request data, missing required fields |
-| 401  | Unauthorized | Invalid or missing API key |
-| 403  | Forbidden | IP address blocked, admin access denied |
-| 404  | Not Found | Resource not found |
-| 429  | Too Many Requests | Rate limit exceeded |
-| 500  | Internal Server Error | System error, database connectivity issues |
+| Code   | Description           | Common Scenarios                              |
+|--------|-----------------------|-----------------------------------------------|
+| 200    | OK                    | Successful operation                          |
+| 400    | Bad Request           | Invalid request data, missing required fields |
+| 401    | Unauthorized          | Invalid or missing API key                    |
+| 403    | Forbidden             | IP address blocked, admin access denied       |
+| 404    | Not Found             | Resource not found                            |
+| 429    | Too Many Requests     | Rate limit exceeded                           |
+| 500    | Internal Server Error | System error, database connectivity issues    |
 
 ### Rate Limiting Error Details
 

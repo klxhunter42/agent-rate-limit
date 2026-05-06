@@ -16,12 +16,12 @@ Grafana is exposed via Caddy reverse proxy at `${PROXY_SCHEME}://${EXTERNAL_HOST
 
 Access from **Dashboards** -> **General** or use URL directly:
 
-| Dashboard | URL | Description |
-|-----------|-----|-------------|
-| **System Overview** | http://localhost:3000/d/arl-overview | Full system overview -- request rate, latency, queue, jobs |
-| **API Gateway Detailed** | http://localhost:3000/d/arl-gateway | Gateway metrics: request rate by path, latency percentiles |
-| **AI Worker Detailed** | http://localhost:3000/d/arl-worker | Worker metrics: job rate, provider latency, memory |
-| **Cost Calculator & Savings** | http://localhost:3000/d/arl-cost | AI cost calculation, rate limit savings, cost estimation |
+| Dashboard                     | URL                                          | Description                                                 |
+|-------------------------------|----------------------------------------------|-------------------------------------------------------------|
+| **System Overview**           | http://localhost:3000/d/arl-overview         | Full system overview -- request rate, latency, queue, jobs  |
+| **API Gateway Detailed**      | http://localhost:3000/d/arl-gateway          | Gateway metrics: request rate by path, latency percentiles  |
+| **AI Worker Detailed**        | http://localhost:3000/d/arl-worker           | Worker metrics: job rate, provider latency, memory          |
+| **Cost Calculator & Savings** | http://localhost:3000/d/arl-cost             | AI cost calculation, rate limit savings, cost estimation    |
 | **Claude OAuth Billing Path** | http://localhost:3000/d/claude-oauth-billing | Billing path distribution, latency, per-profile usage, cost |
 
 ### Dashboard Details
@@ -63,41 +63,41 @@ Access from **Dashboards** -> **General** or use URL directly:
 
 ### Pricing Table (reference for Cost Calculator)
 
-| Provider | Model | Input (per 1M tokens) | Output (per 1M tokens) |
-|----------|-------|----------------------|------------------------|
-| Z.AI | glm-5.1 | $1.40 | $4.40 |
-| Z.AI | glm-5-turbo | $1.20 | $4.00 |
-| Z.AI | glm-5 | $1.00 | $3.20 |
-| Z.AI | glm-4.7 | $0.60 | $2.20 |
-| Z.AI | glm-4.7-flashx | $0.07 | $0.40 |
-| Z.AI | glm-4.6v | $0.30 | $0.90 |
-| Z.AI | glm-4.5v | $0.60 | $1.80 |
-| Z.AI | glm-4.5v | $0.60 | $1.80 |
-| OpenAI | gpt-4o | $2.50 | $10.00 |
-| Anthropic | claude-opus-4-7 | $15.00 | $75.00 |
-| Anthropic | claude-sonnet-4-6 | $3.00 | $15.00 |
-| Anthropic | claude-haiku-4-5 | $0.80 | $4.00 |
-| Gemini | gemini-2.5-pro | $1.25 | $10.00 |
-| Gemini | gemini-2.5-flash | $0.15 | $0.60 |
-| OpenRouter | varies | varies | varies |
+| Provider   | Model             | Input (per 1M tokens)  | Output (per 1M tokens)   |
+|------------|-------------------|------------------------|--------------------------|
+| Z.AI       | glm-5.1           | $1.40                  | $4.40                    |
+| Z.AI       | glm-5-turbo       | $1.20                  | $4.00                    |
+| Z.AI       | glm-5             | $1.00                  | $3.20                    |
+| Z.AI       | glm-4.7           | $0.60                  | $2.20                    |
+| Z.AI       | glm-4.7-flashx    | $0.07                  | $0.40                    |
+| Z.AI       | glm-4.6v          | $0.30                  | $0.90                    |
+| Z.AI       | glm-4.5v          | $0.60                  | $1.80                    |
+| Z.AI       | glm-4.5v          | $0.60                  | $1.80                    |
+| OpenAI     | gpt-4o            | $2.50                  | $10.00                   |
+| Anthropic  | claude-opus-4-7   | $15.00                 | $75.00                   |
+| Anthropic  | claude-sonnet-4-6 | $3.00                  | $15.00                   |
+| Anthropic  | claude-haiku-4-5  | $0.80                  | $4.00                    |
+| Gemini     | gemini-2.5-pro    | $1.25                  | $10.00                   |
+| Gemini     | gemini-2.5-flash  | $0.15                  | $0.60                    |
+| OpenRouter | varies            | varies                 | varies                   |
 
 ### Prometheus Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /metrics` | Prometheus metrics (gateway internal) |
-| `GET /api/metrics` | Alias for `/metrics` |
+| Endpoint           | Description                           |
+|--------------------|---------------------------------------|
+| `GET /metrics`     | Prometheus metrics (gateway internal) |
+| `GET /api/metrics` | Alias for `/metrics`                  |
 
 Both endpoints are served by the `promhttp.Handler` on the gateway's main server. The Prometheus scraper targets `arl-gateway:8080/metrics`.
 
 ### Mock Data Endpoints (for dashboard testing)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/mock/seed?category=all` | Seed mock data (categories: `all`, `optimizer`, `waste`, `budget`) |
-| `POST` | `/v1/mock/loop/start` | Start continuous mock data feed (5s interval) |
-| `POST` | `/v1/mock/loop/stop` | Stop continuous mock data feed |
-| `GET` | `/v1/mock/status` | Check if mock loop is running |
+| Method   | Path                         | Description                                                        |
+|----------|------------------------------|--------------------------------------------------------------------|
+| `POST`   | `/v1/mock/seed?category=all` | Seed mock data (categories: `all`, `optimizer`, `waste`, `budget`) |
+| `POST`   | `/v1/mock/loop/start`        | Start continuous mock data feed (5s interval)                      |
+| `POST`   | `/v1/mock/loop/stop`         | Stop continuous mock data feed                                     |
+| `GET`    | `/v1/mock/status`            | Check if mock loop is running                                      |
 
 ---
 
@@ -129,12 +129,12 @@ Accessed via Caddy reverse proxy. No external port mapped.
 
 ### Access
 
-| Method | URL | Notes |
-|--------|-----|-------|
-| Embedded (Go binary) | `http://localhost:8080/` | Static files embedded via `go:embed` from `api-gateway/static/` |
-| Docker Compose | `http://localhost:9000/` | Via Caddy reverse proxy |
-| Standalone container | `http://arl-dashboard:5173` | Hot-reload dev container (internal) |
-| Dev mode (hot reload) | `http://localhost:5173` | `cd ui && bun run dev` |
+| Method                | URL                         | Notes                                                           |
+|-----------------------|-----------------------------|-----------------------------------------------------------------|
+| Embedded (Go binary)  | `http://localhost:8080/`    | Static files embedded via `go:embed` from `api-gateway/static/` |
+| Docker Compose        | `http://localhost:9000/`    | Via Caddy reverse proxy                                         |
+| Standalone container  | `http://arl-dashboard:5173` | Hot-reload dev container (internal)                             |
+| Dev mode (hot reload) | `http://localhost:5173`     | `cd ui && bun run dev`                                          |
 
 ### Authentication
 
@@ -144,15 +144,15 @@ Dashboard auth is controlled by `DASHBOARD_PASSWORD` env var:
 
 ### Pages
 
-| Page | Route | Features |
-|------|-------|----------|
-| Overview | `/` | Status, queue depth, total requests, concurrency, model utilization |
-| Model Limits | `/model-limits` | Model status table: in-flight, limit, max, ceiling, RTT EWMA, requests, 429s |
-| Key Pool | `/key-pool` | API key rotation pool status |
-| Profiles | `/profiles` | Profile CRUD management (create needs name + target only) |
-| Accounts | `/accounts` | OAuth/API key accounts, inline email editing, pause/resume, default selection |
-| Metrics | `/metrics` | Recharts time-series: request rate, token usage, errors (auto-poll 5s) |
-| Controls | `/controls` | Manual override model limits, active overrides table |
+| Page         | Route           | Features                                                                      |
+|--------------|-----------------|-------------------------------------------------------------------------------|
+| Overview     | `/`             | Status, queue depth, total requests, concurrency, model utilization           |
+| Model Limits | `/model-limits` | Model status table: in-flight, limit, max, ceiling, RTT EWMA, requests, 429s  |
+| Key Pool     | `/key-pool`     | API key rotation pool status                                                  |
+| Profiles     | `/profiles`     | Profile CRUD management (create needs name + target only)                     |
+| Accounts     | `/accounts`     | OAuth/API key accounts, inline email editing, pause/resume, default selection |
+| Metrics      | `/metrics`      | Recharts time-series: request rate, token usage, errors (auto-poll 5s)        |
+| Controls     | `/controls`     | Manual override model limits, active overrides table                          |
 
 ### Build & Deploy
 

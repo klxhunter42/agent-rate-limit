@@ -62,15 +62,15 @@ Nil fields = feature disabled. All components are optional.
 
 `OptimizeSystemPrompt(text, metrics, budgetLevel, model)` applies stages in this fixed order:
 
-| Stage # | Name | Feature ID | Budget Gate | Input | Output | Description |
-|---------|------|-----------|-------------|-------|--------|-------------|
-| 1 | Semantic Dedup | F7 | Always | Raw text | Deduped text | Jaccard similarity sentence dedup (threshold 0.7) |
-| 2 | Chunker | F1 | Always | Deduped text | Reordered text | Rabin-Karp chunk, reorder stable-first |
-| 3 | Delta Encoding | F8 | Always | Reordered text | Delta-encoded string | LCS diff against cached baseline |
-| 4 | Sketch Dedup | F9 | Always | Text | Metrics only | SimHash near-duplicate detection |
-| 5 | Summarizer | F6 | Red only | Text | Summarized text | Extractive: first sentence per paragraph |
-| 6 | Intent Filter | F13 | Always | Text | Filtered text | Classify intent, extract code/key lines |
-| 7 | Caveman Compression | F16 | Always | Text | Text + injection | Append output-style system prompt |
+| Stage #   | Name                | Feature ID  | Budget Gate   | Input          | Output               | Description                                       |
+|-----------|---------------------|-------------|---------------|----------------|----------------------|---------------------------------------------------|
+| 1         | Semantic Dedup      | F7          | Always        | Raw text       | Deduped text         | Jaccard similarity sentence dedup (threshold 0.7) |
+| 2         | Chunker             | F1          | Always        | Deduped text   | Reordered text       | Rabin-Karp chunk, reorder stable-first            |
+| 3         | Delta Encoding      | F8          | Always        | Reordered text | Delta-encoded string | LCS diff against cached baseline                  |
+| 4         | Sketch Dedup        | F9          | Always        | Text           | Metrics only         | SimHash near-duplicate detection                  |
+| 5         | Summarizer          | F6          | Red only      | Text           | Summarized text      | Extractive: first sentence per paragraph          |
+| 6         | Intent Filter       | F13         | Always        | Text           | Filtered text        | Classify intent, extract code/key lines           |
+| 7         | Caveman Compression | F16         | Always        | Text           | Text + injection     | Append output-style system prompt                 |
 
 After all stages: if `totalSaved > 0`, records `tokensSaved` and `costSavings` ($3/M token estimate).
 
@@ -91,11 +91,11 @@ Metrics label: `message_text` for string content, `message_block_{type}` for blo
 
 `PostProxyFeedback(sessionID, model, input, output)` records telemetry after proxy completes:
 
-| Component | Action |
-|-----------|--------|
-| Prefetcher (F4) | `Record(sessionID, model)` - learns tool call sequences |
-| Waste Detector (F11) | `RecordRequest(sessionID, model, input, output)` |
-| Cache ROI (F14) | `RecordHit("session:"+sessionID, input/4)` |
+| Component            | Action                                                                     |
+|----------------------|----------------------------------------------------------------------------|
+| Prefetcher (F4)      | `Record(sessionID, model)` - learns tool call sequences                    |
+| Waste Detector (F11) | `RecordRequest(sessionID, model, input, output)`                           |
+| Cache ROI (F14)      | `RecordHit("session:"+sessionID, input/4)`                                 |
 | Bandit Feedback (F5) | `Update(model, features, reward)` where reward = output/input (capped 1.0) |
 
 ---
@@ -112,29 +112,29 @@ Metrics label: `message_text` for string content, `message_block_{type}` for blo
 
 **Token Estimation** (`charsPerToken` ratios from tiktoken calibration):
 
-| Content Type | Ratio |
-|-------------|-------|
-| Code | 2.5 chars/token |
-| JSON | 2.8 chars/token |
-| Markdown | 3.5 chars/token |
-| Text | 4.0 chars/token |
+| Content Type  | Ratio           |
+|---------------|-----------------|
+| Code          | 2.5 chars/token |
+| JSON          | 2.8 chars/token |
+| Markdown      | 3.5 chars/token |
+| Text          | 4.0 chars/token |
 
 `EstimateTokens(text)` = `ceil(len(text) / ratio)`
 `QuickEstimateTokens(text)` = `(len(text) + 3) / 4`
 
 **Model Capabilities** (`KnownModels` map):
 
-| Model | Context Window | Max Output | Provider |
-|-------|---------------|------------|----------|
-| claude-opus-4-7 | 200,000 | 163,840 | anthropic |
-| claude-sonnet-4-6 | 200,000 | 163,840 | anthropic |
-| claude-haiku-4-5-20251001 | 200,000 | 8,192 | anthropic |
-| claude-3-5-sonnet-20241022 | 200,000 | 8,192 | anthropic |
-| gpt-4o | 128,000 | 16,384 | openai |
-| o1 | 200,000 | 100,000 | openai |
-| gemini-2.5-pro | 1,048,576 | 65,536 | google |
-| glm-5.1 | 128,000 | 4,096 | zai |
-| glm-4.6v | 8,192 | 4,096 | zai |
+| Model                      | Context Window  | Max Output   | Provider   |
+|----------------------------|-----------------|--------------|------------|
+| claude-opus-4-7            | 200,000         | 163,840      | anthropic  |
+| claude-sonnet-4-6          | 200,000         | 163,840      | anthropic  |
+| claude-haiku-4-5-20251001  | 200,000         | 8,192        | anthropic  |
+| claude-3-5-sonnet-20241022 | 200,000         | 8,192        | anthropic  |
+| gpt-4o                     | 128,000         | 16,384       | openai     |
+| o1                         | 200,000         | 100,000      | openai     |
+| gemini-2.5-pro             | 1,048,576       | 65,536       | google     |
+| glm-5.1                    | 128,000         | 4,096        | zai        |
+| glm-4.6v                   | 8,192           | 4,096        | zai        |
 
 Prefix matching: if exact match fails, tries `strings.HasPrefix(model, knownKey)`.
 Default fallback: `{128000, 4096, "unknown"}`.
@@ -194,13 +194,13 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| CHUNKER_ENABLED | true | Enable/disable |
-| CHUNKER_MIN_CHUNK | 128 | Minimum chunk size in bytes |
-| CHUNKER_MAX_CHUNK | 4096 | Maximum chunk size in bytes |
-| CHUNKER_WINDOW_SIZE | 48 | Rolling hash window size |
-| CHUNKER_STABLE_THRESHOLD | 2 | Times seen to be considered stable |
+| Env Var                  | Default   | Description                        |
+|--------------------------|-----------|------------------------------------|
+| CHUNKER_ENABLED          | true      | Enable/disable                     |
+| CHUNKER_MIN_CHUNK        | 128       | Minimum chunk size in bytes        |
+| CHUNKER_MAX_CHUNK        | 4096      | Maximum chunk size in bytes        |
+| CHUNKER_WINDOW_SIZE      | 48        | Rolling hash window size           |
+| CHUNKER_STABLE_THRESHOLD | 2         | Times seen to be considered stable |
 
 **Chunking Algorithm** (`chunk`):
 1. If content < MinChunk: single chunk with SHA-256 hash (first 12 hex chars)
@@ -230,10 +230,10 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| PACKER_ENABLED | true | Enable/disable |
-| PACKER_MIN_UTILITY | 0.1 | Minimum utility score to include |
+| Env Var            | Default   | Description                      |
+|--------------------|-----------|----------------------------------|
+| PACKER_ENABLED     | true      | Enable/disable                   |
+| PACKER_MIN_UTILITY | 0.1       | Minimum utility score to include |
 
 **Pack** (`Pack(items, tokenBudget)`):
 1. Filter items by `MinUtility`
@@ -252,19 +252,19 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| DISCLOSURE_ENABLED | true | Enable/disable |
-| DISCLOSURE_L1_TOKENS | 15 | Layer 1 budget (tokens) |
-| DISCLOSURE_L2_TOKENS | 60 | Layer 2 budget (tokens) |
+| Env Var              | Default   | Description             |
+|----------------------|-----------|-------------------------|
+| DISCLOSURE_ENABLED   | true      | Enable/disable          |
+| DISCLOSURE_L1_TOKENS | 15        | Layer 1 budget (tokens) |
+| DISCLOSURE_L2_TOKENS | 60        | Layer 2 budget (tokens) |
 
 **Layers**:
 
-| Layer | Name | Strategy | Budget |
-|-------|------|----------|--------|
-| 1 | Index | First L1Tokens*4 chars of content | ~60 chars |
-| 2 | FTS | Keyword-matched paragraphs within L2Tokens*4 | ~240 chars |
-| 3 | Full | Return entire content | Unlimited |
+| Layer   | Name   | Strategy                                     | Budget     |
+|---------|--------|----------------------------------------------|------------|
+| 1       | Index  | First L1Tokens*4 chars of content            | ~60 chars  |
+| 2       | FTS    | Keyword-matched paragraphs within L2Tokens*4 | ~240 chars |
+| 3       | Full   | Return entire content                        | Unlimited  |
 
 **Escalate** (`Escalate(ctx, content, query, maxTokens)`):
 1. Layer 1: if no query, return first L1Tokens*4 chars
@@ -286,11 +286,11 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| PREFETCHER_ENABLED | true | Enable/disable |
-| PREFETCHER_MAX_ORDER | 5 | Max history length per session |
-| PREFETCHER_TOP_K | 3 | Top-K predictions |
+| Env Var              | Default   | Description                    |
+|----------------------|-----------|--------------------------------|
+| PREFETCHER_ENABLED   | true      | Enable/disable                 |
+| PREFETCHER_MAX_ORDER | 5         | Max history length per session |
+| PREFETCHER_TOP_K     | 3         | Top-K predictions              |
 
 **Record** (`Record(ctx, sessionID, toolCall)`):
 1. Append to Redis list `prefetcher:chain:{sessionID}` (trimmed to MaxOrder)
@@ -316,11 +316,11 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| BANDIT_ENABLED | true | Enable/disable |
-| BANDIT_ALPHA | 1.0 | Exploration parameter |
-| BANDIT_DECAY | 0.99 | Reward decay factor |
+| Env Var        | Default   | Description           |
+|----------------|-----------|-----------------------|
+| BANDIT_ENABLED | true      | Enable/disable        |
+| BANDIT_ALPHA   | 1.0       | Exploration parameter |
+| BANDIT_DECAY   | 0.99      | Reward decay factor   |
 
 **Dimensions**: `dim = 10`
 
@@ -354,11 +354,11 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| SUMMARIZER_ENABLED | true | Enable/disable |
-| SUMMARIZER_MODEL | glm-4.7-flashx | Reserved for LLM mode |
-| SUMMARIZER_MAX_RATIO | 0.3 | Max output length as ratio of input |
+| Env Var              | Default        | Description                         |
+|----------------------|----------------|-------------------------------------|
+| SUMMARIZER_ENABLED   | true           | Enable/disable                      |
+| SUMMARIZER_MODEL     | glm-4.7-flashx | Reserved for LLM mode               |
+| SUMMARIZER_MAX_RATIO | 0.3            | Max output length as ratio of input |
 
 **Summarize** (`Summarize(ctx, content, budgetLevel)`):
 1. Compute SHA-256 hash, check Redis cache `summarizer:cache:{hash[:8]}`
@@ -383,10 +383,10 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| DELTA_ENABLED | true | Enable/disable |
-| DELTA_MIN_SAVINGS_PCT | 10.0 | Minimum savings percentage to use delta |
+| Env Var               | Default   | Description                             |
+|-----------------------|-----------|-----------------------------------------|
+| DELTA_ENABLED         | true      | Enable/disable                          |
+| DELTA_MIN_SAVINGS_PCT | 10.0      | Minimum savings percentage to use delta |
 
 **Constants**: `maxLCSBytes = 50000`, `maxOps = 200`
 
@@ -414,11 +414,11 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| SKETCH_ENABLED | true | Enable/disable |
-| SKETCH_DIMENSIONS | 128 | Bit vector dimensions |
-| SKETCH_THRESHOLD | 0.85 | Hamming similarity threshold for duplicate |
+| Env Var           | Default   | Description                                |
+|-------------------|-----------|--------------------------------------------|
+| SKETCH_ENABLED    | true      | Enable/disable                             |
+| SKETCH_DIMENSIONS | 128       | Bit vector dimensions                      |
+| SKETCH_THRESHOLD  | 0.85      | Hamming similarity threshold for duplicate |
 
 **Compute** (`Compute(content)`):
 1. Tokenize content into words (alphanumeric only)
@@ -445,22 +445,22 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| WASTE_ENABLED | true | Enable/disable |
-| WASTE_MIN_REQUESTS | 10 | Minimum requests before detection |
+| Env Var            | Default   | Description                       |
+|--------------------|-----------|-----------------------------------|
+| WASTE_ENABLED      | true      | Enable/disable                    |
+| WASTE_MIN_REQUESTS | 10        | Minimum requests before detection |
 
 **Detectors**:
 
-| Detector | Severity | Trigger |
-|----------|----------|---------|
-| `empty_response` | High | >10% of requests have output=0 |
-| `retry_churn` | Medium | Repeated identical input with output=0, wasted >5000 tokens |
-| `loop_detection` | High | N-cycle repetition in request inputs (size 2..len/2) |
-| `oversized_context` | Medium | Multiple requests with input >100K tokens, wasted >100K |
-| `budget_exceeded` | Medium | Session uses >3 different models |
-| `redundant_tool_call` | Low | Identical request-response pairs |
-| `low_value_response` | Low | >=3 requests with >5K input but <50 output |
+| Detector              | Severity   | Trigger                                                     |
+|-----------------------|------------|-------------------------------------------------------------|
+| `empty_response`      | High       | >10% of requests have output=0                              |
+| `retry_churn`         | Medium     | Repeated identical input with output=0, wasted >5000 tokens |
+| `loop_detection`      | High       | N-cycle repetition in request inputs (size 2..len/2)        |
+| `oversized_context`   | Medium     | Multiple requests with input >100K tokens, wasted >100K     |
+| `budget_exceeded`     | Medium     | Session uses >3 different models                            |
+| `redundant_tool_call` | Low        | Identical request-response pairs                            |
+| `low_value_response`  | Low        | >=3 requests with >5K input but <50 output                  |
 
 **Session eviction**: Sessions with no activity for 30 minutes are evicted.
 
@@ -477,13 +477,13 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Intent Types**:
 
-| Intent | Trigger Patterns |
-|--------|-----------------|
-| Code | write, implement, fix, refactor, create file, coding, function, struct, etc. |
-| Analysis | explain, analyze, why does, compare, review, meaning, trade-off |
-| Search | find, search, where is, locate, list all, how many, grep |
-| Action | run, execute, deploy, test, build, install, migrate, configure |
-| Chat | Default fallback (no pattern match) |
+| Intent   | Trigger Patterns                                                             |
+|----------|------------------------------------------------------------------------------|
+| Code     | write, implement, fix, refactor, create file, coding, function, struct, etc. |
+| Analysis | explain, analyze, why does, compare, review, meaning, trade-off              |
+| Search   | find, search, where is, locate, list all, how many, grep                     |
+| Action   | run, execute, deploy, test, build, install, migrate, configure               |
+| Chat     | Default fallback (no pattern match)                                          |
 
 **ClassifyIntent** (`ClassifyIntent(messages)`):
 1. Scan messages from end to start, find last user message
@@ -505,11 +505,11 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| CACHE_EVICTION_ENABLED | true | Enable/disable |
-| CACHE_EVICTION_PCT | 10.0 | Bottom percentile to evict per pass |
-| EvictPeriod | 5 minutes | Periodic eviction interval |
+| Env Var                | Default   | Description                         |
+|------------------------|-----------|-------------------------------------|
+| CACHE_EVICTION_ENABLED | true      | Enable/disable                      |
+| CACHE_EVICTION_PCT     | 10.0      | Bottom percentile to evict per pass |
+| EvictPeriod            | 5 minutes | Periodic eviction interval          |
 
 **RecordHit** (`RecordHit(ctx, key, tokensSaved)`):
 - Redis hash `cache:stats:{key}`: increment `tokens_saved`, `hit_count`, 24h TTL
@@ -537,23 +537,23 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Configuration**:
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| WARMSTART_ENABLED | true | Enable/disable |
-| WARMSTART_TOP_K | 3 | Top-K similar sessions |
-| WARMSTART_MIN_SIMILARITY | 0.5 | Minimum cosine similarity for warm start |
+| Env Var                  | Default   | Description                              |
+|--------------------------|-----------|------------------------------------------|
+| WARMSTART_ENABLED        | true      | Enable/disable                           |
+| WARMSTART_TOP_K          | 3         | Top-K similar sessions                   |
+| WARMSTART_MIN_SIMILARITY | 0.5       | Minimum cosine similarity for warm start |
 
 **Signature Dimensions** (32 total):
 
-| Dim Range | Feature | Encoding |
-|-----------|---------|----------|
-| 0-3 | Model type | One-hot: claude, openai, gemini, glm |
-| 4-7 | Content type distribution | code_ratio, json_ratio, md_ratio, text_ratio |
-| 8-15 | Tool call frequency | Top 8 tools by normalized count |
-| 16-18 | Budget level distribution | green_pct, yellow_pct, red_pct |
-| 19-22 | Request size buckets | avg_input/10K, avg_output/1K, total_req/100, avg_dur/10K |
-| 23-27 | Intent distribution | code_pct, analysis_pct, search_pct, action_pct, chat_pct |
-| 28-31 | Hash projection | project_hash, symbol_density, stream_pct, error_rate |
+| Dim Range   | Feature                   | Encoding                                                 |
+|-------------|---------------------------|----------------------------------------------------------|
+| 0-3         | Model type                | One-hot: claude, openai, gemini, glm                     |
+| 4-7         | Content type distribution | code_ratio, json_ratio, md_ratio, text_ratio             |
+| 8-15        | Tool call frequency       | Top 8 tools by normalized count                          |
+| 16-18       | Budget level distribution | green_pct, yellow_pct, red_pct                           |
+| 19-22       | Request size buckets      | avg_input/10K, avg_output/1K, total_req/100, avg_dur/10K |
+| 23-27       | Intent distribution       | code_pct, analysis_pct, search_pct, action_pct, chat_pct |
+| 28-31       | Hash projection           | project_hash, symbol_density, stream_pct, error_rate     |
 
 **WarmSession** (`WarmSession(ctx, sessionID, sessionData)`):
 1. Compute signature from session data
@@ -574,12 +574,12 @@ Default fallback: `{128000, 4096, "unknown"}`.
 
 **Compression Tiers**:
 
-| Tier | Budget Level | Estimated Ratio | Description |
-|------|-------------|-----------------|-------------|
-| Lite | Green (0) | 0.7 | Bullet points, skip pleasantries |
-| Full | Yellow (1) | 0.5 | Terse, code-first, tables over paragraphs |
-| Ultra | Red (2) | 0.25 | Raw output, compressed notation, no wrappers |
-| Wenyan | Manual | 0.3 | Classical notation, facts only, minimal grammar |
+| Tier   | Budget Level  | Estimated Ratio   | Description                                     |
+|--------|---------------|-------------------|-------------------------------------------------|
+| Lite   | Green (0)     | 0.7               | Bullet points, skip pleasantries                |
+| Full   | Yellow (1)    | 0.5               | Terse, code-first, tables over paragraphs       |
+| Ultra  | Red (2)       | 0.25              | Raw output, compressed notation, no wrappers    |
+| Wenyan | Manual        | 0.3               | Classical notation, facts only, minimal grammar |
 
 **ShouldCompress** (`ShouldCompress(content, budgetLevel)`):
 1. If content < MinSize (500 chars): skip
@@ -634,17 +634,17 @@ else:               budgetLevel = 0 (Green)
 
 ### 4.3 Technique Activation by Budget Level
 
-| Technique | Green (0) | Yellow (1) | Red (2) |
-|-----------|-----------|------------|---------|
-| Semantic Dedup | Yes | Yes | Yes |
-| Chunker | Yes | Yes | Yes |
-| Delta Encoding | Yes | Yes | Yes |
-| Sketch Dedup | Yes | Yes | Yes |
-| Summarizer | No | No | **Yes** |
-| Intent Filter | Yes | Yes | Yes |
-| Caveman Tier | Lite | Full | Ultra |
-| Whitespace Opt | Yes | Yes | Yes |
-| Sentence Dedup | Yes | Yes | Yes |
+| Technique      | Green (0)   | Yellow (1)   | Red (2)   |
+|----------------|-------------|--------------|-----------|
+| Semantic Dedup | Yes         | Yes          | Yes       |
+| Chunker        | Yes         | Yes          | Yes       |
+| Delta Encoding | Yes         | Yes          | Yes       |
+| Sketch Dedup   | Yes         | Yes          | Yes       |
+| Summarizer     | No          | No           | **Yes**   |
+| Intent Filter  | Yes         | Yes          | Yes       |
+| Caveman Tier   | Lite        | Full         | Ultra     |
+| Whitespace Opt | Yes         | Yes          | Yes       |
+| Sentence Dedup | Yes         | Yes          | Yes       |
 
 ### 4.4 TokenBudget Tracker
 
@@ -692,14 +692,14 @@ Unmask Flow (streaming):
 
 File: `api-gateway/privacy/config.go`
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| PASTEGUARD_ENABLED | true | Master switch |
-| PASTEGUARD_SECRETS_ENABLED | true | Enable secret detection |
-| PASTEGUARD_MAX_SCAN_CHARS | 200000 | Max characters to scan per text span |
-| PASTEGUARD_SECRET_ENTITIES | (all types) | Comma-separated entity types to detect |
-| PASTEGUARD_PII_ENABLED | true | Enable PII detection |
-| PASTEGUARD_PII_ENTITIES | EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE | Comma-separated PII types |
+| Env Var                    | Default                                                                                | Description                            |
+|----------------------------|----------------------------------------------------------------------------------------|----------------------------------------|
+| PASTEGUARD_ENABLED         | true                                                                                   | Master switch                          |
+| PASTEGUARD_SECRETS_ENABLED | true                                                                                   | Enable secret detection                |
+| PASTEGUARD_MAX_SCAN_CHARS  | 200000                                                                                 | Max characters to scan per text span   |
+| PASTEGUARD_SECRET_ENTITIES | (all types)                                                                            | Comma-separated entity types to detect |
+| PASTEGUARD_PII_ENABLED     | true                                                                                   | Enable PII detection                   |
+| PASTEGUARD_PII_ENTITIES    | EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE | Comma-separated PII types              |
 
 **Default Config** (when env vars not set):
 - Secret entities: `OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,JWT_TOKEN,BEARER_TOKEN`
@@ -712,15 +712,15 @@ File: `api-gateway/privacy/extractors/anthropic.go`
 
 `ExtractTextSpans(payload)` extracts all text content from an Anthropic-format request:
 
-| Location | Path Pattern | Example |
-|----------|-------------|---------|
-| System (string) | `system` | `"system": "You are helpful"` |
-| System (array) | `system[N].text` | Content block arrays |
-| Message string | `messages[N].content` | `"content": "Hello"` |
-| Text block | `messages[N].content[M].text` | `{"type":"text","text":"..."}` |
-| Tool result (string) | `messages[N].content[M].content` | `{"type":"tool_result","content":"..."}` |
-| Tool result (nested) | `messages[N].content[M].content[K].text` | Nested content array |
-| Tool use input | `messages[N].content[M].input.{keyPath}` | Recursive leaf string extraction |
+| Location             | Path Pattern                             | Example                                  |
+|----------------------|------------------------------------------|------------------------------------------|
+| System (string)      | `system`                                 | `"system": "You are helpful"`            |
+| System (array)       | `system[N].text`                         | Content block arrays                     |
+| Message string       | `messages[N].content`                    | `"content": "Hello"`                     |
+| Text block           | `messages[N].content[M].text`            | `{"type":"text","text":"..."}`           |
+| Tool result (string) | `messages[N].content[M].content`         | `{"type":"tool_result","content":"..."}` |
+| Tool result (nested) | `messages[N].content[M].content[K].text` | Nested content array                     |
+| Tool use input       | `messages[N].content[M].input.{keyPath}` | Recursive leaf string extraction         |
 
 **TextSpan struct**:
 ```go
@@ -910,15 +910,15 @@ File: `api-gateway/privacy/pipeline.go` (`applyMaskedToPayload`)
 
 Handles all content block types:
 
-| Block Type | Field Updated | Special Handling |
-|-----------|---------------|------------------|
-| System (string) | `payload["system"]` | Direct assignment |
-| System (array) | `block["text"]` | PartIndex-based |
-| Message string content | `msg["content"]` | Direct assignment |
-| text block | `block["text"]` | Standard |
-| tool_result (string content) | `block["content"]` | Direct |
-| tool_result (nested array) | `nestedBlock["text"]` | NestedIndex-based |
-| tool_use input | Leaf value via `setInputLeaf` | Dot-path + array index navigation |
+| Block Type                   | Field Updated                 | Special Handling                  |
+|------------------------------|-------------------------------|-----------------------------------|
+| System (string)              | `payload["system"]`           | Direct assignment                 |
+| System (array)               | `block["text"]`               | PartIndex-based                   |
+| Message string content       | `msg["content"]`              | Direct assignment                 |
+| text block                   | `block["text"]`               | Standard                          |
+| tool_result (string content) | `block["content"]`            | Direct                            |
+| tool_result (nested array)   | `nestedBlock["text"]`         | NestedIndex-based                 |
+| tool_use input               | Leaf value via `setInputLeaf` | Dot-path + array index navigation |
 
 `setInputLeaf` supports: `key`, `key.sub`, `key[0]` notation for navigating nested input objects.
 
@@ -930,12 +930,12 @@ Handles all content block types:
 
 File: `api-gateway/privacy/metrics.go`
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_mask_duration_seconds` | Histogram | `phase` | Duration of mask/unmask ops by phase |
-| `api_gateway_secrets_detected_total` | Counter | `type` | Secrets found by entity type |
-| `api_gateway_pii_detected_total` | Counter | `type` | PII entities found by type |
-| `api_gateway_mask_requests_total` | Counter | `has_secrets`, `has_pii` | Requests processed by masking pipeline |
+| Metric                               | Type      | Labels                   | Description                            |
+|--------------------------------------|-----------|--------------------------|----------------------------------------|
+| `api_gateway_mask_duration_seconds`  | Histogram | `phase`                  | Duration of mask/unmask ops by phase   |
+| `api_gateway_secrets_detected_total` | Counter   | `type`                   | Secrets found by entity type           |
+| `api_gateway_pii_detected_total`     | Counter   | `type`                   | PII entities found by type             |
+| `api_gateway_mask_requests_total`    | Counter   | `has_secrets`, `has_pii` | Requests processed by masking pipeline |
 
 **Phase labels for mask_duration_seconds**:
 - `secrets_detect` - Secret detection duration
@@ -949,34 +949,34 @@ File: `api-gateway/privacy/metrics.go`
 
 File: `api-gateway/metrics/metrics.go`
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_optimizer_chars_saved_total` | Counter | `technique` | Characters saved by technique |
-| `api_gateway_optimizer_runs_total` | Counter | `technique` | Optimization runs by technique |
-| `api_gateway_optimizer_duration_seconds` | Histogram | `technique` | Execution time by technique |
-| `api_gateway_optimizer_tokens_saved_total` | Counter | - | Total estimated tokens saved |
-| `api_gateway_budget_level` | Gauge | `model` | Current budget level (0/1/2) |
-| `api_gateway_cost_savings_total` | Counter | - | Estimated cost savings in USD |
+| Metric                                     | Type      | Labels      | Description                    |
+|--------------------------------------------|-----------|-------------|--------------------------------|
+| `api_gateway_optimizer_chars_saved_total`  | Counter   | `technique` | Characters saved by technique  |
+| `api_gateway_optimizer_runs_total`         | Counter   | `technique` | Optimization runs by technique |
+| `api_gateway_optimizer_duration_seconds`   | Histogram | `technique` | Execution time by technique    |
+| `api_gateway_optimizer_tokens_saved_total` | Counter   | -           | Total estimated tokens saved   |
+| `api_gateway_budget_level`                 | Gauge     | `model`     | Current budget level (0/1/2)   |
+| `api_gateway_cost_savings_total`           | Counter   | -           | Estimated cost savings in USD  |
 
 **Technique labels**: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `intent_filter`, `caveman`, `message_text`, `message_block_text`, `message_block_tool_result`
 
 ### 6.3 Per-Component Metrics
 
-| Component | Metrics (prefixed with `api_gateway_`) |
-|-----------|---------------------------------------|
-| Chunker | `chunker_chunks_total{type}`, `chunker_reorder_duration_seconds`, `chunker_cache_hit_rate`, `chunker_chars_saved_total` |
-| Packer | `packer_items_packed_total{result}`, `packer_budget_utilization`, `packer_tokens_saved_total` |
-| Disclosure | `disclosure_escalations_total{layer}`, `disclosure_chars_saved_total`, `disclosure_fts_hit_rate` |
-| Prefetcher | `prefetcher_predictions_total{correct}`, `prefetcher_order_used`, `prefetcher_prewarm_duration_seconds` |
-| Bandit | `bandit_selections_total{arm,exploratory}`, `bandit_reward_total{arm}`, `bandit_selection_duration_seconds` |
-| Summarizer | `summarizer_calls_total{method}`, `summarizer_chars_saved_total{method}`, `summarizer_duration_seconds{method}`, `summarizer_llm_tokens_total` |
-| Delta | `delta_encodes_total{result}`, `delta_chars_saved_total`, `delta_savings_pct` |
-| Sketch | `sketch_checks_total{result}`, `sketch_hamming_similarity`, `sketch_chars_saved_total` |
-| Waste | `waste_findings_total{detector,severity}`, `waste_tokens_wasted_total{detector}`, `waste_scan_duration_seconds` |
-| Filter | `filter_intents_total{intent}`, `filter_chars_saved_total{intent}` |
-| Cache | `cache_eviction_keys_evicted_total`, `cache_eviction_roi_score`, `cache_eviction_pass_duration_seconds` |
-| WarmStart | `warmstart_sessions_warmed_total{result}`, `warmstart_similarity_score`, `warmstart_warmup_duration_seconds` |
-| Caveman | `caveman_compressions_total{tier,result}`, `caveman_compression_ratio`, `caveman_validation_duration_seconds` |
+| Component   | Metrics (prefixed with `api_gateway_`)                                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| Chunker     | `chunker_chunks_total{type}`, `chunker_reorder_duration_seconds`, `chunker_cache_hit_rate`, `chunker_chars_saved_total`                        |
+| Packer      | `packer_items_packed_total{result}`, `packer_budget_utilization`, `packer_tokens_saved_total`                                                  |
+| Disclosure  | `disclosure_escalations_total{layer}`, `disclosure_chars_saved_total`, `disclosure_fts_hit_rate`                                               |
+| Prefetcher  | `prefetcher_predictions_total{correct}`, `prefetcher_order_used`, `prefetcher_prewarm_duration_seconds`                                        |
+| Bandit      | `bandit_selections_total{arm,exploratory}`, `bandit_reward_total{arm}`, `bandit_selection_duration_seconds`                                    |
+| Summarizer  | `summarizer_calls_total{method}`, `summarizer_chars_saved_total{method}`, `summarizer_duration_seconds{method}`, `summarizer_llm_tokens_total` |
+| Delta       | `delta_encodes_total{result}`, `delta_chars_saved_total`, `delta_savings_pct`                                                                  |
+| Sketch      | `sketch_checks_total{result}`, `sketch_hamming_similarity`, `sketch_chars_saved_total`                                                         |
+| Waste       | `waste_findings_total{detector,severity}`, `waste_tokens_wasted_total{detector}`, `waste_scan_duration_seconds`                                |
+| Filter      | `filter_intents_total{intent}`, `filter_chars_saved_total{intent}`                                                                             |
+| Cache       | `cache_eviction_keys_evicted_total`, `cache_eviction_roi_score`, `cache_eviction_pass_duration_seconds`                                        |
+| WarmStart   | `warmstart_sessions_warmed_total{result}`, `warmstart_similarity_score`, `warmstart_warmup_duration_seconds`                                   |
+| Caveman     | `caveman_compressions_total{tier,result}`, `caveman_compression_ratio`, `caveman_validation_duration_seconds`                                  |
 
 ---
 
@@ -1033,46 +1033,46 @@ When `transparent = true` (claude-oauth passthrough):
 
 ### 8.1 Privacy Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Invalid JSON body | `MaskRequest` returns error, no masking |
-| No text spans found | Returns `nil, nil` (no masking needed) |
-| No secrets/PII detected | Returns `nil, nil` |
-| Same secret appears twice | Deduplicated via `ReverseMap`, single placeholder |
-| Overlapping secrets | Longer span wins, shorter dropped |
-| Overlapping PII of different types | Higher score wins; same score -> longer span wins |
-| Same PII value at different positions | Single placeholder reused via `ReverseMap` |
-| Text exceeds maxScanChars | Only first N chars scanned |
-| Streaming: placeholder split across chunks | Buffered until complete, then restored |
-| Streaming: stream ends with partial placeholder | `Flush()` passes through buffer as-is |
-| Nil MaskResult passed to UnmaskResponse | Returns body unchanged |
-| Tool_use input with nested arrays | Recursive extraction via `extractInputStrings` |
+| Case                                            | Behavior                                          |
+|-------------------------------------------------|---------------------------------------------------|
+| Invalid JSON body                               | `MaskRequest` returns error, no masking           |
+| No text spans found                             | Returns `nil, nil` (no masking needed)            |
+| No secrets/PII detected                         | Returns `nil, nil`                                |
+| Same secret appears twice                       | Deduplicated via `ReverseMap`, single placeholder |
+| Overlapping secrets                             | Longer span wins, shorter dropped                 |
+| Overlapping PII of different types              | Higher score wins; same score -> longer span wins |
+| Same PII value at different positions           | Single placeholder reused via `ReverseMap`        |
+| Text exceeds maxScanChars                       | Only first N chars scanned                        |
+| Streaming: placeholder split across chunks      | Buffered until complete, then restored            |
+| Streaming: stream ends with partial placeholder | `Flush()` passes through buffer as-is             |
+| Nil MaskResult passed to UnmaskResponse         | Returns body unchanged                            |
+| Tool_use input with nested arrays               | Recursive extraction via `extractInputStrings`    |
 
 ### 8.2 Optimizer Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Empty system prompt | Returns unchanged (no stages run) |
-| Text shorter than min chunk size | Single chunk, no reordering |
-| Delta: no baseline exists | Stores current as baseline, returns passthrough |
-| Delta: content > 50KB | Passthrough (too large for LCS) |
-| Delta: savings < 10% | Passthrough (not worth delta encoding) |
-| Sketch: no previous sketches | Stored as unique, no dedup |
-| Waste: session < 10 requests | Skipped (not enough data) |
-| Waste: session idle > 30min | Evicted from memory |
-| Budget: unknown model | Defaults to 128K context |
-| Caveman: content < 500 chars | Skipped |
-| Filter: no user messages found | Default to IntentChat |
-| Bandit: no previous state | Identity matrix initialization |
+| Case                             | Behavior                                        |
+|----------------------------------|-------------------------------------------------|
+| Empty system prompt              | Returns unchanged (no stages run)               |
+| Text shorter than min chunk size | Single chunk, no reordering                     |
+| Delta: no baseline exists        | Stores current as baseline, returns passthrough |
+| Delta: content > 50KB            | Passthrough (too large for LCS)                 |
+| Delta: savings < 10%             | Passthrough (not worth delta encoding)          |
+| Sketch: no previous sketches     | Stored as unique, no dedup                      |
+| Waste: session < 10 requests     | Skipped (not enough data)                       |
+| Waste: session idle > 30min      | Evicted from memory                             |
+| Budget: unknown model            | Defaults to 128K context                        |
+| Caveman: content < 500 chars     | Skipped                                         |
+| Filter: no user messages found   | Default to IntentChat                           |
+| Bandit: no previous state        | Identity matrix initialization                  |
 
 ### 8.3 Streaming Unmask Edge Cases
 
-| Case | Behavior |
-|------|----------|
-| Placeholder `[[PER` in one chunk, `SON_1]]` in next | Buffered correctly, restored on second chunk |
-| Two different placeholder types in same chunk | Secrets restored first, then PII |
-| `[[` at end of stream with no `]]` | `Flush()` outputs `[[` literally |
-| Complete placeholder `[[X_1]]` in single chunk | Restored immediately, no buffering |
-| `[[PERSON_1]]` followed by `[[PER` in same chunk | First restored, second buffered |
-| Empty mapping contexts | `HasContexts()` returns false, no processing |
-| Cross-block buffer contamination | Use `ReplaceDirect`/`ReplaceDirectJSON` for independent SSE data |
+| Case                                                | Behavior                                                         |
+|-----------------------------------------------------|------------------------------------------------------------------|
+| Placeholder `[[PER` in one chunk, `SON_1]]` in next | Buffered correctly, restored on second chunk                     |
+| Two different placeholder types in same chunk       | Secrets restored first, then PII                                 |
+| `[[` at end of stream with no `]]`                  | `Flush()` outputs `[[` literally                                 |
+| Complete placeholder `[[X_1]]` in single chunk      | Restored immediately, no buffering                               |
+| `[[PERSON_1]]` followed by `[[PER` in same chunk    | First restored, second buffered                                  |
+| Empty mapping contexts                              | `HasContexts()` returns false, no processing                     |
+| Cross-block buffer contamination                    | Use `ReplaceDirect`/`ReplaceDirectJSON` for independent SSE data |

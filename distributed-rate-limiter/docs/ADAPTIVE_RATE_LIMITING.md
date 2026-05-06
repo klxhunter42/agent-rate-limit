@@ -83,13 +83,13 @@ The ML model combines all signals and generates:
 
 ### 4. Adaptation Rules
 
-| Condition | Action | Reason |
-|-----------|--------|--------|
-| CPU >80% OR P95 >2s | Reduce 30% | System under stress |
-| Critical anomaly detected | Reduce 40% | Protect against attack |
-| High/Medium anomaly | Reduce 20% | Unusual traffic pattern |
-| CPU <30% AND errors <0.1% | Increase 30% | System has capacity |
-| CPU <50% AND errors <0.5% | Increase 10% | Stable with room |
+| Condition                 | Action       | Reason                  |
+|---------------------------|--------------|-------------------------|
+| CPU >80% OR P95 >2s       | Reduce 30%   | System under stress     |
+| Critical anomaly detected | Reduce 40%   | Protect against attack  |
+| High/Medium anomaly       | Reduce 20%   | Unusual traffic pattern |
+| CPU <30% AND errors <0.1% | Increase 30% | System has capacity     |
+| CPU <50% AND errors <0.5% | Increase 10% | Stable with room        |
 
 ### 5. Safety Constraints
 - **Min Capacity**: 10 (configurable)

@@ -64,12 +64,12 @@ Client Request
 **Source:** `api-gateway/tokenizer/`
 **แนวคิด:** ใช้ chars-per-token ratio ต่างกันตาม content type
 
-| Content Type | chars/token | Detection |
-|---|---|---|
-| Code | 2.5 | >30% lines match code indicators |
-| JSON | 2.8 | Starts with `{` or `[` |
-| Markdown | 3.5 | >20% lines match markdown patterns |
-| Text | 4.0 | Default |
+| Content Type | chars/token | Detection                          |
+|--------------|-------------|------------------------------------|
+| Code         | 2.5         | >30% lines match code indicators   |
+| JSON         | 2.8         | Starts with `{` or `[`             |
+| Markdown     | 3.5         | >20% lines match markdown patterns |
+| Text         | 4.0         | Default                            |
 
 **ผล:** ประเมิน cost ต่อ request ได้ก่อนส่ง upstream
 
@@ -85,14 +85,14 @@ Client Request
 
 **Source:** `api-gateway/tokenizer/`
 
-| Model | Context Window | Max Output | Provider |
-|---|---|---|---|
-| claude-opus-4-7 | 200,000 | 163,840 | anthropic |
-| claude-sonnet-4-6 | 200,000 | 163,840 | anthropic |
-| gpt-4o | 128,000 | 16,384 | openai |
-| gemini-2.5-pro | 1,048,576 | 65,536 | google |
-| glm-5.1 | 128,000 | 4,096 | zai |
-| + อีก 15 models | | | |
+| Model             | Context Window | Max Output | Provider  |
+|-------------------|----------------|------------|-----------|
+| claude-opus-4-7   | 200,000        | 163,840    | anthropic |
+| claude-sonnet-4-6 | 200,000        | 163,840    | anthropic |
+| gpt-4o            | 128,000        | 16,384     | openai    |
+| gemini-2.5-pro    | 1,048,576      | 65,536     | google    |
+| glm-5.1           | 128,000        | 4,096      | zai       |
+| + อีก 15 models   |                |            |           |
 
 Unknown models fallback: `{128000, 4096}` + prefix matching
 
@@ -107,11 +107,11 @@ Unknown models fallback: `{128000, 4096}` + prefix matching
 
 **Source:** `api-gateway/tokenizer/`
 
-| Level | Utilization | Action |
-|---|---|---|
-| Green | < 50% | ทำงานปกติ |
-| Yellow | 50-75% | เริ่ม optimize whitespace + dedup |
-| Red | > 75% | force truncation + summarizer |
+| Level  | Utilization | Action                            |
+|--------|-------------|-----------------------------------|
+| Green  | < 50%       | ทำงานปกติ                         |
+| Yellow | 50-75%      | เริ่ม optimize whitespace + dedup |
+| Red    | > 75%       | force truncation + summarizer     |
 
 ---
 
@@ -137,13 +137,13 @@ for each position i:
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `CHUNKER_ENABLED` | true | เปิด/ปิด |
-| `CHUNKER_MIN_CHUNK` | 128 | ขนาด chunk ต่ำสุด (bytes) |
-| `CHUNKER_MAX_CHUNK` | 4096 | ขนาด chunk สูงสุด |
-| `CHUNKER_WINDOW_SIZE` | 48 | Sliding window size |
-| `CHUNKER_STABLE_THRESHOLD` | 2 | จำนวนครั้งที่ต้องเห็นจึงจะ "stable" |
+| Env Var                    | Default | Description                         |
+|----------------------------|---------|-------------------------------------|
+| `CHUNKER_ENABLED`          | true    | เปิด/ปิด                            |
+| `CHUNKER_MIN_CHUNK`        | 128     | ขนาด chunk ต่ำสุด (bytes)           |
+| `CHUNKER_MAX_CHUNK`        | 4096    | ขนาด chunk สูงสุด                   |
+| `CHUNKER_WINDOW_SIZE`      | 48      | Sliding window size                 |
+| `CHUNKER_STABLE_THRESHOLD` | 2       | จำนวนครั้งที่ต้องเห็นจึงจะ "stable" |
 
 ---
 
@@ -173,10 +173,10 @@ type Item struct {
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PACKER_ENABLED` | true | เปิด/ปิด |
-| `PACKER_MIN_UTILITY` | 0.1 | Utility score ต่ำสุดที่จะพิจารณา |
+| Env Var              | Default | Description                      |
+|----------------------|---------|----------------------------------|
+| `PACKER_ENABLED`     | true    | เปิด/ปิด                         |
+| `PACKER_MIN_UTILITY` | 0.1     | Utility score ต่ำสุดที่จะพิจารณา |
 
 ---
 
@@ -202,10 +202,10 @@ type Item struct {
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `DELTA_ENABLED` | true | เปิด/ปิด |
-| `DELTA_MIN_SAVINGS_PCT` | 10.0 | ขั้นต่ำ % ที่ต้องประหยัด |
+| Env Var                 | Default | Description              |
+|-------------------------|---------|--------------------------|
+| `DELTA_ENABLED`         | true    | เปิด/ปิด                 |
+| `DELTA_MIN_SAVINGS_PCT` | 10.0    | ขั้นต่ำ % ที่ต้องประหยัด |
 
 ---
 
@@ -227,11 +227,11 @@ type Item struct {
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `SUMMARIZER_ENABLED` | true | เปิด/ปิด |
-| `SUMMARIZER_MODEL` | glm-4.7-flashx | Model สำหรับ LLM summarization (อนาคต) |
-| `SUMMARIZER_MAX_RATIO` | 0.3 | อัตราส่วน summary/original สูงสุด |
+| Env Var                | Default        | Description                            |
+|------------------------|----------------|----------------------------------------|
+| `SUMMARIZER_ENABLED`   | true           | เปิด/ปิด                               |
+| `SUMMARIZER_MODEL`     | glm-4.7-flashx | Model สำหรับ LLM summarization (อนาคต) |
+| `SUMMARIZER_MAX_RATIO` | 0.3            | อัตราส่วน summary/original สูงสุด      |
 
 ---
 
@@ -243,12 +243,12 @@ type Item struct {
 
 **Compression Tiers:**
 
-| Tier | Trigger | Estimated Ratio | Style |
-|---|---|---|---|
-| Lite | Budget green / content < 500 chars | 0.7 | Bullet points, skip pleasantries |
-| Full | Budget yellow | 0.5 | Code only, terse, one-line answers |
-| Ultra | Budget red | 0.25 | Raw output, no markdown |
-| Wenyan | (Reserved) | 0.3 | Classical notation |
+| Tier   | Trigger                            | Estimated Ratio | Style                              |
+|--------|------------------------------------|-----------------|------------------------------------|
+| Lite   | Budget green / content < 500 chars | 0.7             | Bullet points, skip pleasantries   |
+| Full   | Budget yellow                      | 0.5             | Code only, terse, one-line answers |
+| Ultra  | Budget red                         | 0.25            | Raw output, no markdown            |
+| Wenyan | (Reserved)                         | 0.3             | Classical notation                 |
 
 **ตัวอย่าง Lite injection:**
 ```
@@ -263,11 +263,11 @@ One sentence answers when possible.
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `CAVEMAN_ENABLED` | true | เปิด/ปิด |
-| `CAVEMAN_AUTO_DETECT` | true | เลือก tier อัตโนมัติตาม budget |
-| `CAVEMAN_MIN_SIZE` | 500 | ขนาด content ต่ำสุดที่จะ compress |
+| Env Var               | Default | Description                       |
+|-----------------------|---------|-----------------------------------|
+| `CAVEMAN_ENABLED`     | true    | เปิด/ปิด                          |
+| `CAVEMAN_AUTO_DETECT` | true    | เลือก tier อัตโนมัติตาม budget    |
+| `CAVEMAN_MIN_SIZE`    | 500     | ขนาด content ต่ำสุดที่จะ compress |
 
 ---
 
@@ -279,15 +279,15 @@ One sentence answers when possible.
 
 **7 Heuristics:**
 
-| # | Detector | Severity | Trigger |
-|---|---|---|---|
-| 1 | Empty Response | High | >10% requests return 0 output |
-| 2 | Retry Churn | Medium | Consecutive identical input + zero output, wasted > 5000 |
-| 3 | Loop Detection | High | Cycle 2+ requests ซ้ำกัน |
-| 4 | Oversized Context | Medium | Multiple requests >100K tokens, excess >100K |
-| 5 | Budget Exceeded | Medium | ใช้ >3 models ใน session เดียว |
-| 6 | Redundant Tool Call | Low | Consecutive identical request-response pairs |
-| 7 | Low Value Response | Low | >=3 requests ที่ input >5000 แต่ output <50 |
+| #   | Detector            | Severity | Trigger                                                  |
+|-----|---------------------|----------|----------------------------------------------------------|
+| 1   | Empty Response      | High     | >10% requests return 0 output                            |
+| 2   | Retry Churn         | Medium   | Consecutive identical input + zero output, wasted > 5000 |
+| 3   | Loop Detection      | High     | Cycle 2+ requests ซ้ำกัน                                 |
+| 4   | Oversized Context   | Medium   | Multiple requests >100K tokens, excess >100K             |
+| 5   | Budget Exceeded     | Medium   | ใช้ >3 models ใน session เดียว                           |
+| 6   | Redundant Tool Call | Low      | Consecutive identical request-response pairs             |
+| 7   | Low Value Response  | Low      | >=3 requests ที่ input >5000 แต่ output <50              |
 
 **Session management:** In-memory, evict หลัง 30 min idle, ต้องมี >=10 requests ก่อน scan
 
@@ -308,19 +308,19 @@ One sentence answers when possible.
 
 **Redis keys:**
 
-| Key | Purpose | TTL |
-|---|---|---|
-| `prefetcher:chain:<sessionID>` | Tool call history | 4hr |
-| `prefetcher:trans:<toolName>` | Transition counts | 4hr |
-| `prefetcher:last_pred:<tool>` | Last prediction | 1min |
+| Key                            | Purpose           | TTL  |
+|--------------------------------|-------------------|------|
+| `prefetcher:chain:<sessionID>` | Tool call history | 4hr  |
+| `prefetcher:trans:<toolName>`  | Transition counts | 4hr  |
+| `prefetcher:last_pred:<tool>`  | Last prediction   | 1min |
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PREFETCHER_ENABLED` | true | เปิด/ปิด |
-| `PREFETCHER_MAX_ORDER` | 5 | History length สูงสุด |
-| `PREFETCHER_TOP_K` | 3 | จำนวน predictions |
+| Env Var                | Default | Description           |
+|------------------------|---------|-----------------------|
+| `PREFETCHER_ENABLED`   | true    | เปิด/ปิด              |
+| `PREFETCHER_MAX_ORDER` | 5       | History length สูงสุด |
+| `PREFETCHER_TOP_K`     | 3       | จำนวน predictions     |
 
 ---
 
@@ -332,15 +332,15 @@ One sentence answers when possible.
 
 **32-Dimension Feature Vector:**
 
-| Dims | Feature | Encoding |
-|---|---|---|
-| 0-3 | Model type | One-hot (claude, gpt, gemini, glm) |
-| 4-7 | Content type distribution | Ratio (0.0-1.0) |
-| 8-15 | Tool call frequency | Normalized counts (top 8 tools) |
-| 16-18 | Budget level distribution | Percentage |
-| 19-22 | Request size buckets | Normalized tokens/requests |
-| 23-27 | Intent distribution | Percentage |
-| 28-31 | Project fingerprint | Hash, density, stream%, error% |
+| Dims  | Feature                   | Encoding                           |
+|-------|---------------------------|------------------------------------|
+| 0-3   | Model type                | One-hot (claude, gpt, gemini, glm) |
+| 4-7   | Content type distribution | Ratio (0.0-1.0)                    |
+| 8-15  | Tool call frequency       | Normalized counts (top 8 tools)    |
+| 16-18 | Budget level distribution | Percentage                         |
+| 19-22 | Request size buckets      | Normalized tokens/requests         |
+| 23-27 | Intent distribution       | Percentage                         |
+| 28-31 | Project fingerprint       | Hash, density, stream%, error%     |
 
 **Algorithm:**
 1. Compute 32-dim signature จาก session metadata
@@ -389,11 +389,11 @@ score = theta^T * phi + alpha * sqrt(|phi^T * A^-1 * phi|)
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `SKETCH_ENABLED` | true | เปิด/ปิด |
-| `SKETCH_DIMENSIONS` | 128 | Bit vector width |
-| `SKETCH_THRESHOLD` | 0.85 | Similarity threshold |
+| Env Var             | Default | Description          |
+|---------------------|---------|----------------------|
+| `SKETCH_ENABLED`    | true    | เปิด/ปิด             |
+| `SKETCH_DIMENSIONS` | 128     | Bit vector width     |
+| `SKETCH_THRESHOLD`  | 0.85    | Similarity threshold |
 
 ---
 
@@ -510,47 +510,47 @@ Client Request
 
 **Config:**
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PASTEGUARD_ENABLED` | - | เปิด/ปิด pipeline ทั้งหมด |
-| `PASTEGUARD_SECRETS_ENABLED` | - | เปิด/ปิด secret detection |
-| `PASTEGUARD_PII_ENABLED` | - | เปิด/ปิด PII detection |
-| `PASTEGUARD_PRESIDIO_URL` | - | URL ของ Presidio analyzer |
-| `PASTEGUARD_PII_SCORE_THRESHOLD` | 0.7 | Confidence threshold |
-| `PASTEGUARD_PII_ENTITIES` | EMAIL_ADDRESS,PHONE_NUMBER | PII entity types |
-| `PASTEGUARD_MAX_SCAN_CHARS` | 200K | ขีดจำกัด chars ต่อ scan |
+| Env Var                          | Default                    | Description               |
+|----------------------------------|----------------------------|---------------------------|
+| `PASTEGUARD_ENABLED`             | -                          | เปิด/ปิด pipeline ทั้งหมด |
+| `PASTEGUARD_SECRETS_ENABLED`     | -                          | เปิด/ปิด secret detection |
+| `PASTEGUARD_PII_ENABLED`         | -                          | เปิด/ปิด PII detection    |
+| `PASTEGUARD_PRESIDIO_URL`        | -                          | URL ของ Presidio analyzer |
+| `PASTEGUARD_PII_SCORE_THRESHOLD` | 0.7                        | Confidence threshold      |
+| `PASTEGUARD_PII_ENTITIES`        | EMAIL_ADDRESS,PHONE_NUMBER | PII entity types          |
+| `PASTEGUARD_MAX_SCAN_CHARS`      | 200K                       | ขีดจำกัด chars ต่อ scan   |
 
 ---
 
 ## ผลประโยชน์สำหรับผู้ใช้ Gateway
 
-| ประโยชน์ | รายละเอียด |
-|----------|-----------|
-| **ลดค่า API** | Whitespace + dedup + packer ลด input tokens ~5-25% |
-| **ลด error** | Token estimation + model map หลีกเลี่ยง context overflow |
-| **เร็วขึ้น** | เนื้อหาน้อยลง = upstream ตอบเร็วขึ้น + delta ลด bandwidth |
-| **เสถียรกว่า** | Budget tracking + caveman ป้องกัน session crash |
-| **ใช้ได้ทุก provider** | Model map ครอบคลุม Anthropic, OpenAI, Google, Z.AI |
-| **เรียนรู้อัตโนมัติ** | Bandit เรียนรู้ strategy ที่ดีที่สุด, prefetcher ทำนาย request ถัดไป |
-| **ปลอดภัย** | PasteGuard mask secrets/PII ก่อนส่ง upstream |
-| **ตรวจจับ waste** | 7 heuristics ตรวจ loop, retry churn, oversized context |
+| ประโยชน์               | รายละเอียด                                                           |
+|------------------------|----------------------------------------------------------------------|
+| **ลดค่า API**          | Whitespace + dedup + packer ลด input tokens ~5-25%                   |
+| **ลด error**           | Token estimation + model map หลีกเลี่ยง context overflow             |
+| **เร็วขึ้น**           | เนื้อหาน้อยลง = upstream ตอบเร็วขึ้น + delta ลด bandwidth            |
+| **เสถียรกว่า**         | Budget tracking + caveman ป้องกัน session crash                      |
+| **ใช้ได้ทุก provider** | Model map ครอบคลุม Anthropic, OpenAI, Google, Z.AI                   |
+| **เรียนรู้อัตโนมัติ**  | Bandit เรียนรู้ strategy ที่ดีที่สุด, prefetcher ทำนาย request ถัดไป |
+| **ปลอดภัย**            | PasteGuard mask secrets/PII ก่อนส่ง upstream                         |
+| **ตรวจจับ waste**      | 7 heuristics ตรวจ loop, retry churn, oversized context               |
 
 ---
 
 ## โครงสร้างไฟล์
 
-| Module | Path |
-|---|---|
-| Tokenizer (estimation, whitespace, dedup, budget) | `api-gateway/tokenizer/` |
-| Chunker (Rabin-Karp CDC) | `api-gateway/chunker/` |
-| Packer (Greedy knapsack) | `api-gateway/packer/` |
-| Delta (LCS diff) | `api-gateway/delta/` |
-| Summarizer (extractive) | `api-gateway/summarizer/` |
-| Caveman (prompt injection) | `api-gateway/caveman/` |
-| Waste (7 heuristics) | `api-gateway/waste/` |
-| Prefetcher (Markov chain) | `api-gateway/prefetcher/` |
-| Warm Start (cosine similarity) | `api-gateway/warmstart/` |
-| Bandit (LinUCB) | `api-gateway/bandit/` |
-| Sketch (SimHash) | `api-gateway/sketch/` |
-| Privacy/PasteGuard | `api-gateway/privacy/` |
-| Filter (Intent) | `api-gateway/filter/` |
+| Module                                            | Path                      |
+|---------------------------------------------------|---------------------------|
+| Tokenizer (estimation, whitespace, dedup, budget) | `api-gateway/tokenizer/`  |
+| Chunker (Rabin-Karp CDC)                          | `api-gateway/chunker/`    |
+| Packer (Greedy knapsack)                          | `api-gateway/packer/`     |
+| Delta (LCS diff)                                  | `api-gateway/delta/`      |
+| Summarizer (extractive)                           | `api-gateway/summarizer/` |
+| Caveman (prompt injection)                        | `api-gateway/caveman/`    |
+| Waste (7 heuristics)                              | `api-gateway/waste/`      |
+| Prefetcher (Markov chain)                         | `api-gateway/prefetcher/` |
+| Warm Start (cosine similarity)                    | `api-gateway/warmstart/`  |
+| Bandit (LinUCB)                                   | `api-gateway/bandit/`     |
+| Sketch (SimHash)                                  | `api-gateway/sketch/`     |
+| Privacy/PasteGuard                                | `api-gateway/privacy/`    |
+| Filter (Intent)                                   | `api-gateway/filter/`     |

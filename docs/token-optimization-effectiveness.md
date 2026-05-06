@@ -14,44 +14,44 @@ All tests pass. Results from realistic system prompt (~5000 chars, simulating CL
 
 ### Per-Technique Savings
 
-| Technique | Before | After | Saved | % Reduction |
-|-----------|--------|-------|-------|-------------|
-| Whitespace Optimization | 1253 tokens | 1252 tokens | 1 token | 0.1% |
-| Sentence Deduplication | 1253 tokens | 1209 tokens | 44 tokens | **3.5%** |
-| Combined (WS + Dedup) | 1253 tokens | 1209 tokens | 44 tokens | **3.5%** |
-| Head/Tail Truncation | 4423 tokens | 1265 tokens | 3158 tokens | **71.4%** (emergency) |
+| Technique               | Before      | After       | Saved       | % Reduction           |
+|-------------------------|-------------|-------------|-------------|-----------------------|
+| Whitespace Optimization | 1253 tokens | 1252 tokens | 1 token     | 0.1%                  |
+| Sentence Deduplication  | 1253 tokens | 1209 tokens | 44 tokens   | **3.5%**              |
+| Combined (WS + Dedup)   | 1253 tokens | 1209 tokens | 44 tokens   | **3.5%**              |
+| Head/Tail Truncation    | 4423 tokens | 1265 tokens | 3158 tokens | **71.4%** (emergency) |
 
 ### Content-Aware Token Estimation Accuracy
 
-| Content Type | Chars | Estimated Tokens | Ratio |
-|-------------|-------|-----------------|-------|
-| Code (Go) | 48 | ~20 | chars/2.5 |
-| JSON | 78 | ~28 | chars/2.8 |
-| Markdown | 61 | ~18 | chars/3.5 |
-| Plain Text | 65 | ~17 | chars/4.0 |
+| Content Type  | Chars   | Estimated Tokens  | Ratio     |
+|---------------|---------|-------------------|-----------|
+| Code (Go)     | 48      | ~20               | chars/2.5 |
+| JSON          | 78      | ~28               | chars/2.8 |
+| Markdown      | 61      | ~18               | chars/3.5 |
+| Plain Text    | 65      | ~17               | chars/4.0 |
 
 ### Model Capabilities Coverage
 
-| Model | Provider | Context Window | Max Output |
-|-------|----------|---------------|------------|
-| claude-opus-4-7 | anthropic | 200K | 32K |
-| claude-sonnet-4-6 | anthropic | 200K | 16K |
-| claude-haiku-4-5 | anthropic | 200K | 8K |
-| gpt-4o | openai | 128K | 16K |
-| gpt-4o-mini | openai | 128K | 16K |
-| gemini-2.5-pro | google | 1M | 65K |
-| gemini-2.5-flash | google | 1M | 65K |
-| glm-5.1 | zai | 128K | 4K |
-| glm-5 | zai | 128K | 4K |
-| glm-4.6v | zai | 8K | 4K |
+| Model             | Provider   | Context Window  | Max Output   |
+|-------------------|------------|-----------------|--------------|
+| claude-opus-4-7   | anthropic  | 200K            | 32K          |
+| claude-sonnet-4-6 | anthropic  | 200K            | 16K          |
+| claude-haiku-4-5  | anthropic  | 200K            | 8K           |
+| gpt-4o            | openai     | 128K            | 16K          |
+| gpt-4o-mini       | openai     | 128K            | 16K          |
+| gemini-2.5-pro    | google     | 1M              | 65K          |
+| gemini-2.5-flash  | google     | 1M              | 65K          |
+| glm-5.1           | zai        | 128K            | 4K           |
+| glm-5             | zai        | 128K            | 4K           |
+| glm-4.6v          | zai        | 8K              | 4K           |
 
 ### Budget Tracking Thresholds
 
-| Usage | % of Context | Level | Action |
-|-------|-------------|-------|--------|
-| < 50% | < 100K/200K | GREEN | Normal |
-| 50-75% | 100K-150K/200K | YELLOW | Optimize (ws + dedup) |
-| > 75% | > 150K/200K | RED | Force truncate |
+| Usage   | % of Context   | Level   | Action                |
+|---------|----------------|---------|-----------------------|
+| < 50%   | < 100K/200K    | GREEN   | Normal                |
+| 50-75%  | 100K-150K/200K | YELLOW  | Optimize (ws + dedup) |
+| > 75%   | > 150K/200K    | RED     | Force truncate        |
 
 ---
 
@@ -59,14 +59,14 @@ All tests pass. Results from realistic system prompt (~5000 chars, simulating CL
 
 Optimizer and privacy guard work on **ALL proxy paths** regardless of GLM mode:
 
-| Proxy Path | GLM Mode True | GLM Mode False | Optimizer | Privacy Guard |
-|-----------|--------------|----------------|-----------|---------------|
-| ProxyNativeVision | Z.AI vision endpoint | N/A | Yes (AnthropicToOpenAI) | Yes |
-| ProxyOpenAI | Text requests via Z.AI | OpenAI upstream | Yes (AnthropicToOpenAI) | Yes |
-| ProxyTransparent | Anthropic passthrough | Anthropic passthrough | Yes (body JSON) | Yes |
-| ProxyGemini | N/A | Gemini API key | Yes (anthropicToGemini) | Yes |
-| ProxyCodeAssist | N/A | Gemini Code Assist | Yes (anthropicToGemini) | Yes |
-| ProxySession | N/A | Claude.ai session | No (separate flow) | No (separate flow) |
+| Proxy Path        | GLM Mode True          | GLM Mode False        | Optimizer               | Privacy Guard      |
+|-------------------|------------------------|-----------------------|-------------------------|--------------------|
+| ProxyNativeVision | Z.AI vision endpoint   | N/A                   | Yes (AnthropicToOpenAI) | Yes                |
+| ProxyOpenAI       | Text requests via Z.AI | OpenAI upstream       | Yes (AnthropicToOpenAI) | Yes                |
+| ProxyTransparent  | Anthropic passthrough  | Anthropic passthrough | Yes (body JSON)         | Yes                |
+| ProxyGemini       | N/A                    | Gemini API key        | Yes (anthropicToGemini) | Yes                |
+| ProxyCodeAssist   | N/A                    | Gemini Code Assist    | Yes (anthropicToGemini) | Yes                |
+| ProxySession      | N/A                    | Claude.ai session     | No (separate flow)      | No (separate flow) |
 
 **Privacy guard** is applied at the handler layer (handler.go:424-430) BEFORE any routing decision.
 All proxy paths receive already-masked body + maskResult for unmasking.
@@ -82,29 +82,29 @@ All proxy paths receive already-masked body + maskResult for unmasking.
 
 ### HIGH Impact
 
-| Bottleneck | Location | Impact | Fix |
-|-----------|----------|--------|-----|
-| No DNS caching | All proxy HTTP clients | 10-100ms per new connection | Custom Dialer with DNS cache |
-| PII detection synchronous | privacy/pipeline.go:119 | Blocks request pipeline | Parallel span processing |
-| 2 sequential rate-limit HTTP calls | middleware/ratelimit.go:102 | 2x network RTT before processing | Parallel with errgroup |
-| Image fetch creates new HTTP client | proxy/anthropic.go:434 | No connection reuse | Shared image client |
+| Bottleneck                          | Location                    | Impact                           | Fix                          |
+|-------------------------------------|-----------------------------|----------------------------------|------------------------------|
+| No DNS caching                      | All proxy HTTP clients      | 10-100ms per new connection      | Custom Dialer with DNS cache |
+| PII detection synchronous           | privacy/pipeline.go:119     | Blocks request pipeline          | Parallel span processing     |
+| 2 sequential rate-limit HTTP calls  | middleware/ratelimit.go:102 | 2x network RTT before processing | Parallel with errgroup       |
+| Image fetch creates new HTTP client | proxy/anthropic.go:434      | No connection reuse              | Shared image client          |
 
 ### MEDIUM Impact
 
-| Bottleneck | Location | Impact | Fix |
-|-----------|----------|--------|-----|
-| Non-stream responses fully buffered | All proxy non-stream handlers | Delayed TTFB for client | Streaming fallback |
-| bufio.Scanner line-buffering | All SSE relay functions | Latency between upstream flush | Smaller buffer or raw byte relay |
-| KeyPool time.Sleep on cooldown | proxy/key_pool.go:149 | Goroutine blocked up to 10s | Channel-based signaling |
-| AdaptiveLimiter 50ms polling | middleware/adaptive_limiter.go:341 | Wasted CPU cycles | Channel/condvar signaling |
+| Bottleneck                          | Location                           | Impact                         | Fix                              |
+|-------------------------------------|------------------------------------|--------------------------------|----------------------------------|
+| Non-stream responses fully buffered | All proxy non-stream handlers      | Delayed TTFB for client        | Streaming fallback               |
+| bufio.Scanner line-buffering        | All SSE relay functions            | Latency between upstream flush | Smaller buffer or raw byte relay |
+| KeyPool time.Sleep on cooldown      | proxy/key_pool.go:149              | Goroutine blocked up to 10s    | Channel-based signaling          |
+| AdaptiveLimiter 50ms polling        | middleware/adaptive_limiter.go:341 | Wasted CPU cycles              | Channel/condvar signaling        |
 
 ### LOW Impact
 
-| Bottleneck | Location | Impact | Fix |
-|-----------|----------|--------|-----|
-| No TLS/ResponseHeader timeouts | All proxy transports | Risk of hung connections | Set explicit timeouts |
-| AnomalyDetector mutex contention | middleware/anomaly.go:70 | Contention under load | RWMutex or lock-free |
-| 5 separate Transport instances | proxy/ package | Can't share idle connections | Shared transport |
+| Bottleneck                       | Location                 | Impact                       | Fix                   |
+|----------------------------------|--------------------------|------------------------------|-----------------------|
+| No TLS/ResponseHeader timeouts   | All proxy transports     | Risk of hung connections     | Set explicit timeouts |
+| AnomalyDetector mutex contention | middleware/anomaly.go:70 | Contention under load        | RWMutex or lock-free  |
+| 5 separate Transport instances   | proxy/ package           | Can't share idle connections | Shared transport      |
 
 ---
 
@@ -226,15 +226,15 @@ After:  Record(value) -> update mean, m2 in 3 arithmetic ops -> O(1)
 
 ### Summary: Total Expected Improvement
 
-| Optimization | Before | After | Saving |
-|-------------|--------|-------|--------|
-| DNS + shared transport | 10-100ms per cold conn | 0ms (cached) | 10-100ms |
-| Parallel rate-limit | ~40ms sequential | ~20ms concurrent | ~20ms |
-| Shared image client | 30-50ms per image | 0-5ms (reuse) | 25-45ms |
-| KeyPool condvar | Up to 10s during cooldown | <1ms wake | Up to 10s |
-| AdaptiveLimiter condvar | 25ms avg polling waste | 0ms event-driven | ~25ms |
-| Parallel PII | ~100ms for 10 spans | ~10ms | ~90ms |
-| Welford's anomaly | O(1000) per check | O(1) per check | ~microseconds |
+| Optimization            | Before                    | After            | Saving        |
+|-------------------------|---------------------------|------------------|---------------|
+| DNS + shared transport  | 10-100ms per cold conn    | 0ms (cached)     | 10-100ms      |
+| Parallel rate-limit     | ~40ms sequential          | ~20ms concurrent | ~20ms         |
+| Shared image client     | 30-50ms per image         | 0-5ms (reuse)    | 25-45ms       |
+| KeyPool condvar         | Up to 10s during cooldown | <1ms wake        | Up to 10s     |
+| AdaptiveLimiter condvar | 25ms avg polling waste    | 0ms event-driven | ~25ms         |
+| Parallel PII            | ~100ms for 10 spans       | ~10ms            | ~90ms         |
+| Welford's anomaly       | O(1000) per check         | O(1) per check   | ~microseconds |
 
 **Estimated per-request improvement** (normal path, no cooldown): **55-175ms** faster
 **Worst-case improvement** (all keys in cooldown): **up to 10 seconds** faster

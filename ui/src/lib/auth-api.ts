@@ -158,6 +158,8 @@ export interface RateLimitStatus {
   status: string;
   fallback_pct: number;
   updated_at: string;
+  req_count_5h?: number;
+  req_count_7d?: number;
 }
 
 export async function fetchRateLimits(): Promise<RateLimitStatus[]> {

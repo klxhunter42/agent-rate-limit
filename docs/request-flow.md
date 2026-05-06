@@ -216,16 +216,16 @@ Resolve model prefix -> provider -> format: FormatOpenAI, auth: bearer
 ```
 
 **Per-provider upstream URLs:**
-| Provider | Base URL |
-|----------|----------|
-| openai | `https://api.openai.com` |
-| copilot | `https://api.github.com/copilot` |
-| openrouter | `https://openrouter.ai/api` |
-| qwen | `https://dashscope.aliyuncs.com/compatible-mode` |
-| deepseek | `https://api.deepseek.com` |
-| kimi | `https://api.moonshot.cn` |
-| huggingface | custom per-endpoint |
-| ollama | `http://localhost:11434` |
+| Provider    | Base URL                                         |
+|-------------|--------------------------------------------------|
+| openai      | `https://api.openai.com`                         |
+| copilot     | `https://api.github.com/copilot`                 |
+| openrouter  | `https://openrouter.ai/api`                      |
+| qwen        | `https://dashscope.aliyuncs.com/compatible-mode` |
+| deepseek    | `https://api.deepseek.com`                       |
+| kimi        | `https://api.moonshot.cn`                        |
+| huggingface | custom per-endpoint                              |
+| ollama      | `http://localhost:11434`                         |
 
 ---
 

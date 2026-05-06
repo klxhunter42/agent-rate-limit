@@ -101,13 +101,13 @@
 
 ### โหมด Sync vs Async
 
-| | Sync (`/v1/messages`) | Async (`/v1/chat/completions`) |
-|---|---|---|
-| **ใช้กับ** | Claude Code (real-time) | Batch agents |
-| **Flow** | Gateway → Proxy → Upstream → Response | Gateway → Queue → Worker → Cache |
-| **Response** | Real-time (SSE streaming) | Request ID → Poll `GET /v1/results/{id}` |
-| **Rate limit** | Global + Per API key | Global + Per agent_id |
-| **Timeout** | `STREAM_TIMEOUT` (default 300s) | Worker poll timeout 5s |
+|                | Sync (`/v1/messages`)                 | Async (`/v1/chat/completions`)           |
+|----------------|---------------------------------------|------------------------------------------|
+| **ใช้กับ**     | Claude Code (real-time)               | Batch agents                             |
+| **Flow**       | Gateway → Proxy → Upstream → Response | Gateway → Queue → Worker → Cache         |
+| **Response**   | Real-time (SSE streaming)             | Request ID → Poll `GET /v1/results/{id}` |
+| **Rate limit** | Global + Per API key                  | Global + Per agent_id                    |
+| **Timeout**    | `STREAM_TIMEOUT` (default 300s)       | Worker poll timeout 5s                   |
 
 ---
 
@@ -160,34 +160,34 @@
 
 ### Routes
 
-| Method | Path | Handler | Mode |
-|--------|------|---------|------|
-| `POST` | `/v1/messages` | `Messages` | Sync (transparent proxy) |
-| `POST` | `/v1/chat/completions` | `ChatCompletions` | Async (enqueue) |
-| `GET` | `/v1/results/{requestID}` | `GetResult` | Async (poll result) |
-| `GET` | `/health` | `Health` | Health check |
-| `GET` | `/v1/limiter-status` | `LimiterStatus` | Adaptive limiter state (auth required) |
-| `POST` | `/v1/limiter-override` | `LimiterOverride` | Set/clear manual override |
-| `GET` | `/v1/routing/strategy` | `GetRoutingStrategy` | Current routing strategy |
-| `PUT` | `/v1/routing/strategy` | `SetRoutingStrategy` | Update routing strategy |
-| `GET` | `/v1/logs/errors` | `GetErrorLogs` | Recent error log entries |
-| `GET` | `/v1/logs/errors/count` | `GetErrorLogCount` | Error log count |
-| `GET` | `/v1/models` | `GetModels` | Known models list |
-| `GET` | `/metrics` | Prometheus | Metrics scrape (custom registry) |
-| `GET` | `/api/metrics` | Prometheus | Metrics scrape (alias) |
+| Method   | Path                      | Handler              | Mode                                   |
+|----------|---------------------------|----------------------|----------------------------------------|
+| `POST`   | `/v1/messages`            | `Messages`           | Sync (transparent proxy)               |
+| `POST`   | `/v1/chat/completions`    | `ChatCompletions`    | Async (enqueue)                        |
+| `GET`    | `/v1/results/{requestID}` | `GetResult`          | Async (poll result)                    |
+| `GET`    | `/health`                 | `Health`             | Health check                           |
+| `GET`    | `/v1/limiter-status`      | `LimiterStatus`      | Adaptive limiter state (auth required) |
+| `POST`   | `/v1/limiter-override`    | `LimiterOverride`    | Set/clear manual override              |
+| `GET`    | `/v1/routing/strategy`    | `GetRoutingStrategy` | Current routing strategy               |
+| `PUT`    | `/v1/routing/strategy`    | `SetRoutingStrategy` | Update routing strategy                |
+| `GET`    | `/v1/logs/errors`         | `GetErrorLogs`       | Recent error log entries               |
+| `GET`    | `/v1/logs/errors/count`   | `GetErrorLogCount`   | Error log count                        |
+| `GET`    | `/v1/models`              | `GetModels`          | Known models list                      |
+| `GET`    | `/metrics`                | Prometheus           | Metrics scrape (custom registry)       |
+| `GET`    | `/api/metrics`            | Prometheus           | Metrics scrape (alias)                 |
 
 #### Profile Management (`handler/profile.go`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/profiles` | List all profiles |
-| `POST` | `/v1/profiles` | Create profile (409 if exists) |
-| `GET` | `/v1/profiles/{name}` | Get profile by name |
-| `PUT` | `/v1/profiles/{name}` | Update profile (preserves createdAt) |
-| `DELETE` | `/v1/profiles/{name}` | Delete profile |
-| `POST` | `/v1/profiles/{name}/copy` | Copy profile (body: `{"destination":"new-name"}`) |
-| `POST` | `/v1/profiles/{name}/export` | Export profile (body: `{"includeSecrets":false}`) |
-| `POST` | `/v1/profiles/import` | Import profile from bundle |
+| Method   | Path                         | Description                                       |
+|----------|------------------------------|---------------------------------------------------|
+| `GET`    | `/v1/profiles`               | List all profiles                                 |
+| `POST`   | `/v1/profiles`               | Create profile (409 if exists)                    |
+| `GET`    | `/v1/profiles/{name}`        | Get profile by name                               |
+| `PUT`    | `/v1/profiles/{name}`        | Update profile (preserves createdAt)              |
+| `DELETE` | `/v1/profiles/{name}`        | Delete profile                                    |
+| `POST`   | `/v1/profiles/{name}/copy`   | Copy profile (body: `{"destination":"new-name"}`) |
+| `POST`   | `/v1/profiles/{name}/export` | Export profile (body: `{"includeSecrets":false}`) |
+| `POST`   | `/v1/profiles/import`        | Import profile from bundle                        |
 
 Profiles stored in Dragonfly as `profile:{name}` keys. Each profile contains: name, baseUrl, apiKey, model, target (claude/droid/codex), provider. Export redacts API keys by default (`__CCS_REDACTED__`).
 
@@ -206,69 +206,69 @@ Data stored in Redis hashes: `usage:hourly:YYYY-MM-DDTHH`, `usage:daily:YYYY-MM-
 
 #### Quota Tracking (`handler/quota.go`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/quota/{provider}/{accountId}` | Per-account quota (30s Redis cache) |
-| `GET` | `/quota/{provider}` | All accounts for a provider |
+| Method   | Path                            | Description                         |
+|----------|---------------------------------|-------------------------------------|
+| `GET`    | `/quota/{provider}/{accountId}` | Per-account quota (30s Redis cache) |
+| `GET`    | `/quota/{provider}`             | All accounts for a provider         |
 
 Supported providers: `claude`/`anthropic`, `gemini`/`gemini-oauth`. Returns per-model quota percentages and reset times. Falls back to stub for unsupported providers.
 
 #### Dashboard Overview & Health (`handler/overview.go`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/overview` | Dashboard summary (profiles, accounts, providers, keys, queue, health, uptime) |
-| `GET` | `/v1/health/detailed` | 6 health checks: dragonfly, rate-limiter, prometheus, key-pool, upstream, memory |
-| `POST` | `/v1/health/fix/{checkId}` | Auto-fix hint for a failed check |
+| Method   | Path                       | Description                                                                      |
+|----------|----------------------------|----------------------------------------------------------------------------------|
+| `GET`    | `/v1/overview`             | Dashboard summary (profiles, accounts, providers, keys, queue, health, uptime)   |
+| `GET`    | `/v1/health/detailed`      | 6 health checks: dragonfly, rate-limiter, prometheus, key-pool, upstream, memory |
+| `POST`   | `/v1/health/fix/{checkId}` | Auto-fix hint for a failed check                                                 |
 
 Health check categories: connectivity (dragonfly, rate-limiter), resources (prometheus, memory), config (key-pool), upstream. Overall status: healthy / degraded / unhealthy.
 
 #### Server Config (`handler/config.go`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/config` | Current config (secrets redacted) |
-| `GET` | `/v1/config/raw` | Config as plain text (secrets redacted) |
-| `PUT` | `/v1/config` | Merge config overrides (preserve `[redacted]` values) |
-| `GET` | `/v1/thinking` | Thinking budget config (defaultBudget, modelBudgets, enabled) |
-| `PUT` | `/v1/thinking` | Update thinking config |
-| `GET` | `/v1/global-env` | Global env vars (sensitive keys redacted) |
-| `PUT` | `/v1/global-env` | Update global env vars |
+| Method   | Path             | Description                                                   |
+|----------|------------------|---------------------------------------------------------------|
+| `GET`    | `/v1/config`     | Current config (secrets redacted)                             |
+| `GET`    | `/v1/config/raw` | Config as plain text (secrets redacted)                       |
+| `PUT`    | `/v1/config`     | Merge config overrides (preserve `[redacted]` values)         |
+| `GET`    | `/v1/thinking`   | Thinking budget config (defaultBudget, modelBudgets, enabled) |
+| `PUT`    | `/v1/thinking`   | Update thinking config                                        |
+| `GET`    | `/v1/global-env` | Global env vars (sensitive keys redacted)                     |
+| `PUT`    | `/v1/global-env` | Update global env vars                                        |
 
 Overrides stored in Redis: `config:overrides`, `config:thinking`, `config:global-env`. Sensitive key detection: keys containing "key", "secret", "token", "password".
 
 #### WebSocket (`handler/websocket.go`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/ws` | WebSocket endpoint for real-time dashboard updates |
+| Method   | Path   | Description                                        |
+|----------|--------|----------------------------------------------------|
+| `GET`    | `/ws`  | WebSocket endpoint for real-time dashboard updates |
 
 Hub-based broadcast: all connected clients receive events. Ping/pong keepalive (54s ping period, 60s pong deadline). Events: `config-changed` (from .env watcher), `request-completed`, `request-error`, `anomaly-detected`, `request-queued`, `quota-warning`. Used by UI via `use-websocket.ts` hook with exponential backoff reconnect. Full event list in [Section 9.9](#99-websocket-events-full-list).
 
 ### Config (`config/config.go`)
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `SERVER_PORT` | `:8080` | Listen address |
-| `REDIS_ADDR` | `dragonfly:6379` | Dragonfly address |
-| `RATE_LIMITER_ADDR` | `http://rate-limiter:8080` | Rate limiter address |
-| `QUEUE_NAME` | `ai_jobs` | Dragonfly list name |
-| `GLOBAL_RATE_LIMIT` | `100` | Global rate limit (req/min) |
-| `AGENT_RATE_LIMIT` | `5` | Per-agent rate limit (req/min) |
-| `WORKER_POOL_SIZE` | `100` | Goroutine pool for async mode |
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Upstream AI provider |
-| `STREAM_TIMEOUT` | `300s` | Timeout for streaming proxy |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (19 slots) |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Total concurrent across all models (0=unlimited) |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive probe ceiling multiplier (initial * this = maxLimit) |
-| `UPSTREAM_MAX_RETRIES` | `3` | Max retry attempts on upstream 429/503 |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base backoff between retries (quadratic: base * attempt^2, capped at 5min) |
-| `ZAI_API_KEYS` | | Upstream API keys (replaces `GLM_API_KEYS`/`GLM_ENDPOINT` for sync proxy) |
-| `READ_TIMEOUT` | `5s` | HTTP read timeout |
-| `OTLP_ENDPOINT` | `otel-collector:4317` | OTel collector |
-| `REDIS_POOL_SIZE` | `50` | Connection pool size |
-| `REDIS_MIN_IDLE_CONNS` | `10` | Minimum idle connections |
+| Env Var                     | Default                                                          | Description                                                                |
+|-----------------------------|------------------------------------------------------------------|----------------------------------------------------------------------------|
+| `SERVER_PORT`               | `:8080`                                                          | Listen address                                                             |
+| `REDIS_ADDR`                | `dragonfly:6379`                                                 | Dragonfly address                                                          |
+| `RATE_LIMITER_ADDR`         | `http://rate-limiter:8080`                                       | Rate limiter address                                                       |
+| `QUEUE_NAME`                | `ai_jobs`                                                        | Dragonfly list name                                                        |
+| `GLOBAL_RATE_LIMIT`         | `100`                                                            | Global rate limit (req/min)                                                |
+| `AGENT_RATE_LIMIT`          | `5`                                                              | Per-agent rate limit (req/min)                                             |
+| `WORKER_POOL_SIZE`          | `100`                                                            | Goroutine pool for async mode                                              |
+| `UPSTREAM_URL`              | `https://api.z.ai/api/anthropic`                                 | Upstream AI provider                                                       |
+| `STREAM_TIMEOUT`            | `300s`                                                           | Timeout for streaming proxy                                                |
+| `UPSTREAM_MODEL_LIMITS`     | `glm-5.1:1,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10` | Per-model concurrent limits (19 slots)                                     |
+| `UPSTREAM_DEFAULT_LIMIT`    | `1`                                                              | Default limit for unconfigured models                                      |
+| `UPSTREAM_GLOBAL_LIMIT`     | `9`                                                              | Total concurrent across all models (0=unlimited)                           |
+| `UPSTREAM_PROBE_MULTIPLIER` | `5`                                                              | Adaptive probe ceiling multiplier (initial * this = maxLimit)              |
+| `UPSTREAM_MAX_RETRIES`      | `3`                                                              | Max retry attempts on upstream 429/503                                     |
+| `UPSTREAM_RETRY_BACKOFF`    | `500ms`                                                          | Base backoff between retries (quadratic: base * attempt^2, capped at 5min) |
+| `ZAI_API_KEYS`              |                                                                  | Upstream API keys (replaces `GLM_API_KEYS`/`GLM_ENDPOINT` for sync proxy)  |
+| `READ_TIMEOUT`              | `5s`                                                             | HTTP read timeout                                                          |
+| `OTLP_ENDPOINT`             | `otel-collector:4317`                                            | OTel collector                                                             |
+| `REDIS_POOL_SIZE`           | `50`                                                             | Connection pool size                                                       |
+| `REDIS_MIN_IDLE_CONNS`      | `10`                                                             | Minimum idle connections                                                   |
 
 ### Dragonfly Client (`queue/dragonfly.go`)
 
@@ -354,13 +354,13 @@ if err != nil {
 
 เพิ่ม HTTP security headers ทุก response:
 
-| Header | Value |
-|--------|-------|
-| `X-Content-Type-Options` | `nosniff` |
-| `X-Frame-Options` | `DENY` |
-| `X-XSS-Protection` | `1; mode=block` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
-| `Cache-Control` | `no-store` (เฉพาะ `/v1/*` paths) |
+| Header                   | Value                             |
+|--------------------------|-----------------------------------|
+| `X-Content-Type-Options` | `nosniff`                         |
+| `X-Frame-Options`        | `DENY`                            |
+| `X-XSS-Protection`       | `1; mode=block`                   |
+| `Referrer-Policy`        | `strict-origin-when-cross-origin` |
+| `Cache-Control`          | `no-store` (เฉพาะ `/v1/*` paths)  |
 
 #### CorrelationID
 
@@ -548,14 +548,14 @@ Background collector ที่รันทุก 10 วินาที เก็
 
 ### Metrics Collected
 
-| Metric | Type | คำอธิบาย |
-|--------|------|----------|
-| `api_gateway_go_goroutines` | Gauge | จำนวน goroutines ปัจจุบัน |
-| `api_gateway_go_heap_alloc_bytes` | Gauge | Heap allocation ปัจจุบัน (bytes) |
-| `api_gateway_go_heap_objects` | Gauge | จำนวน heap objects |
-| `api_gateway_go_gc_pause_ns` | Gauge | GC pause ของรอบล่าสุด (nanoseconds) |
-| `api_gateway_go_stack_inuse_bytes` | Gauge | Stack ใช้งานปัจจุบัน (bytes) |
-| `api_gateway_dragonfly_up` | Gauge | Dragonfly health (1=healthy, 0=down) |
+| Metric                             | Type   | คำอธิบาย                             |
+|------------------------------------|--------|--------------------------------------|
+| `api_gateway_go_goroutines`        | Gauge  | จำนวน goroutines ปัจจุบัน            |
+| `api_gateway_go_heap_alloc_bytes`  | Gauge  | Heap allocation ปัจจุบัน (bytes)     |
+| `api_gateway_go_heap_objects`      | Gauge  | จำนวน heap objects                   |
+| `api_gateway_go_gc_pause_ns`       | Gauge  | GC pause ของรอบล่าสุด (nanoseconds)  |
+| `api_gateway_go_stack_inuse_bytes` | Gauge  | Stack ใช้งานปัจจุบัน (bytes)         |
+| `api_gateway_dragonfly_up`         | Gauge  | Dragonfly health (1=healthy, 0=down) |
 
 ### Dragonfly Health Check
 
@@ -964,16 +964,16 @@ zhipuToAnthropic():
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
+| Env Var             | Default                                                 | Description                  |
+|---------------------|---------------------------------------------------------|------------------------------|
 | `NATIVE_VISION_URL` | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | Zhipu native vision endpoint |
 
 ### Vision Models
 
-| Model | Slots | Status | Notes |
-|-------|--------|--------|-------|
-| glm-4.6v | 10 | Available | Recommended, default for most requests |
-| glm-4.5v | 10 | Available | Good quality, same capacity |
+| Model    | Slots    | Status    | Notes                                  |
+|----------|----------|-----------|----------------------------------------|
+| glm-4.6v | 10       | Available | Recommended, default for most requests |
+| glm-4.5v | 10       | Available | Good quality, same capacity            |
 
 ### Vision Model Auto-Select
 
@@ -1045,11 +1045,11 @@ Handler.Messages()
 
 ### Profile Fields Used for Routing
 
-| Field | Override Target |
-|-------|----------------|
-| `model` | Replaces requested model in body |
-| `apiKey` | Used as upstream API key (bypasses key pool) |
-| `baseUrl` | Replaces UPSTREAM_URL for this request |
+| Field     | Override Target                              |
+|-----------|----------------------------------------------|
+| `model`   | Replaces requested model in body             |
+| `apiKey`  | Used as upstream API key (bypasses key pool) |
+| `baseUrl` | Replaces UPSTREAM_URL for this request       |
 
 ### Handler Struct Expansion
 
@@ -1135,14 +1135,14 @@ Per-request flow:
 
 The WebSocket hub now broadcasts 6 event types from various sources:
 
-| Event Type | Source | Trigger | Data Fields |
-|------------|--------|---------|-------------|
-| `request-completed` | Handler | Successful upstream response | `model`, `statusCode`, `rtt_ms` |
-| `request-error` | Handler | Failed upstream response | `model`, `statusCode`, `rtt_ms` |
-| `anomaly-detected` | Handler | High-severity anomaly | `type`, `severity`, `model`, `rtt_ms` |
-| `request-queued` | ChatCompletions | Async job enqueued | `requestId`, `model`, `provider` |
-| `quota-warning` | Handler | Quota at >= 80% | `provider`, `accountId`, `model`, `percentage` |
-| `config-changed` | Config watcher | .env file changed | `key` |
+| Event Type          | Source          | Trigger                      | Data Fields                                    |
+|---------------------|-----------------|------------------------------|------------------------------------------------|
+| `request-completed` | Handler         | Successful upstream response | `model`, `statusCode`, `rtt_ms`                |
+| `request-error`     | Handler         | Failed upstream response     | `model`, `statusCode`, `rtt_ms`                |
+| `anomaly-detected`  | Handler         | High-severity anomaly        | `type`, `severity`, `model`, `rtt_ms`          |
+| `request-queued`    | ChatCompletions | Async job enqueued           | `requestId`, `model`, `provider`               |
+| `quota-warning`     | Handler         | Quota at >= 80%              | `provider`, `accountId`, `model`, `percentage` |
+| `config-changed`    | Config watcher  | .env file changed            | `key`                                          |
 
 ### Broadcast Wiring
 
@@ -1252,26 +1252,26 @@ Worker cache provider instances ตาม `(provider_name, sha256(api_key)[:16])
 
 ### Config (`config.py`)
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `REDIS_URL` | `redis://localhost:6379` | Dragonfly URL |
-| `QUEUE_NAME` | `ai_jobs` | Queue name |
-| `WORKER_CONCURRENCY` | `10` | Concurrent coroutines |
-| `MAX_RETRIES` | `3` | Max retries per job |
-| `BASE_BACKOFF` | `1.0` | Backoff base (seconds) |
-| `POLL_TIMEOUT` | `5` | BRPOP timeout (seconds) |
-| `RESULT_TTL` | `600` | Result cache TTL (seconds) |
-| `METRICS_PORT` | `9090` | Prometheus port |
-| `GLM_API_KEYS` | | Comma-separated keys |
-| `OPENAI_API_KEYS` | | Comma-separated keys |
-| `ANTHROPIC_API_KEYS` | | Comma-separated keys |
-| `GEMINI_API_KEYS` | | Comma-separated keys |
-| `OPENROUTER_API_KEYS` | | Comma-separated keys |
-| `GLM_ENDPOINT` | `https://api.z.ai/api/anthropic` | GLM API endpoint |
-| `UPSTREAM_MODEL_LIMITS` | `` | Per-model concurrent limits (same format as gateway) |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default limit for unconfigured models (docker-compose default: 1) |
-| `UPSTREAM_GLOBAL_LIMIT` | `0` | Total concurrent across all models (0=unlimited, docker-compose default: 9) |
-| `PROVIDER_RPM_LIMITS` | `` | Per-provider RPM limit (e.g. `glm:5`) |
+| Env Var                  | Default                          | Description                                                                 |
+|--------------------------|----------------------------------|-----------------------------------------------------------------------------|
+| `REDIS_URL`              | `redis://localhost:6379`         | Dragonfly URL                                                               |
+| `QUEUE_NAME`             | `ai_jobs`                        | Queue name                                                                  |
+| `WORKER_CONCURRENCY`     | `10`                             | Concurrent coroutines                                                       |
+| `MAX_RETRIES`            | `3`                              | Max retries per job                                                         |
+| `BASE_BACKOFF`           | `1.0`                            | Backoff base (seconds)                                                      |
+| `POLL_TIMEOUT`           | `5`                              | BRPOP timeout (seconds)                                                     |
+| `RESULT_TTL`             | `600`                            | Result cache TTL (seconds)                                                  |
+| `METRICS_PORT`           | `9090`                           | Prometheus port                                                             |
+| `GLM_API_KEYS`           |                                  | Comma-separated keys                                                        |
+| `OPENAI_API_KEYS`        |                                  | Comma-separated keys                                                        |
+| `ANTHROPIC_API_KEYS`     |                                  | Comma-separated keys                                                        |
+| `GEMINI_API_KEYS`        |                                  | Comma-separated keys                                                        |
+| `OPENROUTER_API_KEYS`    |                                  | Comma-separated keys                                                        |
+| `GLM_ENDPOINT`           | `https://api.z.ai/api/anthropic` | GLM API endpoint                                                            |
+| `UPSTREAM_MODEL_LIMITS`  | ``                               | Per-model concurrent limits (same format as gateway)                        |
+| `UPSTREAM_DEFAULT_LIMIT` | `1`                              | Default limit for unconfigured models (docker-compose default: 1)           |
+| `UPSTREAM_GLOBAL_LIMIT`  | `0`                              | Total concurrent across all models (0=unlimited, docker-compose default: 9) |
+| `PROVIDER_RPM_LIMITS`    | ``                               | Per-provider RPM limit (e.g. `glm:5`)                                       |
 
 ---
 
@@ -1303,26 +1303,26 @@ glm → openai → anthropic → gemini → openrouter
 
 ### Provider Implementations
 
-| Provider | SDK | Endpoint | Notes |
-|----------|-----|----------|-------|
-| **GLM** | `anthropic` (Python SDK) | `api.z.ai/api/anthropic` | Z.ai เป็น Anthropic-compatible |
-| **OpenAI** | `openai` (AsyncOpenAI) | `api.openai.com` | Standard |
-| **Anthropic** | `anthropic` (AsyncAnthropic) | `api.anthropic.com` | System message extraction |
-| **Gemini** | `google.generativeai` | Google AI | Convert message format |
-| **OpenRouter** | `openai` (AsyncOpenAI) | `openrouter.ai/api/v1` | OpenAI-compatible |
+| Provider       | SDK                          | Endpoint                 | Notes                          |
+|----------------|------------------------------|--------------------------|--------------------------------|
+| **GLM**        | `anthropic` (Python SDK)     | `api.z.ai/api/anthropic` | Z.ai เป็น Anthropic-compatible |
+| **OpenAI**     | `openai` (AsyncOpenAI)       | `api.openai.com`         | Standard                       |
+| **Anthropic**  | `anthropic` (AsyncAnthropic) | `api.anthropic.com`      | System message extraction      |
+| **Gemini**     | `google.generativeai`        | Google AI                | Convert message format         |
+| **OpenRouter** | `openai` (AsyncOpenAI)       | `openrouter.ai/api/v1`   | OpenAI-compatible              |
 
 ### Model Mapping (GLM)
 
-| Input | Sent to API |
-|-------|------------|
-| `glm-5` | `glm-5` |
-| `glm-5.1` | `glm-5.1` (pass-through) |
+| Input         | Sent to API                  |
+|---------------|------------------------------|
+| `glm-5`       | `glm-5`                      |
+| `glm-5.1`     | `glm-5.1` (pass-through)     |
 | `glm-5-turbo` | `glm-5-turbo` (pass-through) |
-| `glm-4.7` | `glm-4.7` (pass-through) |
-| `glm-4.6` | `glm-4.6` (pass-through) |
-| `glm-4.5` | `glm-4.5` (pass-through) |
-| `glm-4.6v` | `glm-4.6v` |
-| อื่นๆ | ส่งตรงไปเลย (pass-through) |
+| `glm-4.7`     | `glm-4.7` (pass-through)     |
+| `glm-4.6`     | `glm-4.6` (pass-through)     |
+| `glm-4.5`     | `glm-4.5` (pass-through)     |
+| `glm-4.6v`    | `glm-4.6v`                   |
+| อื่นๆ         | ส่งตรงไปเลย (pass-through)   |
 
 ### Model Fallback Priority (Worker)
 
@@ -1341,34 +1341,34 @@ Gateway maintains a provider registry for OAuth/API key auth flows and upstream 
 
 #### Supported Auth Types
 
-| Auth Type | Flow | Providers |
-|-----------|------|-----------|
-| `api_key` | Header-based | Anthropic, Gemini, OpenAI, Z.AI, OpenRouter, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo |
-| `device_code` | Device code flow | GitHub Copilot, Qwen (Aliyun) |
-| `auth_code` | OAuth authorization code + PKCE | Claude (OAuth), Gemini (OAuth via Code Assist) |
-| `session_cookie` | Cookie-based | (reserved) |
+| Auth Type        | Flow                            | Providers                                                                                                      |
+|------------------|---------------------------------|----------------------------------------------------------------------------------------------------------------|
+| `api_key`        | Header-based                    | Anthropic, Gemini, OpenAI, Z.AI, OpenRouter, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo |
+| `device_code`    | Device code flow                | GitHub Copilot, Qwen (Aliyun)                                                                                  |
+| `auth_code`      | OAuth authorization code + PKCE | Claude (OAuth), Gemini (OAuth via Code Assist)                                                                 |
+| `session_cookie` | Cookie-based                    | (reserved)                                                                                                     |
 
 #### All Registered Providers
 
-| ID | Name | Auth | Upstream Base |
-|----|------|------|---------------|
-| `anthropic` | Anthropic | API key | `api.anthropic.com` |
-| `gemini` | Google Gemini | API key | `generativelanguage.googleapis.com` |
-| `gemini-oauth` | Google Gemini (OAuth) | Auth code | `cloudcode-pa.googleapis.com` |
-| `openai` | OpenAI | API key | `api.openai.com` |
-| `copilot` | GitHub Copilot | Device code | `api.github.com/copilot` |
-| `zai` | Z.AI | API key | `api.z.ai/api/anthropic` |
-| `openrouter` | OpenRouter | API key | `openrouter.ai/api` |
-| `qwen` | Qwen (Aliyun) | Device code | `dashscope.aliyuncs.com` |
-| `claude` | Claude (OAuth) | Auth code (PKCE) | `api.anthropic.com` |
-| `deepseek` | DeepSeek | API key | `api.deepseek.com` |
-| `kimi` | Kimi (Moonshot) | API key | `api.moonshot.cn/v1` |
-| `huggingface` | Hugging Face | API key | `api-inference.huggingface.co/models` |
-| `ollama` | Ollama | API key | `localhost:11434` (configurable) |
-| `agy` | Antigravity | API key | `antigravity.com` |
-| `cursor` | Cursor | API key | `api2.cursor.sh` |
-| `codebuddy` | CodeBuddy | API key | `api.codebuddy.io` |
-| `kilo` | Kilo | API key | `api.kilo.ai` |
+| ID             | Name                  | Auth             | Upstream Base                         |
+|----------------|-----------------------|------------------|---------------------------------------|
+| `anthropic`    | Anthropic             | API key          | `api.anthropic.com`                   |
+| `gemini`       | Google Gemini         | API key          | `generativelanguage.googleapis.com`   |
+| `gemini-oauth` | Google Gemini (OAuth) | Auth code        | `cloudcode-pa.googleapis.com`         |
+| `openai`       | OpenAI                | API key          | `api.openai.com`                      |
+| `copilot`      | GitHub Copilot        | Device code      | `api.github.com/copilot`              |
+| `zai`          | Z.AI                  | API key          | `api.z.ai/api/anthropic`              |
+| `openrouter`   | OpenRouter            | API key          | `openrouter.ai/api`                   |
+| `qwen`         | Qwen (Aliyun)         | Device code      | `dashscope.aliyuncs.com`              |
+| `claude`       | Claude (OAuth)        | Auth code (PKCE) | `api.anthropic.com`                   |
+| `deepseek`     | DeepSeek              | API key          | `api.deepseek.com`                    |
+| `kimi`         | Kimi (Moonshot)       | API key          | `api.moonshot.cn/v1`                  |
+| `huggingface`  | Hugging Face          | API key          | `api-inference.huggingface.co/models` |
+| `ollama`       | Ollama                | API key          | `localhost:11434` (configurable)      |
+| `agy`          | Antigravity           | API key          | `antigravity.com`                     |
+| `cursor`       | Cursor                | API key          | `api2.cursor.sh`                      |
+| `codebuddy`    | CodeBuddy             | API key          | `api.codebuddy.io`                    |
+| `kilo`         | Kilo                  | API key          | `api.kilo.ai`                         |
 
 #### Token Store & Auth Flow
 
@@ -1406,29 +1406,29 @@ Request → key1 → 429 Rate Limit
 
 ### Gateway Metrics (Prometheus -- port 8080, custom registry)
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_request_latency_seconds` | Histogram | method, path, status | Request latency |
-| `api_gateway_queue_depth` | GaugeFunc | | Queue depth (polled on scrape) |
-| `api_gateway_error_total` | Counter | type | Error count by type |
-| `api_gateway_rate_limit_hits_total` | Counter | key | Rate limit hits |
-| `api_gateway_active_connections` | Gauge | | Active connections |
-| `api_gateway_token_input_total` | Counter | model | Input tokens consumed by model |
-| `api_gateway_token_output_total` | Counter | model | Output tokens generated by model |
-| `api_gateway_upstream_retries_total` | Counter | | Upstream retries on 429 |
-| `api_gateway_upstream_429_total` | Counter | | Upstream 429 responses received |
-| `api_gateway_adaptive_limit` | Gauge | model | Current adaptive concurrency limit per model |
-| `api_gateway_adaptive_in_flight` | Gauge | model | Current in-flight requests per model |
-| `api_gateway_cost_total` | Counter | model | Estimated cost (USD) from token usage x pricing |
-| `api_gateway_model_fallback_total` | Counter | requested, selected | Model fallback events |
-| `api_gateway_ttfb_seconds` | Histogram | model | Time to first byte for streaming |
-| `api_gateway_go_goroutines` | Gauge | | Current goroutines |
-| `api_gateway_go_heap_alloc_bytes` | Gauge | | Current heap allocation |
-| `api_gateway_go_heap_objects` | Gauge | | Current heap objects |
-| `api_gateway_go_gc_pause_ns` | Gauge | | GC pause of last cycle (ns) |
-| `api_gateway_go_stack_inuse_bytes` | Gauge | | Current stack in-use |
-| `api_gateway_dragonfly_up` | Gauge | | Dragonfly health (1=healthy, 0=down) |
-| `api_gateway_anomaly_total` | Counter | type, severity | Detected anomalies |
+| Metric                                | Type      | Labels               | Description                                     |
+|---------------------------------------|-----------|----------------------|-------------------------------------------------|
+| `api_gateway_request_latency_seconds` | Histogram | method, path, status | Request latency                                 |
+| `api_gateway_queue_depth`             | GaugeFunc |                      | Queue depth (polled on scrape)                  |
+| `api_gateway_error_total`             | Counter   | type                 | Error count by type                             |
+| `api_gateway_rate_limit_hits_total`   | Counter   | key                  | Rate limit hits                                 |
+| `api_gateway_active_connections`      | Gauge     |                      | Active connections                              |
+| `api_gateway_token_input_total`       | Counter   | model                | Input tokens consumed by model                  |
+| `api_gateway_token_output_total`      | Counter   | model                | Output tokens generated by model                |
+| `api_gateway_upstream_retries_total`  | Counter   |                      | Upstream retries on 429                         |
+| `api_gateway_upstream_429_total`      | Counter   |                      | Upstream 429 responses received                 |
+| `api_gateway_adaptive_limit`          | Gauge     | model                | Current adaptive concurrency limit per model    |
+| `api_gateway_adaptive_in_flight`      | Gauge     | model                | Current in-flight requests per model            |
+| `api_gateway_cost_total`              | Counter   | model                | Estimated cost (USD) from token usage x pricing |
+| `api_gateway_model_fallback_total`    | Counter   | requested, selected  | Model fallback events                           |
+| `api_gateway_ttfb_seconds`            | Histogram | model                | Time to first byte for streaming                |
+| `api_gateway_go_goroutines`           | Gauge     |                      | Current goroutines                              |
+| `api_gateway_go_heap_alloc_bytes`     | Gauge     |                      | Current heap allocation                         |
+| `api_gateway_go_heap_objects`         | Gauge     |                      | Current heap objects                            |
+| `api_gateway_go_gc_pause_ns`          | Gauge     |                      | GC pause of last cycle (ns)                     |
+| `api_gateway_go_stack_inuse_bytes`    | Gauge     |                      | Current stack in-use                            |
+| `api_gateway_dragonfly_up`            | Gauge     |                      | Dragonfly health (1=healthy, 0=down)            |
+| `api_gateway_anomaly_total`           | Counter   | type, severity       | Detected anomalies                              |
 
 **Total: 21 metrics** in `api_gateway` namespace on a custom Prometheus registry (not default).
 
@@ -1471,14 +1471,14 @@ Request → key1 → 429 Rate Limit
 
 ### Prometheus Scrape Config
 
-| Target | Interval | Path |
-|--------|----------|------|
-| `arl-gateway:8080` | 5s | `/metrics` |
-| `arl-worker:9090` | 5s | `/metrics` |
-| `arl-rate-limiter:8080` | 10s | `/actuator/prometheus` |
-| `arl-dragonfly:6379` | 10s | — |
-| `arl-otel:8889` | 10s | `/metrics` |
-| Self | 15s | `/metrics` |
+| Target                  | Interval   | Path                   |
+|-------------------------|------------|------------------------|
+| `arl-gateway:8080`      | 5s         | `/metrics`             |
+| `arl-worker:9090`       | 5s         | `/metrics`             |
+| `arl-rate-limiter:8080` | 10s        | `/actuator/prometheus` |
+| `arl-dragonfly:6379`    | 10s        | —                      |
+| `arl-otel:8889`         | 10s        | `/metrics`             |
+| Self                    | 15s        | `/metrics`             |
 
 ---
 
@@ -1501,10 +1501,10 @@ Producer (Gateway)                    Consumer (Worker)
 
 ### Key Patterns
 
-| Pattern | Type | TTL | Description |
-|---------|------|-----|-------------|
-| `ai_jobs` | List | — | Main job queue |
-| `result:{request_id}` | String (JSON) | 600s | Cached job result |
+| Pattern               | Type          | TTL   | Description       |
+|-----------------------|---------------|-------|-------------------|
+| `ai_jobs`             | List          | —     | Main job queue    |
+| `result:{request_id}` | String (JSON) | 600s  | Cached job result |
 
 ### Retry Flow
 
@@ -1593,7 +1593,7 @@ Client (10 concurrent POST /v1/chat/completions)
 
 ```
               t=0s          t=5s          t=10s         ...  t=60s         t=65s
-                |             |             |                 |              |
+|             |             |                 |              |
 BATCH 1 (5):  [RPM limiter: 5/5 slots used for 60s]
   req1         █████░ 1.5s   (glm-5, slot available)
   req2         ████░ 1.2s    (glm-5-turbo, fallback)
@@ -1609,18 +1609,18 @@ BATCH 2 (5):  [RPM limiter: waited 60s, window reset]
   req10                                                      ██████████░ 4.8s (glm-5)
 ```
 
-| Req | Requested | Got | Fallback? | Latency |
-|-----|-----------|-----|-----------|---------|
-| 1 | glm-5 | **glm-5** | No | 1.5s |
-| 2 | glm-5 | **glm-5-turbo** | Yes | 1.2s |
-| 3 | glm-5 | **glm-4.7** | Yes | 1.1s |
-| 4 | glm-5 | **glm-5** | No | 5.6s |
-| 5 | glm-5 | **glm-5.1** | Yes | 8.7s |
-| 6 | glm-5 | **glm-4.6** | Yes | 0.7s |
-| 7 | glm-5 | **glm-4.7** | Yes | 0.7s |
-| 8 | glm-5 | **glm-4.6** | Yes | 0.7s |
-| 9 | glm-5 | **glm-4.6** | Yes | 1.6s |
-| 10 | glm-5 | **glm-5** | No | 4.8s |
+| Req   | Requested   | Got             | Fallback?   | Latency   |
+|-------|-------------|-----------------|-------------|-----------|
+| 1     | glm-5       | **glm-5**       | No          | 1.5s      |
+| 2     | glm-5       | **glm-5-turbo** | Yes         | 1.2s      |
+| 3     | glm-5       | **glm-4.7**     | Yes         | 1.1s      |
+| 4     | glm-5       | **glm-5**       | No          | 5.6s      |
+| 5     | glm-5       | **glm-5.1**     | Yes         | 8.7s      |
+| 6     | glm-5       | **glm-4.6**     | Yes         | 0.7s      |
+| 7     | glm-5       | **glm-4.7**     | Yes         | 0.7s      |
+| 8     | glm-5       | **glm-4.6**     | Yes         | 0.7s      |
+| 9     | glm-5       | **glm-4.6**     | Yes         | 1.6s      |
+| 10    | glm-5       | **glm-5**       | No          | 4.8s      |
 
 **Result: 10/10 OK, 0 429 errors, total wall time ~75s**
 
@@ -1670,21 +1670,21 @@ PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50
 
 ### Provider ที่รองรับ
 
-| Provider | Env Var | Default RPM | Notes |
-|----------|---------|-------------|-------|
-| **GLM** (Z.ai) | `GLM_API_KEYS` | 5 | Primary, Anthropic-compatible endpoint |
-| **OpenAI** | `OPENAI_API_KEYS` | 60 | gpt-4o, gpt-4o-mini |
-| **Anthropic** | `ANTHROPIC_API_KEYS` | 50 | claude-sonnet-4-6, claude-haiku-4-5 |
-| **Gemini** | `GEMINI_API_KEYS` | 60 | gemini-2.0-flash |
-| **OpenRouter** | `OPENROUTER_API_KEYS` | 60 | Multi-provider aggregator |
-| **DeepSeek** | `DEEPSEEK_API_KEYS` | 60 | deepseek-chat, deepseek-coder |
-| **Kimi** | `KIMI_API_KEYS` | 60 | Moonshot AI |
-| **HuggingFace** | `HUGGINGFACE_API_KEYS` | 60 | Open-source models |
-| **Ollama** | `OLLAMA_API_KEYS` | 60 | Local models (default: localhost:11434) |
-| **AGY** | `AGY_API_KEYS` | 60 | Antigravity |
-| **Cursor** | `CURSOR_API_KEYS` | 60 | Cursor AI |
-| **CodeBuddy** | `CODEBUDDY_API_KEYS` | 60 | CodeBuddy AI |
-| **Kilo** | `KILO_API_KEYS` | 60 | Kilo AI |
+| Provider        | Env Var                | Default RPM   | Notes                                   |
+|-----------------|------------------------|---------------|-----------------------------------------|
+| **GLM** (Z.ai)  | `GLM_API_KEYS`         | 5             | Primary, Anthropic-compatible endpoint  |
+| **OpenAI**      | `OPENAI_API_KEYS`      | 60            | gpt-4o, gpt-4o-mini                     |
+| **Anthropic**   | `ANTHROPIC_API_KEYS`   | 50            | claude-sonnet-4-6, claude-haiku-4-5     |
+| **Gemini**      | `GEMINI_API_KEYS`      | 60            | gemini-2.0-flash                        |
+| **OpenRouter**  | `OPENROUTER_API_KEYS`  | 60            | Multi-provider aggregator               |
+| **DeepSeek**    | `DEEPSEEK_API_KEYS`    | 60            | deepseek-chat, deepseek-coder           |
+| **Kimi**        | `KIMI_API_KEYS`        | 60            | Moonshot AI                             |
+| **HuggingFace** | `HUGGINGFACE_API_KEYS` | 60            | Open-source models                      |
+| **Ollama**      | `OLLAMA_API_KEYS`      | 60            | Local models (default: localhost:11434) |
+| **AGY**         | `AGY_API_KEYS`         | 60            | Antigravity                             |
+| **Cursor**      | `CURSOR_API_KEYS`      | 60            | Cursor AI                               |
+| **CodeBuddy**   | `CODEBUDDY_API_KEYS`   | 60            | CodeBuddy AI                            |
+| **Kilo**        | `KILO_API_KEYS`        | 60            | Kilo AI                                 |
 
 ### Fallback Order
 
@@ -1710,39 +1710,39 @@ PROVIDER_RPM_LIMITS=glm:15
 
 ### External (เข้าถึงจาก host)
 
-| Port | Service | Protocol |
-|------|---------|----------|
-| **8080** | API Gateway | HTTP |
-| **8081** | Rate Limiter Dashboard | HTTP |
-| **3000** | Grafana | HTTP |
+| Port     | Service                | Protocol   |
+|----------|------------------------|------------|
+| **8080** | API Gateway            | HTTP       |
+| **8081** | Rate Limiter Dashboard | HTTP       |
+| **3000** | Grafana                | HTTP       |
 
 ### Internal (Docker network only)
 
-| Port | Service | Protocol | Notes |
-|------|---------|----------|-------|
-| 8080 | Rate Limiter | HTTP | Spring Boot |
-| 6379 | Dragonfly | Redis | Redis-compatible |
-| 9090 | AI Worker (Prometheus) | HTTP | Metrics |
-| 9091 | AI Worker (Internal) | HTTP | `/metrics-internal` JSON |
-| 9090 | Prometheus | HTTP | Scrape target |
-| 4317 | OTel Collector | gRPC | Traces |
-| 4318 | OTel Collector | HTTP | Traces |
-| 8889 | OTel Collector | HTTP | Prometheus export |
+| Port   | Service                | Protocol   | Notes                    |
+|--------|------------------------|------------|--------------------------|
+| 8080   | Rate Limiter           | HTTP       | Spring Boot              |
+| 6379   | Dragonfly              | Redis      | Redis-compatible         |
+| 9090   | AI Worker (Prometheus) | HTTP       | Metrics                  |
+| 9091   | AI Worker (Internal)   | HTTP       | `/metrics-internal` JSON |
+| 9090   | Prometheus             | HTTP       | Scrape target            |
+| 4317   | OTel Collector         | gRPC       | Traces                   |
+| 4318   | OTel Collector         | HTTP       | Traces                   |
+| 8889   | OTel Collector         | HTTP       | Prometheus export        |
 
 ---
 
 ## 12. Resource Limits
 
-| Service | Memory Limit | CPU Limit | Memory Reserved | CPU Reserved |
-|---------|-------------|-----------|----------------|-------------|
-| arl-gateway | 512M | 1.0 | 128M | 0.25 |
-| arl-rate-limiter | 768M | 1.0 | 256M | 0.5 |
-| arl-dragonfly | 6G | 2.0 | 512M | 0.5 |
-| arl-worker | 1G | 2.0 | 256M | 0.5 |
-| arl-prometheus | 512M | 0.5 | 128M | — |
-| arl-grafana | 256M | 0.5 | 64M | — |
-| arl-otel | 256M | 0.5 | 64M | — |
-| arl-rl-dashboard | 128M | 0.25 | 32M | — |
+| Service          | Memory Limit  | CPU Limit   | Memory Reserved  | CPU Reserved  |
+|------------------|---------------|-------------|------------------|---------------|
+| arl-gateway      | 512M          | 1.0         | 128M             | 0.25          |
+| arl-rate-limiter | 768M          | 1.0         | 256M             | 0.5           |
+| arl-dragonfly    | 6G            | 2.0         | 512M             | 0.5           |
+| arl-worker       | 1G            | 2.0         | 256M             | 0.5           |
+| arl-prometheus   | 512M          | 0.5         | 128M             | —             |
+| arl-grafana      | 256M          | 0.5         | 64M              | —             |
+| arl-otel         | 256M          | 0.5         | 64M              | —             |
+| arl-rl-dashboard | 128M          | 0.25        | 32M              | —             |
 
 ### Dragonfly Tuning
 
@@ -1766,14 +1766,14 @@ PROVIDER_RPM_LIMITS=glm:15
 
 ### โหมดไหนเหมาะกับอะไร
 
-| Use Case | โหมด | เหตุผล |
-|----------|------|--------|
-| **Claude Code (interactive)** | Sync (`/v1/messages`) | ต้องการ SSE streaming real-time, tool loop หลายรอบ, latency ต่ำ |
-| **1 เครื่องหลาย Claude Code** | Sync | แต่ละ session ใช้ key ต่างกัน → per-key rate limit แยกอิสระ |
-| **CI/CD pipeline** | Async (`/v1/chat/completions`) | ไม่ต้องการ real-time, ส่งแล้วไปทำอย่างอื่นได้, poll result ทีหลัง |
-| **Batch processing** | Async | ยิง 100 jobs พร้อมกัน → queue จัดการ pacing เอง |
-| **Multi-agent framework** | Async | หลาย agent ยิงพร้อมกัน → queue + per-agent rate limit ป้องกัน overload |
-| **Cron / scheduled tasks** | Async | ตั้งเวลายิง → worker process ตามลำดับ |
+| Use Case                      | โหมด                           | เหตุผล                                                                 |
+|-------------------------------|--------------------------------|------------------------------------------------------------------------|
+| **Claude Code (interactive)** | Sync (`/v1/messages`)          | ต้องการ SSE streaming real-time, tool loop หลายรอบ, latency ต่ำ        |
+| **1 เครื่องหลาย Claude Code** | Sync                           | แต่ละ session ใช้ key ต่างกัน → per-key rate limit แยกอิสระ            |
+| **CI/CD pipeline**            | Async (`/v1/chat/completions`) | ไม่ต้องการ real-time, ส่งแล้วไปทำอย่างอื่นได้, poll result ทีหลัง      |
+| **Batch processing**          | Async                          | ยิง 100 jobs พร้อมกัน → queue จัดการ pacing เอง                        |
+| **Multi-agent framework**     | Async                          | หลาย agent ยิงพร้อมกัน → queue + per-agent rate limit ป้องกัน overload |
+| **Cron / scheduled tasks**    | Async                          | ตั้งเวลายิง → worker process ตามลำดับ                                  |
 
 ### Sync Mode — Multi-Agent บนเครื่องเดียว
 
@@ -1826,13 +1826,13 @@ Agent Orchestrator
 
 ### แนวทางแนะนำตาม Scale
 
-| Scale | โหมด | การตั้งค่า |
-|-------|------|-----------|
-| **1 developer** | Sync | `ANTHROPIC_BASE_URL=http://localhost:8080`, key เดียว |
-| **2-5 developers** | Sync | แต่ละคนใช้ key ต่างกัน → per-key rate limit แยก |
-| **1 team + CI/CD** | Sync + Async | Developer ใช้ sync, CI pipeline ใช้ async |
-| **Agent framework (5-50 agents)** | Async | `WORKER_CONCURRENCY=50`, `PROVIDER_RPM_LIMITS=glm:5` |
-| **Heavy batch (100+ jobs)** | Async | เพิ่ม keys: `GLM_API_KEYS=key1,key2,key3`, `PROVIDER_RPM_LIMITS=glm:15` |
+| Scale                             | โหมด         | การตั้งค่า                                                              |
+|-----------------------------------|--------------|-------------------------------------------------------------------------|
+| **1 developer**                   | Sync         | `ANTHROPIC_BASE_URL=http://localhost:8080`, key เดียว                   |
+| **2-5 developers**                | Sync         | แต่ละคนใช้ key ต่างกัน → per-key rate limit แยก                         |
+| **1 team + CI/CD**                | Sync + Async | Developer ใช้ sync, CI pipeline ใช้ async                               |
+| **Agent framework (5-50 agents)** | Async        | `WORKER_CONCURRENCY=50`, `PROVIDER_RPM_LIMITS=glm:5`                    |
+| **Heavy batch (100+ jobs)**       | Async        | เพิ่ม keys: `GLM_API_KEYS=key1,key2,key3`, `PROVIDER_RPM_LIMITS=glm:15` |
 
 ### การเพิ่ม Throughput
 
@@ -1904,16 +1904,16 @@ Initial limits auto-adjust based on upstream feedback:
 
 ### Example: 15 Concurrent Requests for glm-5
 
-| Req | Model Selected | Fallback? | Reason |
-|-----|---------------|-----------|--------|
-| 1 | glm-5 | No | Slot available (1/2) |
-| 2 | glm-5 | No | Slot available (2/2, full) |
-| 3 | glm-5.1 | Yes | glm-5 full, next in priority |
-| 4 | glm-5-turbo | Yes | glm-5.1 full, next in priority |
-| 5-6 | glm-4.7 | Yes | All 5.x full, start 4.x |
-| 7-9 | glm-4.6 | Yes | glm-4.7 full |
-| 10-14 | glm-4.5 | Yes | glm-4.6 full, overflow buffer |
-| 15 | (waits) | N/A | Global cap 9 reached |
+| Req   | Model Selected  | Fallback?   | Reason                         |
+|-------|-----------------|-------------|--------------------------------|
+| 1     | glm-5           | No          | Slot available (1/2)           |
+| 2     | glm-5           | No          | Slot available (2/2, full)     |
+| 3     | glm-5.1         | Yes         | glm-5 full, next in priority   |
+| 4     | glm-5-turbo     | Yes         | glm-5.1 full, next in priority |
+| 5-6   | glm-4.7         | Yes         | All 5.x full, start 4.x        |
+| 7-9   | glm-4.6         | Yes         | glm-4.7 full                   |
+| 10-14 | glm-4.5         | Yes         | glm-4.6 full, overflow buffer  |
+| 15    | (waits)         | N/A         | Global cap 9 reached           |
 ```
 
 ---
@@ -1929,59 +1929,59 @@ Initial limits auto-adjust based on upstream feedback:
 
 ### Test 1: 3 Agents x 1 Turn (3 requests)
 
-| Metric | Value |
-|--------|-------|
-| Wall time | 18.8s |
-| Success rate | 3/3 (100%) |
-| 429 errors | 0 |
+| Metric                        | Value                        |
+|-------------------------------|------------------------------|
+| Wall time                     | 18.8s                        |
+| Success rate                  | 3/3 (100%)                   |
+| 429 errors                    | 0                            |
 | Fastest / P50 / Avg / Slowest | 8.3s / 10.4s / 12.5s / 18.6s |
-| Throughput | 9.6 req/min |
-| Model distribution | glm-5.1 x3 |
-| Key survived | Yes |
+| Throughput                    | 9.6 req/min                  |
+| Model distribution            | glm-5.1 x3                   |
+| Key survived                  | Yes                          |
 
 ### Test 2: 5 Agents x 1 Turn (5 requests)
 
-| Metric | Value |
-|--------|-------|
-| Wall time | 33.5s |
-| Success rate | 5/5 (100%) |
-| 429 errors | 0 |
-| Fastest / P50 / Avg / Slowest | 6.3s / 29.2s / 22.5s / 33.3s |
-| Throughput | 9.0 req/min |
-| Model distribution | glm-5.1 x3, glm-5-turbo x1, glm-4.7 x1 |
-| Key survived | Yes |
+| Metric                        | Value                                  |
+|-------------------------------|----------------------------------------|
+| Wall time                     | 33.5s                                  |
+| Success rate                  | 5/5 (100%)                             |
+| 429 errors                    | 0                                      |
+| Fastest / P50 / Avg / Slowest | 6.3s / 29.2s / 22.5s / 33.3s           |
+| Throughput                    | 9.0 req/min                            |
+| Model distribution            | glm-5.1 x3, glm-5-turbo x1, glm-4.7 x1 |
+| Key survived                  | Yes                                    |
 
 ### Test 3: 10 Agents x 1 Turn (10 requests)
 
-| Metric | Value |
-|--------|-------|
-| Wall time | 31.7s |
-| Success rate | 10/10 (100%) |
-| 429 errors | 0 |
-| Fastest / P50 / Avg / Slowest | 19.0s / 27.3s / 25.3s / 31.5s |
-| Throughput | 18.9 req/min |
-| Model distribution | glm-5.1 x3, glm-4.7 x2, others x5 |
-| Key survived | Cooldown (auto-recovers) |
+| Metric                        | Value                             |
+|-------------------------------|-----------------------------------|
+| Wall time                     | 31.7s                             |
+| Success rate                  | 10/10 (100%)                      |
+| 429 errors                    | 0                                 |
+| Fastest / P50 / Avg / Slowest | 19.0s / 27.3s / 25.3s / 31.5s     |
+| Throughput                    | 18.9 req/min                      |
+| Model distribution            | glm-5.1 x3, glm-4.7 x2, others x5 |
+| Key survived                  | Cooldown (auto-recovers)          |
 
 ### Test 4: 5 Agents x 2 Turns (10 requests)
 
-| Metric | Value |
-|--------|-------|
-| Wall time | 15.0s |
-| Success rate | 10/10 (100%) |
-| 429 errors | 0 |
+| Metric                        | Value                        |
+|-------------------------------|------------------------------|
+| Wall time                     | 15.0s                        |
+| Success rate                  | 10/10 (100%)                 |
+| 429 errors                    | 0                            |
 | Fastest / P50 / Avg / Slowest | 8.6s / 10.7s / 10.9s / 14.8s |
-| Throughput | 40.0 req/min |
-| Key survived | Cooldown (auto-recovers) |
+| Throughput                    | 40.0 req/min                 |
+| Key survived                  | Cooldown (auto-recovers)     |
 
 ### Summary: Capacity vs Concurrent Agents
 
-| Agents | Total Reqs | Success | Wall Time | Key Survived | Safe? |
-|--------|-----------|---------|-----------|-------------|-------|
-| 3 | 3 | 100% | ~19s | Yes | Safe |
-| 5 | 5 | 100% | ~33s | Yes | Safe |
-| 5 x2 turns | 10 | 100% | ~15s | Cooldown | Burst ok |
-| 10 | 10 | 100% | ~32s | Cooldown | Burst ok |
+| Agents     | Total Reqs  | Success   | Wall Time   | Key Survived  | Safe?    |
+|------------|-------------|-----------|-------------|---------------|----------|
+| 3          | 3           | 100%      | ~19s        | Yes           | Safe     |
+| 5          | 5           | 100%      | ~33s        | Yes           | Safe     |
+| 5 x2 turns | 10          | 100%      | ~15s        | Cooldown      | Burst ok |
+| 10         | 10          | 100%      | ~32s        | Cooldown      | Burst ok |
 
 ### Conclusions
 
@@ -2004,12 +2004,12 @@ Bottleneck hierarchy (slowest first):
 
 ### How to Scale
 
-| Method | Effect | Config Change |
-|--------|--------|---------------|
-| Add GLM keys | +5 RPM per key | `GLM_API_KEYS=k1,k2,k3` + `PROVIDER_RPM_LIMITS=glm:15` |
-| Add OpenAI | +120 RPM fallback | `OPENAI_API_KEYS=sk1,sk2` + `PROVIDER_RPM_LIMITS=glm:5,openai:120` |
-| Add Anthropic | +50 RPM fallback | `ANTHROPIC_API_KEYS=sk1` + `PROVIDER_RPM_LIMITS=glm:5,anthropic:50` |
-| Multi-provider | Maximum throughput | Combine all providers |
+| Method         | Effect             | Config Change                                                       |
+|----------------|--------------------|---------------------------------------------------------------------|
+| Add GLM keys   | +5 RPM per key     | `GLM_API_KEYS=k1,k2,k3` + `PROVIDER_RPM_LIMITS=glm:15`              |
+| Add OpenAI     | +120 RPM fallback  | `OPENAI_API_KEYS=sk1,sk2` + `PROVIDER_RPM_LIMITS=glm:5,openai:120`  |
+| Add Anthropic  | +50 RPM fallback   | `ANTHROPIC_API_KEYS=sk1` + `PROVIDER_RPM_LIMITS=glm:5,anthropic:50` |
+| Multi-provider | Maximum throughput | Combine all providers                                               |
 
 ---
 

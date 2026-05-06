@@ -16,27 +16,27 @@
                               +---+----------+----+
                                   |          |
                    +--------------+          +--------------+
-                   |                         |              |
+|                         |              |
                    v                         v              v
           +--------+------+        +--------+------+  +----+----+
-          |   Anthropic   |        |   OpenAI      |  | Gemini  |
-          | /v1/messages  |        | /v1/chat/     |  | v1beta/ |
-          | Format        |        | completions   |  | models  |
+|   Anthropic   |        |   OpenAI      |  | Gemini  |
+| /v1/messages  |        | /v1/chat/     |  | v1beta/ |
+| Format        |        | completions   |  | models  |
           +--------+------+        +--------+------+  +----+----+
-                   |                         |              |
+|                         |              |
                    v                         v              v
           +--------+------+        +--------+------+  +----+----+
-          | anthropic      |        | openai        |  | gemini  |
-          | claude-oauth   |        | copilot       |  | gemini- |
-          | zai            |        | openrouter    |  | oauth   |
+| anthropic      |        | openai        |  | gemini  |
+| claude-oauth   |        | copilot       |  | gemini- |
+| zai            |        | openrouter    |  | oauth   |
           | agy            |        | deepseek      |  +----+----+
-          | custom-*       |        | kimi          |       |
+| custom-*       |        | kimi          |       |
           +----------------+        | huggingface   |       |
-                                    | ollama        |       |
-                                    | qwen          |       |
-                                    | cursor        |       |
-                                    | codebuddy     |       |
-                                    | kilo          |       |
+| ollama        |       |
+| qwen          |       |
+| cursor        |       |
+| codebuddy     |       |
+| kilo          |       |
                                     +---------------+       |
                                                             |
                               +-----------------------------+
@@ -53,21 +53,21 @@
                     |                   |
                     v                   v
              +------+------+   +-------+------+
-             | TokenStore   |   | RefreshWorker|
-             | (Redis)      |   | (30m cycle)  |
+| TokenStore   |   | RefreshWorker|
+| (Redis)      |   | (30m cycle)  |
              +--------------+   +--------------+
 ```
 
 The provider system has six core components:
 
-| Component | File | Purpose |
-|---|---|---|
-| Registry | `provider/registry.go` | Provider catalog, CRUD, persistence |
-| Resolver | `provider/resolver.go` | Model-to-provider routing, format selection |
-| AuthHandler | `provider/handler.go` | HTTP endpoints for auth, tokens, accounts |
-| TokenStore | `provider/token-store.go` | Redis-backed token CRUD, pools, defaults |
-| RefreshWorker | `provider/token-refresh.go` | OAuth token refresh, cleanup, project resolution |
-| OAuth flows | `provider/oauth_device.go`, `oauth_authcode.go` | Device code and authorization code with PKCE |
+| Component     | File                                            | Purpose                                          |
+|---------------|-------------------------------------------------|--------------------------------------------------|
+| Registry      | `provider/registry.go`                          | Provider catalog, CRUD, persistence              |
+| Resolver      | `provider/resolver.go`                          | Model-to-provider routing, format selection      |
+| AuthHandler   | `provider/handler.go`                           | HTTP endpoints for auth, tokens, accounts        |
+| TokenStore    | `provider/token-store.go`                       | Redis-backed token CRUD, pools, defaults         |
+| RefreshWorker | `provider/token-refresh.go`                     | OAuth token refresh, cleanup, project resolution |
+| OAuth flows   | `provider/oauth_device.go`, `oauth_authcode.go` | Device code and authorization code with PKCE     |
 
 ---
 
@@ -119,25 +119,25 @@ Thread-safe via internal mutex on `AuthHandler`. The registry itself is not conc
 
 The `NewRegistry()` constructor registers 19 providers:
 
-| ID | Name | Auth Type | Upstream Base (default) |
-|---|---|---|---|
-| `anthropic` | Anthropic | `api_key` | `https://api.anthropic.com` |
-| `claude-oauth` | Claude (OAuth) | `auth_code` | `https://api.anthropic.com` |
-| `gemini` | Google Gemini | `api_key` | `https://generativelanguage.googleapis.com` |
-| `gemini-oauth` | Google Gemini (OAuth) | `auth_code` | `https://cloudcode-pa.googleapis.com` |
-| `openai` | OpenAI | `api_key` | `https://api.openai.com` |
-| `copilot` | GitHub Copilot | `device_code` | `https://api.github.com/copilot` |
-| `zai` | Z.AI | `api_key` | `https://api.z.ai/api/anthropic` |
-| `openrouter` | OpenRouter | `api_key` | `https://openrouter.ai/api` |
-| `qwen` | Qwen (Aliyun) | `device_code` | `https://dashscope.aliyuncs.com` |
-| `deepseek` | DeepSeek | `api_key` | `https://api.deepseek.com` |
-| `kimi` | Kimi (Moonshot) | `api_key` | `https://api.moonshot.cn/v1` |
-| `huggingface` | Hugging Face | `api_key` | `https://api-inference.huggingface.co/models` |
-| `ollama` | Ollama | `api_key` | `http://localhost:11434` |
-| `agy` | Antigravity | `api_key` | `https://antigravity.com` |
-| `cursor` | Cursor | `api_key` | `https://api2.cursor.sh` |
-| `codebuddy` | CodeBuddy | `api_key` | `https://api.codebuddy.io` |
-| `kilo` | Kilo | `api_key` | `https://api.kilo.ai` |
+| ID             | Name                  | Auth Type     | Upstream Base (default)                       |
+|----------------|-----------------------|---------------|-----------------------------------------------|
+| `anthropic`    | Anthropic             | `api_key`     | `https://api.anthropic.com`                   |
+| `claude-oauth` | Claude (OAuth)        | `auth_code`   | `https://api.anthropic.com`                   |
+| `gemini`       | Google Gemini         | `api_key`     | `https://generativelanguage.googleapis.com`   |
+| `gemini-oauth` | Google Gemini (OAuth) | `auth_code`   | `https://cloudcode-pa.googleapis.com`         |
+| `openai`       | OpenAI                | `api_key`     | `https://api.openai.com`                      |
+| `copilot`      | GitHub Copilot        | `device_code` | `https://api.github.com/copilot`              |
+| `zai`          | Z.AI                  | `api_key`     | `https://api.z.ai/api/anthropic`              |
+| `openrouter`   | OpenRouter            | `api_key`     | `https://openrouter.ai/api`                   |
+| `qwen`         | Qwen (Aliyun)         | `device_code` | `https://dashscope.aliyuncs.com`              |
+| `deepseek`     | DeepSeek              | `api_key`     | `https://api.deepseek.com`                    |
+| `kimi`         | Kimi (Moonshot)       | `api_key`     | `https://api.moonshot.cn/v1`                  |
+| `huggingface`  | Hugging Face          | `api_key`     | `https://api-inference.huggingface.co/models` |
+| `ollama`       | Ollama                | `api_key`     | `http://localhost:11434`                      |
+| `agy`          | Antigravity           | `api_key`     | `https://antigravity.com`                     |
+| `cursor`       | Cursor                | `api_key`     | `https://api2.cursor.sh`                      |
+| `codebuddy`    | CodeBuddy             | `api_key`     | `https://api.codebuddy.io`                    |
+| `kilo`         | Kilo                  | `api_key`     | `https://api.kilo.ai`                         |
 
 Each upstream base is overridable via environment variable (e.g. `ANTHROPIC_UPSTREAM_BASE`, `ZAI_UPSTREAM_BASE`).
 
@@ -152,17 +152,17 @@ Custom providers can be created at runtime via `POST /providers/custom`. They:
 
 ### Registry Methods
 
-| Method | Signature | Description |
-|---|---|---|
-| `Get` | `(id string) (ProviderConfig, bool)` | Lookup by ID |
-| `List` | `() []ProviderConfig` | All providers |
-| `Register` | `(cfg ProviderConfig)` | Add to in-memory map |
-| `Delete` | `(id string) bool` | Delete custom providers only |
-| `IsCustom` | `(id string) bool` | Check `custom-` prefix |
-| `UpdateUpstream` | `(id, upstream string) bool` | Runtime upstream override |
-| `PersistCustom` | `(rdb, cfg) error` | Save to Redis |
-| `RemovePersisted` | `(rdb, id) error` | Delete from Redis |
-| `LoadCustomProviders` | `(rdb)` | Load all from Redis on startup |
+| Method                | Signature                            | Description                    |
+|-----------------------|--------------------------------------|--------------------------------|
+| `Get`                 | `(id string) (ProviderConfig, bool)` | Lookup by ID                   |
+| `List`                | `() []ProviderConfig`                | All providers                  |
+| `Register`            | `(cfg ProviderConfig)`               | Add to in-memory map           |
+| `Delete`              | `(id string) bool`                   | Delete custom providers only   |
+| `IsCustom`            | `(id string) bool`                   | Check `custom-` prefix         |
+| `UpdateUpstream`      | `(id, upstream string) bool`         | Runtime upstream override      |
+| `PersistCustom`       | `(rdb, cfg) error`                   | Save to Redis                  |
+| `RemovePersisted`     | `(rdb, id) error`                    | Delete from Redis              |
+| `LoadCustomProviders` | `(rdb)`                              | Load all from Redis on startup |
 
 ---
 
@@ -194,26 +194,26 @@ type providerRoute struct {
 
 ### Full Route Table
 
-| Provider ID | Format | Auth Mode | URL Suffix | Extra Headers | Special |
-|---|---|---|---|---|---|
-| `anthropic` | Anthropic | `api_key` | `/v1/messages` | none | - |
-| `claude-oauth` | Anthropic | `api_key` | `/v1/messages?beta=true` | `anthropic-beta`, `x-app`, `User-Agent`, `X-Stainless-*` headers | Full Claude Code CLI header set |
-| `claude` | Anthropic | `api_key` | `/v1/messages?beta=true` | Same as `claude-oauth` | Alias |
-| `zai` | Anthropic | `api_key` | `/v1/messages` | none | Z.AI Anthropic-compatible endpoint |
-| `agy` | Anthropic | `api_key` | `/v1/messages` | none | - |
-| `openai` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `copilot` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `openrouter` | OpenAI | `bearer` | `/v1/chat/completions` | `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit` | - |
-| `qwen` | OpenAI | `bearer` | `/compatible-mode/v1/chat/completions` | none | Aliyun compatible mode |
-| `deepseek` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `kimi` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `huggingface` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `ollama` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `cursor` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `codebuddy` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `kilo` | OpenAI | `bearer` | `/v1/chat/completions` | none | - |
-| `gemini` | Gemini | `api_key` | (dynamic) | none | URL built as `{base}/v1beta/models/{model}:streamGenerateContent?key={apiKey}` |
-| `gemini-oauth` | Gemini | `bearer` | (dynamic) | none | Same URL pattern, Bearer auth |
+| Provider ID    | Format    | Auth Mode | URL Suffix                             | Extra Headers                                                    | Special                                                                                    |
+|----------------|-----------|-----------|----------------------------------------|------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| `anthropic`    | Anthropic | `api_key` | `/v1/messages`                         | none                                                             | -                                                                                          |
+| `claude-oauth` | Anthropic | `api_key` | `/v1/messages?beta=true`               | `anthropic-beta`, `x-app`, `User-Agent`, `X-Stainless-*` headers | Full Claude Code CLI header set                                                            |
+| `claude`       | Anthropic | `api_key` | `/v1/messages?beta=true`               | Same as `claude-oauth`                                           | Alias                                                                                      |
+| `zai`          | Anthropic | `api_key` | `/v1/messages`                         | none                                                             | Z.AI Anthropic-compatible endpoint                                                         |
+| `agy`          | Anthropic | `api_key` | `/v1/messages`                         | none                                                             | -                                                                                          |
+| `openai`       | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `copilot`      | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `openrouter`   | OpenAI    | `bearer`  | `/v1/chat/completions`                 | `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit`    | -                                                                                          |
+| `qwen`         | OpenAI    | `bearer`  | `/compatible-mode/v1/chat/completions` | none                                                             | Aliyun compatible mode                                                                     |
+| `deepseek`     | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `kimi`         | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `huggingface`  | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `ollama`       | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `cursor`       | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `codebuddy`    | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `kilo`         | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `gemini`       | Gemini    | `api_key` | (dynamic)                              | none                                                             | URL built as `{base}/v1beta/models/{model}:streamGenerateContent?key={apiKey}`             |
+| `gemini-oauth` | Gemini    | `bearer`  | (dynamic)                              | none                                                             | Same URL pattern, Bearer auth                                                              |
 
 ### claude-oauth Extra Headers
 
@@ -251,13 +251,13 @@ The `anthropic-beta` header includes these beta features:
 When a provider returns `finish_reason: "length"`, the gateway automatically sends a continuation request up to `MaxContinuations` times.
 
 | Provider | Max Continuations |
-|---|---|
+|----------|-------------------|
 
 **Tool mode** (`providerToolMode`):
 `"native"` = use OpenAI function calling format, convert `tool_calls` to Anthropic `tool_use`.
 
 | Provider | Tool Mode |
-|---|---|
+|----------|-----------|
 
 ### Dynamic Route Registration
 
@@ -294,28 +294,28 @@ type RoutingDecision struct {
 
 Models are matched by prefix, in order of priority. The first matching rule wins.
 
-| Model Prefix | Provider Priority (ordered) |
-|---|---|
-| `claude-` | `claude-oauth` -> `anthropic` |
-| `gpt-` | `openai` |
-| `o1-` | `openai` |
-| `o3-` | `openai` |
-| `o4-` | `openai` |
-| `gemini-` | `gemini-oauth` -> `gemini` |
-| `glm-` | `zai` |
-| `qwen-` | `qwen` |
-| `or-` | `openrouter` |
-| `anthropic/` | `anthropic` -> `openrouter` |
-| `openai/` | `openrouter` |
-| `google/` | `openrouter` |
-| `meta/` | `openrouter` |
-| `deepseek/` | `openrouter` |
-| `qwen/` | `openrouter` |
-| `deepseek-` | `deepseek` |
-| `kimi-` | `kimi` |
-| `huggingface/` | `huggingface` |
-| `ollama` | `ollama` |
-| `agy-` | `agy` |
+| Model Prefix   | Provider Priority (ordered)   |
+|----------------|-------------------------------|
+| `claude-`      | `claude-oauth` -> `anthropic` |
+| `gpt-`         | `openai`                      |
+| `o1-`          | `openai`                      |
+| `o3-`          | `openai`                      |
+| `o4-`          | `openai`                      |
+| `gemini-`      | `gemini-oauth` -> `gemini`    |
+| `glm-`         | `zai`                         |
+| `qwen-`        | `qwen`                        |
+| `or-`          | `openrouter`                  |
+| `anthropic/`   | `anthropic` -> `openrouter`   |
+| `openai/`      | `openrouter`                  |
+| `google/`      | `openrouter`                  |
+| `meta/`        | `openrouter`                  |
+| `deepseek/`    | `openrouter`                  |
+| `qwen/`        | `openrouter`                  |
+| `deepseek-`    | `deepseek`                    |
+| `kimi-`        | `kimi`                        |
+| `huggingface/` | `huggingface`                 |
+| `ollama`       | `ollama`                      |
+| `agy-`         | `agy`                         |
 
 ### Resolver struct
 
@@ -347,14 +347,14 @@ Resolve(model):
 
 ### Key Resolver Methods
 
-| Method | Purpose |
-|---|---|
-| `Resolve(model) *RoutingDecision` | Primary resolution, returns first available provider |
-| `ResolveFallback(model, exclude) *RoutingDecision` | Skip providers in exclude list, used for retry |
-| `ResolveByProvider(providerID) (*RoutingDecision, bool)` | Direct provider lookup |
-| `ResolveTransparent(model) *RoutingDecision` | Claude OAuth passthrough, no token check |
-| `MarkCooldown(providerID, duration, model...)` | Mark provider+model as rate-limited |
-| `ModelBelongsToProvider(model, providerID) bool` | Check if model routes to a specific provider |
+| Method                                                   | Purpose                                              |
+|----------------------------------------------------------|------------------------------------------------------|
+| `Resolve(model) *RoutingDecision`                        | Primary resolution, returns first available provider |
+| `ResolveFallback(model, exclude) *RoutingDecision`       | Skip providers in exclude list, used for retry       |
+| `ResolveByProvider(providerID) (*RoutingDecision, bool)` | Direct provider lookup                               |
+| `ResolveTransparent(model) *RoutingDecision`             | Claude OAuth passthrough, no token check             |
+| `MarkCooldown(providerID, duration, model...)`           | Mark provider+model as rate-limited                  |
+| `ModelBelongsToProvider(model, providerID) bool`         | Check if model routes to a specific provider         |
 
 ### Token Selection Strategies
 
@@ -398,30 +398,30 @@ type TokenInfo struct {
 
 ### Redis Key Schema
 
-| Pattern | Description |
-|---|---|
-| `arl:tokens:{provider}:{accountID}` | Serialized TokenInfo JSON |
-| `arl:tokens:{provider}:_index` | Redis SET of account IDs for the provider |
+| Pattern                                | Description                                |
+|----------------------------------------|--------------------------------------------|
+| `arl:tokens:{provider}:{accountID}`    | Serialized TokenInfo JSON                  |
+| `arl:tokens:{provider}:_index`         | Redis SET of account IDs for the provider  |
 | `arl:ratelimit:{provider}:{accountID}` | Cached rate limit status (`AcctRateLimit`) |
-| `arl:providers:custom:{id}` | Serialized custom ProviderConfig |
+| `arl:providers:custom:{id}`            | Serialized custom ProviderConfig           |
 
 ### Token Store Methods
 
-| Method | Signature | Description |
-|---|---|---|
-| `Store` | `(token TokenInfo) error` | Upsert token + add to provider index |
-| `Get` | `(provider, accountID) (*TokenInfo, error)` | Single token lookup |
-| `Delete` | `(provider, accountID) error` | Remove token + update index |
-| `DeleteByProvider` | `(provider) error` | Remove all tokens for a provider |
-| `ListByProvider` | `(provider) ([]TokenInfo, error)` | Pipeline GET for all tokens in provider |
-| `ListAll` | `() ([]TokenInfo, error)` | SCAN all tokens across providers |
-| `GetDefault` | `(provider) (*TokenInfo, error)` | Default token, fallback to first non-paused |
-| `SetDefault` | `(provider, accountID) error` | Toggle default (clear all if already default) |
-| `Pause` | `(provider, accountID) error` | Set paused=true |
-| `Resume` | `(provider, accountID) error` | Set paused=false |
-| `UpdateEmail` | `(provider, accountID, email) error` | Update email field |
-| `GetFromPool` | `(provider, accountIDs) (*TokenInfo, error)` | Select from given account IDs with utilization-based selection |
-| `GetRateLimits` | `(provider, accountIDs) map[string]AcctRateLimit` | Pipeline GET for rate limit cache |
+| Method             | Signature                                         | Description                                                    |
+|--------------------|---------------------------------------------------|----------------------------------------------------------------|
+| `Store`            | `(token TokenInfo) error`                         | Upsert token + add to provider index                           |
+| `Get`              | `(provider, accountID) (*TokenInfo, error)`       | Single token lookup                                            |
+| `Delete`           | `(provider, accountID) error`                     | Remove token + update index                                    |
+| `DeleteByProvider` | `(provider) error`                                | Remove all tokens for a provider                               |
+| `ListByProvider`   | `(provider) ([]TokenInfo, error)`                 | Pipeline GET for all tokens in provider                        |
+| `ListAll`          | `() ([]TokenInfo, error)`                         | SCAN all tokens across providers                               |
+| `GetDefault`       | `(provider) (*TokenInfo, error)`                  | Default token, fallback to first non-paused                    |
+| `SetDefault`       | `(provider, accountID) error`                     | Toggle default (clear all if already default)                  |
+| `Pause`            | `(provider, accountID) error`                     | Set paused=true                                                |
+| `Resume`           | `(provider, accountID) error`                     | Set paused=false                                               |
+| `UpdateEmail`      | `(provider, accountID, email) error`              | Update email field                                             |
+| `GetFromPool`      | `(provider, accountIDs) (*TokenInfo, error)`      | Select from given account IDs with utilization-based selection |
+| `GetRateLimits`    | `(provider, accountIDs) map[string]AcctRateLimit` | Pipeline GET for rate limit cache                              |
 
 ### Provider Rename Migration
 
@@ -451,37 +451,37 @@ Used by: `copilot`, `qwen`
 
 ```
 Client                 Gateway                    Provider
-  |                       |                          |
-  | POST /auth/{p}/start |                          |
-  |---------------------->|                          |
-  |                       | POST device_code_url     |
-  |                       |------------------------->|
-  |                       | {device_code, user_code} |
-  |                       |<-------------------------|
-  | {user_code, url,      |                          |
-  |  device_code, state}  |                          |
-  |<----------------------|                          |
-  |                       |                          |
-  | (User visits URL,     |                          |
-  |  enters code)         |                          |
-  |                       |                          |
+|                       |                          |
+| POST /auth/{p}/start |                          |
+|---------------------->|                          |
+|                       | POST device_code_url     |
+|                       |------------------------->|
+|                       | {device_code, user_code} |
+|                       |<-------------------------|
+| {user_code, url,      |                          |
+|  device_code, state}  |                          |
+|<----------------------|                          |
+|                       |                          |
+| (User visits URL,     |                          |
+|  enters code)         |                          |
+|                       |                          |
   | GET /auth/{p}/status?state=...                   |
-  |---------------------->|                          |
-  |                       | POST token_url (poll)    |
-  |                       |------------------------->|
-  |                       | {pending} or {token}     |
-  |                       |<-------------------------|
-  | {status: "pending"}   |                          |
-  |<----------------------|                          |
-  |                       |                          |
-  | (repeat poll)         |                          |
-  |---------------------->|                          |
-  |                       | POST token_url (poll)    |
-  |                       |------------------------->|
-  |                       | {access_token}           |
-  |                       |<-------------------------|
-  | {status: "complete"}  |                          |
-  |<----------------------|                          |
+|---------------------->|                          |
+|                       | POST token_url (poll)    |
+|                       |------------------------->|
+|                       | {pending} or {token}     |
+|                       |<-------------------------|
+| {status: "pending"}   |                          |
+|<----------------------|                          |
+|                       |                          |
+| (repeat poll)         |                          |
+|---------------------->|                          |
+|                       | POST token_url (poll)    |
+|                       |------------------------->|
+|                       | {access_token}           |
+|                       |<-------------------------|
+| {status: "complete"}  |                          |
+|<----------------------|                          |
 ```
 
 **Key details**:
@@ -497,30 +497,30 @@ Used by: `claude-oauth`, `gemini-oauth`
 
 ```
 Client                 Gateway                    Provider
-  |                       |                          |
-  | POST /auth/{p}/start |                          |
-  |---------------------->|                          |
-  |                       | Generate state + PKCE    |
-  |                       | Build auth_url           |
-  | {auth_url, state,     |                          |
-  |  client_id, redirect} |                          |
-  |<----------------------|                          |
-  |                       |                          |
-  | (User opens auth_url, |                          |
-  |  authorizes, callback)|                          |
-  |                       |                          |
+|                       |                          |
+| POST /auth/{p}/start |                          |
+|---------------------->|                          |
+|                       | Generate state + PKCE    |
+|                       | Build auth_url           |
+| {auth_url, state,     |                          |
+|  client_id, redirect} |                          |
+|<----------------------|                          |
+|                       |                          |
+| (User opens auth_url, |                          |
+|  authorizes, callback)|                          |
+|                       |                          |
   | GET /auth/{p}/callback?code=...&state=...        |
-  |---------------------->|                          |
-  |                       | POST token_url           |
-  |                       | {code, verifier, id}     |
-  |                       |------------------------->|
+|---------------------->|                          |
+|                       | POST token_url           |
+|                       | {code, verifier, id}     |
+|                       |------------------------->|
   |                       | {access, refresh, id_token}
-  |                       |<-------------------------|
-  |                       | GET user_info_url        |
-  |                       | (if configured)          |
-  |                       | Store TokenInfo          |
-  | Redirect to dashboard |                          |
-  |<----------------------|                          |
+|                       |<-------------------------|
+|                       | GET user_info_url        |
+|                       | (if configured)          |
+|                       | Store TokenInfo          |
+| Redirect to dashboard |                          |
+|<----------------------|                          |
 ```
 
 **PKCE generation**:
@@ -536,10 +536,10 @@ Client                 Gateway                    Provider
 
 **Token exchange differences**:
 
-| Provider | Content-Type | Body Format | Special |
-|---|---|---|---|
-| `claude-oauth` | `application/json` | JSON `{grant_type, code, redirect_uri, client_id, code_verifier, state}` | PKCE-only, no client_secret |
-| `gemini-oauth` | `application/x-www-form-urlencoded` | Form-encoded + `code_verifier` + `client_secret` | `access_type=offline`, `prompt=consent` |
+| Provider       | Content-Type                        | Body Format                                                              | Special                                 |
+|----------------|-------------------------------------|--------------------------------------------------------------------------|-----------------------------------------|
+| `claude-oauth` | `application/json`                  | JSON `{grant_type, code, redirect_uri, client_id, code_verifier, state}` | PKCE-only, no client_secret             |
+| `gemini-oauth` | `application/x-www-form-urlencoded` | Form-encoded + `code_verifier` + `client_secret`                         | `access_type=offline`, `prompt=consent` |
 
 **Email resolution**:
 1. If `UserInfoURL` is set, fetch email via `GET {UserInfoURL}` with Bearer token
@@ -644,30 +644,30 @@ After each refresh cycle, `resolveMissingProjects()` runs:
 
 ### Route Table
 
-| Method | Path | Handler | Purpose |
-|---|---|---|---|
-| POST | `/auth/{provider}/start` | `StartAuth` | Initiate OAuth flow |
-| POST | `/auth/{provider}/start-url` | `StartAuthURL` | Same as start |
-| POST | `/auth/{provider}/register` | `RegisterAPIKey` | Register API key or session cookie |
-| GET | `/auth/{provider}/callback` | `HandleCallback` | OAuth callback redirect |
-| POST | `/auth/{provider}/callback` | `HandleCallbackPost` | Manual code exchange (remote) |
-| GET | `/auth/{provider}/status` | `PollStatus` | Poll device code / auth status |
-| POST | `/auth/{provider}/cancel` | `CancelAuth` | Cancel pending auth session |
-| GET | `/auth/accounts` | `ListAccounts` | List all tokens |
-| GET | `/auth/accounts/{provider}` | `ListAccounts` | List tokens for provider |
-| DELETE | `/auth/accounts/{provider}/{accountId}` | `RemoveAccount` | Delete token + cascade from profiles |
-| POST | `/auth/accounts/{provider}/{accountId}/pause` | `PauseAccount` | Pause account |
-| POST | `/auth/accounts/{provider}/{accountId}/resume` | `ResumeAccount` | Resume account |
-| POST | `/auth/accounts/{provider}/{accountId}/default` | `SetDefaultAccount` | Set default token |
-| POST | `/auth/accounts/{provider}/{accountId}/email` | `UpdateAccountEmail` | Update email |
-| POST | `/auth/accounts/{provider}/{accountId}/refresh` | `RefreshAccount` | On-demand token refresh |
-| POST | `/auth/login` | `DashboardLogin` | Dashboard auth (API key -> cookie) |
-| POST | `/auth/logout` | `DashboardLogout` | Clear session cookie |
-| GET | `/auth/check` | `CheckAuth` | Check auth status |
-| GET | `/providers` | `ListProviders` | List all providers |
-| PUT | `/providers/{provider}/upstream` | `UpdateProviderUpstream` | Runtime upstream change |
-| POST | `/providers/custom` | `CreateCustomProvider` | Create custom provider |
-| DELETE | `/providers/custom/{provider}` | `DeleteCustomProvider` | Delete custom provider + cascade |
+| Method | Path                                            | Handler                  | Purpose                              |
+|--------|-------------------------------------------------|--------------------------|--------------------------------------|
+| POST   | `/auth/{provider}/start`                        | `StartAuth`              | Initiate OAuth flow                  |
+| POST   | `/auth/{provider}/start-url`                    | `StartAuthURL`           | Same as start                        |
+| POST   | `/auth/{provider}/register`                     | `RegisterAPIKey`         | Register API key or session cookie   |
+| GET    | `/auth/{provider}/callback`                     | `HandleCallback`         | OAuth callback redirect              |
+| POST   | `/auth/{provider}/callback`                     | `HandleCallbackPost`     | Manual code exchange (remote)        |
+| GET    | `/auth/{provider}/status`                       | `PollStatus`             | Poll device code / auth status       |
+| POST   | `/auth/{provider}/cancel`                       | `CancelAuth`             | Cancel pending auth session          |
+| GET    | `/auth/accounts`                                | `ListAccounts`           | List all tokens                      |
+| GET    | `/auth/accounts/{provider}`                     | `ListAccounts`           | List tokens for provider             |
+| DELETE | `/auth/accounts/{provider}/{accountId}`         | `RemoveAccount`          | Delete token + cascade from profiles |
+| POST   | `/auth/accounts/{provider}/{accountId}/pause`   | `PauseAccount`           | Pause account                        |
+| POST   | `/auth/accounts/{provider}/{accountId}/resume`  | `ResumeAccount`          | Resume account                       |
+| POST   | `/auth/accounts/{provider}/{accountId}/default` | `SetDefaultAccount`      | Set default token                    |
+| POST   | `/auth/accounts/{provider}/{accountId}/email`   | `UpdateAccountEmail`     | Update email                         |
+| POST   | `/auth/accounts/{provider}/{accountId}/refresh` | `RefreshAccount`         | On-demand token refresh              |
+| POST   | `/auth/login`                                   | `DashboardLogin`         | Dashboard auth (API key -> cookie)   |
+| POST   | `/auth/logout`                                  | `DashboardLogout`        | Clear session cookie                 |
+| GET    | `/auth/check`                                   | `CheckAuth`              | Check auth status                    |
+| GET    | `/providers`                                    | `ListProviders`          | List all providers                   |
+| PUT    | `/providers/{provider}/upstream`                | `UpdateProviderUpstream` | Runtime upstream change              |
+| POST   | `/providers/custom`                             | `CreateCustomProvider`   | Create custom provider               |
+| DELETE | `/providers/custom/{provider}`                  | `DeleteCustomProvider`   | Delete custom provider + cascade     |
 
 ### Auth Session Management
 
@@ -713,133 +713,133 @@ When a custom provider is deleted:
 
 ### Anthropic (Direct API Key)
 
-| Aspect | Value |
-|---|---|
-| Auth | `x-api-key` header |
-| Endpoint | `POST /v1/messages` |
-| Format | Anthropic native |
-| Token counting | Native Anthropic token counting |
-| Streaming | SSE with `event: message_start`, `content_block_delta`, etc. |
-| Models | `claude-*` prefix |
+| Aspect         | Value                                                        |
+|----------------|--------------------------------------------------------------|
+| Auth           | `x-api-key` header                                           |
+| Endpoint       | `POST /v1/messages`                                          |
+| Format         | Anthropic native                                             |
+| Token counting | Native Anthropic token counting                              |
+| Streaming      | SSE with `event: message_start`, `content_block_delta`, etc. |
+| Models         | `claude-*` prefix                                            |
 
 ### Claude (OAuth)
 
-| Aspect | Value |
-|---|---|
-| Auth | `x-api-key: Bearer {access_token}` + `anthropic-beta: oauth-2025-04-20` |
-| Endpoint | `POST /v1/messages?beta=true` |
-| Format | Anthropic native with beta features |
-| Client ID | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` (extracted from Claude Code CLI) |
-| Auth URL | `https://claude.com/cai/oauth/authorize` |
-| Token URL | `https://api.anthropic.com/v1/oauth/token` |
-| Redirect URI | `http://localhost:8765/callback` |
-| PKCE | Yes (S256), no client_secret |
-| Token refresh | JSON body, every 30 min, 45 min threshold |
-| Round-robin | Yes, with utilization-aware account selection |
-| Models | `claude-*` prefix, highest priority |
+| Aspect        | Value                                                                   |
+|---------------|-------------------------------------------------------------------------|
+| Auth          | `x-api-key: Bearer {access_token}` + `anthropic-beta: oauth-2025-04-20` |
+| Endpoint      | `POST /v1/messages?beta=true`                                           |
+| Format        | Anthropic native with beta features                                     |
+| Client ID     | `9d1c250a-e61b-44d9-88ed-5944d1962f5e` (extracted from Claude Code CLI) |
+| Auth URL      | `https://claude.com/cai/oauth/authorize`                                |
+| Token URL     | `https://api.anthropic.com/v1/oauth/token`                              |
+| Redirect URI  | `http://localhost:8765/callback`                                        |
+| PKCE          | Yes (S256), no client_secret                                            |
+| Token refresh | JSON body, every 30 min, 45 min threshold                               |
+| Round-robin   | Yes, with utilization-aware account selection                           |
+| Models        | `claude-*` prefix, highest priority                                     |
 
 ### Google Gemini (API Key)
 
-| Aspect | Value |
-|---|---|
-| Auth | Query param `?key={apiKey}` |
+| Aspect   | Value                                                           |
+|----------|-----------------------------------------------------------------|
+| Auth     | Query param `?key={apiKey}`                                     |
 | Endpoint | `GET /v1beta/models/{model}:streamGenerateContent?key={apiKey}` |
-| Format | Gemini native |
-| Models | `gemini-*` prefix, lower priority than gemini-oauth |
+| Format   | Gemini native                                                   |
+| Models   | `gemini-*` prefix, lower priority than gemini-oauth             |
 
 ### Google Gemini (OAuth / CodeAssist)
 
-| Aspect | Value |
-|---|---|
-| Auth | `Authorization: Bearer {token}` |
-| Endpoint | Same Gemini format, Bearer auth |
-| Auth URL | `https://accounts.google.com/o/oauth2/v2/auth` |
-| Token URL | `https://oauth2.googleapis.com/token` |
-| Redirect URI | `{OAUTH_CALLBACK_BASE}/v1/auth/gemini-oauth/callback` |
-| PKCE | Yes (S256) + client_secret (installed app) |
-| Scopes | `cloud-platform`, `userinfo.email`, `userinfo.profile` |
-| Upstream | `https://cloudcode-pa.googleapis.com` (not generativelanguage.googleapis.com) |
-| Project resolution | `loadCodeAssist` -> `onboardUser` -> LRO poll |
-| Models | `gemini-*` prefix, higher priority than API key |
+| Aspect             | Value                                                                         |
+|--------------------|-------------------------------------------------------------------------------|
+| Auth               | `Authorization: Bearer {token}`                                               |
+| Endpoint           | Same Gemini format, Bearer auth                                               |
+| Auth URL           | `https://accounts.google.com/o/oauth2/v2/auth`                                |
+| Token URL          | `https://oauth2.googleapis.com/token`                                         |
+| Redirect URI       | `{OAUTH_CALLBACK_BASE}/v1/auth/gemini-oauth/callback`                         |
+| PKCE               | Yes (S256) + client_secret (installed app)                                    |
+| Scopes             | `cloud-platform`, `userinfo.email`, `userinfo.profile`                        |
+| Upstream           | `https://cloudcode-pa.googleapis.com` (not generativelanguage.googleapis.com) |
+| Project resolution | `loadCodeAssist` -> `onboardUser` -> LRO poll                                 |
+| Models             | `gemini-*` prefix, higher priority than API key                               |
 
 ### OpenAI
 
-| Aspect | Value |
-|---|---|
-| Auth | `Authorization: Bearer {apiKey}` |
-| Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Models | `gpt-*`, `o1-*`, `o3-*`, `o4-*` |
+| Aspect   | Value                            |
+|----------|----------------------------------|
+| Auth     | `Authorization: Bearer {apiKey}` |
+| Endpoint | `POST /v1/chat/completions`      |
+| Format   | OpenAI Chat Completions          |
+| Models   | `gpt-*`, `o1-*`, `o3-*`, `o4-*`  |
 
 ### Z.AI / GLM
 
-| Aspect | Value |
-|---|---|
-| Auth | `x-api-key` header |
-| Endpoint | `POST /v1/messages` (Anthropic-compatible) |
-| Format | Anthropic native |
-| Models | `glm-*` prefix |
-| Fallback | In GLM mode, all unmatched models route to Z.AI |
+| Aspect        | Value                                                           |
+|---------------|-----------------------------------------------------------------|
+| Auth          | `x-api-key` header                                              |
+| Endpoint      | `POST /v1/messages` (Anthropic-compatible)                      |
+| Format        | Anthropic native                                                |
+| Models        | `glm-*` prefix                                                  |
+| Fallback      | In GLM mode, all unmatched models route to Z.AI                 |
 | OpenAI compat | Separate `ZAI_OPENAI_URL` for models in `ZAI_OPENAI_MODELS` set |
 
 ### OpenRouter
 
-| Aspect | Value |
-|---|---|
-| Auth | `Authorization: Bearer {apiKey}` |
-| Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Extra Header | `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit` |
-| Models | `or-*` prefix, also `anthropic/*`, `openai/*`, `google/*`, `meta/*`, `deepseek/*`, `qwen/*` |
+| Aspect       | Value                                                                                       |
+|--------------|---------------------------------------------------------------------------------------------|
+| Auth         | `Authorization: Bearer {apiKey}`                                                            |
+| Endpoint     | `POST /v1/chat/completions`                                                                 |
+| Format       | OpenAI Chat Completions                                                                     |
+| Extra Header | `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit`                               |
+| Models       | `or-*` prefix, also `anthropic/*`, `openai/*`, `google/*`, `meta/*`, `deepseek/*`, `qwen/*` |
 
 ### GitHub Copilot
 
-| Aspect | Value |
-|---|---|
-| Auth | Device code flow -> Bearer token |
-| Device Code URL | `https://github.com/login/device/code` |
-| Token URL | `https://github.com/login/oauth/access_token` |
-| Client ID | `Iv1.b507a08c87ecfe98` |
-| Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
+| Aspect          | Value                                         |
+|-----------------|-----------------------------------------------|
+| Auth            | Device code flow -> Bearer token              |
+| Device Code URL | `https://github.com/login/device/code`        |
+| Token URL       | `https://github.com/login/oauth/access_token` |
+| Client ID       | `Iv1.b507a08c87ecfe98`                        |
+| Endpoint        | `POST /v1/chat/completions`                   |
+| Format          | OpenAI Chat Completions                       |
 
 
-| Aspect | Value |
-|---|---|
-| Auth | `Authorization: Bearer {apiKey}` |
-| Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Model Override | All models mapped to `"default"` |
-| Max Tokens | Capped at 4096 |
-| Auto-continuations | Up to 3 on `finish_reason: "length"` |
-| Tool Mode | `native` (OpenAI function calling -> Anthropic tool_use conversion) |
+| Aspect             | Value                                                               |
+|--------------------|---------------------------------------------------------------------|
+| Auth               | `Authorization: Bearer {apiKey}`                                    |
+| Endpoint           | `POST /v1/chat/completions`                                         |
+| Format             | OpenAI Chat Completions                                             |
+| Model Override     | All models mapped to `"default"`                                    |
+| Max Tokens         | Capped at 4096                                                      |
+| Auto-continuations | Up to 3 on `finish_reason: "length"`                                |
+| Tool Mode          | `native` (OpenAI function calling -> Anthropic tool_use conversion) |
 
 ### Qwen (Aliyun)
 
-| Aspect | Value |
-|---|---|
-| Auth | Device code flow -> Bearer token |
+| Aspect   | Value                                       |
+|----------|---------------------------------------------|
+| Auth     | Device code flow -> Bearer token            |
 | Endpoint | `POST /compatible-mode/v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Models | `qwen-*` prefix |
+| Format   | OpenAI Chat Completions                     |
+| Models   | `qwen-*` prefix                             |
 
 ### DeepSeek
 
-| Aspect | Value |
-|---|---|
-| Auth | API key -> Bearer |
+| Aspect   | Value                       |
+|----------|-----------------------------|
+| Auth     | API key -> Bearer           |
 | Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Models | `deepseek-*` prefix |
+| Format   | OpenAI Chat Completions     |
+| Models   | `deepseek-*` prefix         |
 
 ### Ollama
 
-| Aspect | Value |
-|---|---|
-| Auth | API key (usually empty for local) |
-| Endpoint | `POST /v1/chat/completions` |
-| Format | OpenAI Chat Completions |
-| Default | `http://localhost:11434` |
+| Aspect   | Value                             |
+|----------|-----------------------------------|
+| Auth     | API key (usually empty for local) |
+| Endpoint | `POST /v1/chat/completions`       |
+| Format   | OpenAI Chat Completions           |
+| Default  | `http://localhost:11434`          |
 
 ---
 
@@ -847,37 +847,37 @@ When a custom provider is deleted:
 
 ### Provider-Related Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `ANTHROPIC_UPSTREAM_BASE` | `https://api.anthropic.com` | Anthropic API base |
-| `CLAUDE_UPSTREAM_BASE` | `https://api.anthropic.com` | Claude OAuth API base |
-| `CLAUDE_OAUTH_CLIENT_ID` | `9d1c250a-...` | Claude OAuth client ID |
-| `GEMINI_UPSTREAM_BASE` | `https://generativelanguage.googleapis.com` | Gemini API base |
-| `GEMINI_CODEASSIST_BASE` | `https://cloudcode-pa.googleapis.com` | CodeAssist API base |
-| `GEMINI_OAUTH_CLIENT_ID` | (empty) | Google OAuth client ID |
-| `GEMINI_OAUTH_CLIENT_SECRET` | (empty) | Google OAuth client secret |
-| `OPENAI_UPSTREAM_BASE` | `https://api.openai.com` | OpenAI API base |
-| `ZAI_UPSTREAM_BASE` | `https://api.z.ai/api/anthropic` | Z.AI Anthropic endpoint |
-| `OPENROUTER_UPSTREAM_BASE` | `https://openrouter.ai/api` | OpenRouter API base |
-| `QWEN_UPSTREAM_BASE` | `https://dashscope.aliyuncs.com` | Qwen API base |
-| `QWEN_DEVICE_CODE_URL` | (empty) | Qwen device code URL |
-| `QWEN_TOKEN_URL` | (empty) | Qwen token URL |
-| `QWEN_CLIENT_ID` | (empty) | Qwen OAuth client ID |
-| `QWEN_CLIENT_SECRET` | (empty) | Qwen OAuth client secret |
-| `DEEPSEEK_UPSTREAM_BASE` | `https://api.deepseek.com` | DeepSeek API base |
-| `KIMI_UPSTREAM_BASE` | `https://api.moonshot.cn/v1` | Kimi API base |
-| `HUGGINGFACE_UPSTREAM_BASE` | `https://api-inference.huggingface.co/models` | HF API base |
-| `OLLAMA_UPSTREAM_BASE` | `http://localhost:11434` | Ollama API base |
-| `AGY_UPSTREAM_BASE` | `https://antigravity.com` | Antigravity API base |
-| `CURSOR_UPSTREAM_BASE` | `https://api2.cursor.sh` | Cursor API base |
-| `CODEBUDDY_UPSTREAM_BASE` | `https://api.codebuddy.io` | CodeBuddy API base |
-| `KILO_UPSTREAM_BASE` | `https://api.kilo.ai` | Kilo API base |
-| `COPILOT_CLIENT_ID` | `Iv1.b507a08c87ecfe98` | GitHub Copilot client ID |
-| `OAUTH_CALLBACK_BASE` | `http://127.0.0.1:9000` | OAuth redirect URI base |
-| `DASHBOARD_URL` | `http://localhost:8082` | Dashboard URL for redirects |
-| `DASHBOARD_PASSWORD` | (empty) | Dashboard auth key |
-| `REDIS_ADDR` | `dragonfly:6379` | Redis connection |
-| `GLM_MODE` | `true` | Enable Z.AI features |
+| Variable                     | Default                                       | Description                 |
+|------------------------------|-----------------------------------------------|-----------------------------|
+| `ANTHROPIC_UPSTREAM_BASE`    | `https://api.anthropic.com`                   | Anthropic API base          |
+| `CLAUDE_UPSTREAM_BASE`       | `https://api.anthropic.com`                   | Claude OAuth API base       |
+| `CLAUDE_OAUTH_CLIENT_ID`     | `9d1c250a-...`                                | Claude OAuth client ID      |
+| `GEMINI_UPSTREAM_BASE`       | `https://generativelanguage.googleapis.com`   | Gemini API base             |
+| `GEMINI_CODEASSIST_BASE`     | `https://cloudcode-pa.googleapis.com`         | CodeAssist API base         |
+| `GEMINI_OAUTH_CLIENT_ID`     | (empty)                                       | Google OAuth client ID      |
+| `GEMINI_OAUTH_CLIENT_SECRET` | (empty)                                       | Google OAuth client secret  |
+| `OPENAI_UPSTREAM_BASE`       | `https://api.openai.com`                      | OpenAI API base             |
+| `ZAI_UPSTREAM_BASE`          | `https://api.z.ai/api/anthropic`              | Z.AI Anthropic endpoint     |
+| `OPENROUTER_UPSTREAM_BASE`   | `https://openrouter.ai/api`                   | OpenRouter API base         |
+| `QWEN_UPSTREAM_BASE`         | `https://dashscope.aliyuncs.com`              | Qwen API base               |
+| `QWEN_DEVICE_CODE_URL`       | (empty)                                       | Qwen device code URL        |
+| `QWEN_TOKEN_URL`             | (empty)                                       | Qwen token URL              |
+| `QWEN_CLIENT_ID`             | (empty)                                       | Qwen OAuth client ID        |
+| `QWEN_CLIENT_SECRET`         | (empty)                                       | Qwen OAuth client secret    |
+| `DEEPSEEK_UPSTREAM_BASE`     | `https://api.deepseek.com`                    | DeepSeek API base           |
+| `KIMI_UPSTREAM_BASE`         | `https://api.moonshot.cn/v1`                  | Kimi API base               |
+| `HUGGINGFACE_UPSTREAM_BASE`  | `https://api-inference.huggingface.co/models` | HF API base                 |
+| `OLLAMA_UPSTREAM_BASE`       | `http://localhost:11434`                      | Ollama API base             |
+| `AGY_UPSTREAM_BASE`          | `https://antigravity.com`                     | Antigravity API base        |
+| `CURSOR_UPSTREAM_BASE`       | `https://api2.cursor.sh`                      | Cursor API base             |
+| `CODEBUDDY_UPSTREAM_BASE`    | `https://api.codebuddy.io`                    | CodeBuddy API base          |
+| `KILO_UPSTREAM_BASE`         | `https://api.kilo.ai`                         | Kilo API base               |
+| `COPILOT_CLIENT_ID`          | `Iv1.b507a08c87ecfe98`                        | GitHub Copilot client ID    |
+| `OAUTH_CALLBACK_BASE`        | `http://127.0.0.1:9000`                       | OAuth redirect URI base     |
+| `DASHBOARD_URL`              | `http://localhost:8082`                       | Dashboard URL for redirects |
+| `DASHBOARD_PASSWORD`         | (empty)                                       | Dashboard auth key          |
+| `REDIS_ADDR`                 | `dragonfly:6379`                              | Redis connection            |
+| `GLM_MODE`                   | `true`                                        | Enable Z.AI features        |
 
 ### Config struct (provider-relevant fields)
 
@@ -993,13 +993,13 @@ Request: model="unknown-model-xyz"
 
 ### Provider-Level Errors
 
-| Error | Response | Action |
-|---|---|---|
-| 429 Too Many Requests | Rate limited | `MarkCooldown()` on provider+model, retry with next provider |
-| 401 Unauthorized | Token expired | Handled by RefreshWorker proactively (45min threshold) |
-| 500 Internal Server Error | Provider error | Retry with exponential backoff (configurable) |
-| Token not found | No credential | Resolver returns nil, caller handles "no provider available" |
-| Token expired + no refresh_token | Stale token | Auto-deleted by RefreshWorker cleanup |
+| Error                            | Response       | Action                                                       |
+|----------------------------------|----------------|--------------------------------------------------------------|
+| 429 Too Many Requests            | Rate limited   | `MarkCooldown()` on provider+model, retry with next provider |
+| 401 Unauthorized                 | Token expired  | Handled by RefreshWorker proactively (45min threshold)       |
+| 500 Internal Server Error        | Provider error | Retry with exponential backoff (configurable)                |
+| Token not found                  | No credential  | Resolver returns nil, caller handles "no provider available" |
+| Token expired + no refresh_token | Stale token    | Auto-deleted by RefreshWorker cleanup                        |
 
 ### Refresh Worker Error Handling
 

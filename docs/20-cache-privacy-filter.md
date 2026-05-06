@@ -38,21 +38,21 @@ EvictionManager
 
 #### Config
 
-| Field | Type | Default | Env Var |
-|---|---|---|---|
-| `Enabled` | `bool` | `true` | `CACHE_EVICTION_ENABLED` |
-| `EvictPct` | `float64` | `10.0` | `CACHE_EVICTION_PCT` |
-| `EvictPeriod` | `time.Duration` | `5m` | (hardcoded) |
+| Field         | Type            | Default | Env Var                  |
+|---------------|-----------------|---------|--------------------------|
+| `Enabled`     | `bool`          | `true`  | `CACHE_EVICTION_ENABLED` |
+| `EvictPct`    | `float64`       | `10.0`  | `CACHE_EVICTION_PCT`     |
+| `EvictPeriod` | `time.Duration` | `5m`    | (hardcoded)              |
 
 #### Redis Key Schema
 
 Each tracked cache key gets a Redis hash at `cache:stats:<key>`:
 
-| Hash Field | Type | Description |
-|---|---|---|
-| `tokens_saved` | `int64` | Cumulative tokens saved by cache hits |
-| `hit_count` | `int64` | Number of cache hits |
-| `tokens_injected` | `int64` | Tokens injected from cache |
+| Hash Field        | Type    | Description                           |
+|-------------------|---------|---------------------------------------|
+| `tokens_saved`    | `int64` | Cumulative tokens saved by cache hits |
+| `hit_count`       | `int64` | Number of cache hits                  |
+| `tokens_injected` | `int64` | Tokens injected from cache            |
 
 TTL: 24 hours per stats hash.
 
@@ -80,21 +80,21 @@ The sort uses insertion sort (suitable for typical cache key counts).
 
 ### Public Methods
 
-| Method | Description |
-|---|---|
-| `New(reg, rdb)` | Creates manager, registers Prometheus metrics |
-| `RecordHit(ctx, key, tokensSaved)` | Increments `tokens_saved` and `hit_count` in a pipeline |
-| `RecordInjection(ctx, key, tokensInjected)` | Sets `tokens_injected` on a key |
-| `Evict(ctx)` | Runs one eviction pass, returns count of evicted keys |
-| `StartEvictionLoop(ctx)` | Launches background goroutine with 5m ticker |
+| Method                                      | Description                                             |
+|---------------------------------------------|---------------------------------------------------------|
+| `New(reg, rdb)`                             | Creates manager, registers Prometheus metrics           |
+| `RecordHit(ctx, key, tokensSaved)`          | Increments `tokens_saved` and `hit_count` in a pipeline |
+| `RecordInjection(ctx, key, tokensInjected)` | Sets `tokens_injected` on a key                         |
+| `Evict(ctx)`                                | Runs one eviction pass, returns count of evicted keys   |
+| `StartEvictionLoop(ctx)`                    | Launches background goroutine with 5m ticker            |
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `api_gateway_cache_eviction_keys_evicted_total` | Counter | - | Total keys evicted |
-| `api_gateway_cache_eviction_roi_score` | Histogram | - | ROI score at eviction time |
-| `api_gateway_cache_eviction_pass_duration_seconds` | Histogram | - | Duration of each eviction pass |
+| Metric                                             | Type      | Labels | Description                    |
+|----------------------------------------------------|-----------|--------|--------------------------------|
+| `api_gateway_cache_eviction_keys_evicted_total`    | Counter   | -      | Total keys evicted             |
+| `api_gateway_cache_eviction_roi_score`             | Histogram | -      | ROI score at eviction time     |
+| `api_gateway_cache_eviction_pass_duration_seconds` | Histogram | -      | Duration of each eviction pass |
 
 ### Integration Point
 
@@ -138,14 +138,14 @@ Response Flow:
 
 #### Pipeline Config
 
-| Field | Type | Default | Env Var |
-|---|---|---|---|
-| `Enabled` | `bool` | `true` | `PASTEGUARD_ENABLED` |
-| `SecretsEnabled` | `bool` | `true` | `PASTEGUARD_SECRETS_ENABLED` |
-| `MaxScanChars` | `int` | `200000` | `PASTEGUARD_MAX_SCAN_CHARS` |
+| Field            | Type       | Default     | Env Var                      |
+|------------------|------------|-------------|------------------------------|
+| `Enabled`        | `bool`     | `true`      | `PASTEGUARD_ENABLED`         |
+| `SecretsEnabled` | `bool`     | `true`      | `PASTEGUARD_SECRETS_ENABLED` |
+| `MaxScanChars`   | `int`      | `200000`    | `PASTEGUARD_MAX_SCAN_CHARS`  |
 | `SecretEntities` | `[]string` | (see below) | `PASTEGUARD_SECRET_ENTITIES` |
-| `PIIEnabled` | `bool` | `true` | `PASTEGUARD_PII_ENABLED` |
-| `PIIEntities` | `[]string` | (see below) | `PASTEGUARD_PII_ENTITIES` |
+| `PIIEnabled`     | `bool`     | `true`      | `PASTEGUARD_PII_ENABLED`     |
+| `PIIEntities`    | `[]string` | (see below) | `PASTEGUARD_PII_ENTITIES`    |
 
 #### Default Secret Entities
 
@@ -199,16 +199,16 @@ IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 
 #### Entity Types and Regex Patterns
 
-| Entity | Regex Summary | Confidence |
-|---|---|---|
-| `EMAIL_ADDRESS` | Standard email format | 0.95 |
-| `PHONE_NUMBER` | International phone numbers | 0.90 |
-| `CREDIT_CARD` | Visa/MC/Amex/Discover patterns | 0.95 |
-| `SSN` | US SSN: `xxx-xx-xxxx` | 0.90 |
-| `IBAN` | 2-letter country + 2 check digits + up to 30 alphanum | 0.90 |
-| `IP_ADDRESS` | IPv4 addresses | 0.80 |
-| `THAI_NATIONAL_ID` | `x-xxxx-xxxxx-xx-x` | 0.90 |
-| `THAI_PHONE` | `0[2-9]x-xxx-xxxx` or `+66[2-9]x-xxx-xxxx` | 0.90 |
+| Entity             | Regex Summary                                         | Confidence |
+|--------------------|-------------------------------------------------------|------------|
+| `EMAIL_ADDRESS`    | Standard email format                                 | 0.95       |
+| `PHONE_NUMBER`     | International phone numbers                           | 0.90       |
+| `CREDIT_CARD`      | Visa/MC/Amex/Discover patterns                        | 0.95       |
+| `SSN`              | US SSN: `xxx-xx-xxxx`                                 | 0.90       |
+| `IBAN`             | 2-letter country + 2 check digits + up to 30 alphanum | 0.90       |
+| `IP_ADDRESS`       | IPv4 addresses                                        | 0.80       |
+| `THAI_NATIONAL_ID` | `x-xxxx-xxxxx-xx-x`                                   | 0.90       |
+| `THAI_PHONE`       | `0[2-9]x-xxx-xxxx` or `+66[2-9]x-xxx-xxxx`            | 0.90       |
 
 #### False-Positive Filtering
 
@@ -239,15 +239,15 @@ urlSpans := urlRegex.FindAllStringIndex(text, -1)
 
 `ExtractTextSpans(payload)` extracts all text content from an Anthropic-format request body:
 
-| Location | Example Path | NestedIndex |
-|---|---|---|
-| System prompt (string) | `system` | -1 |
-| System prompt (content blocks) | `system[0].text` | -1 |
-| Message string content | `messages[0].content` | -1 |
-| Message text block | `messages[0].content[1].text` | -1 |
-| Message tool_result (string) | `messages[0].content[1].content` | -1 |
-| Message tool_result (nested blocks) | `messages[0].content[1].content[0].text` | >= 0 |
-| Message tool_use input fields | `messages[0].content[1].input.keyName` | -2 |
+| Location                            | Example Path                             | NestedIndex |
+|-------------------------------------|------------------------------------------|-------------|
+| System prompt (string)              | `system`                                 | -1          |
+| System prompt (content blocks)      | `system[0].text`                         | -1          |
+| Message string content              | `messages[0].content`                    | -1          |
+| Message text block                  | `messages[0].content[1].text`            | -1          |
+| Message tool_result (string)        | `messages[0].content[1].content`         | -1          |
+| Message tool_result (nested blocks) | `messages[0].content[1].content[0].text` | >= 0        |
+| Message tool_use input fields       | `messages[0].content[1].input.keyName`   | -2          |
 
 `extractInputStrings` recursively walks nested maps and arrays in tool_use `input` objects.
 
@@ -355,24 +355,24 @@ type StreamUnmasker struct {
 
 **Integration in proxy** (`proxy/anthropic.go`):
 
-| SSE Event Field | Unmask Method |
-|---|---|
-| `delta.text` | `ProcessChunk()` |
-| `delta.thinking` | `ProcessChunk()` |
+| SSE Event Field      | Unmask Method         |
+|----------------------|-----------------------|
+| `delta.text`         | `ProcessChunk()`      |
+| `delta.thinking`     | `ProcessChunk()`      |
 | `delta.partial_json` | `ReplaceDirectJSON()` |
-| Raw SSE data lines | `ReplaceDirectJSON()` |
-| Error bodies | `UnmaskResponse()` |
-| Non-streaming bodies | `UnmaskResponse()` |
-| End of stream | `Flush()` |
+| Raw SSE data lines   | `ReplaceDirectJSON()` |
+| Error bodies         | `UnmaskResponse()`    |
+| Non-streaming bodies | `UnmaskResponse()`    |
+| End of stream        | `Flush()`             |
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `api_gateway_mask_duration_seconds` | Histogram | `phase` | Duration by phase: `secrets_detect`, `pii_detect`, `mask`, `unmask` |
-| `api_gateway_secrets_detected_total` | Counter | `type` | Secrets detected by entity type |
-| `api_gateway_pii_detected_total` | Counter | `type` | PII entities detected by type |
-| `api_gateway_mask_requests_total` | Counter | `has_secrets`, `has_pii` | Requests processed by pipeline |
+| Metric                               | Type      | Labels                   | Description                                                         |
+|--------------------------------------|-----------|--------------------------|---------------------------------------------------------------------|
+| `api_gateway_mask_duration_seconds`  | Histogram | `phase`                  | Duration by phase: `secrets_detect`, `pii_detect`, `mask`, `unmask` |
+| `api_gateway_secrets_detected_total` | Counter   | `type`                   | Secrets detected by entity type                                     |
+| `api_gateway_pii_detected_total`     | Counter   | `type`                   | PII entities detected by type                                       |
+| `api_gateway_mask_requests_total`    | Counter   | `has_secrets`, `has_pii` | Requests processed by pipeline                                      |
 
 ### Handler Integration
 
@@ -405,19 +405,19 @@ The filter module classifies user intent from request messages and applies respo
 
 ### Configuration
 
-| Field | Type | Default | Env Var |
-|---|---|---|---|
-| `Enabled` | `bool` | `true` | `FILTER_ENABLED` |
+| Field     | Type   | Default | Env Var          |
+|-----------|--------|---------|------------------|
+| `Enabled` | `bool` | `true`  | `FILTER_ENABLED` |
 
 ### Intent Types
 
-| Intent | Value | Description |
-|---|---|---|
-| `IntentCode` | `code` | Code generation/modification requests |
-| `IntentAnalysis` | `analysis` | Explanation and analysis requests |
-| `IntentSearch` | `search` | Finding and locating requests |
-| `IntentAction` | `action` | Execution and deployment requests |
-| `IntentChat` | `chat` | General conversation (default fallback) |
+| Intent           | Value      | Description                             |
+|------------------|------------|-----------------------------------------|
+| `IntentCode`     | `code`     | Code generation/modification requests   |
+| `IntentAnalysis` | `analysis` | Explanation and analysis requests       |
+| `IntentSearch`   | `search`   | Finding and locating requests           |
+| `IntentAction`   | `action`   | Execution and deployment requests       |
+| `IntentChat`     | `chat`     | General conversation (default fallback) |
 
 ### Intent Patterns
 
@@ -443,19 +443,19 @@ Each intent (except `chat`) has two regex patterns:
 
 `FilterResponse(content, intent)`:
 
-| Intent | Strategy |
-|---|---|
-| `IntentCode` | Extract only code blocks using `tokenizer.SplitCodeBlocks()` |
+| Intent         | Strategy                                                                         |
+|----------------|----------------------------------------------------------------------------------|
+| `IntentCode`   | Extract only code blocks using `tokenizer.SplitCodeBlocks()`                     |
 | `IntentSearch` | Extract key lines (bullets, numbered items, file paths, short lines with colons) |
-| Others | No filtering (return as-is) |
+| Others         | No filtering (return as-is)                                                      |
 
 **Search filtering criteria**: Lines kept if they start with `- ` or `* ` or contain `.go`, `.ts`, `.py`, or are under 120 chars with a colon. Appends a `[N lines filtered for relevance]` footer.
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `api_gateway_filter_intents_total` | Counter | `intent` | Intent classification counts |
+| Metric                                 | Type    | Labels   | Description                            |
+|----------------------------------------|---------|----------|----------------------------------------|
+| `api_gateway_filter_intents_total`     | Counter | `intent` | Intent classification counts           |
 | `api_gateway_filter_chars_saved_total` | Counter | `intent` | Characters saved by response filtering |
 
 ### Integration Point
@@ -484,19 +484,19 @@ The disclosure module implements progressive content escalation: serving minimal
 
 ### Configuration
 
-| Field | Type | Default | Env Var |
-|---|---|---|---|
-| `Enabled` | `bool` | `true` | `DISCLOSURE_ENABLED` |
-| `L1Tokens` | `int` | `15` | `DISCLOSURE_L1_TOKENS` |
-| `L2Tokens` | `int` | `60` | `DISCLOSURE_L2_TOKENS` |
+| Field      | Type   | Default | Env Var                |
+|------------|--------|---------|------------------------|
+| `Enabled`  | `bool` | `true`  | `DISCLOSURE_ENABLED`   |
+| `L1Tokens` | `int`  | `15`    | `DISCLOSURE_L1_TOKENS` |
+| `L2Tokens` | `int`  | `60`    | `DISCLOSURE_L2_TOKENS` |
 
 ### Layer Model
 
-| Layer | Constant | Description | Budget |
-|---|---|---|---|
-| Layer 1 (Index) | `LayerIndex` | First ~L1Tokens*4 chars (heading/summary) | `15 * 4 = 60` chars |
-| Layer 2 (FTS) | `LayerFTS` | Keyword-matched paragraphs within L2Tokens*4 budget | `60 * 4 = 240` chars |
-| Layer 3 (Full) | `LayerFull` | Full content (fallback) | Unlimited |
+| Layer           | Constant     | Description                                         | Budget               |
+|-----------------|--------------|-----------------------------------------------------|----------------------|
+| Layer 1 (Index) | `LayerIndex` | First ~L1Tokens*4 chars (heading/summary)           | `15 * 4 = 60` chars  |
+| Layer 2 (FTS)   | `LayerFTS`   | Keyword-matched paragraphs within L2Tokens*4 budget | `60 * 4 = 240` chars |
+| Layer 3 (Full)  | `LayerFull`  | Full content (fallback)                             | Unlimited            |
 
 ### Escalation Algorithm
 
@@ -529,11 +529,11 @@ Returns: `(content, layer, charsSaved)`
 
 ### Prometheus Metrics
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `api_gateway_disclosure_escalations_total` | Counter | `layer` | Layer escalation counts (1, 2, 3) |
-| `api_gateway_disclosure_chars_saved_total` | Counter | - | Characters saved by progressive disclosure |
-| `api_gateway_disclosure_fts_hit_rate` | Gauge | - | Whether FTS layer had matches (1 or 0) |
+| Metric                                     | Type    | Labels  | Description                                |
+|--------------------------------------------|---------|---------|--------------------------------------------|
+| `api_gateway_disclosure_escalations_total` | Counter | `layer` | Layer escalation counts (1, 2, 3)          |
+| `api_gateway_disclosure_chars_saved_total` | Counter | -       | Characters saved by progressive disclosure |
+| `api_gateway_disclosure_fts_hit_rate`      | Gauge   | -       | Whether FTS layer had matches (1 or 0)     |
 
 ### Integration Point
 
@@ -666,17 +666,17 @@ handler.Optimizers
 
 ### Environment Variables Summary
 
-| Env Var | Default | Module |
-|---|---|---|
-| `CACHE_EVICTION_ENABLED` | `true` | cache |
-| `CACHE_EVICTION_PCT` | `10.0` | cache |
-| `PASTEGUARD_ENABLED` | `true` | privacy |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | privacy/secrets |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | privacy/secrets |
+| Env Var                      | Default           | Module          |
+|------------------------------|-------------------|-----------------|
+| `CACHE_EVICTION_ENABLED`     | `true`            | cache           |
+| `CACHE_EVICTION_PCT`         | `10.0`            | cache           |
+| `PASTEGUARD_ENABLED`         | `true`            | privacy         |
+| `PASTEGUARD_SECRETS_ENABLED` | `true`            | privacy/secrets |
+| `PASTEGUARD_MAX_SCAN_CHARS`  | `200000`          | privacy/secrets |
 | `PASTEGUARD_SECRET_ENTITIES` | (comma-separated) | privacy/secrets |
-| `PASTEGUARD_PII_ENABLED` | `true` | privacy/pii |
-| `PASTEGUARD_PII_ENTITIES` | (comma-separated) | privacy/pii |
-| `FILTER_ENABLED` | `true` | filter |
-| `DISCLOSURE_ENABLED` | `true` | disclosure |
-| `DISCLOSURE_L1_TOKENS` | `15` | disclosure |
-| `DISCLOSURE_L2_TOKENS` | `60` | disclosure |
+| `PASTEGUARD_PII_ENABLED`     | `true`            | privacy/pii     |
+| `PASTEGUARD_PII_ENTITIES`    | (comma-separated) | privacy/pii     |
+| `FILTER_ENABLED`             | `true`            | filter          |
+| `DISCLOSURE_ENABLED`         | `true`            | disclosure      |
+| `DISCLOSURE_L1_TOKENS`       | `15`              | disclosure      |
+| `DISCLOSURE_L2_TOKENS`       | `60`              | disclosure      |

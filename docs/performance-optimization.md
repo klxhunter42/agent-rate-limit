@@ -241,17 +241,17 @@ Dashboard UI: refresh every 5s (Prometheus downsamples 10s->5s display)
 
 ## Summary Table
 
-| # | Fix | Before | After | Impact |
-|---|-----|--------|-------|--------|
-| 1 | Token Store N+1 | 1+N Redis round-trips | 2 round-trips (pipeline) | ~80% latency reduction |
-| 2 | WS Broadcast | Deadlock on slow clients | Lock-free send, deferred close | Eliminates deadlock |
-| 3 | KEYS->SCAN | Blocks all Redis ops | Non-blocking incremental | Eliminates Redis stalls |
-| 4 | Metric cardinality | Unbounded labels | Hashed + sanitized | Prevents TSDB bloat |
-| 5 | MarshalIndent | 2-3x CPU overhead | Direct json.Marshal | ~2x faster serialization |
-| 6 | Scanner constant | Duplicate declarations | Single global const | Code dedup |
-| 7 | automaxprocs | Host CPU count threads | Container-aware GOMAXPROCS | Correct thread scheduling |
-| 8 | OTel debug | Debug spam in production | Clean pipeline | Reduced log noise/CPU |
-| 9 | Scrape interval | 5s (excessive) | 10s (aligned) | 50% less scrape load |
+| #   | Fix                | Before                   | After                          | Impact                    |
+|-----|--------------------|--------------------------|--------------------------------|---------------------------|
+| 1   | Token Store N+1    | 1+N Redis round-trips    | 2 round-trips (pipeline)       | ~80% latency reduction    |
+| 2   | WS Broadcast       | Deadlock on slow clients | Lock-free send, deferred close | Eliminates deadlock       |
+| 3   | KEYS->SCAN         | Blocks all Redis ops     | Non-blocking incremental       | Eliminates Redis stalls   |
+| 4   | Metric cardinality | Unbounded labels         | Hashed + sanitized             | Prevents TSDB bloat       |
+| 5   | MarshalIndent      | 2-3x CPU overhead        | Direct json.Marshal            | ~2x faster serialization  |
+| 6   | Scanner constant   | Duplicate declarations   | Single global const            | Code dedup                |
+| 7   | automaxprocs       | Host CPU count threads   | Container-aware GOMAXPROCS     | Correct thread scheduling |
+| 8   | OTel debug         | Debug spam in production | Clean pipeline                 | Reduced log noise/CPU     |
+| 9   | Scrape interval    | 5s (excessive)           | 10s (aligned)                  | 50% less scrape load      |
 
 ## Files Modified
 

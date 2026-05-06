@@ -1281,6 +1281,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			if prov != "" && accID != "" {
 				if hasRL && statusCode >= 200 && statusCode < 300 {
 					go h.storeRateLimitStatus(prov, accID, headers)
+				}
+				if statusCode >= 200 && statusCode < 300 {
+					go h.storeRequestUsage(prov, accID)
 				} else if statusCode == 429 {
 					go h.expireStaleRateLimit(prov, accID)
 				}
@@ -1558,6 +1561,8 @@ type RateLimitStatus struct {
 	ReqRemaining string    `json:"req_remaining,omitempty"`
 	TokRemaining string    `json:"tok_remaining,omitempty"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	ReqCount5h   int       `json:"req_count_5h,omitempty"`
+	ReqCount7d   int       `json:"req_count_7d,omitempty"`
 }
 
 func (h *Handler) storeRateLimitStatus(provider, accountID string, headers http.Header) {
@@ -1631,7 +1636,25 @@ func (h *Handler) expireStaleRateLimit(provider, accountID string) {
 	slog.Info("ratelimit cache expired on 429", "provider", provider, "account", accountID)
 }
 
-// GetRateLimits returns cached Anthropic rate limit utilization for all accounts.
+const reqUsageKeyPrefix = "arl:usage:"
+
+// storeRequestUsage increments request counters for any provider.
+func (h *Handler) storeRequestUsage(provider, accountID string) {
+	if h.tokenStore == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	key := reqUsageKeyPrefix + provider + ":" + accountID
+	// increment 5h window counter
+	h.tokenStore.Client().Incr(ctx, key+":5h")
+	h.tokenStore.Client().Expire(ctx, key+":5h", 5*time.Hour)
+	// increment 7d window counter
+	h.tokenStore.Client().Incr(ctx, key+":7d")
+	h.tokenStore.Client().Expire(ctx, key+":7d", 7*24*time.Hour)
+}
+
+// GetRateLimits returns rate limit utilization for all accounts.
 func (h *Handler) GetRateLimits(w http.ResponseWriter, r *http.Request) {
 	if h.tokenStore == nil {
 		writeJSON(w, http.StatusOK, []RateLimitStatus{})
@@ -1639,7 +1662,9 @@ func (h *Handler) GetRateLimits(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	var results []RateLimitStatus
+
+	// 1. Load Anthropic rate limit data from cache
+	rlMap := map[string]*RateLimitStatus{}
 	iter := h.tokenStore.Client().Scan(ctx, 0, rateLimitKeyPrefix+"*", 100).Iterator()
 	for iter.Next(ctx) {
 		data, err := h.tokenStore.Client().Get(ctx, iter.Val()).Bytes()
@@ -1648,11 +1673,48 @@ func (h *Handler) GetRateLimits(w http.ResponseWriter, r *http.Request) {
 		}
 		var s RateLimitStatus
 		if json.Unmarshal(data, &s) == nil {
-			results = append(results, s)
+			rlMap[s.Provider+":"+s.AccountID] = &s
 		}
 	}
-	if results == nil {
-		results = []RateLimitStatus{}
+
+	// 2. Load all accounts and merge with request usage
+	accounts, _ := h.tokenStore.ListAll()
+	seen := map[string]bool{}
+	for _, acct := range accounts {
+		key := acct.Provider + ":" + acct.AccountID
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		if existing, ok := rlMap[key]; ok {
+			// Already has Anthropic RL data, enrich with request count
+			c5h, _ := h.tokenStore.Client().Get(ctx, reqUsageKeyPrefix+key+":5h").Int()
+			c7d, _ := h.tokenStore.Client().Get(ctx, reqUsageKeyPrefix+key+":7d").Int()
+			existing.ReqCount5h = c5h
+			existing.ReqCount7d = c7d
+			if existing.UpdatedAt.IsZero() {
+				existing.UpdatedAt = time.Now().UTC()
+			}
+			continue
+		}
+
+		// No Anthropic RL data - create entry from request usage
+		c5h, _ := h.tokenStore.Client().Get(ctx, reqUsageKeyPrefix+key+":5h").Int()
+		c7d, _ := h.tokenStore.Client().Get(ctx, reqUsageKeyPrefix+key+":7d").Int()
+		rlMap[key] = &RateLimitStatus{
+			Provider:   acct.Provider,
+			AccountID:  acct.AccountID,
+			ReqCount5h: c5h,
+			ReqCount7d: c7d,
+			Status:     "active",
+			UpdatedAt:  time.Now().UTC(),
+		}
+	}
+
+	results := make([]RateLimitStatus, 0, len(rlMap))
+	for _, s := range rlMap {
+		results = append(results, *s)
 	}
 	writeJSON(w, http.StatusOK, results)
 }
@@ -1781,6 +1843,14 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 					cm["edits"] = kept
 				}
 			}
+		}
+	}
+
+	// GLM models reject extended fields that Claude Code sends (Z.AI error 1210)
+	if strings.HasPrefix(model, "glm-") {
+		for _, f := range []string{"tools", "tool_choice", "thinking", "budget_tokens",
+			"effort", "stream_options", "metadata", "output_config"} {
+			delete(payload, f)
 		}
 	}
 }

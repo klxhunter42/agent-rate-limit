@@ -10,14 +10,14 @@ The Go gateway (`api-gateway/queue/dragonfly.go`) acts as the job producer. It s
 
 ```
  Go API Gateway                     Dragonfly                  AI Worker (Python)
-       |                               |                             |
-       |--- LPUSH ai_jobs {job} ----->|                             |
-       |                               |<---- BRPOP ai_jobs --------|
+|                               |                             |
+|--- LPUSH ai_jobs {job} ----->|                             |
+|                               |<---- BRPOP ai_jobs --------|
        |                               |                             |-- dispatch to provider
        |                               |                             |-- await response
-       |                               |<---- SET result:{id} ------|
-       |<-- GET result:{id} ----------|                             |
-       |--- return result to client -->|                             |
+|                               |<---- SET result:{id} ------|
+|<-- GET result:{id} ----------|                             |
+|--- return result to client -->|                             |
 ```
 
 The gateway and worker share no direct network connection. All communication is through Dragonfly lists (queue) and keys (result cache). This allows independent scaling and deployment of each service.
@@ -93,16 +93,16 @@ BRPOP -> JSON parse -> concurrency semaphore acquire -> provider fallback chain 
 #### Step 1: JSON Parsing and Field Extraction
 
 Job fields extracted:
-| Field | Default | Description |
-|---|---|---|
-| `request_id` | `"unknown"` | Correlation ID for result lookup |
-| `agent_id` | `"unknown"` | Agent that submitted the job |
-| `provider` | `settings.default_provider` | Target provider name |
-| `model` | `settings.default_model` | Target model name |
-| `messages` | `[]` | Chat messages array |
-| `max_tokens` | `1024` | Max completion tokens |
-| `temperature` | `0.7` | Sampling temperature |
-| `retry_count` | `0` | Current retry attempt number |
+| Field         | Default                     | Description                      |
+|---------------|-----------------------------|----------------------------------|
+| `request_id`  | `"unknown"`                 | Correlation ID for result lookup |
+| `agent_id`    | `"unknown"`                 | Agent that submitted the job     |
+| `provider`    | `settings.default_provider` | Target provider name             |
+| `model`       | `settings.default_model`    | Target model name                |
+| `messages`    | `[]`                        | Chat messages array              |
+| `max_tokens`  | `1024`                      | Max completion tokens            |
+| `temperature` | `0.7`                       | Sampling temperature             |
+| `retry_count` | `0`                         | Current retry attempt number     |
 
 #### Step 2: Model Fallback via Concurrency Semaphores
 
@@ -304,70 +304,70 @@ All settings loaded from environment variables (or `.env` file) via pydantic-set
 
 #### Redis / Dragonfly
 
-| Env Var | Default | Description |
-|---|---|---|
-| `REDIS_URL` | `redis://dragonfly:6379` | Dragonfly connection URL |
-| `QUEUE_NAME` | `ai_jobs` | Redis list name for job queue |
-| `RETRY_QUEUE_NAME` | `ai_jobs_retry` | Retry queue name (reserved, not currently used separately) |
-| `RESULT_TTL` | `600` | Result cache TTL in seconds |
-| `SHORT_CACHE_TTL` | `60` | Short cache TTL |
+| Env Var            | Default                  | Description                                                |
+|--------------------|--------------------------|------------------------------------------------------------|
+| `REDIS_URL`        | `redis://dragonfly:6379` | Dragonfly connection URL                                   |
+| `QUEUE_NAME`       | `ai_jobs`                | Redis list name for job queue                              |
+| `RETRY_QUEUE_NAME` | `ai_jobs_retry`          | Retry queue name (reserved, not currently used separately) |
+| `RESULT_TTL`       | `600`                    | Result cache TTL in seconds                                |
+| `SHORT_CACHE_TTL`  | `60`                     | Short cache TTL                                            |
 
 #### Worker Behavior
 
-| Env Var | Default | Description |
-|---|---|---|
-| `WORKER_CONCURRENCY` | `10` | Number of parallel worker coroutines |
-| `MAX_RETRIES` | `3` | Max retry attempts per job |
-| `BASE_BACKOFF` | `1.0` | Base backoff multiplier in seconds |
-| `POLL_TIMEOUT` | `5` | BRPOP timeout in seconds |
+| Env Var              | Default | Description                          |
+|----------------------|---------|--------------------------------------|
+| `WORKER_CONCURRENCY` | `10`    | Number of parallel worker coroutines |
+| `MAX_RETRIES`        | `3`     | Max retry attempts per job           |
+| `BASE_BACKOFF`       | `1.0`   | Base backoff multiplier in seconds   |
+| `POLL_TIMEOUT`       | `5`     | BRPOP timeout in seconds             |
 
 #### Observability
 
-| Env Var | Default | Description |
-|---|---|---|
+| Env Var         | Default               | Description                      |
+|-----------------|-----------------------|----------------------------------|
 | `OTEL_ENDPOINT` | `otel-collector:4317` | OpenTelemetry collector endpoint |
-| `METRICS_PORT` | `9090` | Prometheus `/metrics` port |
+| `METRICS_PORT`  | `9090`                | Prometheus `/metrics` port       |
 
 #### Provider API Keys
 
 All key env vars accept comma-separated values for multi-key pools:
 
-| Env Var | Default | Description |
-|---|---|---|
-| `GLM_API_KEYS` | `""` | Z.AI/GLM API keys |
-| `OPENAI_API_KEYS` | `""` | OpenAI API keys |
-| `ANTHROPIC_API_KEYS` | `""` | Anthropic API keys |
-| `GEMINI_API_KEYS` | `""` | Google Gemini API keys |
-| `OPENROUTER_API_KEYS` | `""` | OpenRouter API keys |
+| Env Var               | Default | Description            |
+|-----------------------|---------|------------------------|
+| `GLM_API_KEYS`        | `""`    | Z.AI/GLM API keys      |
+| `OPENAI_API_KEYS`     | `""`    | OpenAI API keys        |
+| `ANTHROPIC_API_KEYS`  | `""`    | Anthropic API keys     |
+| `GEMINI_API_KEYS`     | `""`    | Google Gemini API keys |
+| `OPENROUTER_API_KEYS` | `""`    | OpenRouter API keys    |
 
 #### Provider-Specific
 
-| Env Var | Default | Description |
-|---|---|---|
-| `GLM_ENDPOINT` | `https://api.z.ai/api/anthropic` | Z.AI API endpoint |
-| `GLM_DEFAULT_MODEL` | `glm-5` | Default GLM model |
+| Env Var             | Default                          | Description       |
+|---------------------|----------------------------------|-------------------|
+| `GLM_ENDPOINT`      | `https://api.z.ai/api/anthropic` | Z.AI API endpoint |
+| `GLM_DEFAULT_MODEL` | `glm-5`                          | Default GLM model |
 
 #### Upstream Concurrency Limits
 
-| Env Var | Default | Description |
-|---|---|---|
-| `UPSTREAM_MODEL_LIMITS` | `""` | Per-model concurrency limits, format: `model1:N,model2:M` |
-| `UPSTREAM_DEFAULT_LIMIT` | `1` | Default concurrency limit for unlisted models |
-| `UPSTREAM_GLOBAL_LIMIT` | `0` | Global concurrency cap across all models (0 = unlimited) |
+| Env Var                  | Default | Description                                               |
+|--------------------------|---------|-----------------------------------------------------------|
+| `UPSTREAM_MODEL_LIMITS`  | `""`    | Per-model concurrency limits, format: `model1:N,model2:M` |
+| `UPSTREAM_DEFAULT_LIMIT` | `1`     | Default concurrency limit for unlisted models             |
+| `UPSTREAM_GLOBAL_LIMIT`  | `0`     | Global concurrency cap across all models (0 = unlimited)  |
 
 #### Provider Defaults
 
-| Env Var | Default | Description |
-|---|---|---|
-| `DEFAULT_PROVIDER` | `glm` | Default provider when job doesn't specify |
-| `DEFAULT_MODEL` | `glm-5` | Default model when job doesn't specify |
-| `REQUEST_TIMEOUT` | `120` | Provider API call timeout in seconds |
+| Env Var            | Default | Description                               |
+|--------------------|---------|-------------------------------------------|
+| `DEFAULT_PROVIDER` | `glm`   | Default provider when job doesn't specify |
+| `DEFAULT_MODEL`    | `glm-5` | Default model when job doesn't specify    |
+| `REQUEST_TIMEOUT`  | `120`   | Provider API call timeout in seconds      |
 
 #### Per-Provider RPM Limits
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PROVIDER_RPM_LIMITS` | `""` | Per-provider requests-per-minute, format: `provider:N,...` |
+| Env Var               | Default | Description                                                |
+|-----------------------|---------|------------------------------------------------------------|
+| `PROVIDER_RPM_LIMITS` | `""`    | Per-provider requests-per-minute, format: `provider:N,...` |
 
 ### Computed Properties
 
@@ -395,28 +395,28 @@ All metrics use the `ai_worker_` prefix. Shared between `main.py` and `worker.py
 
 ### Counters
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
-| `ai_worker_jobs_processed_total` | Counter | `provider` | Total jobs successfully completed |
-| `ai_worker_jobs_failed_total` | Counter | (none) | Total jobs that failed after all retries |
-| `ai_worker_jobs_retried_total` | Counter | (none) | Total jobs re-enqueued for retry |
-| `ai_worker_provider_errors_total` | Counter | `provider` | Total provider call errors |
-| `ai_worker_rate_limit_hits_total` | Counter | `provider` | Total rate limit (429/overloaded) errors |
-| `ai_worker_token_input_total` | Counter | `provider`, `model` | Cumulative input tokens consumed |
-| `ai_worker_token_output_total` | Counter | `provider`, `model` | Cumulative output tokens generated |
+| Metric                            | Type    | Labels              | Description                              |
+|-----------------------------------|---------|---------------------|------------------------------------------|
+| `ai_worker_jobs_processed_total`  | Counter | `provider`          | Total jobs successfully completed        |
+| `ai_worker_jobs_failed_total`     | Counter | (none)              | Total jobs that failed after all retries |
+| `ai_worker_jobs_retried_total`    | Counter | (none)              | Total jobs re-enqueued for retry         |
+| `ai_worker_provider_errors_total` | Counter | `provider`          | Total provider call errors               |
+| `ai_worker_rate_limit_hits_total` | Counter | `provider`          | Total rate limit (429/overloaded) errors |
+| `ai_worker_token_input_total`     | Counter | `provider`, `model` | Cumulative input tokens consumed         |
+| `ai_worker_token_output_total`    | Counter | `provider`, `model` | Cumulative output tokens generated       |
 
 ### Histograms
 
-| Metric | Type | Labels | Buckets (seconds) | Description |
-|---|---|---|---|---|
+| Metric                               | Type      | Labels     | Buckets (seconds)                                      | Description                           |
+|--------------------------------------|-----------|------------|--------------------------------------------------------|---------------------------------------|
 | `ai_worker_provider_latency_seconds` | Histogram | `provider` | 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0 | Provider request latency distribution |
 
 ### Gauges
 
-| Metric | Type | Labels | Description |
-|---|---|---|---|
+| Metric                  | Type  | Labels | Description                         |
+|-------------------------|-------|--------|-------------------------------------|
 | `ai_worker_queue_depth` | Gauge | (none) | Current number of jobs in the queue |
-| `ai_worker_active` | Gauge | (none) | Number of active worker coroutines |
+| `ai_worker_active`      | Gauge | (none) | Number of active worker coroutines  |
 
 ### Internal Metrics Endpoint (port 9091)
 
@@ -463,36 +463,36 @@ Latency samples are kept as a sliding window of the last 1000 per provider.
                         |        main.py               |
                         |                              |
                         |  +---------+  +----------+  |
-                        |  |Prometheus|  | Internal |  |
-                        |  | :9090    |  | Metrics  |  |
-                        |  | /metrics |  | :9091    |  |
+|  |Prometheus|  | Internal |  |
+|  | :9090    |  | Metrics  |  |
+|  | /metrics |  | :9091    |  |
                         |  +---------+  +----------+  |
                         |                              |
                         |  Worker.run_loop() x N       |
                         |  +------------------------+  |
-                        |  | Concurrency Semaphores  |  |
-                        |  |  per-model + global     |  |
+|  | Concurrency Semaphores  |  |
+|  |  per-model + global     |  |
                         |  +------------------------+  |
                         |  +------------------------+  |
-                        |  | ProviderRateLimiter     |  |
-                        |  |  sliding window RPM     |  |
+|  | ProviderRateLimiter     |  |
+|  |  sliding window RPM     |  |
                         |  +------------------------+  |
                         |  +------------------------+  |
-                        |  | KeyManager             |  |
-                        |  |  key pools + cooldowns  |  |
+|  | KeyManager             |  |
+|  |  key pools + cooldowns  |  |
                         |  +------------------------+  |
                         |                              |
                         |  Provider Fallback Chain:    |
                         |  glm -> openai -> anthropic  |
                         |  -> gemini -> openrouter     |
                         +------+----------+----------+-+
-                               |          |          |
+|          |          |
                     +----------+  +-------+  +-------+----------+
-                    |             |          |                    |
+|             |          |                    |
               +-----v----+  +----v-----+ +--v------+  +--------v---+
-              | Z.AI/GLM |  | OpenAI   | |Anthropic|  | Gemini     |
-              | (Anthro   |  | (OpenAI  | |(Anthro   |  | (Google    |
-              |  SDK,     |  |  SDK)    | | SDK)     |  |  genai)    |
+| Z.AI/GLM |  | OpenAI   | |Anthropic|  | Gemini     |
+| (Anthro   |  | (OpenAI  | |(Anthro   |  | (Google    |
+|  SDK,     |  |  SDK)    | | SDK)     |  |  genai)    |
               |  custom   |  +----------+ +----------+  +------------+
               |  base_url)|                            +------------+
               +----------+                            | OpenRouter  |
@@ -545,17 +545,17 @@ Multi-stage build:
 
 ## 10. Dependencies (`requirements.txt`)
 
-| Package | Purpose |
-|---|---|
-| `redis[hiredis]>=5.0.0` | Async Redis client (Dragonfly connection) |
-| `httpx>=0.27.0` | HTTP client (used by provider SDKs) |
-| `anthropic>=0.40.0` | Anthropic SDK (used by AnthropicProvider and GLMProvider) |
-| `openai>=1.30.0` | OpenAI SDK (used by OpenAIProvider and OpenRouterProvider) |
-| `google-generativeai>=0.7.0` | Google Gemini SDK |
-| `opentelemetry-api>=1.25.0` | OpenTelemetry API (tracing) |
-| `opentelemetry-sdk>=1.25.0` | OpenTelemetry SDK |
-| `opentelemetry-exporter-otlp-proto-grpc>=1.25.0` | OTLP gRPC exporter |
-| `prometheus-client>=0.20.0` | Prometheus metrics |
-| `pydantic>=2.7.0` | Data validation |
-| `pydantic-settings>=2.3.0` | Env-based config loading |
-| `structlog>=24.2.0` | Structured logging |
+| Package                                          | Purpose                                                    |
+|--------------------------------------------------|------------------------------------------------------------|
+| `redis[hiredis]>=5.0.0`                          | Async Redis client (Dragonfly connection)                  |
+| `httpx>=0.27.0`                                  | HTTP client (used by provider SDKs)                        |
+| `anthropic>=0.40.0`                              | Anthropic SDK (used by AnthropicProvider and GLMProvider)  |
+| `openai>=1.30.0`                                 | OpenAI SDK (used by OpenAIProvider and OpenRouterProvider) |
+| `google-generativeai>=0.7.0`                     | Google Gemini SDK                                          |
+| `opentelemetry-api>=1.25.0`                      | OpenTelemetry API (tracing)                                |
+| `opentelemetry-sdk>=1.25.0`                      | OpenTelemetry SDK                                          |
+| `opentelemetry-exporter-otlp-proto-grpc>=1.25.0` | OTLP gRPC exporter                                         |
+| `prometheus-client>=0.20.0`                      | Prometheus metrics                                         |
+| `pydantic>=2.7.0`                                | Data validation                                            |
+| `pydantic-settings>=2.3.0`                       | Env-based config loading                                   |
+| `structlog>=24.2.0`                              | Structured logging                                         |

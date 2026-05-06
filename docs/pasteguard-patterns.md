@@ -30,10 +30,10 @@
 
 ### Tokens
 
-| Entity | Pattern | FP Risk | Source |
-|--------|---------|---------|--------|
-| `JWT_TOKEN` | `eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}` | Low | detect-secrets `KeywordDetector` |
-| `BEARER_TOKEN` | `(?i)Bearer\s+[a-zA-Z0-9._-]{40,}` | Low | Gitleaks `bearer-token` |
+| Entity         | Pattern                                                            | FP Risk   | Source                           |
+|----------------|--------------------------------------------------------------------|-----------|----------------------------------|
+| `JWT_TOKEN`    | `eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}` | Low       | detect-secrets `KeywordDetector` |
+| `BEARER_TOKEN` | `(?i)Bearer\s+[a-zA-Z0-9._-]{40,}`                                 | Low       | Gitleaks `bearer-token`          |
 
 ### Context-Aware Variable Assignments
 
@@ -57,8 +57,8 @@ These match **variable name + value** patterns. They catch leaked credentials in
 
 ### Local PII (secrets layer)
 
-| Entity | Pattern | FP Risk |
-|--------|---------|---------|
+| Entity             | Pattern           | FP Risk                       |
+|--------------------|-------------------|-------------------------------|
 | `THAI_NATIONAL_ID` | `\b[1-8]\d{12}\b` | Low (digits only, starts 1-8) |
 
 ---
@@ -116,38 +116,38 @@ IBAN, IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 
 ## Detection Coverage by Leak Type
 
-| Leak scenario | Entity that catches it |
-|---------------|----------------------|
-| `"token": "Vaka7n3Tv9x8oKBpE"` (Python dict) | `ENV_TOKEN` |
-| `CS_CLIENT_SECRET = "r8961h4L..."` | `ENV_SECRET` |
-| `CS_CLIENT_ID = "qy91wQ2R..."` | `ENV_CREDENTIAL` |
-| `CS_MEMBER_CID = "22RlPmD4..."` | `ENV_CREDENTIAL` |
-| `SMTP_PASS = "qO4L32iZ..."` | `ENV_PASSWORD` |
-| `DB_PASSWORD=supersecret123` | `ENV_PASSWORD` |
-| `https://4.4.4.4/api/v1/user` | `IP_ADDRESS` |
-| `postgres://admin:pass@host/db` | `CONNECTION_STRING` |
-| `AKID[32-char-secret-id]` | `API_KEY_TENCENT` |
-| `LTAI[12-20-char-key]` | `API_KEY_ALIBABA` |
-| `xoxb-[token-string]` | `API_KEY_SLACK` |
-| `sk_live_[24+char-key]` | `API_KEY_STRIPE` |
-| `SG.xxxx.yyyy` | `API_KEY_SENDGRID` |
-| `AIzaSyA1234567890abcde...` | `API_KEY_GCP` |
-| `https://admin:p@ss@internal.host/api` | `BASIC_AUTH_URL` |
-| `hvs.aaaaaaaaaaaaaaaaaaaaaaaa` | `VAULT_TOKEN` |
-| `AZURE_CLIENT_SECRET="a1b2c3d4-..."` | `AZURE_CREDENTIAL` |
+| Leak scenario                                | Entity that catches it |
+|----------------------------------------------|------------------------|
+| `"token": "Vaka7n3Tv9x8oKBpE"` (Python dict) | `ENV_TOKEN`            |
+| `CS_CLIENT_SECRET = "r8961h4L..."`           | `ENV_SECRET`           |
+| `CS_CLIENT_ID = "qy91wQ2R..."`               | `ENV_CREDENTIAL`       |
+| `CS_MEMBER_CID = "22RlPmD4..."`              | `ENV_CREDENTIAL`       |
+| `SMTP_PASS = "qO4L32iZ..."`                  | `ENV_PASSWORD`         |
+| `DB_PASSWORD=supersecret123`                 | `ENV_PASSWORD`         |
+| `https://4.4.4.4/api/v1/user`                | `IP_ADDRESS`           |
+| `postgres://admin:pass@host/db`              | `CONNECTION_STRING`    |
+| `AKID[32-char-secret-id]`                    | `API_KEY_TENCENT`      |
+| `LTAI[12-20-char-key]`                       | `API_KEY_ALIBABA`      |
+| `xoxb-[token-string]`                        | `API_KEY_SLACK`        |
+| `sk_live_[24+char-key]`                      | `API_KEY_STRIPE`       |
+| `SG.xxxx.yyyy`                               | `API_KEY_SENDGRID`     |
+| `AIzaSyA1234567890abcde...`                  | `API_KEY_GCP`          |
+| `https://admin:p@ss@internal.host/api`       | `BASIC_AUTH_URL`       |
+| `hvs.aaaaaaaaaaaaaaaaaaaaaaaa`               | `VAULT_TOKEN`          |
+| `AZURE_CLIENT_SECRET="a1b2c3d4-..."`         | `AZURE_CREDENTIAL`     |
 
 ---
 
 ## Not Detected (by design)
 
-| Leak scenario | Reason |
-|---------------|--------|
-| `SMTP_USER = "n5jZUM..."` | `_USER` too generic, high false positive on `DB_USER`, `APP_USER` |
-| `PFUSER = "bro"` | Username without credential pairing, too short |
-| `password = "abc"` | Below 8-char minimum |
+| Leak scenario                | Reason                                                              |
+|------------------------------|---------------------------------------------------------------------|
+| `SMTP_USER = "n5jZUM..."`    | `_USER` too generic, high false positive on `DB_USER`, `APP_USER`   |
+| `PFUSER = "bro"`             | Username without credential pairing, too short                      |
+| `password = "abc"`           | Below 8-char minimum                                                |
 | Generic high-entropy strings | Shannon entropy not implemented (too many FPs for inline detection) |
-| Kubernetes base64 secrets | Every base64 string matches, noise too high |
-| Browser session cookies | Not code context |
+| Kubernetes base64 secrets    | Every base64 string matches, noise too high                         |
+| Browser session cookies      | Not code context                                                    |
 
 ---
 
@@ -155,10 +155,10 @@ IBAN, IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 
 ### Bug fixes
 
-| Priority | Issue | Impact |
-|----------|-------|--------|
-| HIGH | `AZURE_CREDENTIAL` uses `[a-f0-9]` for UUID, misses uppercase hex (`0F1A2B3C-...`) | Azure UUIDs with uppercase not detected |
-| HIGH | `API_KEY_AWS` only matches `AKIA` (long-term), misses `ASIA` (STS temporary) | AWS temporary credentials not detected |
+| Priority   | Issue                                                                              | Impact                                  |
+|------------|------------------------------------------------------------------------------------|-----------------------------------------|
+| HIGH       | `AZURE_CREDENTIAL` uses `[a-f0-9]` for UUID, misses uppercase hex (`0F1A2B3C-...`) | Azure UUIDs with uppercase not detected |
+| HIGH       | `API_KEY_AWS` only matches `AKIA` (long-term), misses `ASIA` (STS temporary)       | AWS temporary credentials not detected  |
 
 ### New patterns
 
@@ -181,13 +181,13 @@ IBAN, IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 
 ## Reference Sources
 
-| Tool | Patterns | Key Feature | URL |
-|------|----------|-------------|-----|
-| Gitleaks | 100+ rules | Keyword + entropy threshold 3.5, allowlist stop-words | https://github.com/gitleaks/gitleaks |
-| TruffleHog | 700+ detectors | Verifies secrets against live APIs | https://github.com/trufflesecurity/trufflehog |
-| detect-secrets | 30+ plugins | File-type-specific assignment patterns | https://github.com/Yelp/detect-secrets |
-| secrets-patterns-db | 1600+ patterns | Largest regex collection | https://github.com/UNX Corp/secrets-patterns-db |
-| shhgit | 80 file signatures | Filename + extension matching | https://github.com/eth0izzle/shhgit |
+| Tool                | Patterns           | Key Feature                                           | URL                                             |
+|---------------------|--------------------|-------------------------------------------------------|-------------------------------------------------|
+| Gitleaks            | 100+ rules         | Keyword + entropy threshold 3.5, allowlist stop-words | https://github.com/gitleaks/gitleaks            |
+| TruffleHog          | 700+ detectors     | Verifies secrets against live APIs                    | https://github.com/trufflesecurity/trufflehog   |
+| detect-secrets      | 30+ plugins        | File-type-specific assignment patterns                | https://github.com/Yelp/detect-secrets          |
+| secrets-patterns-db | 1600+ patterns     | Largest regex collection                              | https://github.com/UNX Corp/secrets-patterns-db |
+| shhgit              | 80 file signatures | Filename + extension matching                         | https://github.com/eth0izzle/shhgit             |
 
 ### Key Pattern References
 

@@ -38,36 +38,36 @@ Claude Code uses a 4-phase startup sequence observed via mitmproxy capture (sess
 
 #### Phase 1: Health Checks
 
-| # | Method | Host | Path | Status |
-|---|--------|------|------|--------|
-| 0 | GET | api.anthropic.com | /api/hello | 200 |
-| 1 | GET | platform.claude.com | /v1/oauth/hello | 200 |
+| #   | Method   | Host                | Path            | Status   |
+|-----|----------|---------------------|-----------------|----------|
+| 0   | GET      | api.anthropic.com   | /api/hello      | 200      |
+| 1   | GET      | platform.claude.com | /v1/oauth/hello | 200      |
 
 #### Phase 2: OAuth Token Exchange
 
-| # | Method | Host | Path | Status |
-|---|--------|------|------|--------|
-| 2 | POST | platform.claude.com | /v1/oauth/token | 200 |
-| 3 | GET | api.anthropic.com | /api/oauth/profile | 200 |
-| 4 | GET | api.anthropic.com | /api/oauth/claude_cli/roles | 200 |
-| 5 | GET | api.anthropic.com | /v1/mcp_servers?limit=1000 | 404 |
-| 6 | GET | api.anthropic.com | /api/claude_code/settings | 200/404 |
-| 7 | GET | api.anthropic.com | /api/claude_code/policy_limits | 200 |
+| #   | Method   | Host                | Path                           | Status   |
+|-----|----------|---------------------|--------------------------------|----------|
+| 2   | POST     | platform.claude.com | /v1/oauth/token                | 200      |
+| 3   | GET      | api.anthropic.com   | /api/oauth/profile             | 200      |
+| 4   | GET      | api.anthropic.com   | /api/oauth/claude_cli/roles    | 200      |
+| 5   | GET      | api.anthropic.com   | /v1/mcp_servers?limit=1000     | 404      |
+| 6   | GET      | api.anthropic.com   | /api/claude_code/settings      | 200/404  |
+| 7   | GET      | api.anthropic.com   | /api/claude_code/policy_limits | 200      |
 
 #### Phase 3: MCP Server Initialization
 
-| # | Method | Host | Path | Status |
-|---|--------|------|------|--------|
-| 8-24 | POST | mcp-proxy.anthropic.com | /v1/mcp/{server_id} | Mixed |
+| #    | Method   | Host                    | Path                | Status   |
+|------|----------|-------------------------|---------------------|----------|
+| 8-24 | POST     | mcp-proxy.anthropic.com | /v1/mcp/{server_id} | Mixed    |
 
 11 MCP servers initialized. Most return 401 (unauthorized) or 502 (bad gateway). Mermaid Chart MCP server succeeds (200).
 
 #### Phase 4: LLM Completion
 
-| # | Method | Host | Path | Status |
-|---|--------|------|------|--------|
-| 26 | POST | api.anthropic.com | /v1/messages?beta=true | 200 |
-| 27 | POST | api.anthropic.com | /v1/messages?beta=true | 200 (streaming) |
+| #   | Method   | Host              | Path                   | Status          |
+|-----|----------|-------------------|------------------------|-----------------|
+| 26  | POST     | api.anthropic.com | /v1/messages?beta=true | 200             |
+| 27  | POST     | api.anthropic.com | /v1/messages?beta=true | 200 (streaming) |
 
 ### 1.4 Token Exchange Details
 
@@ -106,11 +106,11 @@ Claude Code uses a 4-phase startup sequence observed via mitmproxy capture (sess
 
 Three distinct User-Agent strings are used across the flow:
 
-| Phase | User-Agent | Additional Headers |
-|-------|-----------|-------------------|
-| Auth (profile, roles) | `axios/1.13.6` | None |
-| Settings/policy | `claude-code/2.1.123` | `anthropic-beta: oauth-2025-04-20` |
-| Messages | `claude-cli/2.1.123 (external, cli)` | Extensive beta list |
+| Phase                 | User-Agent                           | Additional Headers                 |
+|-----------------------|--------------------------------------|------------------------------------|
+| Auth (profile, roles) | `axios/1.13.6`                       | None                               |
+| Settings/policy       | `claude-code/2.1.123`                | `anthropic-beta: oauth-2025-04-20` |
+| Messages              | `claude-cli/2.1.123 (external, cli)` | Extensive beta list                |
 
 **Messages beta header**:
 ```
@@ -181,14 +181,14 @@ MCP servers use JSON-RPC 2.0 over SSE:
 
 Endpoints the gateway must proxy for Claude Code compatibility:
 
-| Endpoint | Priority | Failure Impact |
-|----------|----------|---------------|
-| `/v1/oauth/token` | Critical | No Bearer token = all calls fail |
-| `/api/oauth/profile` | High | Claude Code may refuse to proceed |
-| `/api/oauth/claude_cli/roles` | High | Model access unknown |
-| `/api/claude_code/policy_limits` | Medium | Client-side quota awareness lost |
-| `/api/claude_code/settings` | Low | Returns 404, client uses defaults |
-| `/v1/messages?beta=true` | Critical | No LLM completions |
+| Endpoint                         | Priority   | Failure Impact                    |
+|----------------------------------|------------|-----------------------------------|
+| `/v1/oauth/token`                | Critical   | No Bearer token = all calls fail  |
+| `/api/oauth/profile`             | High       | Claude Code may refuse to proceed |
+| `/api/oauth/claude_cli/roles`    | High       | Model access unknown              |
+| `/api/claude_code/policy_limits` | Medium     | Client-side quota awareness lost  |
+| `/api/claude_code/settings`      | Low        | Returns 404, client uses defaults |
+| `/v1/messages?beta=true`         | Critical   | No LLM completions                |
 
 **Gateway implications**:
 1. Token refresh must work through the gateway (tokens expire in 1 hour)
@@ -201,12 +201,12 @@ Endpoints the gateway must proxy for Claude Code compatibility:
 
 The gateway routes Claude OAuth requests through distinct billing paths:
 
-| Path | Description |
-|------|-------------|
-| `go_direct` | Direct proxy to Anthropic API |
-| `sidecar` | Via Claude OAuth sidecar service |
-| `direct` | Direct connection without billing intermediary |
-| `billing_rejected` | Billing check failed; request blocked |
+| Path               | Description                                    |
+|--------------------|------------------------------------------------|
+| `go_direct`        | Direct proxy to Anthropic API                  |
+| `sidecar`          | Via Claude OAuth sidecar service               |
+| `direct`           | Direct connection without billing intermediary |
+| `billing_rejected` | Billing check failed; request blocked          |
 
 Each billing path is tracked via `api_gateway_billing_path_requests_total{path}` and `api_gateway_billing_path_latency_seconds{path}` metrics.
 
@@ -225,14 +225,14 @@ The `improvements/` directory contains 7 independent projects exploring differen
 **Core concept**: Raw tool output floods context. Context-mode intercepts tool calls and executes them in sandboxed subprocesses, returning only compact results.
 
 **6 core tools**:
-| Tool | Purpose | Context Saved |
-|------|---------|---------------|
-| `ctx_batch_execute` | Run multiple commands + queries in ONE call | 986 KB -> 62 KB |
-| `ctx_execute` | Run code in 11 languages; only stdout enters context | 56 KB -> 299 B |
-| `ctx_execute_file` | Process files in sandbox; raw content never leaves | 45 KB -> 155 B |
-| `ctx_index` | Chunk markdown into FTS5 with BM25 ranking | 60 KB -> 40 B |
-| `ctx_search` | Query indexed content; multiple queries per call | On-demand |
-| `ctx_fetch_and_index` | Fetch URL, chunk, index; 24h TTL cache | 60 KB -> 40 B |
+| Tool                  | Purpose                                              | Context Saved   |
+|-----------------------|------------------------------------------------------|-----------------|
+| `ctx_batch_execute`   | Run multiple commands + queries in ONE call          | 986 KB -> 62 KB |
+| `ctx_execute`         | Run code in 11 languages; only stdout enters context | 56 KB -> 299 B  |
+| `ctx_execute_file`    | Process files in sandbox; raw content never leaves   | 45 KB -> 155 B  |
+| `ctx_index`           | Chunk markdown into FTS5 with BM25 ranking           | 60 KB -> 40 B   |
+| `ctx_search`          | Query indexed content; multiple queries per call     | On-demand       |
+| `ctx_fetch_and_index` | Fetch URL, chunk, index; 24h TTL cache               | 60 KB -> 40 B   |
 
 **Session continuity**: 5 hook types track all tool calls, user decisions, git ops, errors, and tasks in SQLite. On compaction, a priority-tiered XML snapshot (<=2 KB) is built. After compaction, a Session Guide with 15 categories is injected.
 
@@ -267,11 +267,11 @@ The `improvements/` directory contains 7 independent projects exploring differen
 **Benchmark**: 100% score (180/180) on tsbench vs 78.3% baseline. 48% active token reduction, 79% wall time reduction.
 
 **Token savings**:
-| Operation | Reduction |
-|-----------|-----------|
-| `find_symbol("send_message")` | -99.9% (41M chars -> 67 chars) |
-| `get_backward_slice(var, line)` | -92% (130 lines -> 12 lines) |
-| 60-task tsbench | -85% (1.43M chars -> 216K chars) |
+| Operation                       | Reduction                        |
+|---------------------------------|----------------------------------|
+| `find_symbol("send_message")`   | -99.9% (41M chars -> 67 chars)   |
+| `get_backward_slice(var, line)` | -92% (130 lines -> 12 lines)     |
+| 60-task tsbench                 | -85% (1.43M chars -> 216K chars) |
 
 **Profiles**: full, core, nav, lean, ultra.
 
@@ -387,14 +387,14 @@ project/
 **Core concept**: Make the agent respond in terse, caveman-style prose. Same technical accuracy, dramatically fewer output tokens.
 
 **6 intensity levels**:
-| Level | Description |
-|-------|-------------|
-| `lite` | Mild compression, mostly natural language |
-| `full` | Default; ~65-75% output token reduction |
-| `ultra` | Maximum compression |
-| `wenyan-lite` | Classical Chinese lite |
-| `wenyan-full` | Classical Chinese full |
-| `wenyan-ultra` | Classical Chinese maximum |
+| Level          | Description                               |
+|----------------|-------------------------------------------|
+| `lite`         | Mild compression, mostly natural language |
+| `full`         | Default; ~65-75% output token reduction   |
+| `ultra`        | Maximum compression                       |
+| `wenyan-lite`  | Classical Chinese lite                    |
+| `wenyan-full`  | Classical Chinese full                    |
+| `wenyan-ultra` | Classical Chinese maximum                 |
 
 **Sub-skills**:
 - `caveman-commit` - Conventional Commits, <=50 char subject
@@ -409,15 +409,15 @@ project/
 
 ### 2.8 Comparison Matrix
 
-| Project | Language | Mechanism | Input Savings | Output Savings | Persistence | Session Continuity |
-|---------|----------|-----------|:---:|:---:|:---:|:---:|
-| context-mode | Node.js | Sandbox execution | 94-99% | N/A | SQLite FTS5 | Full (5 hook types) |
-| token-savior | Python | Symbol navigation + memory | 85-99% | N/A | SQLite WAL + vec | 3-layer disclosure |
-| token-optimizer | Python | Quality scoring + compression | 60-85% | N/A | Local | Progressive checkpoints |
-| token-optimizer-mcp | TypeScript | Tool replacement + Brotli | 60-90% | N/A | SQLite | 7-phase hooks |
-| claude-token-optimizer | Bash | Doc restructuring | 88% | N/A | File system | N/A |
-| claude-context | Node.js | Vector semantic search | ~40% | N/A | Zilliz Cloud | N/A |
-| caveman | JS/Markdown | Output style compression | N/A | ~75% | N/A | N/A |
+| Project                | Language    | Mechanism                     | Input Savings | Output Savings |   Persistence    |    Session Continuity   |
+|------------------------|-------------|-------------------------------|:-------------:|:--------------:|:----------------:|:-----------------------:|
+| context-mode           | Node.js     | Sandbox execution             |     94-99%    |      N/A       |   SQLite FTS5    |   Full (5 hook types)   |
+| token-savior           | Python      | Symbol navigation + memory    |     85-99%    |      N/A       | SQLite WAL + vec |    3-layer disclosure   |
+| token-optimizer        | Python      | Quality scoring + compression |     60-85%    |      N/A       |      Local       | Progressive checkpoints |
+| token-optimizer-mcp    | TypeScript  | Tool replacement + Brotli     |     60-90%    |      N/A       |      SQLite      |      7-phase hooks      |
+| claude-token-optimizer | Bash        | Doc restructuring             |      88%      |      N/A       |   File system    |           N/A           |
+| claude-context         | Node.js     | Vector semantic search        |      ~40%     |      N/A       |   Zilliz Cloud   |           N/A           |
+| caveman                | JS/Markdown | Output style compression      |      N/A      |      ~75%      |       N/A        |           N/A           |
 
 ---
 
@@ -444,106 +444,106 @@ The `New()` constructor accepts a model pricing map and registers all instrument
 
 #### Request & Latency
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_request_latency_seconds` | Histogram | method, path, status | Per-request latency (seconds) |
-| `api_gateway_ttfb_seconds` | Histogram | model | Time-to-first-byte per model |
-| `api_gateway_active_connections` | Gauge | (none) | Currently active proxy connections |
-| `api_gateway_queue_depth` | GaugeFunc | (none) | Queue depth (callback on scrape) |
+| Metric                                | Type      | Labels               | Description                        |
+|---------------------------------------|-----------|----------------------|------------------------------------|
+| `api_gateway_request_latency_seconds` | Histogram | method, path, status | Per-request latency (seconds)      |
+| `api_gateway_ttfb_seconds`            | Histogram | model                | Time-to-first-byte per model       |
+| `api_gateway_active_connections`      | Gauge     | (none)               | Currently active proxy connections |
+| `api_gateway_queue_depth`             | GaugeFunc | (none)               | Queue depth (callback on scrape)   |
 
 #### Errors & Rate Limiting
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_error_total` | Counter | type | Error count by type |
-| `api_gateway_rate_limit_hits_total` | Counter | key | Rate limit hits by key |
-| `api_gateway_upstream_retries_total` | Counter | (none) | Upstream retry count |
-| `api_gateway_upstream_429_total` | Counter | (none) | Upstream 429 (rate limited) count |
-| `api_gateway_transient_retry_total` | Counter | status, model | Transient error retries |
-| `api_gateway_model_fallback_total` | Counter | requested, selected | Model fallback count |
+| Metric                               | Type    | Labels              | Description                       |
+|--------------------------------------|---------|---------------------|-----------------------------------|
+| `api_gateway_error_total`            | Counter | type                | Error count by type               |
+| `api_gateway_rate_limit_hits_total`  | Counter | key                 | Rate limit hits by key            |
+| `api_gateway_upstream_retries_total` | Counter | (none)              | Upstream retry count              |
+| `api_gateway_upstream_429_total`     | Counter | (none)              | Upstream 429 (rate limited) count |
+| `api_gateway_transient_retry_total`  | Counter | status, model       | Transient error retries           |
+| `api_gateway_model_fallback_total`   | Counter | requested, selected | Model fallback count              |
 
 #### Tokens & Cost
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_token_input_total` | Counter | model | Input tokens consumed |
-| `api_gateway_token_output_total` | Counter | model | Output tokens consumed |
-| `api_gateway_cost_total` | Counter | model, type | Estimated cost (USD) |
-| `api_gateway_cost_savings_total` | Counter | (none) | Cost savings from optimization |
+| Metric                           | Type    | Labels      | Description                    |
+|----------------------------------|---------|-------------|--------------------------------|
+| `api_gateway_token_input_total`  | Counter | model       | Input tokens consumed          |
+| `api_gateway_token_output_total` | Counter | model       | Output tokens consumed         |
+| `api_gateway_cost_total`         | Counter | model, type | Estimated cost (USD)           |
+| `api_gateway_cost_savings_total` | Counter | (none)      | Cost savings from optimization |
 
 #### Adaptive Concurrency
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_adaptive_limit` | Gauge | model | Current adaptive concurrency limit |
-| `api_gateway_adaptive_in_flight` | Gauge | model | Currently in-flight requests per model |
+| Metric                           | Type   | Labels   | Description                            |
+|----------------------------------|--------|----------|----------------------------------------|
+| `api_gateway_adaptive_limit`     | Gauge  | model    | Current adaptive concurrency limit     |
+| `api_gateway_adaptive_in_flight` | Gauge  | model    | Currently in-flight requests per model |
 
 #### Profile & Account
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_profile_requests_total` | Counter | profile, model | Requests per routing profile |
-| `api_gateway_profile_token_input_total` | Counter | profile, model | Input tokens per profile |
-| `api_gateway_profile_token_output_total` | Counter | profile, model | Output tokens per profile |
-| `api_gateway_profile_cost_total` | Counter | profile, model, type | Cost per profile |
-| `api_gateway_account_token_input_total` | Counter | account_id, model | Input tokens per account |
-| `api_gateway_account_token_output_total` | Counter | account_id, model | Output tokens per account |
+| Metric                                   | Type    | Labels               | Description                  |
+|------------------------------------------|---------|----------------------|------------------------------|
+| `api_gateway_profile_requests_total`     | Counter | profile, model       | Requests per routing profile |
+| `api_gateway_profile_token_input_total`  | Counter | profile, model       | Input tokens per profile     |
+| `api_gateway_profile_token_output_total` | Counter | profile, model       | Output tokens per profile    |
+| `api_gateway_profile_cost_total`         | Counter | profile, model, type | Cost per profile             |
+| `api_gateway_account_token_input_total`  | Counter | account_id, model    | Input tokens per account     |
+| `api_gateway_account_token_output_total` | Counter | account_id, model    | Output tokens per account    |
 
 #### Billing Path
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_billing_path_requests_total` | Counter | path | Requests per billing path |
-| `api_gateway_billing_path_latency_seconds` | Histogram | path | Latency per billing path |
+| Metric                                     | Type      | Labels   | Description               |
+|--------------------------------------------|-----------|----------|---------------------------|
+| `api_gateway_billing_path_requests_total`  | Counter   | path     | Requests per billing path |
+| `api_gateway_billing_path_latency_seconds` | Histogram | path     | Latency per billing path  |
 
 #### Optimizer
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_optimizer_chars_saved_total` | Counter | technique | Characters saved per technique |
-| `api_gateway_optimizer_runs_total` | Counter | technique | Optimizer runs per technique |
-| `api_gateway_optimizer_duration_seconds` | Histogram | technique | Optimizer duration per technique |
-| `api_gateway_optimizer_tokens_saved_total` | Counter | (none) | Total tokens saved |
-| `api_gateway_budget_level` | Gauge | model | Current budget level (0-1) |
+| Metric                                     | Type      | Labels    | Description                      |
+|--------------------------------------------|-----------|-----------|----------------------------------|
+| `api_gateway_optimizer_chars_saved_total`  | Counter   | technique | Characters saved per technique   |
+| `api_gateway_optimizer_runs_total`         | Counter   | technique | Optimizer runs per technique     |
+| `api_gateway_optimizer_duration_seconds`   | Histogram | technique | Optimizer duration per technique |
+| `api_gateway_optimizer_tokens_saved_total` | Counter   | (none)    | Total tokens saved               |
+| `api_gateway_budget_level`                 | Gauge     | model     | Current budget level (0-1)       |
 
 #### PasteGuard (Privacy)
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_mask_duration_seconds` | Histogram | phase | Masking duration per phase |
-| `api_gateway_secrets_detected_total` | Counter | type | Secrets detected by type |
-| `api_gateway_pii_detected_total` | Counter | type | PII detected by type |
-| `api_gateway_mask_requests_total` | Counter | has_secrets, has_pii | Requests with masking applied |
+| Metric                               | Type      | Labels               | Description                   |
+|--------------------------------------|-----------|----------------------|-------------------------------|
+| `api_gateway_mask_duration_seconds`  | Histogram | phase                | Masking duration per phase    |
+| `api_gateway_secrets_detected_total` | Counter   | type                 | Secrets detected by type      |
+| `api_gateway_pii_detected_total`     | Counter   | type                 | PII detected by type          |
+| `api_gateway_mask_requests_total`    | Counter   | has_secrets, has_pii | Requests with masking applied |
 
 #### Waste Detection
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_waste_findings_total` | Counter | detector, severity | Waste findings |
-| `api_gateway_waste_tokens_wasted_total` | Counter | detector | Tokens wasted |
+| Metric                                  | Type    | Labels             | Description    |
+|-----------------------------------------|---------|--------------------|----------------|
+| `api_gateway_waste_findings_total`      | Counter | detector, severity | Waste findings |
+| `api_gateway_waste_tokens_wasted_total` | Counter | detector           | Tokens wasted  |
 
 #### Anomaly Detection
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_anomaly_total` | Counter | type, severity | Anomaly events |
-| `api_gateway_context_truncation_total` | Counter | model | Context truncation events |
+| Metric                                 | Type    | Labels         | Description               |
+|----------------------------------------|---------|----------------|---------------------------|
+| `api_gateway_anomaly_total`            | Counter | type, severity | Anomaly events            |
+| `api_gateway_context_truncation_total` | Counter | model          | Context truncation events |
 
 #### Go Runtime
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_go_goroutines` | Gauge | (none) | Goroutine count |
-| `api_gateway_go_heap_alloc_bytes` | Gauge | (none) | Heap allocation |
-| `api_gateway_go_heap_objects` | Gauge | (none) | Heap object count |
-| `api_gateway_go_gc_pause_ns` | Histogram | (none) | GC pause duration |
-| `api_gateway_go_stack_inuse_bytes` | Gauge | (none) | Stack in-use bytes |
+| Metric                             | Type      | Labels   | Description        |
+|------------------------------------|-----------|----------|--------------------|
+| `api_gateway_go_goroutines`        | Gauge     | (none)   | Goroutine count    |
+| `api_gateway_go_heap_alloc_bytes`  | Gauge     | (none)   | Heap allocation    |
+| `api_gateway_go_heap_objects`      | Gauge     | (none)   | Heap object count  |
+| `api_gateway_go_gc_pause_ns`       | Histogram | (none)   | GC pause duration  |
+| `api_gateway_go_stack_inuse_bytes` | Gauge     | (none)   | Stack in-use bytes |
 
 #### Infrastructure
 
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `api_gateway_dragonfly_up` | Gauge | (none) | Dragonfly (Redis) health (0/1) |
+| Metric                     | Type   | Labels   | Description                    |
+|----------------------------|--------|----------|--------------------------------|
+| `api_gateway_dragonfly_up` | Gauge  | (none)   | Dragonfly (Redis) health (0/1) |
 
 ### 3.4 Helper Methods
 
@@ -602,13 +602,13 @@ The `Metrics` struct includes a `SeedMockData()` method that populates all count
 
 These metrics are registered in `metrics.go` but not in the canonical `registeredMetrics` map (they serve MCP-related subsystems):
 
-| Metric | Description |
-|--------|-------------|
-| `api_gateway_mcp_calls_total` | MCP tool call count |
-| `api_gateway_mcp_call_duration_seconds` | MCP call latency |
-| `api_gateway_mcp_cache_hits_total` | MCP cache hit count |
-| `api_gateway_mcp_cache_misses_total` | MCP cache miss count |
-| `api_gateway_mcp_quota_usage` | MCP quota utilization |
+| Metric                                  | Description           |
+|-----------------------------------------|-----------------------|
+| `api_gateway_mcp_calls_total`           | MCP tool call count   |
+| `api_gateway_mcp_call_duration_seconds` | MCP call latency      |
+| `api_gateway_mcp_cache_hits_total`      | MCP cache hit count   |
+| `api_gateway_mcp_cache_misses_total`    | MCP cache miss count  |
+| `api_gateway_mcp_quota_usage`           | MCP quota utilization |
 
 ---
 
@@ -706,14 +706,14 @@ Request Lifecycle
 
 The improvements in `improvements/` are standalone projects, not integrated into the gateway runtime. However, the gateway's **13-stage optimizer pipeline** (implemented in Go) incorporates concepts from several:
 
-| Gateway Stage | Improvement Concept | Origin |
-|---------------|--------------------|--------|
-| Chunker | Code chunking | claude-context (AST chunking) |
-| Summarizer | Content summarization | context-mode (sandbox processing) |
-| Delta encoding | Delta mode | token-optimizer (delta mode) |
-| Sketch dedup | Deduplication | token-savior (contradiction detection) |
-| Caveman compression | Prose compression | caveman (output style) |
-| Intent filter | Intent-based filtering | context-mode (intent-driven filtering) |
+| Gateway Stage       | Improvement Concept    | Origin                                 |
+|---------------------|------------------------|----------------------------------------|
+| Chunker             | Code chunking          | claude-context (AST chunking)          |
+| Summarizer          | Content summarization  | context-mode (sandbox processing)      |
+| Delta encoding      | Delta mode             | token-optimizer (delta mode)           |
+| Sketch dedup        | Deduplication          | token-savior (contradiction detection) |
+| Caveman compression | Prose compression      | caveman (output style)                 |
+| Intent filter       | Intent-based filtering | context-mode (intent-driven filtering) |
 
 ### 5.4 Metrics <-> Grafana Dashboards
 
@@ -792,7 +792,7 @@ User launches Claude Code
   +-- POST /v1/messages ------>|           |----> api.anthropic.com      
   |   (SSE streaming)         |<-- SSE ----|<---- SSE chunks             
   |   anthropic-beta: ...     |           |    (Claude Code beta flags) 
-  |   x-app: cli              |           |                              
+|   x-app: cli              |           |
   |                           |                                       
   [session continues...]      |                                       
   |                           |                                       
@@ -870,30 +870,30 @@ User launches Claude Code
                     +-----------------------------------+
                                | concepts from
           +--------------------+--------------------+
-          |                    |                    |
+|                    |                    |
           v                    v                    v
   +---------------+   +---------------+   +---------------+
-  | context-mode  |   | token-savior  |   | caveman       |
-  | (sandbox exec)|   | (symbol nav)  |   | (output style)|
+| context-mode  |   | token-savior  |   | caveman       |
+| (sandbox exec)|   | (symbol nav)  |   | (output style)|
   +---------------+   +---------------+   +---------------+
-  | ctx_execute   |   | find_symbol   |   | lite/ultra    |
-  | ctx_batch_exec|   | memory_search |   | wenyan modes  |
-  | ctx_index     |   | backward_slice|   | auto-clarity  |
-  | ctx_search    |   | memory_get    |   |               |
+| ctx_execute   |   | find_symbol   |   | lite/ultra    |
+| ctx_batch_exec|   | memory_search |   | wenyan modes  |
+| ctx_index     |   | backward_slice|   | auto-clarity  |
+| ctx_search    |   | memory_get    |   |               |
   +---------------+   +---------------+   +---------------+
-          |                    |                    |
+|                    |                    |
           +--------------------+--------------------+
                                |
           +--------------------+--------------------+
-          |                    |                    |
+|                    |                    |
           v                    v                    v
   +---------------+   +---------------+   +---------------+
-  | token-optimizer|  | t-optimizer-mcp| | claude-context |
-  | (quality score)|  | (Brotli cache) | | (vector search)|
+| token-optimizer|  | t-optimizer-mcp| | claude-context |
+| (quality score)|  | (Brotli cache) | | (vector search)|
   +---------------+   +---------------+   +---------------+
-  | 7-signal QA   |   | 65 tools      |   | AST chunking  |
-  | delta mode    |   | tiktoken      |   | BM25+dense    |
-  | loop detect   |   | SQLite persist|   | Merkle index  |
+| 7-signal QA   |   | 65 tools      |   | AST chunking  |
+| delta mode    |   | tiktoken      |   | BM25+dense    |
+| loop detect   |   | SQLite persist|   | Merkle index  |
   +---------------+   +---------------+   +---------------+
           |
           v
@@ -924,14 +924,14 @@ User launches Claude Code
                      |            |
                      v            v
             +--------------+  +--------------+
-            | OAuth Path   |  | API Key Path |
+| OAuth Path   |  | API Key Path |
             +--------------+  +--------------+
             |              |
             v              |
    +------------------+    |
-   | Billing Decision |    |
+| Billing Decision |    |
    +------------------+    |
-     |    |    |    |     |
+|    |    |    |     |
      v    v    v    v     |
    go_  side direct  bill  |
    dir  car  (no    ing   |
@@ -955,18 +955,18 @@ User launches Claude Code
 ```
   metrics.go                    dashboard_test.go              grafana/*.json
   ===========                    ==================              ============
-  |                              |                               |
-  | Registered metrics           | registeredMetrics map         |
-  | with labels                  | (canonical list of 42)        |
-  |                              |                               |
+|                              |                               |
+| Registered metrics           | registeredMetrics map         |
+| with labels                  | (canonical list of 42)        |
+|                              |                               |
   +----------+                   +----------+                    |
-             |                              |                    |
+|                              |                    |
              +--------- both must match ----+                    |
                                             |                    |
                                             v                    |
                                   +----------------------+       |
-                                  | Test #1: JSON Valid  |       |
-                                  | panels/rows exist    |       |
+| Test #1: JSON Valid  |       |
+| panels/rows exist    |       |
                                   +----------------------+       |
                                             |                    |
                                             v                    |

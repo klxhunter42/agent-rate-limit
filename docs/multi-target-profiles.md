@@ -87,11 +87,11 @@ Profile cards show:
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/profiles` | Create profile (supports `targets` array) |
-| PUT | `/v1/profiles/{name}` | Update profile |
-| GET | `/v1/profiles` | List all profiles |
-| GET | `/v1/usage/profiles/{name}` | Get profile usage |
-| GET | `/v1/usage/accounts` | Get all account usage |
-| GET | `/v1/usage/accounts/{accountId}` | Get single account usage |
+| Method   | Path                             | Description                               |
+|----------|----------------------------------|-------------------------------------------|
+| POST     | `/v1/profiles`                   | Create profile (supports `targets` array) |
+| PUT      | `/v1/profiles/{name}`            | Update profile                            |
+| GET      | `/v1/profiles`                   | List all profiles                         |
+| GET      | `/v1/usage/profiles/{name}`      | Get profile usage                         |
+| GET      | `/v1/usage/accounts`             | Get all account usage                     |
+| GET      | `/v1/usage/accounts/{accountId}` | Get single account usage                  |

@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 100000 / (sum(increase(api_gateway_cost_total[$__range])) + 1)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -422,7 +422,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_cost_savings_total[$__range])) * 333333) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
           "legendFormat": "With Optimization"
         }
       ],

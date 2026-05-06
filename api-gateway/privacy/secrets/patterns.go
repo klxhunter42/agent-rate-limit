@@ -28,6 +28,9 @@ const (
 	EntityBasicAuthURL    EntityType = "BASIC_AUTH_URL"
 	EntityVaultToken      EntityType = "VAULT_TOKEN"
 	EntityAzureCredential EntityType = "AZURE_CREDENTIAL"
+	EntityCLIAuth         EntityType = "CLI_AUTH"
+	EntityCurlBasicAuth   EntityType = "CURL_BASIC_AUTH"
+	EntityEnvUser         EntityType = "ENV_USER"
 )
 
 type patternSpec struct {
@@ -55,6 +58,7 @@ var allPatterns = []patternSpec{
 	// Environment variables
 	{EntityEnvPassword, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*(?:PASSWORD|PASSWD|_PWD|_PASS)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?`)},
 	{EntityEnvSecret, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*_SECRET\s*[=:]\s*['"]?[^\s'"]{8,}['"]?`)},
+	{EntityEnvUser, regexp.MustCompile(`(?i)[A-Za-z_][A-Za-z0-9_]*(?:_USER|_USERNAME|_LOGIN)\s*[=:]\s*['"]?[a-zA-Z0-9._@+-]{2,}['"]?`)},
 
 	// Connection strings
 	{EntityConnString, regexp.MustCompile(`(?i)(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+`)},
@@ -76,6 +80,10 @@ var allPatterns = []patternSpec{
 
 	// HTTP Basic Auth in URLs (user:pass@host)
 	{EntityBasicAuthURL, regexp.MustCompile(`(?i)[a-z][a-z0-9+\-.]*://[^\s:/'"]{2,}:[^\s@/'"]{4,}@[^\s'"]+`)},
+	// CLI authentication flags (-xu/-xp, --password, --token, --secret, --api-key, --auth-token, etc.)
+	{EntityCLIAuth, regexp.MustCompile(`(?i)(?:-x[up]|--password|--passwd|--secret|--token|--api-?key|--auth(?:-token|-pass|-user)?)(?:\s+['"]?|=['"]?)[^\s'"]{4,}['"]?`)},
+	// curl/wget basic auth (-u user:pass or --user user:pass)
+	{EntityCurlBasicAuth, regexp.MustCompile(`(?:-u|--user|--username)\s+['"]?[^\s'":]+:[^\s'"]{2,}['"]?`)},
 	// HashiCorp Vault token (hvs. prefix)
 	{EntityVaultToken, regexp.MustCompile(`hvs\.[a-zA-Z0-9_-]{24,}`)},
 	// Azure client secret / tenant ID (UUID with Azure keyword context)

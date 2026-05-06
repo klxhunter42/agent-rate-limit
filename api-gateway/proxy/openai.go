@@ -484,7 +484,7 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 		if data == "[DONE]" {
 			slog.Info("openai stream completed", "model", model, "output_tokens", outputTokens, "input_tokens", inputTokens, "stop_reason", stopReason, "continuation", isContinuation)
 
-			if started && (stopReason != "max_tokens" || isFinal) {
+			if started {
 				// Flush remaining tool_use stripper buffer.
 				if stripper != nil && textBlockOpen {
 					if remaining := stripper.Flush(); remaining != "" {
@@ -542,7 +542,6 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 		finishReason, _ := choice["finish_reason"].(string)
 		if finishReason == "length" {
 			stopReason = "max_tokens"
-			continue
 		}
 		if finishReason == "stop" {
 			continue

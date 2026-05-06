@@ -25,13 +25,13 @@ This produces chunks at content-dependent positions rather than fixed offsets, s
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `CHUNKER_ENABLED` | `true` | Enable/disable chunker |
-| `CHUNKER_MIN_CHUNK` | `128` | Minimum chunk size in bytes |
-| `CHUNKER_MAX_CHUNK` | `4096` | Maximum chunk size in bytes (hard boundary) |
-| `CHUNKER_WINDOW_SIZE` | `48` | Sliding window size for rolling hash |
-| `CHUNKER_STABLE_THRESHOLD` | `2` | Number of times a chunk must be seen to be "stable" |
+| Env Var                    | Default | Description                                         |
+|----------------------------|---------|-----------------------------------------------------|
+| `CHUNKER_ENABLED`          | `true`  | Enable/disable chunker                              |
+| `CHUNKER_MIN_CHUNK`        | `128`   | Minimum chunk size in bytes                         |
+| `CHUNKER_MAX_CHUNK`        | `4096`  | Maximum chunk size in bytes (hard boundary)         |
+| `CHUNKER_WINDOW_SIZE`      | `48`    | Sliding window size for rolling hash                |
+| `CHUNKER_STABLE_THRESHOLD` | `2`     | Number of times a chunk must be seen to be "stable" |
 
 ### Chunk Hashing
 
@@ -54,12 +54,12 @@ Stable-first ordering lets downstream consumers (delta encoder, cache) hit on kn
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_chunker_chunks_total` | Counter | `type` (stable/novel) |
-| `api_gateway_chunker_reorder_duration_seconds` | Histogram | - |
-| `api_gateway_chunker_cache_hit_rate` | Gauge | - |
-| `api_gateway_chunker_chars_saved_total` | Counter | - |
+| Metric                                         | Type      | Labels                |
+|------------------------------------------------|-----------|-----------------------|
+| `api_gateway_chunker_chunks_total`             | Counter   | `type` (stable/novel) |
+| `api_gateway_chunker_reorder_duration_seconds` | Histogram | -                     |
+| `api_gateway_chunker_cache_hit_rate`           | Gauge     | -                     |
+| `api_gateway_chunker_chars_saved_total`        | Counter   | -                     |
 
 ---
 
@@ -73,12 +73,12 @@ Provides token estimation (without requiring tiktoken CGo bindings), content typ
 
 No native tiktoken library is used. Instead, content-type-aware heuristic ratios are applied:
 
-| Content Type | chars/token Ratio | Detection Method |
-|---|---|---|
-| Code | 2.5 | >30% lines match code indicators |
-| JSON | 2.8 | Starts with `{` or `[` |
-| Markdown | 3.5 | >20% lines match markdown patterns |
-| Text | 4.0 | Default/fallback |
+| Content Type | chars/token Ratio | Detection Method                   |
+|--------------|-------------------|------------------------------------|
+| Code         | 2.5               | >30% lines match code indicators   |
+| JSON         | 2.8               | Starts with `{` or `[`             |
+| Markdown     | 3.5               | >20% lines match markdown patterns |
+| Text         | 4.0               | Default/fallback                   |
 
 **`EstimateTokens(text)`**: Detects content type, divides char count by the ratio, returns `ceil(result)`.
 
@@ -128,12 +128,12 @@ Markdown indicators: `#{1,6}\s`, list markers, blockquotes, code fences, table p
 
 ### Similarity Functions
 
-| Function | Algorithm | Use Case |
-|---|---|---|
-| `JaccardSimilarity(a, b, shingleSize)` | Shingle-set Jaccard | General text similarity |
-| `DeduplicateSemantic(text, threshold)` | Word-set Jaccard per sentence | Near-duplicate sentence removal |
-| `LevenshteinSimilarity(a, b)` | Edit distance, normalized | Short string comparison |
-| `CosineSimilarity(a, b []float64)` | Dot product / magnitude | Vector comparison (used by warmstart) |
+| Function                               | Algorithm                     | Use Case                              |
+|----------------------------------------|-------------------------------|---------------------------------------|
+| `JaccardSimilarity(a, b, shingleSize)` | Shingle-set Jaccard           | General text similarity               |
+| `DeduplicateSemantic(text, threshold)` | Word-set Jaccard per sentence | Near-duplicate sentence removal       |
+| `LevenshteinSimilarity(a, b)`          | Edit distance, normalized     | Short string comparison               |
+| `CosineSimilarity(a, b []float64)`     | Dot product / magnitude       | Vector comparison (used by warmstart) |
 
 ### Head-Tail Truncation
 
@@ -147,29 +147,29 @@ Markdown indicators: `#{1,6}\s`, list markers, blockquotes, code fences, table p
 
 Static map `KnownModels` with context window and max output tokens:
 
-| Model | Context Window | Max Output | Provider |
-|---|---|---|---|
-| `claude-opus-4-7` | 200,000 | 163,840 | anthropic |
-| `claude-sonnet-4-6` | 200,000 | 163,840 | anthropic |
-| `claude-haiku-4-5-20251001` | 200,000 | 8,192 | anthropic |
-| `claude-3-5-sonnet-20241022` | 200,000 | 8,192 | anthropic |
-| `claude-3-5-haiku-20241022` | 200,000 | 8,192 | anthropic |
-| `gpt-4o` | 128,000 | 16,384 | openai |
-| `gpt-4o-mini` | 128,000 | 16,384 | openai |
-| `gpt-4-turbo` | 128,000 | 4,096 | openai |
-| `o1` | 200,000 | 100,000 | openai |
-| `o1-mini` | 128,000 | 65,536 | openai |
-| `o3-mini` | 200,000 | 100,000 | openai |
-| `gemini-2.5-pro` | 1,048,576 | 65,536 | google |
-| `gemini-2.5-flash` | 1,048,576 | 65,536 | google |
-| `gemini-2.0-flash` | 1,048,576 | 8,192 | google |
-| `glm-5.1` | 128,000 | 4,096 | zai |
-| `glm-5` | 128,000 | 4,096 | zai |
-| `glm-4.6v` | 8,192 | 4,096 | zai |
-| `glm-4-plus` | 128,000 | 4,096 | zai |
-| `glm-4-flash` | 128,000 | 4,096 | zai |
-| `glm-4-0520` | 128,000 | 4,096 | zai |
-| `glm-4v-flash` | 8,192 | 4,096 | zai |
+| Model                        | Context Window | Max Output | Provider  |
+|------------------------------|----------------|------------|-----------|
+| `claude-opus-4-7`            | 200,000        | 163,840    | anthropic |
+| `claude-sonnet-4-6`          | 200,000        | 163,840    | anthropic |
+| `claude-haiku-4-5-20251001`  | 200,000        | 8,192      | anthropic |
+| `claude-3-5-sonnet-20241022` | 200,000        | 8,192      | anthropic |
+| `claude-3-5-haiku-20241022`  | 200,000        | 8,192      | anthropic |
+| `gpt-4o`                     | 128,000        | 16,384     | openai    |
+| `gpt-4o-mini`                | 128,000        | 16,384     | openai    |
+| `gpt-4-turbo`                | 128,000        | 4,096      | openai    |
+| `o1`                         | 200,000        | 100,000    | openai    |
+| `o1-mini`                    | 128,000        | 65,536     | openai    |
+| `o3-mini`                    | 200,000        | 100,000    | openai    |
+| `gemini-2.5-pro`             | 1,048,576      | 65,536     | google    |
+| `gemini-2.5-flash`           | 1,048,576      | 65,536     | google    |
+| `gemini-2.0-flash`           | 1,048,576      | 8,192      | google    |
+| `glm-5.1`                    | 128,000        | 4,096      | zai       |
+| `glm-5`                      | 128,000        | 4,096      | zai       |
+| `glm-4.6v`                   | 8,192          | 4,096      | zai       |
+| `glm-4-plus`                 | 128,000        | 4,096      | zai       |
+| `glm-4-flash`                | 128,000        | 4,096      | zai       |
+| `glm-4-0520`                 | 128,000        | 4,096      | zai       |
+| `glm-4v-flash`               | 8,192          | 4,096      | zai       |
 
 Unknown models fall back to `{128000, 4096, "unknown"}`. Prefix matching is attempted (e.g., `claude-opus-4-7-20250514` matches `claude-opus-4-7`).
 
@@ -177,11 +177,11 @@ Unknown models fall back to `{128000, 4096, "unknown"}`. Prefix matching is atte
 
 `TokenBudget` tracks cumulative token usage per session:
 
-| Budget Level | Utilization | Behavior |
-|---|---|---|
-| `BudgetGreen` | < 50% | No optimization needed |
-| `BudgetYellow` | 50-75% | `ShouldOptimize()` returns true |
-| `BudgetRed` | > 75% | `ShouldForceOptimize()` returns true |
+| Budget Level   | Utilization | Behavior                             |
+|----------------|-------------|--------------------------------------|
+| `BudgetGreen`  | < 50%       | No optimization needed               |
+| `BudgetYellow` | 50-75%      | `ShouldOptimize()` returns true      |
+| `BudgetRed`    | > 75%       | `ShouldForceOptimize()` returns true |
 
 The budget level drives which optimization stages are activated in the pipeline.
 
@@ -217,18 +217,18 @@ type Item struct {
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PACKER_ENABLED` | `true` | Enable/disable packer |
-| `PACKER_MIN_UTILITY` | `0.1` | Minimum utility score for an item to be considered |
+| Env Var              | Default | Description                                        |
+|----------------------|---------|----------------------------------------------------|
+| `PACKER_ENABLED`     | `true`  | Enable/disable packer                              |
+| `PACKER_MIN_UTILITY` | `0.1`   | Minimum utility score for an item to be considered |
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
+| Metric                                  | Type    | Labels                       |
+|-----------------------------------------|---------|------------------------------|
 | `api_gateway_packer_items_packed_total` | Counter | `result` (included/excluded) |
-| `api_gateway_packer_budget_utilization` | Gauge | - |
-| `api_gateway_packer_tokens_saved_total` | Counter | - |
+| `api_gateway_packer_budget_utilization` | Gauge   | -                            |
+| `api_gateway_packer_tokens_saved_total` | Counter | -                            |
 
 ---
 
@@ -257,19 +257,19 @@ Example: `=14:Hello world!\n+6:Added\n-8:Removed!\n`
 
 ### Limits and Guards
 
-| Constant | Value | Purpose |
-|---|---|---|
-| `maxLCSBytes` | 50,000 | Skip delta for content exceeding this size |
-| `maxOps` | 200 | Skip if either input has more than 200 lines |
-| `MinSavingsPct` | 10.0% | Don't use delta unless it saves at least this much |
+| Constant        | Value  | Purpose                                            |
+|-----------------|--------|----------------------------------------------------|
+| `maxLCSBytes`   | 50,000 | Skip delta for content exceeding this size         |
+| `maxOps`        | 200    | Skip if either input has more than 200 lines       |
+| `MinSavingsPct` | 10.0%  | Don't use delta unless it saves at least this much |
 
 ### Delta Operations
 
-| Op | Byte | Meaning |
-|---|---|---|
-| Keep | `=` | Copy N bytes from baseline |
-| Insert | `+` | Add new data |
-| Delete | `-` | Skip N bytes from baseline |
+| Op     | Byte | Meaning                    |
+|--------|------|----------------------------|
+| Keep   | `=`  | Copy N bytes from baseline |
+| Insert | `+`  | Add new data               |
+| Delete | `-`  | Skip N bytes from baseline |
 
 ### Decode (Patch Application)
 
@@ -284,18 +284,18 @@ Redis key pattern: `delta:baseline:<cacheKey>`, TTL 24 hours.
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `DELTA_ENABLED` | `true` | Enable/disable delta encoding |
-| `DELTA_MIN_SAVINGS_PCT` | `10.0` | Minimum savings percentage to use delta |
+| Env Var                 | Default | Description                             |
+|-------------------------|---------|-----------------------------------------|
+| `DELTA_ENABLED`         | `true`  | Enable/disable delta encoding           |
+| `DELTA_MIN_SAVINGS_PCT` | `10.0`  | Minimum savings percentage to use delta |
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_delta_encodes_total` | Counter | `result` (delta/passthrough) |
-| `api_gateway_delta_chars_saved_total` | Counter | - |
-| `api_gateway_delta_savings_pct` | Histogram | Buckets: 5, 10, 20, 30, 50, 70, 90 |
+| Metric                                | Type      | Labels                             |
+|---------------------------------------|-----------|------------------------------------|
+| `api_gateway_delta_encodes_total`     | Counter   | `result` (delta/passthrough)       |
+| `api_gateway_delta_chars_saved_total` | Counter   | -                                  |
+| `api_gateway_delta_savings_pct`       | Histogram | Buckets: 5, 10, 20, 30, 50, 70, 90 |
 
 ---
 
@@ -317,11 +317,11 @@ The current implementation uses extractive (not abstractive) summarization:
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `SUMMARIZER_ENABLED` | `true` | Enable/disable summarizer |
-| `SUMMARIZER_MODEL` | `glm-4.7-flashx` | Target model for future LLM-based summarization |
-| `SUMMARIZER_MAX_RATIO` | `0.3` | Maximum ratio of summary to original content |
+| Env Var                | Default          | Description                                     |
+|------------------------|------------------|-------------------------------------------------|
+| `SUMMARIZER_ENABLED`   | `true`           | Enable/disable summarizer                       |
+| `SUMMARIZER_MODEL`     | `glm-4.7-flashx` | Target model for future LLM-based summarization |
+| `SUMMARIZER_MAX_RATIO` | `0.3`            | Maximum ratio of summary to original content    |
 
 ### Caching
 
@@ -339,12 +339,12 @@ IsSummarized(ctx, contentHash) -> (string, bool)        // Check if summary exis
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_summarizer_calls_total` | Counter | `method` (cached/truncation) |
-| `api_gateway_summarizer_chars_saved_total` | Counter | `method` |
-| `api_gateway_summarizer_duration_seconds` | Histogram | `method` |
-| `api_gateway_summarizer_llm_tokens_total` | Counter | - |
+| Metric                                     | Type      | Labels                       |
+|--------------------------------------------|-----------|------------------------------|
+| `api_gateway_summarizer_calls_total`       | Counter   | `method` (cached/truncation) |
+| `api_gateway_summarizer_chars_saved_total` | Counter   | `method`                     |
+| `api_gateway_summarizer_duration_seconds`  | Histogram | `method`                     |
+| `api_gateway_summarizer_llm_tokens_total`  | Counter   | -                            |
 
 ---
 
@@ -443,10 +443,10 @@ if lowValueCount >= 3 -> alert
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `WASTE_ENABLED` | `true` | Enable/disable waste detection |
-| `WASTE_MIN_REQUESTS` | `10` | Minimum requests per session before scanning |
+| Env Var              | Default | Description                                  |
+|----------------------|---------|----------------------------------------------|
+| `WASTE_ENABLED`      | `true`  | Enable/disable waste detection               |
+| `WASTE_MIN_REQUESTS` | `10`    | Minimum requests per session before scanning |
 
 ### Background Scanner
 
@@ -466,11 +466,11 @@ if lowValueCount >= 3 -> alert
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_waste_findings_total` | Counter | `detector`, `severity` |
-| `api_gateway_waste_tokens_wasted_total` | Counter | `detector` |
-| `api_gateway_waste_scan_duration_seconds` | Histogram | - |
+| Metric                                    | Type      | Labels                 |
+|-------------------------------------------|-----------|------------------------|
+| `api_gateway_waste_findings_total`        | Counter   | `detector`, `severity` |
+| `api_gateway_waste_tokens_wasted_total`   | Counter   | `detector`             |
+| `api_gateway_waste_scan_duration_seconds` | Histogram | -                      |
 
 ---
 
@@ -497,19 +497,19 @@ type Prediction struct {
 
 ### Redis Key Patterns
 
-| Key | Purpose | TTL |
-|---|---|---|
-| `prefetcher:chain:<sessionID>` | Tool call history (list) | 4 hours |
-| `prefetcher:trans:<toolName>` | Transition counts (hash) | 4 hours |
-| `prefetcher:last_pred:<tool>` | Last prediction for tool | 1 minute |
+| Key                            | Purpose                  | TTL      |
+|--------------------------------|--------------------------|----------|
+| `prefetcher:chain:<sessionID>` | Tool call history (list) | 4 hours  |
+| `prefetcher:trans:<toolName>`  | Transition counts (hash) | 4 hours  |
+| `prefetcher:last_pred:<tool>`  | Last prediction for tool | 1 minute |
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `PREFETCHER_ENABLED` | `true` | Enable/disable prefetcher |
-| `PREFETCHER_MAX_ORDER` | `5` | Maximum history length per session |
-| `PREFETCHER_TOP_K` | `3` | Number of predictions to return |
+| Env Var                | Default | Description                        |
+|------------------------|---------|------------------------------------|
+| `PREFETCHER_ENABLED`   | `true`  | Enable/disable prefetcher          |
+| `PREFETCHER_MAX_ORDER` | `5`     | Maximum history length per session |
+| `PREFETCHER_TOP_K`     | `3`     | Number of predictions to return    |
 
 ### API
 
@@ -527,11 +527,11 @@ confidence(tool) = count(transition to tool) / sum(all transition counts from la
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_prefetcher_predictions_total` | Counter | `correct` |
-| `api_gateway_prefetcher_order_used` | Histogram | Buckets: 1, 2, 3, 4, 5 |
-| `api_gateway_prefetcher_prewarm_duration_seconds` | Histogram | - |
+| Metric                                            | Type      | Labels                 |
+|---------------------------------------------------|-----------|------------------------|
+| `api_gateway_prefetcher_predictions_total`        | Counter   | `correct`              |
+| `api_gateway_prefetcher_order_used`               | Histogram | Buckets: 1, 2, 3, 4, 5 |
+| `api_gateway_prefetcher_prewarm_duration_seconds` | Histogram | -                      |
 
 ---
 
@@ -543,15 +543,15 @@ Finds similar past sessions using cosine similarity on 32-dimensional feature ve
 
 ### Feature Vector (32 Dimensions)
 
-| Dims | Feature | Encoding | Source Key |
-|---|---|---|---|
-| 0-3 | Model type | One-hot: claude, gpt/o1/o3, gemini, glm | `model` |
-| 4-7 | Content type distribution | Ratio (0.0-1.0) | `code_ratio`, `json_ratio`, `md_ratio`, `text_ratio` |
-| 8-15 | Tool call frequency | Normalized counts (top 8 tools) | `tool_counts` |
-| 16-18 | Budget level distribution | Percentage | `budget_green_pct`, `budget_yellow_pct`, `budget_red_pct` |
-| 19-22 | Request size buckets | Normalized: tokens/10000, tokens/1000, count/100, ms/10000 | `avg_input_tokens`, `avg_output_tokens`, `total_requests`, `avg_duration_ms` |
-| 23-27 | Intent distribution | Percentage (0.0-1.0) | `intent_code_pct`, `intent_analysis_pct`, `intent_search_pct`, `intent_action_pct`, `intent_chat_pct` |
-| 28-31 | Project/context fingerprint | Hash, density, stream%, error% | `project_hash`, `symbol_density`, `stream_pct`, `error_rate` |
+| Dims  | Feature                     | Encoding                                                   | Source Key                                                                                            |
+|-------|-----------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| 0-3   | Model type                  | One-hot: claude, gpt/o1/o3, gemini, glm                    | `model`                                                                                               |
+| 4-7   | Content type distribution   | Ratio (0.0-1.0)                                            | `code_ratio`, `json_ratio`, `md_ratio`, `text_ratio`                                                  |
+| 8-15  | Tool call frequency         | Normalized counts (top 8 tools)                            | `tool_counts`                                                                                         |
+| 16-18 | Budget level distribution   | Percentage                                                 | `budget_green_pct`, `budget_yellow_pct`, `budget_red_pct`                                             |
+| 19-22 | Request size buckets        | Normalized: tokens/10000, tokens/1000, count/100, ms/10000 | `avg_input_tokens`, `avg_output_tokens`, `total_requests`, `avg_duration_ms`                          |
+| 23-27 | Intent distribution         | Percentage (0.0-1.0)                                       | `intent_code_pct`, `intent_analysis_pct`, `intent_search_pct`, `intent_action_pct`, `intent_chat_pct` |
+| 28-31 | Project/context fingerprint | Hash, density, stream%, error%                             | `project_hash`, `symbol_density`, `stream_pct`, `error_rate`                                          |
 
 ### Algorithm
 
@@ -569,25 +569,25 @@ sim(A, B) = dot(A, B) / (||A|| * ||B||)
 
 ### Redis Storage
 
-| Key | Value | TTL |
-|---|---|---|
+| Key                                       | Value                      | TTL    |
+|-------------------------------------------|----------------------------|--------|
 | `warmstart:sig:<projectRoot>:<sessionID>` | JSON-encoded `[32]float64` | 7 days |
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `WARMSTART_ENABLED` | `true` | Enable/disable warm start |
-| `WARMSTART_TOP_K` | `3` | Number of similar sessions to find |
-| `WARMSTART_MIN_SIMILARITY` | `0.5` | Minimum cosine similarity threshold |
+| Env Var                    | Default | Description                         |
+|----------------------------|---------|-------------------------------------|
+| `WARMSTART_ENABLED`        | `true`  | Enable/disable warm start           |
+| `WARMSTART_TOP_K`          | `3`     | Number of similar sessions to find  |
+| `WARMSTART_MIN_SIMILARITY` | `0.5`   | Minimum cosine similarity threshold |
 
 ### Metrics
 
-| Metric | Type | Labels |
-|---|---|---|
-| `api_gateway_warmstart_sessions_warmed_total` | Counter | `result` (hit/miss) |
-| `api_gateway_warmstart_similarity_score` | Histogram | Buckets: 0, 0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0 |
-| `api_gateway_warmstart_warmup_duration_seconds` | Histogram | - |
+| Metric                                          | Type      | Labels                                              |
+|-------------------------------------------------|-----------|-----------------------------------------------------|
+| `api_gateway_warmstart_sessions_warmed_total`   | Counter   | `result` (hit/miss)                                 |
+| `api_gateway_warmstart_similarity_score`        | Histogram | Buckets: 0, 0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0 |
+| `api_gateway_warmstart_warmup_duration_seconds` | Histogram | -                                                   |
 
 ---
 
@@ -612,23 +612,23 @@ sim(A, B) = dot(A, B) / (||A|| * ||B||)
                         /             \
                        v               v
                 [Pass through]   +------------------+
-                       |         | 2. OPTIMIZER      |
-                       |         |                    |
-                       |         | Pipeline stages:   |
-                       |         |  a. WhitespaceOpt  |
-                       |         |  b. DedupSentences  |
-                       |         |  c. SemanticDedup   |
-                       |         |  d. TruncateHeadTail|
+|         | 2. OPTIMIZER      |
+|         |                    |
+|         | Pipeline stages:   |
+|         |  a. WhitespaceOpt  |
+|         |  b. DedupSentences  |
+|         |  c. SemanticDedup   |
+|         |  d. TruncateHeadTail|
                        |         +--------+-----------+
                        |                  |
                        |                  v
                        |         +------------------+
-                       |         | 3. PACKER         |
-                       |         |                    |
-                       |         | Greedy knapsack:   |
-                       |         | - Filter by utility|
-                       |         | - Sort by ratio    |
-                       |         | - Pack in budget   |
+|         | 3. PACKER         |
+|         |                    |
+|         | Greedy knapsack:   |
+|         | - Filter by utility|
+|         | - Sort by ratio    |
+|         | - Pack in budget   |
                        |         +--------+-----------+
                        |                  |
                        +--------+---------+
@@ -755,26 +755,26 @@ Protected regions ensure code, URLs, and quoted content are never modified.
 
 ### Compression Rules
 
-| Category | Count | Examples |
-|---|---|---|
-| Filler removal | 10 | "I would like to", "Could you please", "Kindly" |
-| Hedge removal | 12 | "sort of", "basically", "just", "really" |
-| Verbose-to-compact | 30 | "due to the fact that" -> "because", "in order to" -> "to" |
-| Aggressive-only | 11 | "I think that", "It seems that" (mode=aggressive only) |
+| Category           | Count | Examples                                                   |
+|--------------------|-------|------------------------------------------------------------|
+| Filler removal     | 10    | "I would like to", "Could you please", "Kindly"            |
+| Hedge removal      | 12    | "sort of", "basically", "just", "really"                   |
+| Verbose-to-compact | 30    | "due to the fact that" -> "because", "in order to" -> "to" |
+| Aggressive-only    | 11    | "I think that", "It seems that" (mode=aggressive only)     |
 
 ### Modes
 
-| Mode | Rules Applied | Use Case |
-|---|---|---|
-| `balanced` | Filler + hedge + verbose (52 rules) | Default, safe for all prompts |
-| `aggressive` | All 63 rules | Maximum compression, may alter tone |
+| Mode         | Rules Applied                       | Use Case                            |
+|--------------|-------------------------------------|-------------------------------------|
+| `balanced`   | Filler + hedge + verbose (52 rules) | Default, safe for all prompts       |
+| `aggressive` | All 63 rules                        | Maximum compression, may alter tone |
 
 ### Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `TEXTCOMP_ENABLED` | `true` | Enable/disable TextComp |
-| `TEXTCOMP_MODE` | `balanced` | Compression mode: `balanced` or `aggressive` |
+| Env Var            | Default    | Description                                  |
+|--------------------|------------|----------------------------------------------|
+| `TEXTCOMP_ENABLED` | `true`     | Enable/disable TextComp                      |
+| `TEXTCOMP_MODE`    | `balanced` | Compression mode: `balanced` or `aggressive` |
 
 ### Integration Points
 

@@ -494,31 +494,31 @@ case <-r.Context().Done():
 
 ## Summary
 
-| # | Issue | Severity | Status |
-|---|-------|----------|--------|
-| 1 | Dead code (retry queue, PrometheusExporter, _index) | Low | Known |
-| 2 | Prometheus metrics ไม่ increment | Medium | Known |
-| 3 | OTel tracing no-op in worker | Low | Known |
-| 4 | Key rotation destructive | Medium | Known |
-| 5 | Retry LPUSH behavior | Low | Known (correct) |
-| 6 | 502/503/504 trigger key rotation | Medium | Known |
-| 7 | Metrics status hardcode "200" | Medium | Known |
-| 8 | Single Redis connection | Low | Known |
-| 9 | No auth on admin APIs | Low | Known (internal only) |
-| 10 | Vision routing limitations | Low | Known |
-| 11 | Quota enforcement wired, placeholder data | Medium | Partial Fix |
-| 12a | Global slot starvation | High | **Fixed** |
-| 12b | Key pool RPM wasted on bad requests | Medium | **Fixed** |
-| 12c | Retry backoff ignores context cancellation | Medium | **Fixed** |
-| 12d | Docker-compose default mismatch | Low | **Fixed** |
-| 12e | Vision SSE streaming | Medium | **Fixed** |
-| 12f | Vision model auto-select | Low | **Fixed** |
-| 12g | Z.AI vision conversion (error 1210) | High | **Fixed** |
-| 12h | CodeAssist empty 200 on upstream errors | Critical | **Fixed** |
-| 12i | CodeAssist 401 auto-refresh missing | High | **Fixed** |
-| 12j | Favorite/unfavorite toggle not working | Medium | **Fixed** |
-| 12k | Profile edit broken (missing provider field) | Medium | **Fixed** |
-| 12l | GLM mode traffic bottleneck at single model | High | **Fixed** |
+| #   | Issue                                               | Severity   | Status                |
+|-----|-----------------------------------------------------|------------|-----------------------|
+| 1   | Dead code (retry queue, PrometheusExporter, _index) | Low        | Known                 |
+| 2   | Prometheus metrics ไม่ increment                    | Medium     | Known                 |
+| 3   | OTel tracing no-op in worker                        | Low        | Known                 |
+| 4   | Key rotation destructive                            | Medium     | Known                 |
+| 5   | Retry LPUSH behavior                                | Low        | Known (correct)       |
+| 6   | 502/503/504 trigger key rotation                    | Medium     | Known                 |
+| 7   | Metrics status hardcode "200"                       | Medium     | Known                 |
+| 8   | Single Redis connection                             | Low        | Known                 |
+| 9   | No auth on admin APIs                               | Low        | Known (internal only) |
+| 10  | Vision routing limitations                          | Low        | Known                 |
+| 11  | Quota enforcement wired, placeholder data           | Medium     | Partial Fix           |
+| 12a | Global slot starvation                              | High       | **Fixed**             |
+| 12b | Key pool RPM wasted on bad requests                 | Medium     | **Fixed**             |
+| 12c | Retry backoff ignores context cancellation          | Medium     | **Fixed**             |
+| 12d | Docker-compose default mismatch                     | Low        | **Fixed**             |
+| 12e | Vision SSE streaming                                | Medium     | **Fixed**             |
+| 12f | Vision model auto-select                            | Low        | **Fixed**             |
+| 12g | Z.AI vision conversion (error 1210)                 | High       | **Fixed**             |
+| 12h | CodeAssist empty 200 on upstream errors             | Critical   | **Fixed**             |
+| 12i | CodeAssist 401 auto-refresh missing                 | High       | **Fixed**             |
+| 12j | Favorite/unfavorite toggle not working              | Medium     | **Fixed**             |
+| 12k | Profile edit broken (missing provider field)        | Medium     | **Fixed**             |
+| 12l | GLM mode traffic bottleneck at single model         | High       | **Fixed**             |
 
 ---
 

@@ -169,27 +169,27 @@ Usage recording (sync path): Token counts automatically populate Redis hourly/da
 
 19 Z.AI models have accurate pricing from https://docs.z.ai/guides/overview/pricing. Includes flash (free tier), air, and turbo variants. The `api_gateway_cost_total` metric reflects real pricing.
 
-| Tier | Models | Notes |
-|------|--------|-------|
-| Flash | glm-5-flash, glm-4.6-flash | Free tier available |
-| Air | glm-5-air, glm-5-air-turbo | Budget tier |
-| Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose |
-| Plus | glm-4.7, glm-4.6, glm-4.5 | Older generation |
-| Vision | glm-4.6v, glm-4.5v | Image analysis |
+| Tier     | Models                      | Notes               |
+|----------|-----------------------------|---------------------|
+| Flash    | glm-5-flash, glm-4.6-flash  | Free tier available |
+| Air      | glm-5-air, glm-5-air-turbo  | Budget tier         |
+| Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose     |
+| Plus     | glm-4.7, glm-4.6, glm-4.5   | Older generation    |
+| Vision   | glm-4.6v, glm-4.5v          | Image analysis      |
 
 ### Z.AI Anthropic-Compatible Model Mapping
 
 When `UPSTREAM_URL` points to `https://api.z.ai/api/anthropic`, Z.AI accepts Anthropic model names and routes them to GLM equivalents:
 
-| Sent Model Name | Z.AI Maps To | Tier |
-|---|---|---|
-| `claude-opus-4-7`, `claude-opus-4-5`, `claude-opus-4` | `glm-4.7` | Opus-tier |
-| `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-sonnet-4` | `glm-4.7` | Sonnet-tier |
-| `claude-3-opus`, `claude-3-sonnet`, `claude-3-5-sonnet` | `glm-4.7` | Sonnet-tier |
-| `claude-3-5-sonnet-20241022` | `glm-4.7` | Sonnet-tier |
-| `claude-haiku-4-5`, `claude-haiku-4-5-20251001` | `glm-4.5-air` | Haiku-tier |
-| `claude-3-haiku`, `claude-3-5-haiku`, `claude-3-haiku-20240307` | `glm-4.5-air` | Haiku-tier |
-| `gpt-4o`, `o3-mini`, `claude-instant`, `claude-2` | Unknown Model (rejected) | - |
+| Sent Model Name                                                 | Z.AI Maps To             | Tier        |
+|-----------------------------------------------------------------|--------------------------|-------------|
+| `claude-opus-4-7`, `claude-opus-4-5`, `claude-opus-4`           | `glm-4.7`                | Opus-tier   |
+| `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-sonnet-4`     | `glm-4.7`                | Sonnet-tier |
+| `claude-3-opus`, `claude-3-sonnet`, `claude-3-5-sonnet`         | `glm-4.7`                | Sonnet-tier |
+| `claude-3-5-sonnet-20241022`                                    | `glm-4.7`                | Sonnet-tier |
+| `claude-haiku-4-5`, `claude-haiku-4-5-20251001`                 | `glm-4.5-air`            | Haiku-tier  |
+| `claude-3-haiku`, `claude-3-5-haiku`, `claude-3-haiku-20240307` | `glm-4.5-air`            | Haiku-tier  |
+| `gpt-4o`, `o3-mini`, `claude-instant`, `claude-2`               | Unknown Model (rejected) | -           |
 
 All requests run on GLM infrastructure. The Anthropic format is a compatibility layer only.
 
@@ -215,10 +215,10 @@ Gateway ทำการแปลงอัตโนมัติ: system prompt te
 
 Vision models ที่รองรับ:
 
-| Model | Slots | Input Price | Notes |
-|-------|-------|-----------|-------|
-| glm-4.6v | 10 | Same as glm-4.6 | แนะนำ, default for most vision requests |
-| glm-4.5v | 10 | Same as glm-4.5 | Works well |
+| Model    | Slots   | Input Price     | Notes                                   |
+|----------|---------|-----------------|-----------------------------------------|
+| glm-4.6v | 10      | Same as glm-4.6 | แนะนำ, default for most vision requests |
+| glm-4.5v | 10      | Same as glm-4.5 | Works well                              |
 
 Gateway เลือก vision model อัตโนมัติ:
 - `score = totalBase64KB + (imageCount * 300)`
@@ -738,10 +738,10 @@ GRAFANA_ADMIN_PASSWORD=changeme
 
 ## Troubleshooting
 
-| ปัญหา | สาเหตุ | แก้ไข |
-|---|---|---|
-| `all keys in cooldown` | ส่ง request เร็วเกิน RPM limit | เพิ่ม key ใน pool หรือลด `PROVIDER_RPM_LIMITS` |
-| `no available key` | ไม่ได้ตั้ง API key สำหรับ provider นั้น | เช็กว่า env var ถูกต้องและไม่มี typo |
-| `authentication_error` | Sync proxy passthrough mode แต่ไม่ส่ง header | ส่ง `x-api-key` หรือ `Authorization: Bearer` header |
-| 429 loop | Provider rate limit ต่ำเกินไปสำหรับ workload | ใช้หลาย key หรือเพิ่ม fallback provider |
-| Provider ไม่อยู่ใน fallback chain | Env var ว่างหรือ key list ผิด format | เช็กว่า key คั่นด้วยคอมม่า ไม่มีช่องว่างเกิน |
+| ปัญหา                             | สาเหตุ                                       | แก้ไข                                               |
+|-----------------------------------|----------------------------------------------|-----------------------------------------------------|
+| `all keys in cooldown`            | ส่ง request เร็วเกิน RPM limit               | เพิ่ม key ใน pool หรือลด `PROVIDER_RPM_LIMITS`      |
+| `no available key`                | ไม่ได้ตั้ง API key สำหรับ provider นั้น      | เช็กว่า env var ถูกต้องและไม่มี typo                |
+| `authentication_error`            | Sync proxy passthrough mode แต่ไม่ส่ง header | ส่ง `x-api-key` หรือ `Authorization: Bearer` header |
+| 429 loop                          | Provider rate limit ต่ำเกินไปสำหรับ workload | ใช้หลาย key หรือเพิ่ม fallback provider             |
+| Provider ไม่อยู่ใน fallback chain | Env var ว่างหรือ key list ผิด format         | เช็กว่า key คั่นด้วยคอมม่า ไม่มีช่องว่างเกิน        |

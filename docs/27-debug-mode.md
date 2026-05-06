@@ -24,19 +24,19 @@ Each debug line appears only when `DEBUG=true`. Normal production logs (health, 
 
 **Log**: `debug incoming request`
 
-| Field | Description |
-|---|---|
-| `method` | HTTP method |
-| `path` | Request path |
-| `content_length` | Raw body size |
-| `model_requested` | Model from client |
-| `model_selected` | Model after fallback |
-| `stream` | Stream flag |
-| `has_system` | Whether system prompt exists |
-| `msg_count` | Number of messages |
-| `provider` | Resolved provider (zai, anthropic, etc) |
-| `auth_mode` | api_key or bearer |
-| `headers` | All HTTP headers |
+| Field             | Description                             |
+|-------------------|-----------------------------------------|
+| `method`          | HTTP method                             |
+| `path`            | Request path                            |
+| `content_length`  | Raw body size                           |
+| `model_requested` | Model from client                       |
+| `model_selected`  | Model after fallback                    |
+| `stream`          | Stream flag                             |
+| `has_system`      | Whether system prompt exists            |
+| `msg_count`       | Number of messages                      |
+| `provider`        | Resolved provider (zai, anthropic, etc) |
+| `auth_mode`       | api_key or bearer                       |
+| `headers`         | All HTTP headers                        |
 
 ### 2. Raw Payload
 
@@ -69,37 +69,37 @@ sys_blocks: ["sys[0]:text", "sys[1]:text(cache_control:map[type:ephemeral])"]
 
 **Log**: `debug tokens before optimize`
 
-| Field | Description |
-|---|---|
-| `model` | Target model |
-| `sys_tokens` | Estimated tokens in system prompt |
-| `msg_tokens` | Estimated tokens in messages |
-| `total_tokens` | sys + msg |
-| `context_limit` | Model context window |
-| `pct_used` | Percentage of context used |
-| `budget_level` | 0=normal, 1=moderate(>60%), 2=aggressive(>80%) |
+| Field           | Description                                    |
+|-----------------|------------------------------------------------|
+| `model`         | Target model                                   |
+| `sys_tokens`    | Estimated tokens in system prompt              |
+| `msg_tokens`    | Estimated tokens in messages                   |
+| `total_tokens`  | sys + msg                                      |
+| `context_limit` | Model context window                           |
+| `pct_used`      | Percentage of context used                     |
+| `budget_level`  | 0=normal, 1=moderate(>60%), 2=aggressive(>80%) |
 
 ### 6. Token Count (After Optimizer)
 
 **Log**: `debug tokens after optimize`
 
-| Field | Description |
-|---|---|
+| Field               | Description                       |
+|---------------------|-----------------------------------|
 | `sys_tokens_before` | System tokens before optimization |
-| `sys_tokens_after` | System tokens after optimization |
-| `saved_tokens` | Tokens saved |
-| `optimized` | Whether any changes were made |
+| `sys_tokens_after`  | System tokens after optimization  |
+| `saved_tokens`      | Tokens saved                      |
+| `optimized`         | Whether any changes were made     |
 
 ### 7. Privacy Masking
 
 **Log**: `debug privacy detail`
 
-| Field | Description |
-|---|---|
-| `secret_types` | List of secret entity types found |
-| `pii_types` | List of PII entity types found |
-| `body_len_before` | Body size before masking |
-| `body_len_after` | Body size after masking |
+| Field             | Description                       |
+|-------------------|-----------------------------------|
+| `secret_types`    | List of secret entity types found |
+| `pii_types`       | List of PII entity types found    |
+| `body_len_before` | Body size before masking          |
+| `body_len_after`  | Body size after masking           |
 
 Normal `privacy mask applied` log (secrets_count, pii_count) always shows. The debug line adds the specific types and size delta.
 

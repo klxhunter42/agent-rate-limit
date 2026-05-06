@@ -90,11 +90,11 @@ public class TokenBucket {
 
 ## Algorithm Comparison
 
-| Algorithm | Memory/Key | CPU Overhead | Burst Handling | Reset Predictability | Use Case |
-|-----------|------------|--------------|----------------|---------------------|----------|
-| Token Bucket | ~8KB | Baseline | Excellent | Poor | General APIs |
-| Sliding Window | ~8KB | +25% | Good | Good | Critical APIs |
-| Fixed Window | ~4KB | -20% | Boundary Risk | Excellent | High Scale |
+| Algorithm      | Memory/Key   | CPU Overhead   | Burst Handling   | Reset Predictability  | Use Case      |
+|----------------|--------------|----------------|------------------|-----------------------|---------------|
+| Token Bucket   | ~8KB         | Baseline       | Excellent        | Poor                  | General APIs  |
+| Sliding Window | ~8KB         | +25%           | Good             | Good                  | Critical APIs |
+| Fixed Window   | ~4KB         | -20%           | Boundary Risk    | Excellent             | High Scale    |
 
 ## Future Considerations
 

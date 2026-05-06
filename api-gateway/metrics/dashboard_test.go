@@ -91,6 +91,7 @@ var skipMetricsFromCoverage = map[string]string{
 	"api_gateway_delta_encodes_total":              "covered by optimizer_runs panel",
 	"api_gateway_sketch_checks_total":              "covered by optimizer_runs panel",
 	"api_gateway_waste_scan_duration_seconds":      "covered by waste detection panel",
+	"api_gateway_anomaly_total":               "registered but not incremented until anomaly detector runs",
 }
 
 var (
@@ -244,9 +245,15 @@ func TestDashboardPromQLValidation(t *testing.T) {
 // TestLabelValidation verifies that label keys used in PromQL selectors match
 // the registered labels for each metric.
 func TestLabelValidation(t *testing.T) {
+	// metricLabelRe matches a metric name followed by optional {labels}
+	metricLabelRe := regexp.MustCompile(`(api_gateway_[a-z_]+\d*[a-z_]*)(\{[^}]*\})?`)
+
 	for _, pair := range allExprs(t) {
-		matches := metricNameRe.FindAllString(pair.expr, -1)
-		for _, m := range matches {
+		mlMatches := metricLabelRe.FindAllStringSubmatch(pair.expr, -1)
+		for _, mlm := range mlMatches {
+			m := mlm[1]
+			labelClause := mlm[2]
+
 			base := strings.TrimSuffix(m, "_bucket")
 			base = strings.TrimSuffix(base, "_count")
 			base = strings.TrimSuffix(base, "_sum")
@@ -257,31 +264,28 @@ func TestLabelValidation(t *testing.T) {
 				labels, ok = registeredMetrics[m]
 			}
 			if !ok {
-				continue // Unknown metric caught by TestDashboardPromQLValidation.
+				continue // Unknown metric caught by TestDashboardPromQLValidation
 			}
 
-			// Extract label selectors from the full expression around this metric.
-			// Find all label clauses in the expression.
-			labelMatches := labelKeyRe.FindAllString(pair.expr, -1)
-			for _, lm := range labelMatches {
-				inner := lm[1 : len(lm)-1] // strip braces
-				parts := strings.Split(inner, ",")
-				for _, part := range parts {
-					part = strings.TrimSpace(part)
-				// Handle != operator before splitting on =.
+			if labelClause == "" {
+				continue
+			}
+			inner := labelClause[1 : len(labelClause)-1] // strip braces
+			parts := strings.Split(inner, ",")
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
 				sep := "="
 				if strings.Contains(part, "!=") {
 					sep = "!="
 				}
 				kv := strings.SplitN(part, sep, 2)
-					if len(kv) != 2 {
-						continue
-					}
-					key := strings.TrimSpace(kv[0])
-					if !allowedLabel(key, labels) {
-						t.Errorf("%s: metric %q uses unknown label %q in expr: %s",
-							filepath.Base(pair.file), m, key, pair.expr)
-					}
+				if len(kv) != 2 {
+					continue
+				}
+				key := strings.TrimSpace(kv[0])
+				if !allowedLabel(key, labels) {
+					t.Errorf("%s: metric %q uses unknown label %q in expr: %s",
+						filepath.Base(pair.file), m, key, pair.expr)
 				}
 			}
 		}

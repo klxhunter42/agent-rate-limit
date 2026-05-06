@@ -11,11 +11,11 @@ The service has been optimized to achieve:
 
 ### Algorithm Performance Comparison
 
-| Algorithm | Memory/Key | CPU Overhead | Throughput | Use Case |
-|-----------|------------|--------------|------------|----------|
-| **Fixed Window** | ~4KB | Baseline | Highest | Memory-constrained, high scale |
-| **Token Bucket** | ~8KB | +15% | High | General purpose, burst handling |  
-| **Sliding Window** | ~8KB | +25% | Medium | Strict rate enforcement |
+| Algorithm          | Memory/Key   | CPU Overhead   | Throughput   | Use Case                        |
+|--------------------|--------------|----------------|--------------|---------------------------------|
+| **Fixed Window**   | ~4KB         | Baseline       | Highest      | Memory-constrained, high scale  |
+| **Token Bucket**   | ~8KB         | +15%           | High         | General purpose, burst handling |
+| **Sliding Window** | ~8KB         | +25%           | Medium       | Strict rate enforcement         |
 
 **Performance Recommendations**:
 - **High Scale (1M+ keys)**: Use Fixed Window for 50% memory reduction
@@ -40,12 +40,12 @@ spring.data.redis.lettuce.pool.time-between-eviction-runs=30s
 
 ### Tuning Guidelines
 
-| Parameter | Description | Recommended Range |
-|-----------|-------------|-------------------|
-| `max-active` | Maximum number of connections | 10-50 |
-| `max-idle` | Maximum idle connections to maintain | 5-25 |
-| `min-idle` | Minimum idle connections to maintain | 2-10 |
-| `max-wait` | Maximum time to wait for connection | 1s-10s |
+| Parameter    | Description                          | Recommended Range   |
+|--------------|--------------------------------------|---------------------|
+| `max-active` | Maximum number of connections        | 10-50               |
+| `max-idle`   | Maximum idle connections to maintain | 5-25                |
+| `min-idle`   | Minimum idle connections to maintain | 2-10                |
+| `max-wait`   | Maximum time to wait for connection  | 1s-10s              |
 
 **For high-load environments**: Increase `max-active` to 50+ and `max-idle` to 25+.
 

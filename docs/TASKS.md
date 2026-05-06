@@ -164,18 +164,18 @@ Reference: CCS (`/repo/`) gap analysis vs ARL current state
 
 ## Priority Order (Recommended)
 
-| Priority | Task | Impact | Effort |
-|----------|------|--------|--------|
-| P0 | A2: Activate Dead Code | High | Low |
-| P0 | A1 + B2: OpenRouter | High | Medium |
-| P0 | B1: Live Auth Monitor | High | Medium |
-| P1 | A3 + B4: Routing Strategy | Medium | Medium |
-| P1 | A4 + B3: Quota System | Medium | Medium |
-| P1 | A6 + B6: Model Catalog | Medium | Medium |
-| P2 | A5 + B5: Error Logs | Medium | Low |
-| P2 | A7 + B7: Usage Analytics API | Medium | Medium |
-| P2 | A9 + B8: WebSocket | High | High |
-| P2 | C4: Playwright E2E Tests | Medium | Medium |
-| P3 | C1: Provider Expansion | Low | Low |
-| P3 | C2: Thinking Config | Low | Medium |
-| P3 | C3: Auth Hardening | Medium | Low |
+| Priority   | Task                         | Impact   | Effort   |
+|------------|------------------------------|----------|----------|
+| P0         | A2: Activate Dead Code       | High     | Low      |
+| P0         | A1 + B2: OpenRouter          | High     | Medium   |
+| P0         | B1: Live Auth Monitor        | High     | Medium   |
+| P1         | A3 + B4: Routing Strategy    | Medium   | Medium   |
+| P1         | A4 + B3: Quota System        | Medium   | Medium   |
+| P1         | A6 + B6: Model Catalog       | Medium   | Medium   |
+| P2         | A5 + B5: Error Logs          | Medium   | Low      |
+| P2         | A7 + B7: Usage Analytics API | Medium   | Medium   |
+| P2         | A9 + B8: WebSocket           | High     | High     |
+| P2         | C4: Playwright E2E Tests     | Medium   | Medium   |
+| P3         | C1: Provider Expansion       | Low      | Low      |
+| P3         | C2: Thinking Config          | Low      | Medium   |
+| P3         | C3: Auth Hardening           | Medium   | Low      |

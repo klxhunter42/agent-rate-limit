@@ -196,6 +196,14 @@ export function AccountList({
               </div>
             </div>
           )}
+      {/* Request count for non-Anthropic providers */}
+      {rl && ((rl.req_count_5h ?? 0) > 0 || (rl.req_count_7d ?? 0) > 0) && !(rl.util_5h > 0 || rl.util_7d > 0) && (
+        <div className="flex items-center gap-2 text-[10px] text-muted-foreground pt-0.5">
+          <span>5h: {rl.req_count_5h ?? 0} reqs</span>
+          <span className="text-border">|</span>
+          <span>7d: {rl.req_count_7d ?? 0} reqs</span>
+        </div>
+      )}
         </div>
         );
       })}

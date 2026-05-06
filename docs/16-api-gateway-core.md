@@ -39,7 +39,7 @@ Key capabilities:
 +------------------+     +-----------------+     +-------------------+
 |  Claude Code CLI |     |  Custom Agents  |     |  Web Dashboard    |
 +--------+---------+     +--------+--------+     +--------+----------+
-         |                        |                       |
+|                        |                       |
          v                        v                       v
 +------------------------------------------------------------------+
 |                     Caddy Reverse Proxy (:9000)                   |
@@ -57,12 +57,12 @@ Key capabilities:
 |  | Pipeline   |  | Pipeline   |  | Limiter    |  | (Rotation)  |  |
 |  +------------+  +------------+  +------------+  +-------------+  |
 +--------+-----------+-----------+-----------+-----------+----------+
-         |           |           |           |           |
+|           |           |           |           |
          v           v           v           v           v
 +------------------------------------------------------------------+
 |  Dragonfly/Redis  |  Rate Limiter  |  Prometheus  |  OTel Collector|
 +------------------------------------------------------------------+
-         |           |           |
+|           |           |
          v           v           v
 +------------------------------------------------------------------+
 |  Z.AI  |  Anthropic  |  OpenAI  |  Gemini  |  OpenRouter  | ...  |
@@ -101,17 +101,17 @@ main()
 
 ### Background Goroutines
 
-| Goroutine | Source | Purpose |
-|-----------|--------|---------|
-| `rtMetrics.Start()` | `main.go:88` | Runtime metrics collection every 10s |
-| `wsHub.Run()` | `main.go:125` | WebSocket hub event loop |
-| `refreshWorker.Start()` | `main.go:221` | OAuth token refresh loop |
-| `WatchSessionSecret()` | `main.go:226` | Session secret file watcher |
-| `cfgWatcher.Start()` | `main.go:232` | .env file change detection |
-| `syncZAIKeys()` + ticker | `main.go:236-243` | Key pool sync from token store every 30s |
-| Adaptive metrics export | `main.go:247-261` | Limiter state to Prometheus every 10s |
-| `optWaste.StartBackgroundScanner()` | `main.go:210` | Waste detection scan every 60s |
-| `optCache.StartEvictionLoop()` | `main.go:213` | Cache eviction loop |
+| Goroutine                           | Source            | Purpose                                  |
+|-------------------------------------|-------------------|------------------------------------------|
+| `rtMetrics.Start()`                 | `main.go:88`      | Runtime metrics collection every 10s     |
+| `wsHub.Run()`                       | `main.go:125`     | WebSocket hub event loop                 |
+| `refreshWorker.Start()`             | `main.go:221`     | OAuth token refresh loop                 |
+| `WatchSessionSecret()`              | `main.go:226`     | Session secret file watcher              |
+| `cfgWatcher.Start()`                | `main.go:232`     | .env file change detection               |
+| `syncZAIKeys()` + ticker            | `main.go:236-243` | Key pool sync from token store every 30s |
+| Adaptive metrics export             | `main.go:247-261` | Limiter state to Prometheus every 10s    |
+| `optWaste.StartBackgroundScanner()` | `main.go:210`     | Waste detection scan every 60s           |
+| `optCache.StartEvictionLoop()`      | `main.go:213`     | Cache eviction loop                      |
 
 ### Server Configuration
 
@@ -127,17 +127,17 @@ srv := &http.Server{
 
 ### Dependencies (`go.mod`)
 
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| `go-chi/chi/v5` | 5.2.1 | HTTP router |
-| `redis/go-redis/v9` | 9.7.3 | Dragonfly/Redis client |
-| `prometheus/client_golang` | 1.21.1 | Metrics |
-| `gorilla/websocket` | 1.5.3 | WebSocket hub |
-| `fsnotify/fsnotify` | 1.9.0 | Config file watching |
-| `google/uuid` | 1.6.0 | Correlation IDs |
-| `go.opentelemetry/otel` | 1.33.0 | Distributed tracing |
-| `golang.org/x/sync` | 0.20.0 | errgroup for parallel rate limit checks |
-| `go.uber.org/automaxprocs` | 1.6.0 | Auto GOMAXPROCS in containers |
+| Dependency                 | Version   | Purpose                                 |
+|----------------------------|-----------|-----------------------------------------|
+| `go-chi/chi/v5`            | 5.2.1     | HTTP router                             |
+| `redis/go-redis/v9`        | 9.7.3     | Dragonfly/Redis client                  |
+| `prometheus/client_golang` | 1.21.1    | Metrics                                 |
+| `gorilla/websocket`        | 1.5.3     | WebSocket hub                           |
+| `fsnotify/fsnotify`        | 1.9.0     | Config file watching                    |
+| `google/uuid`              | 1.6.0     | Correlation IDs                         |
+| `go.opentelemetry/otel`    | 1.33.0    | Distributed tracing                     |
+| `golang.org/x/sync`        | 0.20.0    | errgroup for parallel rate limit checks |
+| `go.uber.org/automaxprocs` | 1.6.0     | Auto GOMAXPROCS in containers           |
 
 ---
 
@@ -175,36 +175,36 @@ type Handler struct {
 
 ### 3.2 Route Table
 
-| Method | Path | Handler | Purpose |
-|--------|------|---------|---------|
-| POST | `/v1/messages` | `Messages()` | Primary AI chat endpoint |
-| POST | `/v1/chat/completions` | `ChatCompletions()` | OpenAI-compatible async endpoint |
-| GET | `/v1/results/{requestID}` | `GetResult()` | Async result retrieval |
-| GET | `/health` | `Health()` | Health check (queue depth + uptime) |
-| GET | `/v1/limiter-status` | `LimiterStatus()` | Adaptive limiter state |
-| POST | `/v1/limiter-override` | `LimiterOverride()` | Pin model concurrency limit |
-| GET | `/v1/routing/strategy` | `GetRoutingStrategy()` | Current routing config |
-| PUT | `/v1/routing/strategy` | `SetRoutingStrategy()` | Update routing config |
-| GET | `/v1/models` | `GetModels()` or `GetModelsAnthropic()` | Model catalog (UA-based dispatch) |
-| POST | `/v1/messages/count_tokens` | `CountTokens()` | Token counting |
-| GET | `/v1/logs/errors` | `GetErrorLogs()` | Error log retrieval |
-| GET | `/v1/logs/errors/count` | `GetErrorLogCount()` | Error log count |
-| GET | `/ws` | `HandleWebSocket()` | WebSocket real-time events |
-| GET | `/v1/waste/findings` | `GetWasteFindings()` | Waste detection results |
-| GET | `/v1/auth/accounts/ratelimits` | `GetRateLimits()` | Per-account rate limit status |
-| POST | `/mcp/{server}` | `MCPProxyHandle()` | MCP JSON-RPC proxy |
-| GET | `/mcp` | `MCPListServers()` | List available MCP servers |
-| * | `/api/claude_code/*` | `AnthropicPassthrough()` | Claude Code transparent passthrough |
-| * | `/v1/mcp_servers` | `AnthropicPassthrough()` | Claude Code transparent passthrough |
-| GET | `/v1/overview` | `Overview()` | System overview |
-| GET | `/v1/health/detailed` | `DetailedHealth()` | Detailed health checks |
-| POST | `/v1/health/fix/{checkId}` | `FixHealthCheck()` | Apply health fix |
-| GET/PUT | `/v1/config` | Config CRUD | Redis-backed config overrides |
-| * | `/v1/profiles/*` | Profile CRUD | Profile management |
-| * | `/v1/usage/*` | Usage analytics | Usage tracking endpoints |
-| * | `/v1/quota/*` | Quota enforcement | Quota check/endpoints |
-| GET | `/`, `/*` | Static SPA | Dashboard UI (Vite build) |
-| GET | `/metrics`, `/api/metrics` | Prometheus | Metrics scrape endpoint |
+| Method   | Path                           | Handler                                 | Purpose                             |
+|----------|--------------------------------|-----------------------------------------|-------------------------------------|
+| POST     | `/v1/messages`                 | `Messages()`                            | Primary AI chat endpoint            |
+| POST     | `/v1/chat/completions`         | `ChatCompletions()`                     | OpenAI-compatible async endpoint    |
+| GET      | `/v1/results/{requestID}`      | `GetResult()`                           | Async result retrieval              |
+| GET      | `/health`                      | `Health()`                              | Health check (queue depth + uptime) |
+| GET      | `/v1/limiter-status`           | `LimiterStatus()`                       | Adaptive limiter state              |
+| POST     | `/v1/limiter-override`         | `LimiterOverride()`                     | Pin model concurrency limit         |
+| GET      | `/v1/routing/strategy`         | `GetRoutingStrategy()`                  | Current routing config              |
+| PUT      | `/v1/routing/strategy`         | `SetRoutingStrategy()`                  | Update routing config               |
+| GET      | `/v1/models`                   | `GetModels()` or `GetModelsAnthropic()` | Model catalog (UA-based dispatch)   |
+| POST     | `/v1/messages/count_tokens`    | `CountTokens()`                         | Token counting                      |
+| GET      | `/v1/logs/errors`              | `GetErrorLogs()`                        | Error log retrieval                 |
+| GET      | `/v1/logs/errors/count`        | `GetErrorLogCount()`                    | Error log count                     |
+| GET      | `/ws`                          | `HandleWebSocket()`                     | WebSocket real-time events          |
+| GET      | `/v1/waste/findings`           | `GetWasteFindings()`                    | Waste detection results             |
+| GET      | `/v1/auth/accounts/ratelimits` | `GetRateLimits()`                       | Per-account rate limit status       |
+| POST     | `/mcp/{server}`                | `MCPProxyHandle()`                      | MCP JSON-RPC proxy                  |
+| GET      | `/mcp`                         | `MCPListServers()`                      | List available MCP servers          |
+| *        | `/api/claude_code/*`           | `AnthropicPassthrough()`                | Claude Code transparent passthrough |
+| *        | `/v1/mcp_servers`              | `AnthropicPassthrough()`                | Claude Code transparent passthrough |
+| GET      | `/v1/overview`                 | `Overview()`                            | System overview                     |
+| GET      | `/v1/health/detailed`          | `DetailedHealth()`                      | Detailed health checks              |
+| POST     | `/v1/health/fix/{checkId}`     | `FixHealthCheck()`                      | Apply health fix                    |
+| GET/PUT  | `/v1/config`                   | Config CRUD                             | Redis-backed config overrides       |
+| *        | `/v1/profiles/*`               | Profile CRUD                            | Profile management                  |
+| *        | `/v1/usage/*`                  | Usage analytics                         | Usage tracking endpoints            |
+| *        | `/v1/quota/*`                  | Quota enforcement                       | Quota check/endpoints               |
+| GET      | `/`, `/*`                      | Static SPA                              | Dashboard UI (Vite build)           |
+| GET      | `/metrics`, `/api/metrics`     | Prometheus                              | Metrics scrape endpoint             |
 
 ### 3.3 Messages() - Primary Endpoint
 
@@ -267,13 +267,13 @@ Transparent proxy to `api.anthropic.com` for Claude Code CLI routes (`/api/claud
 
 `knownModels` is a static catalog of ~40 models across all providers with pricing:
 
-| Provider | Models |
-|----------|--------|
-| Z.AI | glm-5.1, glm-5-turbo, glm-5, glm-4.7, glm-4.6, glm-4.5, glm-4.5-x, glm-4.5-air, glm-4.5-airx, glm-4.6v, glm-4.5v |
-| Anthropic | claude-sonnet-4-20250514, claude-opus-4-20250115, claude-3.5-sonnet, claude-3-haiku |
-| OpenAI | gpt-4o, gpt-4-turbo, o3, o4-mini |
-| Gemini | gemini-2.5-flash-preview-05-20 |
-| OpenRouter | Various via `or-` prefix |
+| Provider   | Models                                                                                                           |
+|------------|------------------------------------------------------------------------------------------------------------------|
+| Z.AI       | glm-5.1, glm-5-turbo, glm-5, glm-4.7, glm-4.6, glm-4.5, glm-4.5-x, glm-4.5-air, glm-4.5-airx, glm-4.6v, glm-4.5v |
+| Anthropic  | claude-sonnet-4-20250514, claude-opus-4-20250115, claude-3.5-sonnet, claude-3-haiku                              |
+| OpenAI     | gpt-4o, gpt-4-turbo, o3, o4-mini                                                                                 |
+| Gemini     | gemini-2.5-flash-preview-05-20                                                                                   |
+| OpenRouter | Various via `or-` prefix                                                                                         |
 
 ### 3.9 Profile Handler
 
@@ -313,14 +313,14 @@ Redis-backed config management with redacted responses. Redis keys:
 
 Multi-granularity usage tracking in Redis:
 
-| Granularity | Redis Key Pattern | TTL |
-|-------------|-------------------|-----|
-| Hourly | `usage:hourly:{timestamp}` | 48h |
-| Daily | `usage:daily:{date}` | 35d |
-| Monthly | `usage:monthly:{month}` | 400d |
-| Session | `usage:sessions:{sessionID}` | - |
-| Profile | `usage:profile:{profile}:{date}` | 35d |
-| Account | `usage:account:{accountID}:{date}` | 35d |
+| Granularity   | Redis Key Pattern                  | TTL   |
+|---------------|------------------------------------|-------|
+| Hourly        | `usage:hourly:{timestamp}`         | 48h   |
+| Daily         | `usage:daily:{date}`               | 35d   |
+| Monthly       | `usage:monthly:{month}`            | 400d  |
+| Session       | `usage:sessions:{sessionID}`       | -     |
+| Profile       | `usage:profile:{profile}:{date}`   | 35d   |
+| Account       | `usage:account:{accountID}:{date}` | 35d   |
 
 Uses `SCAN`-based key enumeration (production-safe, avoids `KEYS`).
 
@@ -695,14 +695,14 @@ Per-IP login rate limiting: max 5 attempts per 15-minute window. Background clea
 
 Background goroutine collecting every 10s:
 
-| Metric | Prometheus Name |
-|--------|----------------|
-| Goroutines | `api_gateway_go_goroutines` |
-| Heap allocation | `api_gateway_go_heap_alloc_bytes` |
-| Heap objects | `api_gateway_go_heap_objects` |
-| GC pause | `api_gateway_go_gc_pause_ns` |
-| Stack in-use | `api_gateway_go_stack_inuse_bytes` |
-| Dragonfly health | `api_gateway_dragonfly_up` |
+| Metric           | Prometheus Name                    |
+|------------------|------------------------------------|
+| Goroutines       | `api_gateway_go_goroutines`        |
+| Heap allocation  | `api_gateway_go_heap_alloc_bytes`  |
+| Heap objects     | `api_gateway_go_heap_objects`      |
+| GC pause         | `api_gateway_go_gc_pause_ns`       |
+| Stack in-use     | `api_gateway_go_stack_inuse_bytes` |
+| Dragonfly health | `api_gateway_dragonfly_up`         |
 
 ### 5.14 SessionSecret
 
@@ -720,75 +720,75 @@ All config loaded from environment variables with sensible defaults for containe
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SERVER_PORT` | `:8080` | HTTP server listen address |
-| `REDIS_ADDR` | `dragonfly:6379` | Dragonfly/Redis address |
-| `RATE_LIMITER_ADDR` | `http://rate-limiter:8080` | Distributed rate limiter URL |
-| `QUEUE_NAME` | `ai_jobs` | Dragonfly queue name |
-| `GLOBAL_RATE_LIMIT` | `100` | Global requests per second |
-| `AGENT_RATE_LIMIT` | `5` | Per-agent requests per second |
-| `WORKER_POOL_SIZE` | `100` | Async worker pool size |
-| `READ_TIMEOUT` | `30s` | HTTP read timeout |
-| `WRITE_TIMEOUT` | `10s` | HTTP write timeout (overridden to 0 for SSE) |
-| `OTLP_ENDPOINT` | `otel-collector:4317` | OpenTelemetry collector endpoint |
-| `REDIS_POOL_SIZE` | `50` | Redis connection pool size |
-| `REDIS_MIN_IDLE_CONNS` | `10` | Minimum idle Redis connections |
-| `UPSTREAM_URL` | `https://api.z.ai/api/anthropic` | Primary upstream URL |
-| `ANTHROPIC_DIRECT_URL` | `https://api.anthropic.com` | Direct Anthropic API URL |
-| `STREAM_TIMEOUT` | `300s` | SSE stream timeout |
-| `UPSTREAM_MODEL_LIMITS` | `glm-5.1:1,glm-5-turbo:1,...` | Per-model concurrency limits |
-| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,...` | Per-vision-model concurrency limits |
-| `UPSTREAM_DEFAULT_LIMIT` | `3` | Default concurrency limit for unconfigured models |
-| `UPSTREAM_GLOBAL_LIMIT` | `9` | Hard cap across all models |
-| `UPSTREAM_MAX_RETRIES` | `3` | Max retries on upstream errors |
-| `UPSTREAM_RETRY_BACKOFF` | `500ms` | Base retry backoff |
-| `UPSTREAM_PROBE_MULTIPLIER` | `5` | Adaptive probe ceiling multiplier |
-| `UPSTREAM_RPM_LIMIT` | `40` | Per-key requests-per-minute |
-| `ENABLE_PROMPT_INJECTION` | `true` | System prompt injection toggle |
-| `ENABLE_RESPONSE_TRIM` | `true` | Response trimming toggle |
-| `ENABLE_SMART_MAX_TOKENS` | `true` | Auto max_tokens calculation |
-| `PROMPT_INJECTION_TEXT` | (default rules) | Custom system prompt injection text |
-| `ENABLE_AUTO_TRUNCATE` | `true` | Auto-truncate on context overflow |
-| `TRANSIENT_RETRY_MAX` | `3` | Max transient error retries |
-| `ZAI_API_KEYS` | (empty) | Comma-separated Z.AI API keys |
-| `MODEL_PRICING` | (default pricing) | Per-model pricing `model:input:output` |
-| `NATIVE_VISION_URL` | `https://open.bigmodel.cn/...` | Z.AI native vision endpoint |
-| `IP_WHITELIST` | (empty) | Comma-separated IPs/CIDRs |
-| `IP_BLACKLIST` | (empty) | Comma-separated IPs/CIDRs |
-| `QUOTA_CACHE_TTL` | `30s` | Quota cache TTL |
-| `QUOTA_DAILY_BUDGET` | `57600` | Daily request budget |
-| `QUOTA_BLOCK_PCT` | `95` | Block threshold percentage |
-| `MAX_REQUEST_BODY` | `10485760` (10MB) | Max request body size |
-| `DEFAULT_MODEL` | `glm-5` | Default model for requests |
-| `DEFAULT_PROVIDER` | `glm` | Default provider |
-| `DEFAULT_TEMPERATURE` | `0.7` | Default temperature |
-| `DEFAULT_MAX_TOKENS` | `1024` | Default max tokens |
-| `GEMINI_CODEASSIST_ENDPOINT` | `https://cloudcode-pa.googleapis.com/...` | Gemini Code Assist URL |
-| `GEMINI_API_ENDPOINT` | `https://generativelanguage.googleapis.com` | Gemini API URL |
-| `GEMINI_DEFAULT_MODEL` | `models/gemini-2.5-flash-preview-05-20` | Default Gemini model |
-| `ANTHROPIC_API_VERSION` | `2023-06-01` | Anthropic API version header |
-| `MODEL_PRIORITY` | `glm-5.1:100,...` | Model fallback priority |
-| `ANOMALY_COOLDOWN_SEC` | `5` | Anomaly cooldown seconds |
-| `ANOMALY_Z_THRESHOLD` | `2.0` | Z-score threshold |
-| `GLM_MODE` | `true` | Z.AI features toggle |
-| `ZAI_OPENAI_URL` | `https://api.z.ai/api/paas/v4/...` | Z.AI OpenAI-compatible endpoint |
-| `CLI_SIDECAR_ENABLED` | `true` | Node.js sidecar toggle |
-| `CLI_SIDECAR_URL` | `http://127.0.0.1:8081` | Sidecar URL |
-| `MCP_ENABLED` | `true` | MCP proxy toggle |
-| `MCP_CACHE_TTL` | `1h` | MCP response cache TTL |
-| `MCP_MAX_RETRIES` | `2` | MCP max retries |
-| `MCP_RATE_LIMIT_PER_MIN` | `30` | MCP per-account rate limit |
-| `DASHBOARD_PASSWORD` | (empty) | Dashboard auth API key |
-| `DASHBOARD_URL` | `https://ai.klxhub.com` | Dashboard public URL |
-| `OAUTH_CALLBACK_BASE` | `https://ai.klxhub.com` | OAuth callback base URL |
-| `PASTEGUARD_ENABLED` | `true` | Privacy masking toggle |
-| `PASTEGUARD_SECRETS_ENABLED` | `true` | Secret detection toggle |
-| `PASTEGUARD_PII_ENABLED` | `true` | PII detection toggle |
-| `PASTEGUARD_MAX_SCAN_CHARS` | `200000` | Max chars to scan for PII |
-| `GEMINI_OAUTH_CLIENT_ID` | (empty) | Gemini OAuth client ID |
-| `GEMINI_OAUTH_CLIENT_SECRET` | (empty) | Gemini OAuth client secret |
-| `PROVIDER_MODEL_PREFIXES` | `zai:glm-;anthropic:claude-;...` | Model-to-provider prefix mapping |
+| Variable                       | Default                                     | Description                                       |
+|--------------------------------|---------------------------------------------|---------------------------------------------------|
+| `SERVER_PORT`                  | `:8080`                                     | HTTP server listen address                        |
+| `REDIS_ADDR`                   | `dragonfly:6379`                            | Dragonfly/Redis address                           |
+| `RATE_LIMITER_ADDR`            | `http://rate-limiter:8080`                  | Distributed rate limiter URL                      |
+| `QUEUE_NAME`                   | `ai_jobs`                                   | Dragonfly queue name                              |
+| `GLOBAL_RATE_LIMIT`            | `100`                                       | Global requests per second                        |
+| `AGENT_RATE_LIMIT`             | `5`                                         | Per-agent requests per second                     |
+| `WORKER_POOL_SIZE`             | `100`                                       | Async worker pool size                            |
+| `READ_TIMEOUT`                 | `30s`                                       | HTTP read timeout                                 |
+| `WRITE_TIMEOUT`                | `10s`                                       | HTTP write timeout (overridden to 0 for SSE)      |
+| `OTLP_ENDPOINT`                | `otel-collector:4317`                       | OpenTelemetry collector endpoint                  |
+| `REDIS_POOL_SIZE`              | `50`                                        | Redis connection pool size                        |
+| `REDIS_MIN_IDLE_CONNS`         | `10`                                        | Minimum idle Redis connections                    |
+| `UPSTREAM_URL`                 | `https://api.z.ai/api/anthropic`            | Primary upstream URL                              |
+| `ANTHROPIC_DIRECT_URL`         | `https://api.anthropic.com`                 | Direct Anthropic API URL                          |
+| `STREAM_TIMEOUT`               | `300s`                                      | SSE stream timeout                                |
+| `UPSTREAM_MODEL_LIMITS`        | `glm-5.1:1,glm-5-turbo:1,...`               | Per-model concurrency limits                      |
+| `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,...`                  | Per-vision-model concurrency limits               |
+| `UPSTREAM_DEFAULT_LIMIT`       | `3`                                         | Default concurrency limit for unconfigured models |
+| `UPSTREAM_GLOBAL_LIMIT`        | `9`                                         | Hard cap across all models                        |
+| `UPSTREAM_MAX_RETRIES`         | `3`                                         | Max retries on upstream errors                    |
+| `UPSTREAM_RETRY_BACKOFF`       | `500ms`                                     | Base retry backoff                                |
+| `UPSTREAM_PROBE_MULTIPLIER`    | `5`                                         | Adaptive probe ceiling multiplier                 |
+| `UPSTREAM_RPM_LIMIT`           | `40`                                        | Per-key requests-per-minute                       |
+| `ENABLE_PROMPT_INJECTION`      | `true`                                      | System prompt injection toggle                    |
+| `ENABLE_RESPONSE_TRIM`         | `true`                                      | Response trimming toggle                          |
+| `ENABLE_SMART_MAX_TOKENS`      | `true`                                      | Auto max_tokens calculation                       |
+| `PROMPT_INJECTION_TEXT`        | (default rules)                             | Custom system prompt injection text               |
+| `ENABLE_AUTO_TRUNCATE`         | `true`                                      | Auto-truncate on context overflow                 |
+| `TRANSIENT_RETRY_MAX`          | `3`                                         | Max transient error retries                       |
+| `ZAI_API_KEYS`                 | (empty)                                     | Comma-separated Z.AI API keys                     |
+| `MODEL_PRICING`                | (default pricing)                           | Per-model pricing `model:input:output`            |
+| `NATIVE_VISION_URL`            | `https://open.bigmodel.cn/...`              | Z.AI native vision endpoint                       |
+| `IP_WHITELIST`                 | (empty)                                     | Comma-separated IPs/CIDRs                         |
+| `IP_BLACKLIST`                 | (empty)                                     | Comma-separated IPs/CIDRs                         |
+| `QUOTA_CACHE_TTL`              | `30s`                                       | Quota cache TTL                                   |
+| `QUOTA_DAILY_BUDGET`           | `57600`                                     | Daily request budget                              |
+| `QUOTA_BLOCK_PCT`              | `95`                                        | Block threshold percentage                        |
+| `MAX_REQUEST_BODY`             | `10485760` (10MB)                           | Max request body size                             |
+| `DEFAULT_MODEL`                | `glm-5`                                     | Default model for requests                        |
+| `DEFAULT_PROVIDER`             | `glm`                                       | Default provider                                  |
+| `DEFAULT_TEMPERATURE`          | `0.7`                                       | Default temperature                               |
+| `DEFAULT_MAX_TOKENS`           | `1024`                                      | Default max tokens                                |
+| `GEMINI_CODEASSIST_ENDPOINT`   | `https://cloudcode-pa.googleapis.com/...`   | Gemini Code Assist URL                            |
+| `GEMINI_API_ENDPOINT`          | `https://generativelanguage.googleapis.com` | Gemini API URL                                    |
+| `GEMINI_DEFAULT_MODEL`         | `models/gemini-2.5-flash-preview-05-20`     | Default Gemini model                              |
+| `ANTHROPIC_API_VERSION`        | `2023-06-01`                                | Anthropic API version header                      |
+| `MODEL_PRIORITY`               | `glm-5.1:100,...`                           | Model fallback priority                           |
+| `ANOMALY_COOLDOWN_SEC`         | `5`                                         | Anomaly cooldown seconds                          |
+| `ANOMALY_Z_THRESHOLD`          | `2.0`                                       | Z-score threshold                                 |
+| `GLM_MODE`                     | `true`                                      | Z.AI features toggle                              |
+| `ZAI_OPENAI_URL`               | `https://api.z.ai/api/paas/v4/...`          | Z.AI OpenAI-compatible endpoint                   |
+| `CLI_SIDECAR_ENABLED`          | `true`                                      | Node.js sidecar toggle                            |
+| `CLI_SIDECAR_URL`              | `http://127.0.0.1:8081`                     | Sidecar URL                                       |
+| `MCP_ENABLED`                  | `true`                                      | MCP proxy toggle                                  |
+| `MCP_CACHE_TTL`                | `1h`                                        | MCP response cache TTL                            |
+| `MCP_MAX_RETRIES`              | `2`                                         | MCP max retries                                   |
+| `MCP_RATE_LIMIT_PER_MIN`       | `30`                                        | MCP per-account rate limit                        |
+| `DASHBOARD_PASSWORD`           | (empty)                                     | Dashboard auth API key                            |
+| `DASHBOARD_URL`                | `https://ai.klxhub.com`                     | Dashboard public URL                              |
+| `OAUTH_CALLBACK_BASE`          | `https://ai.klxhub.com`                     | OAuth callback base URL                           |
+| `PASTEGUARD_ENABLED`           | `true`                                      | Privacy masking toggle                            |
+| `PASTEGUARD_SECRETS_ENABLED`   | `true`                                      | Secret detection toggle                           |
+| `PASTEGUARD_PII_ENABLED`       | `true`                                      | PII detection toggle                              |
+| `PASTEGUARD_MAX_SCAN_CHARS`    | `200000`                                    | Max chars to scan for PII                         |
+| `GEMINI_OAUTH_CLIENT_ID`       | (empty)                                     | Gemini OAuth client ID                            |
+| `GEMINI_OAUTH_CLIENT_SECRET`   | (empty)                                     | Gemini OAuth client secret                        |
+| `PROVIDER_MODEL_PREFIXES`      | `zai:glm-;anthropic:claude-;...`            | Model-to-provider prefix mapping                  |
 
 ### Model Pricing (default)
 
@@ -813,16 +813,16 @@ glm-4.5v:         $0.60 / $1.80
 
 Model prefix -> provider mapping:
 
-| Model Prefix | Provider Order |
-|-------------|---------------|
-| `claude-` | claude-oauth, anthropic |
-| `gpt-`, `o1-`, `o3-`, `o4-` | openai |
-| `gemini-` | gemini-oauth, gemini |
-| `glm-` | zai |
-| `qwen-` | qwen |
-| `or-` | openrouter |
-| `deepseek-` | deepseek |
-| `kimi-` | kimi |
+| Model Prefix                | Provider Order          |
+|-----------------------------|-------------------------|
+| `claude-`                   | claude-oauth, anthropic |
+| `gpt-`, `o1-`, `o3-`, `o4-` | openai                  |
+| `gemini-`                   | gemini-oauth, gemini    |
+| `glm-`                      | zai                     |
+| `qwen-`                     | qwen                    |
+| `or-`                       | openrouter              |
+| `deepseek-`                 | deepseek                |
+| `kimi-`                     | kimi                    |
 
 API format per provider:
 - **Anthropic format**: anthropic, claude-oauth, claude, zai, agy
@@ -1032,21 +1032,21 @@ Acquire("glm-5.1")
 
 **File:** `docker-compose.yml`
 
-| Service | Image/Build | Port | Purpose |
-|---------|-------------|------|---------|
-| `arl-gateway` | `./api-gateway/Dockerfile` | 8080 (internal) | API Gateway (Go) |
-| `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile` | 8080 (internal) | Rate Limiter (Java/Spring Boot) |
-| `arl-dragonfly` | `dragonfly:v1.37.2` | 6379 (internal) | Redis-compatible store |
-| `arl-worker` | `./ai-worker/Dockerfile` | 9090/9091 (internal) | AI Worker (Python) |
-| `arl-prometheus` | `prometheus:v2.54.1` | 9090 (internal) | Metrics |
-| `arl-grafana` | `grafana:11.3.0` | (internal) | Dashboards |
-| `arl-otel` | `otel-collector-contrib:0.112.0` | 4317/4318 (internal) | Tracing |
-| `arl-proxy` | `caddy:2-alpine` | 9000 (external) | Reverse proxy |
-| `arl-dashboard` | `./ui/Dockerfile.dev` | 5173 (internal) | Dashboard UI (React/Vite) |
-| `arl-rl-dashboard` | (compose profile: rl-dashboard) | - | Rate limiter dashboard |
-| `arl-presidio` | (compose profile: pii) | 3000 (internal) | PII analyzer (legacy) |
-| `claude-code-meow` | (compose profile: test-client) | - | Claude Code test client |
-| `claude-code-test` | (compose profile: test-client) | - | Claude Code test client |
+| Service            | Image/Build                             | Port                 | Purpose                         |
+|--------------------|-----------------------------------------|----------------------|---------------------------------|
+| `arl-gateway`      | `./api-gateway/Dockerfile`              | 8080 (internal)      | API Gateway (Go)                |
+| `arl-rate-limiter` | `./distributed-rate-limiter/Dockerfile` | 8080 (internal)      | Rate Limiter (Java/Spring Boot) |
+| `arl-dragonfly`    | `dragonfly:v1.37.2`                     | 6379 (internal)      | Redis-compatible store          |
+| `arl-worker`       | `./ai-worker/Dockerfile`                | 9090/9091 (internal) | AI Worker (Python)              |
+| `arl-prometheus`   | `prometheus:v2.54.1`                    | 9090 (internal)      | Metrics                         |
+| `arl-grafana`      | `grafana:11.3.0`                        | (internal)           | Dashboards                      |
+| `arl-otel`         | `otel-collector-contrib:0.112.0`        | 4317/4318 (internal) | Tracing                         |
+| `arl-proxy`        | `caddy:2-alpine`                        | 9000 (external)      | Reverse proxy                   |
+| `arl-dashboard`    | `./ui/Dockerfile.dev`                   | 5173 (internal)      | Dashboard UI (React/Vite)       |
+| `arl-rl-dashboard` | (compose profile: rl-dashboard)         | -                    | Rate limiter dashboard          |
+| `arl-presidio`     | (compose profile: pii)                  | 3000 (internal)      | PII analyzer (legacy)           |
+| `claude-code-meow` | (compose profile: test-client)          | -                    | Claude Code test client         |
+| `claude-code-test` | (compose profile: test-client)          | -                    | Claude Code test client         |
 
 Resource limits: Gateway (1G/2CPU), Rate Limiter (1.5G/2CPU), Dragonfly (8G/2CPU), Worker (2G/2CPU).
 

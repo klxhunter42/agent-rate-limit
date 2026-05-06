@@ -209,14 +209,14 @@ Enhanced response with geographic information:
 
 ### Geographic Management API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/ratelimit/geographic/rules` | GET | List all geographic rules |
-| `/api/ratelimit/geographic/rules` | POST | Add new geographic rule |
-| `/api/ratelimit/geographic/rules/{id}` | DELETE | Remove geographic rule |
-| `/api/ratelimit/geographic/detect` | GET | Test geographic detection |
-| `/api/ratelimit/geographic/stats` | GET | Get geographic statistics |
-| `/api/ratelimit/geographic/cache/clear` | POST | Clear geographic caches |
+| Endpoint                                | Method   | Description               |
+|-----------------------------------------|----------|---------------------------|
+| `/api/ratelimit/geographic/rules`       | GET      | List all geographic rules |
+| `/api/ratelimit/geographic/rules`       | POST     | Add new geographic rule   |
+| `/api/ratelimit/geographic/rules/{id}`  | DELETE   | Remove geographic rule    |
+| `/api/ratelimit/geographic/detect`      | GET      | Test geographic detection |
+| `/api/ratelimit/geographic/stats`       | GET      | Get geographic statistics |
+| `/api/ratelimit/geographic/cache/clear` | POST     | Clear geographic caches   |
 
 ## CDN Integration
 

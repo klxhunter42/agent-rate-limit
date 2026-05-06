@@ -38,13 +38,13 @@ A production-ready distributed rate limiter supporting **five algorithms** (Toke
 
 ### 📊 Performance Characteristics
 
-| Metric | Value |
-|--------|--------|
-| **Throughput** | 50,000+ RPS |
-| **Latency P95** | <2ms |
+| Metric           | Value                     |
+|------------------|---------------------------|
+| **Throughput**   | 50,000+ RPS               |
+| **Latency P95**  | <2ms                      |
 | **Memory Usage** | ~200MB baseline + buckets |
-| **Redis Ops** | 2-3 per rate limit check |
-| **CPU Usage** | <5% at 10K RPS |
+| **Redis Ops**    | 2-3 per rate limit check  |
+| **CPU Usage**    | <5% at 10K RPS            |
 
 ---
 
@@ -877,12 +877,12 @@ spec:
 
 ### Throughput Benchmarks
 
-| Scenario | RPS | Latency P95 | CPU Usage | Memory Usage |
-|----------|-----|-------------|-----------|--------------|
-| Single Key | 52,000 | 1.8ms | 45% | 250MB |
-| 1K Keys | 48,000 | 2.1ms | 52% | 380MB |
-| 10K Keys | 45,000 | 2.8ms | 58% | 650MB |
-| 100K Keys | 40,000 | 3.2ms | 65% | 1.2GB |
+| Scenario   | RPS    | Latency P95   | CPU Usage   | Memory Usage   |
+|------------|--------|---------------|-------------|----------------|
+| Single Key | 52,000 | 1.8ms         | 45%         | 250MB          |
+| 1K Keys    | 48,000 | 2.1ms         | 52%         | 380MB          |
+| 10K Keys   | 45,000 | 2.8ms         | 58%         | 650MB          |
+| 100K Keys  | 40,000 | 3.2ms         | 65%         | 1.2GB          |
 
 ### Scaling Characteristics
 

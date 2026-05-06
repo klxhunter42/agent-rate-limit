@@ -90,14 +90,14 @@ Remote CLI --(Bearer+headers)--> Caddy:9000 --> Gateway:8080
 
 ### ขั้นตอนการทำงานของ CLI ตัวจริง (28 HTTP flows)
 
-| Phase | Endpoint | สถานะ | หมายเหตุ |
-|-------|----------|--------|----------|
-| Health | `/api/hello`, `/v1/oauth/hello` | 200 | ตรวจสอบการเชื่อมต่อ |
-| OAuth | `/v1/oauth/token` (PKCE) | 200 | แลก token |
-| Profile | `/api/oauth/profile`, `/api/oauth/claude_cli/roles` | 200 | ดึงข้อมูลบัญชี |
-| Config | `/v1/mcp_servers`, `/api/claude_code/settings`, `/api/claude_code/policy_limits` | 200/404 | ตั้งค่า |
-| MCP Init | `/v1/mcp/{server_id}` (11 servers) | 401/502/429/200 | Burst initialization |
-| **LLM** | `/v1/messages?beta=true` | **200** | **Request หลัก** |
+| Phase    | Endpoint                                                                         | สถานะ           | หมายเหตุ             |
+|----------|----------------------------------------------------------------------------------|-----------------|----------------------|
+| Health   | `/api/hello`, `/v1/oauth/hello`                                                  | 200             | ตรวจสอบการเชื่อมต่อ  |
+| OAuth    | `/v1/oauth/token` (PKCE)                                                         | 200             | แลก token            |
+| Profile  | `/api/oauth/profile`, `/api/oauth/claude_cli/roles`                              | 200             | ดึงข้อมูลบัญชี       |
+| Config   | `/v1/mcp_servers`, `/api/claude_code/settings`, `/api/claude_code/policy_limits` | 200/404         | ตั้งค่า              |
+| MCP Init | `/v1/mcp/{server_id}` (11 servers)                                               | 401/502/429/200 | Burst initialization |
+| **LLM**  | `/v1/messages?beta=true`                                                         | **200**         | **Request หลัก**     |
 
 ### Request ที่สำคัญ: `/v1/messages?beta=true`
 
@@ -229,10 +229,10 @@ if tokResp.AccessToken == "" {
 
 ### ผลการทดสอบ
 
-| Test | Result | หมายเหตุ |
-|------|--------|----------|
-| curl ไม่มี billing header (sonnet) | 429 | Rate limit 7-day exhausted |
-| curl มี billing header (sonnet) | **400** | `"x-anthropic-billing-header is a reserved keyword and may not be used in the system prompt."` |
+| Test                               | Result   | หมายเหตุ                                                                                       |
+|------------------------------------|----------|------------------------------------------------------------------------------------------------|
+| curl ไม่มี billing header (sonnet) | 429      | Rate limit 7-day exhausted                                                                     |
+| curl มี billing header (sonnet)    | **400**  | `"x-anthropic-billing-header is a reserved keyword and may not be used in the system prompt."` |
 
 ### สรุป
 
@@ -267,17 +267,17 @@ Consumer OAuth ใช้ rolling window:
 
 ## ผลการทดสอบ
 
-| # | Test | ผ่าน Gateway | Result | ความหมาย |
-|---|------|-------------|--------|----------|
-| 1 | curl + dummy Bearer token (sonnet) | ใช่ | 401 | transparent mode ทำงาน - ส่งตรง Anthropic, token ไม่ valid ก็ 401 |
-| 2 | curl + stored OAuth token (sonnet) | ใช่ | 429 | token valid แต่บัญชีโดน rate limit จริงจากการ test เยอะ |
-| 3 | curl ตรง api.anthropic.com (sonnet) | ไม่ | 429 | confirm: 429 มาจาก Anthropic จริง ไม่ใช่ gateway bug |
-| 4 | curl + stored OAuth token (haiku) | ใช่ | **200 OK** | transparent mode ทำงานถูก, model ที่ยังไม่เต็มได้ 200 |
-| 5 | remote CLI sonnet ตรง Anthropic | ไม่ | **200 OK** | apiKeyHelper token ใช้ได้, sonnet ยังไม่เต็มสำหรับบัญชีนี้ |
-| 6 | **remote CLI sonnet ผ่าน gateway** | **ใช่** | **200 OK** | **สำเร็จ! sonnet ผ่าน gateway ได้ 200** |
-| 7 | **remote CLI opus ผ่าน gateway** | **ใช่** | **200 OK** | **สำเร็จ! opus ผ่าน gateway ได้ 200** |
-| 8 | curl ไม่มี billing header (sonnet) | ไม่ (direct) | 429 | Rate limit 7-day exhausted |
-| 9 | curl มี billing header (sonnet) | ไม่ (direct) | **400** | Reserved keyword ถูกบล็อก |
+| #   | Test                                | ผ่าน Gateway  | Result     | ความหมาย                                                          |
+|-----|-------------------------------------|---------------|------------|-------------------------------------------------------------------|
+| 1   | curl + dummy Bearer token (sonnet)  | ใช่           | 401        | transparent mode ทำงาน - ส่งตรง Anthropic, token ไม่ valid ก็ 401 |
+| 2   | curl + stored OAuth token (sonnet)  | ใช่           | 429        | token valid แต่บัญชีโดน rate limit จริงจากการ test เยอะ           |
+| 3   | curl ตรง api.anthropic.com (sonnet) | ไม่           | 429        | confirm: 429 มาจาก Anthropic จริง ไม่ใช่ gateway bug              |
+| 4   | curl + stored OAuth token (haiku)   | ใช่           | **200 OK** | transparent mode ทำงานถูก, model ที่ยังไม่เต็มได้ 200             |
+| 5   | remote CLI sonnet ตรง Anthropic     | ไม่           | **200 OK** | apiKeyHelper token ใช้ได้, sonnet ยังไม่เต็มสำหรับบัญชีนี้        |
+| 6   | **remote CLI sonnet ผ่าน gateway**  | **ใช่**       | **200 OK** | **สำเร็จ! sonnet ผ่าน gateway ได้ 200**                           |
+| 7   | **remote CLI opus ผ่าน gateway**    | **ใช่**       | **200 OK** | **สำเร็จ! opus ผ่าน gateway ได้ 200**                             |
+| 8   | curl ไม่มี billing header (sonnet)  | ไม่ (direct)  | 429        | Rate limit 7-day exhausted                                        |
+| 9   | curl มี billing header (sonnet)     | ไม่ (direct)  | **400**    | Reserved keyword ถูกบล็อก                                         |
 
 ### วิธีทดสอบแบบต่างๆ
 
@@ -346,15 +346,15 @@ docker logs arl-gateway -f 2>&1 | grep -E 'POST.*messages|upstream req|transpare
 
 ## Timeline
 
-| เวลา | เหตุการณ์ |
-|------|-----------|
-| 2026-04-29 | เริ่มจับ mitmproxy flows, CLI ตัวจริงได้ 200 |
-| 2026-04-30 00:00 | เริ่ม spawn 20 agents เพื่อหาสาเหตุ 429 |
-| 2026-04-30 early | พบ transparent mode bug, แก้ handler.go |
-| 2026-04-30 mid | Token corruption: agents เขียน "null" ทับ Redis |
-| 2026-04-30 mid | Re-authenticate PKCE, token ใหม่ `claude-oauth_cIg-v3wo5QAA` |
-| 2026-04-30 mid | พบ token refresh URL bug (`platform.claude.com` -> `api.anthropic.com`) |
-| 2026-04-30 mid | เพิ่ม empty token guard ใน token-refresh.go |
-| 2026-04-30 late | Test remote CLI sonnet/opus ผ่าน gateway = **200 OK** |
-| 2026-04-30 late | Test billing header = **400 reserved keyword** |
-| 2026-05-03 02:00 BKK | 7-day rate limit reset (sonnet/opus กลับมาใช้ได้) |
+| เวลา                 | เหตุการณ์                                                               |
+|----------------------|-------------------------------------------------------------------------|
+| 2026-04-29           | เริ่มจับ mitmproxy flows, CLI ตัวจริงได้ 200                            |
+| 2026-04-30 00:00     | เริ่ม spawn 20 agents เพื่อหาสาเหตุ 429                                 |
+| 2026-04-30 early     | พบ transparent mode bug, แก้ handler.go                                 |
+| 2026-04-30 mid       | Token corruption: agents เขียน "null" ทับ Redis                         |
+| 2026-04-30 mid       | Re-authenticate PKCE, token ใหม่ `claude-oauth_cIg-v3wo5QAA`            |
+| 2026-04-30 mid       | พบ token refresh URL bug (`platform.claude.com` -> `api.anthropic.com`) |
+| 2026-04-30 mid       | เพิ่ม empty token guard ใน token-refresh.go                             |
+| 2026-04-30 late      | Test remote CLI sonnet/opus ผ่าน gateway = **200 OK**                   |
+| 2026-04-30 late      | Test billing header = **400 reserved keyword**                          |
+| 2026-05-03 02:00 BKK | 7-day rate limit reset (sonnet/opus กลับมาใช้ได้)                       |

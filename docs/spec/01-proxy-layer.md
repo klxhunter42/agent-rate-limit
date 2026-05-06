@@ -44,17 +44,17 @@ Upstream Provider
 
 ### Files
 
-| File | Lines | Purpose |
-|---|---|---|
-| `anthropic.go` | ~2120 | Native Anthropic, transparent passthrough, sidecar, vision proxy, format converters |
-| `gemini-codeassist.go` | ~725 | Google Code Assist via OAuth, Anthropic<->Gemini conversion |
-| `gemini-apikey.go` | ~322 | Gemini API key auth, reuses conversion from gemini-codeassist.go |
-| `claude_session.go` | ~386 | claude.ai web API session proxy |
-| `claude-session.go` | ~139 | Claude CLI session bootstrap (profile, roles, settings, policy) |
-| `recovery.go` | ~299 | Error classification, context truncation, token estimation |
-| `key_pool.go` | ~363 | Multi-key RPM management with cooldown |
-| `shared_transport.go` | ~108 | DNS-cached HTTP transport singleton |
-| `sse_writer.go` | ~74 | SSE buffer pool and writers |
+| File                   | Lines | Purpose                                                                             |
+|------------------------|-------|-------------------------------------------------------------------------------------|
+| `anthropic.go`         | ~2120 | Native Anthropic, transparent passthrough, sidecar, vision proxy, format converters |
+| `gemini-codeassist.go` | ~725  | Google Code Assist via OAuth, Anthropic<->Gemini conversion                         |
+| `gemini-apikey.go`     | ~322  | Gemini API key auth, reuses conversion from gemini-codeassist.go                    |
+| `claude_session.go`    | ~386  | claude.ai web API session proxy                                                     |
+| `claude-session.go`    | ~139  | Claude CLI session bootstrap (profile, roles, settings, policy)                     |
+| `recovery.go`          | ~299  | Error classification, context truncation, token estimation                          |
+| `key_pool.go`          | ~363  | Multi-key RPM management with cooldown                                              |
+| `shared_transport.go`  | ~108  | DNS-cached HTTP transport singleton                                                 |
+| `sse_writer.go`        | ~74   | SSE buffer pool and writers                                                         |
 
 ---
 
@@ -191,16 +191,16 @@ maxAttempts = cfg.UpstreamMaxRetries + 1 + maxTransient
 maxTransient defaults to 2
 ```
 
-| Trigger | Action | Condition |
-|---|---|---|
-| HTTP 429 | Retry with backoff | `attempt < UpstreamMaxRetries` |
-| HTTP 429 + OnRateLimitError | Retry with key rotation | `OnRateLimitError != nil` |
-| HTTP 401 + bearer + OnAuthError | Retry with refreshed token | Single attempt |
-| HTTP 200 + empty body | Retry as transient | `transientAttempts < maxTransient` |
-| HTTP 200 + malformed body | Retry as transient | `transientAttempts < maxTransient` |
-| ClassifyError = ActionTruncateAndRetry | Truncate + retry | `truncationAttempts < 1 && EnableAutoTruncate` |
-| ClassifyError = ActionRetryTransient | Retry with backoff | `transientAttempts < maxTransient` |
-| ErrBillingRejected | Return early (no retry) | `BillingInjected && 400 && "reserved keyword"` |
+| Trigger                                | Action                     | Condition                                      |
+|----------------------------------------|----------------------------|------------------------------------------------|
+| HTTP 429                               | Retry with backoff         | `attempt < UpstreamMaxRetries`                 |
+| HTTP 429 + OnRateLimitError            | Retry with key rotation    | `OnRateLimitError != nil`                      |
+| HTTP 401 + bearer + OnAuthError        | Retry with refreshed token | Single attempt                                 |
+| HTTP 200 + empty body                  | Retry as transient         | `transientAttempts < maxTransient`             |
+| HTTP 200 + malformed body              | Retry as transient         | `transientAttempts < maxTransient`             |
+| ClassifyError = ActionTruncateAndRetry | Truncate + retry           | `truncationAttempts < 1 && EnableAutoTruncate` |
+| ClassifyError = ActionRetryTransient   | Retry with backoff         | `transientAttempts < maxTransient`             |
+| ErrBillingRejected                     | Return early (no retry)    | `BillingInjected && 400 && "reserved keyword"` |
 
 **Backoff formula:** `base * attempt^2`, capped at 5 minutes. Checks `r.Context().Done()` between retries.
 
@@ -762,12 +762,12 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 
 **Message conversion with tools (`convertMessageWithTools`):**
 
-| Anthropic | OpenAI |
-|---|---|
-| assistant text blocks | `{"role":"assistant","content":"joined text"}` |
+| Anthropic                 | OpenAI                                                                        |
+|---------------------------|-------------------------------------------------------------------------------|
+| assistant text blocks     | `{"role":"assistant","content":"joined text"}`                                |
 | assistant tool_use blocks | `tool_calls: [{id, type:"function", function:{name, arguments:JSON_string}}]` |
-| user text blocks | `{"role":"user","content":[{type:"text",...}]}` |
-| user tool_result blocks | `{"role":"tool","tool_call_id":"...","content":"flattened text"}` |
+| user text blocks          | `{"role":"user","content":[{type:"text",...}]}`                               |
+| user tool_result blocks   | `{"role":"tool","tool_call_id":"...","content":"flattened text"}`             |
 
 ### 9.2 OpenAI -> Anthropic (`OpenAIToAnthropic`)
 
@@ -819,17 +819,17 @@ func geminiToAnthropic(gResp geminiResponse, model string, stream bool) map[stri
 func mapModelToGemini(model string) string
 ```
 
-| Input | Output |
-|---|---|
-| gemini-2.5-pro | gemini-2.5-pro |
-| gemini-2.5-flash | gemini-2.5-flash |
+| Input                 | Output                |
+|-----------------------|-----------------------|
+| gemini-2.5-pro        | gemini-2.5-pro        |
+| gemini-2.5-flash      | gemini-2.5-flash      |
 | gemini-2.5-flash-lite | gemini-2.5-flash-lite |
-| gemini-2.0-flash | gemini-2.5-flash |
+| gemini-2.0-flash      | gemini-2.5-flash      |
 | gemini-2.0-flash-lite | gemini-2.5-flash-lite |
-| gemini-1.5-pro | gemini-2.5-flash |
-| gemini-1.5-flash | gemini-2.5-flash |
-| models/{name} | {name} (strip prefix) |
-| other | passthrough |
+| gemini-1.5-pro        | gemini-2.5-flash      |
+| gemini-1.5-flash      | gemini-2.5-flash      |
+| models/{name}         | {name} (strip prefix) |
+| other                 | passthrough           |
 
 ---
 
@@ -852,13 +852,13 @@ const (
 
 **Classification rules:**
 
-| Condition | Action |
-|---|---|
-| Status 500, 502, 503, 529 | `ActionRetryTransient` |
-| Status 413 | `ActionTruncateAndRetry` |
-| Status 400/422 + `"code":"1234"` or `"internal network failure"` | `ActionRetryTransient` |
-| Status 400/422 + context window patterns | `ActionTruncateAndRetry` |
-| Other | `ActionForward` |
+| Condition                                                        | Action                   |
+|------------------------------------------------------------------|--------------------------|
+| Status 500, 502, 503, 529                                        | `ActionRetryTransient`   |
+| Status 413                                                       | `ActionTruncateAndRetry` |
+| Status 400/422 + `"code":"1234"` or `"internal network failure"` | `ActionRetryTransient`   |
+| Status 400/422 + context window patterns                         | `ActionTruncateAndRetry` |
+| Other                                                            | `ActionForward`          |
 
 **Context window patterns:**
 ```
@@ -1005,10 +1005,10 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
                /    |    \
          event   data:   other
          line    [DONE]  line
-          |        |       |
+|        |       |
        forward  close    forward
           |    events     |
-          |        |       |
+|        |       |
           +--------+-------+
                    |
               [scanner.Err?]
@@ -1034,13 +1034,13 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
               |     [finish_reason?]
               |      /    |    \
               |   length  stop  tool_calls
-              |     |      |       |
+|     |      |       |
               |   max_tok  |   tool_use
               |              |
               |   [tool_calls in delta?]
               |    /              \
               |  yes (toolMode)   no
-              |   |                |
+|   |                |
               | [close prev block] |
               | [start tool block] |
               | [emit args delta]  |
@@ -1048,7 +1048,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
               |            [text != ""?]
               |              /        \
               |           yes        no
-              |            |          |
+|            |          |
               |     [!started?]      |
               |      /       \       |
               |    yes       no      |
@@ -1057,10 +1057,10 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
               |            /    \    |
               |          yes    no   |
               |       [new blk]     |
-              |            |        |
+|            |        |
               |     [unmask + emit  |
               |      text_delta]    |
-              |            |        |
+|            |        |
               +-----+------+--------+
                     |
               [stream end without DONE?]
@@ -1146,14 +1146,14 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
 
 ## Appendix B: Retry Budget Summary
 
-| Proxy | 429 Retries | Transient Retries | Truncation | Backoff | Max Backoff | Special |
-|---|---|---|---|---|---|---|
-| Anthropic (transparent) | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 1 attempt | quadratic | 5 min | Key rotation on 429, token refresh on 401 |
-| OpenAI | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0 | quadratic | 5 min | max_tokens reduction on 400 |
-| GeminiCodeAssist | 0 | 0 | 0 | none | n/a | 401 refresh once |
-| GeminiAPI | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0 | quadratic | 5 min | none |
-| Anthropic (vision) | `cfg.UpstreamMaxRetries` | 0 | 0 | quadratic | 5 min | none |
-| ClaudeSession | 0 | 0 | 0 | none | n/a | none |
+| Proxy                   | 429 Retries              | Transient Retries                   | Truncation | Backoff   | Max Backoff | Special                                   |
+|-------------------------|--------------------------|-------------------------------------|------------|-----------|-------------|-------------------------------------------|
+| Anthropic (transparent) | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 1 attempt  | quadratic | 5 min       | Key rotation on 429, token refresh on 401 |
+| OpenAI                  | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0          | quadratic | 5 min       | max_tokens reduction on 400               |
+| GeminiCodeAssist        | 0                        | 0                                   | 0          | none      | n/a         | 401 refresh once                          |
+| GeminiAPI               | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0          | quadratic | 5 min       | none                                      |
+| Anthropic (vision)      | `cfg.UpstreamMaxRetries` | 0                                   | 0          | quadratic | 5 min       | none                                      |
+| ClaudeSession           | 0                        | 0                                   | 0          | none      | n/a         | none                                      |
 
 ## Appendix C: Metrics Recorded
 

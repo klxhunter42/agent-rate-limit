@@ -56,14 +56,20 @@ func (u *StreamUnmasker) ReplaceDirectJSON(text string) string {
 }
 
 func (u *StreamUnmasker) Flush() string {
+	// Process secrets first (innermost layer), then PII (outermost layer)
+	// This matches the layering order in ProcessChunk/ReplaceDirect.
 	result := ""
-	if u.piiCtx != nil && u.piiBuffer != "" {
-		result += u.piiCtx.RestorePlaceholders(u.piiBuffer)
-		u.piiBuffer = ""
-	}
 	if u.secretsCtx != nil && u.secretsBuffer != "" {
 		result += u.secretsCtx.RestorePlaceholders(u.secretsBuffer)
 		u.secretsBuffer = ""
+	}
+	combined := u.piiBuffer + result
+	if u.piiCtx != nil && combined != "" {
+		result = u.piiCtx.RestorePlaceholders(combined)
+		u.piiBuffer = ""
+	} else if u.piiBuffer != "" {
+		result = u.piiBuffer + result
+		u.piiBuffer = ""
 	}
 	return result
 }

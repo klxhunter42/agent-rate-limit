@@ -377,18 +377,18 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.50, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
-          "legendFormat": "{{provider}} p50",
+          "expr": "(histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "legendFormat": "{{path}} p50",
           "refId": "A"
         },
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
-          "legendFormat": "{{provider}} p95",
+          "expr": "(histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "legendFormat": "{{path}} p95",
           "refId": "B"
         },
         {
-          "expr": "(histogram_quantile(0.99, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
-          "legendFormat": "{{provider}} p99",
+          "expr": "(histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
+          "legendFormat": "{{path}} p99",
           "refId": "C"
         }
       ],

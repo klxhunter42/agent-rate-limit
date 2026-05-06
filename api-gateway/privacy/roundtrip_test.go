@@ -258,3 +258,141 @@ func TestRoundtrip_JSONResponse(t *testing.T) {
 	var parsed map[string]any
 	assert.NoError(t, json.Unmarshal(unmasked, &parsed))
 }
+
+func TestRoundtrip_NewPatterns_CLIAuth(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PIIEnabled = false
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"xu_flag", `sendemail -xu "12345678" -xp "smtpPass99"`},
+		{"password_equals", `mysql --password="s3cretP@ssw0rd"`},
+		{"token_space", `tool --token abc123def456ghi789xyz`},
+		{"secret_flag", `app --secret "mySuperSecretValue"`},
+		{"apikey_flag", `cli --api-key "sk-proj-abcdef1234567890"`},
+		{"auth_token_flag", `tool --auth-token "tok_1234567890abcdef"`},
+		{"auth_pass_flag", `app --auth-pass "p@ss1234word"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			roundtripTest(t, cfg, makeBody(tt.content), "")
+		})
+	}
+}
+
+func TestRoundtrip_NewPatterns_CurlBasicAuth(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PIIEnabled = false
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"quoted", `curl -u "admin:myS3cretPass"`},
+		{"unquoted", `curl -u admin:password123`},
+		{"user_flag", `wget --user="deploy" --password="d3pl0yP@ss"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			roundtripTest(t, cfg, makeBody(tt.content), "")
+		})
+	}
+}
+
+func TestRoundtrip_NewPatterns_EnvUser(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PIIEnabled = false
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"admin_user", `prod_hotpod_admin_user="admin"`},
+		{"db_username", `DB_USERNAME="postgres"`},
+		{"smtp_login", `SMTP_LOGIN="noreply@company.com"`},
+		{"redis_user", `REDIS_USER="default"`},
+		{"mysql_user", `MYSQL_USER="root"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			roundtripTest(t, cfg, makeBody(tt.content), "")
+		})
+	}
+}
+
+
+func TestRoundtrip_Streaming_NewPatterns(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PIIEnabled = false
+
+	content := `sendemail -xu "12345678" -xp "smtpPass99" and curl -u "admin:s3cret123"`
+
+	p := NewPipeline(cfg, nil)
+	result, err := p.MaskRequest(makeBody(content))
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	unmasker := p.NewStreamUnmasker(result)
+	assert.True(t, unmasker.HasContexts())
+
+	var allPH []string
+	for ph := range result.SecretsCtx.Mapping {
+		allPH = append(allPH, ph)
+	}
+	t.Logf("streaming placeholders: %v", allPH)
+	assert.True(t, len(allPH) >= 3, "expected >= 3 placeholders (2 CLI_AUTH + 1 CURL_BASIC_AUTH), got %d", len(allPH))
+
+	// Simulate streaming: split first placeholder across chunks
+	ph1 := allPH[0]
+	mid := len(ph1) / 2
+	if mid == 0 {
+		mid = 1
+	}
+	chunk1 := "Found " + ph1[:mid]
+	out1 := unmasker.ProcessChunk(chunk1)
+	t.Logf("chunk1: %q -> %q", chunk1, out1)
+
+	// Second chunk has rest of ph1 + full ph2
+	chunk2 := ph1[mid:] + " and "
+	if len(allPH) > 1 {
+		chunk2 += allPH[1]
+	}
+	out2 := unmasker.ProcessChunk(chunk2)
+	t.Logf("chunk2: %q -> %q", chunk2, out2)
+
+	// Third chunk with remaining placeholders
+	chunk3 := ""
+	for i := 2; i < len(allPH); i++ {
+		chunk3 += " " + allPH[i]
+	}
+	var out3 string
+	if chunk3 != "" {
+		out3 = unmasker.ProcessChunk(chunk3)
+		t.Logf("chunk3: %q -> %q", chunk3, out3)
+	}
+
+	flushed := unmasker.Flush()
+	t.Logf("flushed: %q", flushed)
+
+	fullOutput := out1 + out2 + out3 + flushed
+	t.Logf("full output: %s", fullOutput)
+
+	for _, ph := range allPH {
+		assert.NotContains(t, fullOutput, ph, "placeholder %s survived streaming unmask", ph)
+	}
+	assert.Contains(t, fullOutput, "12345678")
+	assert.Contains(t, fullOutput, "smtpPass99")
+	assert.Contains(t, fullOutput, "admin:s3cret123")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

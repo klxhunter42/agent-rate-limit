@@ -4,17 +4,17 @@ Gateway sees both clients as "Claude Code" -- no routing distinction. The differ
 
 ## Headers
 
-| Header | Terminal (CLI) | VSCode Panel |
-|---|---|---|
-| `Authorization` | `Bearer sk-ant-oaitkn-...` | Same |
-| `User-Agent` | `claude-cli/2.1.123 (external, cli)` | Electron/Chromium-based |
-| `anthropic-beta` | Full list (see below) | Same |
-| `anthropic-dangerous-direct-browser-access` | `true` | `true` |
-| `x-app` | `cli` | `cli` |
-| `X-Stainless-Lang` | `js` | `js` |
-| `X-Stainless-Runtime` | `node` | `node` |
-| `x-client-request-id` | UUID | UUID |
-| `X-Claude-Code-Session-Id` | Session UUID | Session UUID |
+| Header                                      | Terminal (CLI)                       | VSCode Panel            |
+|---------------------------------------------|--------------------------------------|-------------------------|
+| `Authorization`                             | `Bearer sk-ant-oaitkn-...`           | Same                    |
+| `User-Agent`                                | `claude-cli/2.1.123 (external, cli)` | Electron/Chromium-based |
+| `anthropic-beta`                            | Full list (see below)                | Same                    |
+| `anthropic-dangerous-direct-browser-access` | `true`                               | `true`                  |
+| `x-app`                                     | `cli`                                | `cli`                   |
+| `X-Stainless-Lang`                          | `js`                                 | `js`                    |
+| `X-Stainless-Runtime`                       | `node`                               | `node`                  |
+| `x-client-request-id`                       | UUID                                 | UUID                    |
+| `X-Claude-Code-Session-Id`                  | Session UUID                         | Session UUID            |
 
 ### anthropic-beta (both clients)
 
@@ -108,18 +108,18 @@ prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24
 
 ## Key Differences
 
-| Aspect | Terminal | VSCode Panel |
-|---|---|---|
-| Image content blocks | Rare (paste from clipboard) | Common (drag & drop, paste) |
-| `server_tool_use` blocks | No | Yes (web search, etc.) |
-| `cache_control` on message blocks | Rare | Common (on text/image blocks) |
-| `output_config` | Not sent | Sent (`{"effort": "high"}`) |
-| `stream_options` | Not sent | Sent (`{"include_usage": true}`) |
-| `metadata` | Not sent | Sent (`{"user_id": "..."}`) |
-| `service_tier` | Not sent | Sent (`"auto"`) |
-| `redacted_thinking` in history | Yes | Yes |
-| Multi-image payloads | Rare | Common (multiple turns with images) |
-| Payload size | ~10-50 KB | ~100 KB - 5 MB (with images) |
+| Aspect                            | Terminal                    | VSCode Panel                        |
+|-----------------------------------|-----------------------------|-------------------------------------|
+| Image content blocks              | Rare (paste from clipboard) | Common (drag & drop, paste)         |
+| `server_tool_use` blocks          | No                          | Yes (web search, etc.)              |
+| `cache_control` on message blocks | Rare                        | Common (on text/image blocks)       |
+| `output_config`                   | Not sent                    | Sent (`{"effort": "high"}`)         |
+| `stream_options`                  | Not sent                    | Sent (`{"include_usage": true}`)    |
+| `metadata`                        | Not sent                    | Sent (`{"user_id": "..."}`)         |
+| `service_tier`                    | Not sent                    | Sent (`"auto"`)                     |
+| `redacted_thinking` in history    | Yes                         | Yes                                 |
+| Multi-image payloads              | Rare                        | Common (multiple turns with images) |
+| Payload size                      | ~10-50 KB                   | ~100 KB - 5 MB (with images)        |
 
 ## Gateway Processing for Z.AI (GLM models)
 
@@ -127,24 +127,24 @@ When these payloads route to Z.AI, the gateway strips unsupported fields and con
 
 ### Fields stripped by `stripUnsupportedFields()`
 
-| Field | Reason |
-|---|---|
-| `tools` | Z.AI has no tool support |
-| `tool_choice` | Requires tools |
-| `thinking` | Z.AI has no extended thinking |
-| `budget_tokens` | Part of thinking |
-| `effort` | Z.AI has no effort control |
-| `output_config` | Contains effort |
-| `stream_options` | Z.AI does not support |
-| `metadata` | Not supported |
-| `service_tier` | Not supported |
-| `context_management` | Not supported |
+| Field                | Reason                        |
+|----------------------|-------------------------------|
+| `tools`              | Z.AI has no tool support      |
+| `tool_choice`        | Requires tools                |
+| `thinking`           | Z.AI has no extended thinking |
+| `budget_tokens`      | Part of thinking              |
+| `effort`             | Z.AI has no effort control    |
+| `output_config`      | Contains effort               |
+| `stream_options`     | Z.AI does not support         |
+| `metadata`           | Not supported                 |
+| `service_tier`       | Not supported                 |
+| `context_management` | Not supported                 |
 
 ### Content blocks stripped by `filterUnsupportedContent()`
 
-| Block/Key | Action |
-|---|---|
-| `server_tool_use` type blocks | Removed entirely |
+| Block/Key                                        | Action                 |
+|--------------------------------------------------|------------------------|
+| `server_tool_use` type blocks                    | Removed entirely       |
 | `cache_control` on any block (messages + system) | Key removed from block |
 
 ### Vision routing
