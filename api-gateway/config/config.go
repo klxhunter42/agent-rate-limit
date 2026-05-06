@@ -120,6 +120,16 @@ type Config struct {
 	MCPMaxRetries      int
 	MCPRateLimitPerMin int
 
+	// Vision pre-analysis: call Zhipu OpenAI API directly with MCP-style params
+	// before forwarding the text-only request to the main model.
+	VisionPreAnalysisEnabled   bool
+	VisionPreAnalysisModel     string
+	VisionPreAnalysisMaxTokens int
+	VisionPreAnalysisTemp      float64
+	VisionPreAnalysisTopP      float64
+	VisionPreAnalysisThinking  bool
+	VisionPreAnalysisTimeout   time.Duration
+
 	// Debug mode: log full payloads, token counts, privacy details.
 	DebugMode bool
 }
@@ -215,6 +225,15 @@ func Load() *Config {
 		MCPCacheTTL:        envDurationOr("MCP_CACHE_TTL", 1*time.Hour),
 		MCPMaxRetries:      envIntOr("MCP_MAX_RETRIES", 2),
 		MCPRateLimitPerMin: envIntOr("MCP_RATE_LIMIT_PER_MIN", 30),
+
+		// Vision pre-analysis (MCP-style direct API call).
+		VisionPreAnalysisEnabled:   envBoolOr("VISION_PRE_ANALYSIS_ENABLED", true),
+		VisionPreAnalysisModel:     envOr("VISION_PRE_ANALYSIS_MODEL", "glm-4.6v"),
+		VisionPreAnalysisMaxTokens: envIntOr("VISION_PRE_ANALYSIS_MAX_TOKENS", 32768),
+		VisionPreAnalysisTemp:      envFloatOr("VISION_PRE_ANALYSIS_TEMP", 0.8),
+		VisionPreAnalysisTopP:      envFloatOr("VISION_PRE_ANALYSIS_TOP_P", 0.6),
+		VisionPreAnalysisThinking:  envBoolOr("VISION_PRE_ANALYSIS_THINKING", true),
+		VisionPreAnalysisTimeout:   envDurationOr("VISION_PRE_ANALYSIS_TIMEOUT", 120*time.Second),
 
 		// Debug mode.
 		DebugMode: envBoolOr("DEBUG", false),

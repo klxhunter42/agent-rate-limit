@@ -1288,6 +1288,28 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Vision pre-analysis: call Zhipu API directly with MCP-style params,
+	// replace images with text descriptions, then route text-only to main model.
+	// Must run before the routing if/else chain so hasImages=false skips vision blocks.
+	if hasImages && decision != nil && decision.ProviderID == "zai" &&
+		h.cfg.VisionPreAnalysisEnabled && isNativeImageModel(selectedModel) {
+		imgBytes, imgCount := analyzeImagePayload(payload)
+		newBody, mainModel, analyzed := h.preAnalyzeImages(r, payload, body, apiKey, requestedModel)
+		if analyzed {
+			body = newBody
+			selectedModel = mainModel
+			hasImages = false // payload is now text-only; routing chain will use text path
+			slog.Info("vision pre-analysis: routing text-only to main model",
+				"main_model", mainModel,
+				"image_count", imgCount,
+				"image_bytes", imgBytes,
+			)
+		} else {
+			slog.Warn("vision pre-analysis failed, falling back to direct proxy",
+				"model", selectedModel, "image_count", imgCount)
+		}
+	}
+
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
 		imgBytes, imgCount := analyzeImagePayload(payload)
 		if !h.cfg.ZAIOpenAIModels[selectedModel] {

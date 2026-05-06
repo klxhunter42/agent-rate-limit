@@ -65,6 +65,8 @@ type Metrics struct {
 	ImageCompressions     *prometheus.CounterVec
 	ImageBytesSaved       *prometheus.CounterVec
 	ImageBytesOriginal    *prometheus.CounterVec
+	VisionPreAnalysis     *prometheus.CounterVec
+	VisionPreAnalysisDur  *prometheus.HistogramVec
 	registry              *prometheus.Registry
 	queueDepthFn          func() float64
 	pricing               map[string]modelPrice
@@ -331,6 +333,19 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "image_bytes_original_total",
 			Help:      "Original bytes of images before compression.",
 		}, []string{"model"}),
+
+		VisionPreAnalysis: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "vision_preanalysis_total",
+			Help:      "Vision pre-analysis calls (status: success or fallback).",
+		}, []string{"status"}),
+
+		VisionPreAnalysisDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "vision_preanalysis_duration_seconds",
+			Help:      "Duration of vision pre-analysis API call.",
+			Buckets:   []float64{1, 3, 5, 10, 20, 30, 60, 120},
+		}, []string{}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -381,6 +396,8 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.ImageCompressions,
 		m.ImageBytesSaved,
 		m.ImageBytesOriginal,
+		m.VisionPreAnalysis,
+		m.VisionPreAnalysisDur,
 	)
 
 	return m
@@ -391,6 +408,16 @@ func (m *Metrics) RecordImageCompression(model string, originalBytes, savedBytes
 	m.ImageCompressions.WithLabelValues(model).Add(float64(count))
 	m.ImageBytesSaved.WithLabelValues(model).Add(float64(savedBytes))
 	m.ImageBytesOriginal.WithLabelValues(model).Add(float64(originalBytes))
+}
+
+// RecordVisionPreAnalysis records vision pre-analysis metrics.
+func (m *Metrics) RecordVisionPreAnalysis(success bool, durationSeconds float64) {
+	status := "success"
+	if !success {
+		status = "fallback"
+	}
+	m.VisionPreAnalysis.WithLabelValues(status).Inc()
+	m.VisionPreAnalysisDur.WithLabelValues().Observe(durationSeconds)
 }
 
 // RecordOptimization records characters saved and run count for an optimization technique.
