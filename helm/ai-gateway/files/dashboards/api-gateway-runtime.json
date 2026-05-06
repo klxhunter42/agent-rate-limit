@@ -221,7 +221,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type, severity) (rate(api_gateway_anomaly_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (type, severity) (rate(api_gateway_anomaly_total[$__interval])))",
           "legendFormat": "{{type}} ({{severity}})",
           "refId": "A"
         }

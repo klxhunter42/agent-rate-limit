@@ -313,7 +313,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval])))",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -345,7 +345,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval])))",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -377,17 +377,17 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.50, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
+          "expr": "(histogram_quantile(0.50, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "{{provider}} p50",
           "refId": "A"
         },
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
+          "expr": "(histogram_quantile(0.95, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "{{provider}} p95",
           "refId": "B"
         },
         {
-          "expr": "(histogram_quantile(0.99, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval])))) or on() vector(0)",
+          "expr": "(histogram_quantile(0.99, sum by (le, provider) (rate(api_gateway_request_latency_seconds_bucket[$__interval]))))",
           "legendFormat": "{{provider}} p99",
           "refId": "C"
         }
@@ -529,7 +529,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_input_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_input_total[$__interval])))",
           "legendFormat": "{{account_id}}/{{model}}",
           "refId": "A"
         }
@@ -568,7 +568,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_output_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_output_total[$__interval])))",
           "legendFormat": "{{account_id}}/{{model}}",
           "refId": "A"
         }

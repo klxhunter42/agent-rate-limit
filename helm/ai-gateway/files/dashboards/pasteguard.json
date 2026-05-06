@@ -514,7 +514,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (rate(api_gateway_pii_detected_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (type) (rate(api_gateway_pii_detected_total[$__interval])))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -550,7 +550,7 @@
       },
       "targets": [
         {
-          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))) or on() vector(0)",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range]))))",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -587,7 +587,7 @@
       },
       "targets": [
         {
-          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range])))) or on() vector(0)",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range]))))",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -837,7 +837,7 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__interval])))) or on() vector(0)",
+          "expr": "(histogram_quantile(0.95, sum by (le, phase) (rate(api_gateway_mask_duration_seconds_bucket[$__interval]))))",
           "legendFormat": "{{phase}} p95",
           "refId": "A"
         }
@@ -862,7 +862,7 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))) or vector(0)) or on() vector(0)",
+          "expr": "(histogram_quantile(0.95, sum by (le) (rate(api_gateway_mask_duration_seconds_bucket[$__rate_interval]))) or vector(0))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -1091,14 +1091,14 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range]))) or on() vector(0)",
+          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range]))) or on() vector(0)",
+          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
           "legendFormat": "",
           "refId": "B",
           "instant": true,

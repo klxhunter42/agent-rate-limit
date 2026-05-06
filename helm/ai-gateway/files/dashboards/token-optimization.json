@@ -327,22 +327,22 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval])) or on() vector(0)",
+          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval]))",
           "legendFormat": "chunker",
           "refId": "A"
         },
         {
-          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval])) or on() vector(0)",
+          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval]))",
           "legendFormat": "delta",
           "refId": "B"
         },
         {
-          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval])) or on() vector(0)",
+          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval]))",
           "legendFormat": "disclosure",
           "refId": "C"
         },
         {
-          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval])) or on() vector(0)",
+          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval]))",
           "legendFormat": "sketch",
           "refId": "D"
         }
@@ -469,7 +469,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_chunker_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_delta_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_sketch_chars_saved_total[$__range])))) or on() vector(0)",
+          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_chunker_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_delta_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_sketch_chars_saved_total[$__range]))))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }

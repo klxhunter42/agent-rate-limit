@@ -223,7 +223,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_cost_total[1h])) or vector(0)) or on() vector(0)",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[1h])) or vector(0))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -243,7 +243,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__range])) or vector(0))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -272,12 +272,12 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__range])))",
           "legendFormat": "{{model}} input",
           "refId": "A"
         },
         {
-          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__range]))) or on() vector(0)",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__range])))",
           "legendFormat": "{{model}} output",
           "refId": "B"
         }
@@ -343,7 +343,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (path) (increase(api_gateway_billing_path_requests_total[$__range]))) or on() vector(0)",
+          "expr": "(sum by (path) (increase(api_gateway_billing_path_requests_total[$__range])))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
