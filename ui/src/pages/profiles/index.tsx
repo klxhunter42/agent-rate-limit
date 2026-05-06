@@ -970,6 +970,7 @@ function ProfileCardView({
   const [showNewKey, setShowNewKey] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyExpiry, setNewKeyExpiry] = useState(0);
+const [customMinutes, setCustomMinutes] = useState(60);
   const [generating, setGenerating] = useState(false);
   const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
@@ -1029,7 +1030,8 @@ function ProfileCardView({
     setGenerating(true);
     try {
       const body: Record<string, unknown> = { keyName: newKeyName.trim() };
-      if (newKeyExpiry > 0) body.expiresIn = newKeyExpiry;
+      const expirySeconds = newKeyExpiry === -1 ? customMinutes * 60 : newKeyExpiry;
+if (expirySeconds > 0) body.expiresIn = expirySeconds;
       const res = await fetch(`/v1/profiles/${encodeURIComponent(profile.name)}/tokens`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1155,13 +1157,31 @@ function ProfileCardView({
                     onChange={(e) => setNewKeyExpiry(Number(e.target.value))}
                   >
                     <option value={0}>Never</option>
+            <option value={300}>5 minutes</option>
+            <option value={900}>15 minutes</option>
+            <option value={1800}>30 minutes</option>
                     <option value={3600}>1 hour</option>
                     <option value={86400}>1 day</option>
                     <option value={604800}>7 days</option>
                     <option value={2592000}>30 days</option>
                     <option value={31536000}>1 year</option>
+                              <option value={-1}>Custom...</option>
                   </select>
-                </div>
+          {newKeyExpiry === -1 && (
+            <div className="flex items-center gap-1 mt-1">
+              <Input
+                type="number"
+                min={1}
+                max={525600}
+                value={customMinutes}
+                onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                className="h-6 text-xs w-20"
+                placeholder="minutes"
+              />
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">min</span>
+            </div>
+          )}
+        </div>
               </div>
               <div className="flex gap-1 justify-end">
                 <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setShowNewKey(false); setNewKeyName(''); }}>

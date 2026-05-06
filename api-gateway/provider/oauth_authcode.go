@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,27 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 	"time"
 )
+
+var (
+	oauthClient     *http.Client
+	oauthClientOnce sync.Once
+)
+
+func getOAuthClient() *http.Client {
+	oauthClientOnce.Do(func() {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		if os.Getenv("HTTPS_PROXY") != "" {
+			transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		}
+		oauthClient = &http.Client{Transport: transport}
+	})
+	return oauthClient
+}
 
 type AuthCodeStartResponse struct {
 	AuthURL      string `json:"auth_url"`
@@ -182,7 +201,7 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange request: %w", err)
 	}
@@ -248,7 +267,7 @@ func fetchUserInfo(ctx context.Context, userInfoURL, accessToken string) string 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return ""
 	}

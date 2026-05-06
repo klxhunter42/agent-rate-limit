@@ -31,6 +31,16 @@ func TestRecordProfileAccountUsage(t *testing.T) {
 	accountID := "test-acc-001"
 	model := "glm-5.1"
 
+	// Clean up any leftover data from previous runs
+	ctx := t.Context()
+	for _, key := range []string{
+		"usage:profile:" + profile + ":accounts",
+		"usage:profile:" + profile + ":account:test-acc-001:summary",
+		"usage:profile:" + profile + ":account:test-acc-002:summary",
+	} {
+		uh.rdb.Del(ctx, key)
+	}
+
 	// Record usage twice to verify accumulation
 	uh.RecordProfileAccountUsage(profile, accountID, model, 1000, 500, 0.05)
 	uh.RecordProfileAccountUsage(profile, accountID, model, 2000, 800, 0.12)
@@ -40,7 +50,6 @@ func TestRecordProfileAccountUsage(t *testing.T) {
 
 	// Verify data was written to Redis
 	summaryKey := "usage:profile:" + profile + ":account:" + accountID + ":summary"
-	ctx := t.Context()
 	vals, err := uh.rdb.HGetAll(ctx, summaryKey).Result()
 	require.NoError(t, err)
 	t.Logf("Redis summary key %s: %+v", summaryKey, vals)
@@ -87,6 +96,17 @@ func TestRecordProfileAccountUsageIsolation(t *testing.T) {
 	}
 	uh := NewUsageHandler(redisAddr())
 	defer uh.Close()
+
+	// Clean up any leftover data from previous runs
+	ctx := t.Context()
+	for _, key := range []string{
+		"usage:profile:profile-a-unit:accounts",
+		"usage:profile:profile-a-unit:account:acc-x:summary",
+		"usage:profile:profile-b-unit:accounts",
+		"usage:profile:profile-b-unit:account:acc-x:summary",
+	} {
+		uh.rdb.Del(ctx, key)
+	}
 
 	// Profile A uses account X
 	uh.RecordProfileAccountUsage("profile-a-unit", "acc-x", "glm-5.1", 100, 50, 0.01)

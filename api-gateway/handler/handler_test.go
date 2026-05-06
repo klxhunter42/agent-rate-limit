@@ -440,7 +440,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			},
 		},
 		{
-			name: "keeps image blocks and converts to GLM image_url format",
+			name: "keeps image blocks as-is",
 			payload: map[string]any{
 				"messages": []any{
 					map[string]any{
@@ -453,11 +453,11 @@ func TestFilterUnsupportedContent(t *testing.T) {
 				},
 			},
 			expected: []any{
-				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,aGVsbG8="}},
+				map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": "aGVsbG8="}},
 			},
 		},
 		{
-			name: "HTTP URL image converted to GLM image_url format",
+			name: "HTTP URL image kept as-is",
 			payload: map[string]any{
 				"messages": []any{
 					map[string]any{
@@ -469,7 +469,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 				},
 			},
 			expected: []any{
-				map[string]any{"type": "text", "text": "[image could not be loaded]"},
+				map[string]any{"type": "image", "source": map[string]any{"type": "url", "url": "https://example.com/img.png"}},
 			},
 		},
 		{
@@ -489,7 +489,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			expected: []any{},
 		},
 		{
-			name: "no unsupported blocks - all kept, images converted",
+			name: "no unsupported blocks - all kept",
 			payload: map[string]any{
 				"messages": []any{
 					map[string]any{
@@ -504,7 +504,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			},
 			expected: []any{
 				map[string]any{"type": "text", "text": "hi"},
-				map[string]any{"type": "text", "text": "[image could not be loaded]"},
+				map[string]any{"type": "image", "source": map[string]any{"type": "url", "url": "https://example.com/img.png"}},
 				map[string]any{"type": "tool_result", "tool_use_id": "tu_1", "content": "result"},
 			},
 		},
@@ -555,10 +555,10 @@ func TestFilterUnsupportedContentMultipleMessages(t *testing.T) {
 		map[string]any{"type": "text", "text": "result"},
 	}, m1["content"])
 
-	// Second message: tool_result converted to text, image kept as-is
+	// Second message: tool_result kept as-is, image kept as-is
 	m2 := msgs[1].(map[string]any)
 	assert.Equal(t, []any{
-		map[string]any{"type": "text", "text": "[Tool result]\noutput"},
+		map[string]any{"type": "tool_result", "tool_use_id": "tu_1", "content": "output"},
 		map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/jpeg", "data": "/9j/4AAQSkZJRg=="}},
 	}, m2["content"])
 }

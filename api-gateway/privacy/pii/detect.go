@@ -39,13 +39,13 @@ var (
 	// US SSN: xxx-xx-xxxx
 	ssnRegex = regexp.MustCompile(`\b\d{3}[ -]\d{2}[ -]\d{4}\b`)
 	// IBAN: 2 letter country code + 2 check digits + up to 30 alphanum
-	ibanRegex = regexp.MustCompile(`\b[A-Z]{2}\d{2}[A-Z0-9]{4}[A-Z0-9]{0,26}\b`)
+	ibanRegex = regexp.MustCompile(`\b[A-Z]{2}\d{2}[- ]?[A-Z0-9]{4}([- ]?[A-Z0-9]{1,4}){1,7}\b`)
 	// IPv4
 	ipv4Regex = regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\b`)
 	// Thai national ID: x-xxxx-xxxxx-xx-x
 	thaiIDRegex = regexp.MustCompile(`\b\d{1}[- ]?\d{4}[- ]?\d{5}[- ]?\d{2}[- ]?\d{1}\b`)
-	// Thai phone: 0[2-9]x-xxx-xxxx or +66[2-9]x-xxx-xxxx
-	thaiPhoneRegex = regexp.MustCompile(`(?:\+66|0)[2-9]\d{1}[- ]?\d{3}[- ]?\d{4}`)
+	// Thai phone: 0[2-9]x-xxx-xxxx, 0[2-9]-xxxx-xxxx, +66-[2-9]x-xxx-xxxx, etc.
+	thaiPhoneRegex = regexp.MustCompile(`(?:\+66[- ]?|0)[2-9]\d?[- ]?\d{3,4}[- ]?\d{3,4}`)
 	// URL detection for false-positive filtering
 	urlRegex = regexp.MustCompile(`https?://[^\s"'<>]+`)
 )

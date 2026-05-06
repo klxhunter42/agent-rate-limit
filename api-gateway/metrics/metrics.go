@@ -673,6 +673,9 @@ func (m *Metrics) SeedMockCategory(category string) {
 	if category == "all" || category == "budget" {
 		m.seedBudget()
 	}
+	if category == "all" || category == "billing" {
+		m.seedBilling()
+	}
 }
 
 func (m *Metrics) seedOptimizers() {
@@ -747,6 +750,54 @@ func (m *Metrics) seedWaste() {
 	}
 }
 
+func (m *Metrics) seedBilling() {
+	paths := []struct {
+		path    string
+		model   string
+		profile string
+		count   int
+		latency float64
+	}{
+		{"go_direct", "claude-sonnet-4-6", "default", 180, 1.2},
+		{"go_direct", "claude-haiku-4-5-20251001", "default", 95, 0.6},
+		{"sidecar", "claude-sonnet-4-6", "default", 12, 2.8},
+		{"direct", "claude-sonnet-4-6", "default", 5, 1.5},
+		{"billing_rejected", "claude-sonnet-4-6", "default", 3, 0.3},
+		{"zai_proxy", "glm-5.1", "default", 240, 3.5},
+		{"zai_proxy", "glm-4.6", "default", 160, 2.1},
+		{"zai_vision", "glm-4.6v", "default", 30, 5.2},
+		{"openai_proxy", "gpt-4o", "default", 45, 1.8},
+	}
+	for _, p := range paths {
+		for i := 0; i < p.count; i++ {
+			m.BillingPathRequests.WithLabelValues(p.path, p.model, p.profile).Inc()
+		}
+		m.BillingPathLatency.WithLabelValues(p.path, p.model).Observe(p.latency)
+		m.BillingPathLatency.WithLabelValues(p.path, p.model).Observe(p.latency * 0.7)
+		m.BillingPathLatency.WithLabelValues(p.path, p.model).Observe(p.latency * 1.4)
+	}
+
+	profiles := []struct {
+		profile string
+		model   string
+		input   int
+		output  int
+	}{
+		{"default", "claude-sonnet-4-6", 85000, 12000},
+		{"default", "glm-5.1", 62000, 8500},
+		{"production", "claude-sonnet-4-6", 45000, 6000},
+		{"staging", "glm-4.6", 12000, 2000},
+	}
+	for _, p := range profiles {
+		m.ProfileRequests.WithLabelValues(p.profile, p.model).Add(float64(p.input + p.output))
+		m.ProfileTokenIn.WithLabelValues(p.profile, p.model).Add(float64(p.input))
+		m.ProfileTokenOut.WithLabelValues(p.profile, p.model).Add(float64(p.output))
+		m.ProfileCost.WithLabelValues(p.profile, p.model, "input").Add(float64(p.input) / 1_000_000 * 3.0)
+		m.ProfileCost.WithLabelValues(p.profile, p.model, "output").Add(float64(p.output) / 1_000_000 * 15.0)
+	}
+
+}
+
 // StartMockDataLoop continuously increments mock metrics so that rate()-based
 // Grafana timeseries panels show live data. Stops when ctx is cancelled.
 func (m *Metrics) StartMockDataLoop(ctx context.Context) {
@@ -812,6 +863,27 @@ func (m *Metrics) StartMockDataLoop(ctx context.Context) {
 					m.WasteTokensWasted.WithLabelValues(d.name).Add(d.tokens)
 				}
 			}
+
+			// Billing/profile continuous data
+			billingTickPaths := []struct {
+				path    string
+				model   string
+				profile string
+				latency float64
+			}{
+				{"go_direct", "claude-sonnet-4-6", "default", 1.1},
+				{"zai_proxy", "glm-5.1", "default", 3.2},
+				{"openai_proxy", "gpt-4o", "default", 1.7},
+			}
+			for _, bp := range billingTickPaths {
+				m.BillingPathRequests.WithLabelValues(bp.path, bp.model, bp.profile).Inc()
+				m.BillingPathLatency.WithLabelValues(bp.path, bp.model).Observe(bp.latency)
+			}
+			m.ProfileRequests.WithLabelValues("default", "claude-sonnet-4-6").Add(2)
+			m.ProfileTokenIn.WithLabelValues("default", "claude-sonnet-4-6").Add(120)
+			m.ProfileTokenOut.WithLabelValues("default", "claude-sonnet-4-6").Add(30)
+			m.ProfileCost.WithLabelValues("default", "claude-sonnet-4-6", "input").Add(0.00036)
+			m.ProfileCost.WithLabelValues("default", "claude-sonnet-4-6", "output").Add(0.00045)
 		}
 	}()
 }

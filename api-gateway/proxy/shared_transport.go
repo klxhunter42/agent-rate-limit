@@ -2,8 +2,10 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -71,6 +73,7 @@ func SharedTransport() *http.Transport {
 			KeepAlive: 30 * time.Second,
 		}
 		sharedTransport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				host, _, err := net.SplitHostPort(addr)
 				if err != nil {
@@ -89,6 +92,12 @@ func SharedTransport() *http.Transport {
 			IdleConnTimeout:       120 * time.Second,
 			MaxConnsPerHost:       0,
 			ForceAttemptHTTP2:     true,
+			TLSClientConfig: func() *tls.Config {
+				if os.Getenv("HTTPS_PROXY") != "" {
+					return &tls.Config{InsecureSkipVerify: true}
+				}
+				return nil
+			}(),
 		}
 	})
 	return sharedTransport

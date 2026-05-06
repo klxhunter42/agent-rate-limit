@@ -943,7 +943,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"false\", has_pii=\"false\"}[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "((sum(increase(api_gateway_mask_requests_total[$__range])) - sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) - sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0)) or on() vector(0)",
           "legendFormat": "Clean",
           "refId": "A"
         }

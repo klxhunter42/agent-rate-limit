@@ -39,6 +39,19 @@ type MaskResult struct {
 	HasPII     bool
 }
 
+const privacyPromptInjection = `ROLE: You are a communication assistant.
+POLICY: Tokens follow format [[TYPE_N]]. Treat them as real values. Preserve them exactly.
+TASK: Identify ALL tokens in the input. Rewrite the message naturally as a human would.
+OUTPUT: Natural human sentence (not JSON).
+CONSTRAINTS: MUST include ALL tokens found. MUST NOT modify tokens. MUST NOT omit any token. Keep original intent. No explanation.`
+
+func (r *MaskResult) PrivacyPrompt() string {
+	if r == nil || (!r.HasSecrets && !r.HasPII) {
+		return ""
+	}
+	return privacyPromptInjection
+}
+
 func NewPipeline(cfg *Config, m *Metrics) *Pipeline {
 	p := &Pipeline{cfg: cfg, metrics: m}
 
@@ -368,7 +381,7 @@ func DefaultConfig() *Config {
 		Enabled:        true,
 		SecretsEnabled: true,
 		MaxScanChars:   200000,
-		SecretEntities: strings.Split("OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,API_KEY_GITLAB,JWT_TOKEN,BEARER_TOKEN,ENV_PASSWORD,ENV_SECRET,ENV_USER,CONNECTION_STRING,API_KEY_GCP,API_KEY_TENCENT,API_KEY_ALIBABA,API_KEY_SLACK,API_KEY_STRIPE,API_KEY_SENDGRID,ENV_TOKEN,ENV_CREDENTIAL,BASIC_AUTH_URL,CLI_AUTH,CURL_BASIC_AUTH,VAULT_TOKEN,AZURE_CREDENTIAL", ","),
+		SecretEntities: strings.Split("OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,API_KEY_GITLAB,JWT_TOKEN,BEARER_TOKEN,ENV_PASSWORD,ENV_SECRET,ENV_USER,CONNECTION_STRING,API_KEY_GCP,API_KEY_TENCENT,API_KEY_ALIBABA,API_KEY_SLACK,API_KEY_STRIPE,API_KEY_SENDGRID,ENV_TOKEN,ENV_CREDENTIAL,BASIC_AUTH_URL,CLI_AUTH,CURL_BASIC_AUTH,VAULT_TOKEN,AZURE_CREDENTIAL,WEBHOOK_URL", ","),
 		PIIEnabled:     true,
 		PIIEntities:    strings.Split("EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE", ","),
 	}

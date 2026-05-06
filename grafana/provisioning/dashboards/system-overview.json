@@ -52,7 +52,7 @@
       },
       "targets": [
         {
-          "expr": "api_gateway_dragonfly_up or on() vector(0)",
+          "expr": "api_gateway_dragonfly_up",
           "legendFormat": "Dragonfly",
           "refId": "A"
         }
@@ -87,8 +87,19 @@
                   "color": "green"
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "N/A",
+                  "color": "gray"
+                }
+              }
             }
-          ]
+          ],
+          "noValue": "N/A"
         }
       },
       "options": {

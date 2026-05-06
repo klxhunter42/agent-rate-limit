@@ -929,7 +929,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / (sum(increase(api_gateway_chunker_reorder_duration_seconds_count[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / (sum(increase(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -1197,8 +1197,8 @@
       },
       "targets": [
         {
-          "expr": "(sum by (requested) (rate(api_gateway_model_fallback_total[$__interval])))",
-          "legendFormat": "{{requested}} -> {{selected}}",
+          "expr": "(sum by (requested, fallback, reason) (rate(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{requested}} -> {{fallback}} ({{reason}})",
           "refId": "A"
         }
       ],

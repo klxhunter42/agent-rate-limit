@@ -1687,7 +1687,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
-								evt.Delta.PartialJSON = unmasker.ReplaceDirect(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							}
 							if changed {
@@ -2048,7 +2048,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						changed = evt.Delta.Thinking != before
 					} else if evt.Delta.PartialJSON != "" {
 						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ReplaceDirect(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
 						changed = evt.Delta.PartialJSON != before
 					}
 					if changed {

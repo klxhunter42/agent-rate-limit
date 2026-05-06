@@ -41,7 +41,7 @@ rand() { echo $(( RANDOM % ${1:-100} + ${2:-1} )); }
 # --- seed profiles & tokens ---
 seed_profiles() {
   log "Registering accounts..."
-  for p in anthropic openai deepseek zai; do
+  for p in anthropic openai zai; do
     curl -sf -X POST "${GW}/v1/auth/${p}/register" \
       -H "Content-Type: application/json" \
       -d "{\"api_key\":\"sk-seed-${p}-$(rand 9999 1000)\"}" >/dev/null 2>&1 || true
@@ -51,7 +51,6 @@ seed_profiles() {
   local profiles=(
     'seed-anthropic|anthropic|claude-sonnet-4-20250514|ic-001'
     'seed-openai|openai|gpt-4o|ai-001'
-    'seed-deepseek|deepseek|deepseek-chat|psk001'
   )
   IFS='|'
   for entry in "${profiles[@]}"; do
@@ -79,7 +78,6 @@ seed_real_requests() {
     case "$name" in
       seed-anthropic) model="claude-sonnet-4-20250514" ;;
       seed-openai)    model="gpt-4o" ;;
-      seed-deepseek)  model="deepseek-chat" ;;
       *)              model="claude-sonnet-4-20250514" ;;
     esac
     curl -sf -X POST "${GW}/v1/messages" \
@@ -99,9 +97,9 @@ seed_real_requests() {
 seed_synthetic() {
   log "Pushing synthetic metrics to pushgateway..."
 
-  local PROFILES="seed-anthropic,seed-openai,seed-deepseek,test-anthropic,test-openai,test-deepseek"
-  local MODELS="claude-sonnet-4-20250514,gpt-4o,deepseek-chat,glm-5.1,glm-5,glm-4.7"
-  local ACCOUNTS="ic-001,ai-001,psk001"
+  local PROFILES="seed-anthropic,seed-openai,test-anthropic,test-openai"
+  local MODELS="claude-sonnet-4-20250514,gpt-4o,glm-5.1,glm-5,glm-4.7"
+  local ACCOUNTS="ic-001,ai-001"
   IFS=',' read -ra PROFS <<< "$PROFILES"
   IFS=',' read -ra MODS <<< "$MODELS"
   IFS=',' read -ra ACCTS <<< "$ACCOUNTS"
@@ -375,8 +373,8 @@ seed_simulate() {
 local ITERS="${1:-20}"
 local DELAY="${2:-5}"
 log "Simulating traffic: ${ITERS} iterations, ${DELAY}s apart..."
-local PROFILES="seed-anthropic,seed-openai,seed-deepseek"
-local MODELS="claude-sonnet-4-20250514,gpt-4o,deepseek-chat"
+local PROFILES="seed-anthropic,seed-openai"
+local MODELS="claude-sonnet-4-20250514,gpt-4o"
 IFS=',' read -ra PROFS <<< "$PROFILES"
 IFS=',' read -ra MODS <<< "$MODELS"
 
@@ -523,7 +521,7 @@ api_gateway_mcp_cache_misses_total{server="web-reader",tool="fetch"} $(( mcp_suc
 PUSH
 
   # Cost savings - accumulate from optimizer chars
-local cost_savings=$(echo "scale=6;(${optim_chars_chunker}+${optim_chars_delta}+${optim_chars_disclosure}+${optim_chars_sketch})*3/1000000" | bc)
+local cost_savings=$(echo "scale=6;(${optim_chars_chunker}+${optim_chars_delta}+${optim_chars_disclosure}+${optim_chars_sketch})*0.75/1000000" | bc)
 push "sim_savings" <<PUSH
 # TYPE api_gateway_cost_savings_total counter
 api_gateway_cost_savings_total ${cost_savings}

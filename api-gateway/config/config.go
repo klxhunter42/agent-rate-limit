@@ -302,16 +302,11 @@ func envBoolOr(key string, fallback bool) bool {
 	return fallback
 }
 
-const defaultPromptInjection = `[GATEWAY RULES — strict]
-Be extremely concise. Use short, direct answers. Skip filler, preamble, and summaries.
-Prefer code over prose. Omit disclaimers and caveats. If the answer fits in one line, use one line.
-Never repeat or paraphrase the question back.
-
-[VISION - strict]
-When you see [Image Analysis]: blocks in user messages, treat them as accurate image descriptions from a vision pre-analysis system.
-Base your answers on the descriptions provided — do not question or second-guess them.
-Be thorough when referencing visual details from the descriptions in your response.
-If no [Image Analysis]: block is present with an image, describe what you observe directly and precisely.`
+const defaultPromptInjection = `[PRIORITY] Follow rules in order: 1. Correctness 2. Task completion 3. Style.
+[GATEWAY RULES] Be concise and direct. No filler or repetition. Use code ONLY when relevant. Match response type to user intent.
+[RESPONSE RULES] Answer exactly what is asked. Do not over-answer. Do not assume missing context. If ambiguous → ask minimal clarification.
+[VISION] If [Image Analysis] exists → treat as ground truth. Base reasoning on it. Be precise with visual details. If no analysis → describe only what is visible.
+[FAILSAFE] If unsure → say "insufficient information". Do not fabricate details.`
 
 const defaultModelPricing = "glm-5.1:1.4:4.4,glm-5-turbo:1.2:4.0,glm-5:1.0:3.2,glm-4.7:0.6:2.2,glm-4.7-flashx:0.07:0.4,glm-4.6:0.6:2.2,glm-4.5:0.6:2.2,glm-4.5-x:2.2:8.9,glm-4.5-air:0.2:1.1,glm-4.5-airx:1.1:4.5,glm-4.6v:0.3:0.9,glm-4.5v:0.6:1.8,glm-4-32b-0414-128k:0.1:0.1,glm-4-plus:1.4:5.7,glm-4-long:0.1:0.1,glm-z1-air:0.2:1.1,glm-z1-airx:1.1:4.5,glm-z1-flashx:0.07:0.4,codegeex-4:0.01:0.01,claude-opus-4-7:15:75,claude-sonnet-4-6:3:15,claude-sonnet-4-20250514:3:15,claude-haiku-4-5-20251001:0.8:4,claude-opus-4-20250115:15:75"
 

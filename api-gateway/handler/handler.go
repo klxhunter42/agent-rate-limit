@@ -712,6 +712,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				"requested", requestedModel,
 				"fallback_was", selectedModel,
 			)
+			selectedModel = requestedModel
 		} else {
 			payload["model"] = selectedModel
 			h.metrics.RecordFallback(requestedModel, selectedModel)
@@ -1038,6 +1039,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			maskResult, _ = h.privacy.MaskRequest(body)
 			if maskResult != nil {
 				body = maskResult.MaskedBody
+				// Inject privacy prompt so provider treats [[TYPE_N]] as real values.
+				// Must unmarshal masked body back into payload to preserve masked values.
+				if pp := maskResult.PrivacyPrompt(); pp != "" {
+					var maskedPayload map[string]any
+					if err := json.Unmarshal(body, &maskedPayload); err == nil {
+						injectSystemPrompt(maskedPayload, pp)
+						if updated, err := json.Marshal(maskedPayload); err == nil {
+							body = updated
+							payload = maskedPayload
+						}
+					}
+				}
 				slog.Info("privacy mask applied",
 					"has_secrets", maskResult.HasSecrets,
 					"has_pii", maskResult.HasPII,
@@ -1314,6 +1327,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if hasImages && decision != nil && decision.ProviderID == "zai" {
+		h.metrics.RecordBillingPath("zai_vision", selectedModel, profileName)
 		imgBytes, imgCount := analyzeImagePayload(payload)
 		if !h.cfg.ZAIOpenAIModels[selectedModel] {
 			visionModel := selectVisionModel(imgBytes, imgCount)
@@ -1362,6 +1376,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	} else if hasImages && decision != nil {
+		h.metrics.RecordBillingPath("openai_vision", selectedModel, profileName)
 		// Non-GLM models with images: re-resolve for the vision model and use normal routing.
 		visionDecision := decision
 		if selectedModel != requestedModel && h.resolver != nil {
@@ -1407,6 +1422,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else if h.cfg.GLMMode && h.cfg.ZAIOpenAIModels[selectedModel] {
+		h.metrics.RecordBillingPath("zai_proxy", selectedModel, profileName)
 		// GLM model that requires OpenAI-compatible endpoint.
 		upstreamURL := h.cfg.ZAIOpenAIURL
 		slog.Info("glm via zai openai endpoint", "model", selectedModel, "upstream", upstreamURL)
@@ -1416,15 +1432,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai openai proxy error: " + err.Error()})
 		}
 	} else if decision != nil {
+		routePath := "anthropic_proxy"
 		switch decision.Format {
 		case provider.FormatOpenAI:
+			routePath = "openai_proxy"
 			if err := h.openaiProxy.ProxyOpenAI(w, r, decision.UpstreamURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, decision.MaxContinuations, decision.ToolMode); err != nil {
 				slog.Error("openai proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "openai proxy error: " + err.Error()})
 			}
 		case provider.FormatGemini:
+			routePath = "gemini_proxy"
 			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
+				routePath = "codeassist_proxy"
 				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
 					slog.Error("code assist failed", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
@@ -1452,6 +1472,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "proxy error: " + err.Error()})
 			}
 		}
+		h.metrics.RecordBillingPath(routePath, selectedModel, profileName)
+	} else if decision == nil && selectedModel != "" {
+		slog.Error("no route for model, rejecting", "model", selectedModel)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no upstream provider for model: " + selectedModel})
 	} else if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, profileOpts, transparent); err != nil {
 		slog.Error("proxy error", "error", err, "model", selectedModel)
 		h.metrics.IncError("upstream")

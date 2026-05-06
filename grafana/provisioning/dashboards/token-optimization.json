@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / 4 or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -225,7 +225,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 100000 / (sum(increase(api_gateway_cost_total[$__range])) + 1)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -278,7 +278,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_optimizer_duration_seconds_sum[$__rate_interval])) / sum(rate(api_gateway_optimizer_duration_seconds_count[$__rate_interval])) * 1000) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_chunker_reorder_duration_seconds_sum[$__rate_interval])) / sum(rate(api_gateway_chunker_reorder_duration_seconds_count[$__rate_interval])) * 1000) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -469,7 +469,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_chunker_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_delta_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum by (technique) (increase(api_gateway_sketch_chars_saved_total[$__range]))))",
+          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range]))))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -557,7 +557,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_chunker_reorder_duration_seconds_count[$__range])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__range])) or on() vector(0)",
           "legendFormat": "chunker",
           "refId": "A"
         },
@@ -620,12 +620,12 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range])) * 333333) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
           "refId": "A",
           "legendFormat": "Without Optimization"
         },
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
           "refId": "B",
           "legendFormat": "With Optimization"
         }
@@ -704,8 +704,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(api_gateway_chunker_chars_saved_total[$__interval])) + sum(rate(api_gateway_delta_chars_saved_total[$__interval])) + sum(rate(api_gateway_disclosure_chars_saved_total[$__interval])) + sum(rate(api_gateway_sketch_chars_saved_total[$__interval]))) or on() vector(0)",
-          "legendFormat": "chars saved/s",
+          "expr": "(sum(rate(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1) * 100) or on() vector(0)",
+          "legendFormat": "optimization rate %",
           "refId": "A"
         }
       ],
@@ -757,8 +757,8 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_chunker_reorder_duration_seconds_bucket[$__interval])) by (le)) or on() vector(0)",
-          "legendFormat": "chunker p95",
+          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_waste_scan_duration_seconds_bucket[$__interval])) by (le)) or on() vector(0)",
+          "legendFormat": "waste_scan p95",
           "refId": "A"
         },
         {
@@ -831,7 +831,7 @@
           "instant": true
         },
         {
-          "expr": "(sum by (technique) (increase(api_gateway_optimizer_duration_seconds_sum[$__range])) / sum by (technique) (increase(api_gateway_optimizer_duration_seconds_count[$__range]))) or on() vector(0)",
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
           "refId": "C",
           "format": "table",
           "instant": true
@@ -852,7 +852,7 @@
             "renameByName": {
               "Value #A": "Chars Saved",
               "Value #B": "Runs",
-              "Value #C": "Avg Duration (s)"
+              "Value #C": "Runs (total)"
             }
           }
         }
@@ -956,7 +956,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_waste_scan_duration_seconds_count[$__interval])) or on() vector(0)",
+          "expr": "sum(rate(api_gateway_waste_findings_total[$__interval])) or on() vector(0)",
           "legendFormat": "scans/s",
           "refId": "A"
         }
@@ -998,8 +998,8 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_waste_scan_duration_seconds_count[$__range])) or on() vector(0)",
-          "legendFormat": "waste scans",
+          "expr": "sum by (detector) (increase(api_gateway_waste_tokens_wasted_total[$__range])) or on() vector(0)",
+          "legendFormat": "{{detector}}",
           "refId": "A"
         }
       ],
