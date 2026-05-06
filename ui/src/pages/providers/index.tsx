@@ -218,8 +218,8 @@ export default function ProvidersPage() {
 
   useEffect(() => {
     if (authFlow.completed) {
-      loadAccounts();
-      const timer = setTimeout(() => authFlow.reset(), 1500);
+      setTimeout(() => loadAccounts(), 500);
+      const timer = setTimeout(() => authFlow.reset(), 2000);
       return () => clearTimeout(timer);
     }
   }, [authFlow.completed, loadAccounts, authFlow.reset]);

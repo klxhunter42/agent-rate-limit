@@ -69,8 +69,8 @@ export async function fetchHealth(): Promise<HealthStatus> {
   return res.json();
 }
 
-export async function fetchMetrics(): Promise<string> {
-  const res = await fetch('/api/metrics');
+export async function fetchMetrics(signal?: AbortSignal): Promise<string> {
+  const res = await fetch('/api/metrics', { signal });
   if (!res.ok) throw new Error(`metrics: ${res.status}`);
   return res.text();
 }

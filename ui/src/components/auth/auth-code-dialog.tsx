@@ -113,6 +113,7 @@ export function AuthCodeDialog({
                   onClick={() => {
                     if (onSubmitCallback && callbackUrl.trim()) {
                       onSubmitCallback(callbackUrl.trim());
+              setCallbackUrl('');
                     }
                   }}
                 >

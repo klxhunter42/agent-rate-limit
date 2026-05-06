@@ -9,6 +9,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/cache"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/caveman"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/chunker"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/compcache"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/delta"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/disclosure"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/filter"
@@ -17,11 +18,10 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
-	"github.com/klxhunter/agent-rate-limit/api-gateway/compcache"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/toolcomp"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/toolfilter"
-	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/warmstart"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/waste"
 )
@@ -52,9 +52,9 @@ type Optimizers struct {
 	WarmStart  *warmstart.WarmStart
 	Caveman    *caveman.CavemanPipeline
 	TextComp   *textcomp.TextComp
-	ToolComp *toolcomp.ToolComp
+	ToolComp   *toolcomp.ToolComp
 	ToolFilter *toolfilter.ToolFilter
-	CompCache *compcache.CompCache
+	CompCache  *compcache.CompCache
 }
 
 // OptimizeSystemPrompt applies the full optimization pipeline to system prompt text.
@@ -72,7 +72,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := tokenizer.DeduplicateSemantic(text, 0.7)
 		if saved > 0 {
-			beforeSD := len(text); text = opt; slog.Info("optimizer_step", "stage", "semantic_dedup", "before", beforeSD, "after", len(text), "saved", beforeSD-len(text))
+			beforeSD := len(text)
+			text = opt
+			slog.Info("optimizer_step", "stage", "semantic_dedup", "before", beforeSD, "after", len(text), "saved", beforeSD-len(text))
 			m.RecordOptimization("semantic_dedup", saved, "input")
 			m.RecordOptimizationDuration("semantic_dedup", time.Since(start).Seconds())
 			totalSaved += saved
@@ -84,7 +86,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.Chunker.ChunkAndReorder(context.Background(), text)
 		if saved > 0 {
-			beforeCh := len(text); text = opt; slog.Info("optimizer_step", "stage", "chunker", "before", beforeCh, "after", len(text), "saved", beforeCh-len(text))
+			beforeCh := len(text)
+			text = opt
+			slog.Info("optimizer_step", "stage", "chunker", "before", beforeCh, "after", len(text), "saved", beforeCh-len(text))
 			m.RecordOptimization("chunker", saved, "input")
 			m.RecordOptimizationDuration("chunker", time.Since(start).Seconds())
 			totalSaved += saved
@@ -96,8 +100,10 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		encoded, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
 		if ok && saved > 0 {
-			beforeD := len(text); text = encoded; slog.Info("optimizer_step", "stage", "delta", "before", beforeD, "after", len(text), "saved", beforeD-len(text))
-				m.RecordOptimization("delta", saved, "input")
+			beforeD := len(text)
+			text = encoded
+			slog.Info("optimizer_step", "stage", "delta", "before", beforeD, "after", len(text), "saved", beforeD-len(text))
+			m.RecordOptimization("delta", saved, "input")
 			m.RecordOptimizationDuration("delta", time.Since(start).Seconds())
 			totalSaved += saved
 		}
@@ -109,7 +115,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		isDup, _, saved := o.Sketch.CheckAndStore(context.Background(), model, text)
 		if isDup && saved > 0 {
 			slog.Info("optimizer_step", "stage", "sketch_dedup", "before", len(text), "after", len(text), "saved", saved)
-				m.RecordOptimization("sketch_dedup", saved, "input")
+			m.RecordOptimization("sketch_dedup", saved, "input")
 			m.RecordOptimizationDuration("sketch", time.Since(start).Seconds())
 		}
 	}
@@ -119,7 +125,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.Summarizer.Summarize(context.Background(), text, budgetLevel)
 		if saved > 0 {
-			beforeSum := len(text); text = opt; slog.Info("optimizer_step", "stage", "summarizer", "before", beforeSum, "after", len(text), "saved", beforeSum-len(text))
+			beforeSum := len(text)
+			text = opt
+			slog.Info("optimizer_step", "stage", "summarizer", "before", beforeSum, "after", len(text), "saved", beforeSum-len(text))
 			m.RecordOptimization("summarizer", saved, "input")
 			m.RecordOptimizationDuration("summarizer", time.Since(start).Seconds())
 			totalSaved += saved
@@ -132,7 +140,9 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		intent := o.Filter.ClassifyIntent(nil)
 		opt, saved := o.Filter.FilterResponse(text, intent)
 		if saved > 0 {
-			beforeIF := len(text); text = opt; slog.Info("optimizer_step", "stage", "intent_filter", "before", beforeIF, "after", len(text), "saved", beforeIF-len(text))
+			beforeIF := len(text)
+			text = opt
+			slog.Info("optimizer_step", "stage", "intent_filter", "before", beforeIF, "after", len(text), "saved", beforeIF-len(text))
 			m.RecordOptimization("intent_filter", saved, "input")
 			m.RecordOptimizationDuration("intent_filter", time.Since(start).Seconds())
 			totalSaved += saved
@@ -144,32 +154,50 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		start := time.Now()
 		opt, saved := o.TextComp.Compress(text)
 		if saved > 0 {
-			beforeTC := len(text); text = opt; slog.Info("optimizer_step", "stage", "textcomp_sys", "before", beforeTC, "after", len(text), "saved", beforeTC-len(text))
+			beforeTC := len(text)
+			text = opt
+			slog.Info("optimizer_step", "stage", "textcomp_sys", "before", beforeTC, "after", len(text), "saved", beforeTC-len(text))
 			m.RecordOptimization("textcomp", saved, "input")
 			m.RecordOptimizationDuration("textcomp", time.Since(start).Seconds())
 			totalSaved += saved
 		}
 	}
 
-	// Caveman compression (F16) — skip for transparent: adds input tokens
+	// Caveman compression (F16) - LLM + regex input compression + output-style injection
 	if !transparent {
 		if o.Caveman != nil {
 			shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
 			if shouldCompress {
 				start := time.Now()
-				compressed, _ := o.Caveman.Compress("", tier)
-				if compressed != "" {
-					beforeCav := len(text); text = compressed; slog.Info("optimizer_step", "stage", "caveman", "before", beforeCav, "after", len(text), "saved", beforeCav-len(text))
-						m.RecordOptimization("caveman", 0, "input")
-					m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
+
+				// Phase 2: Regex-based compression (filler, articles, pleasantries)
+				inputCompressed, inputSaved := o.Caveman.CompressInput(text, tier)
+				if inputSaved > 0 {
+					beforeInput := len(text)
+					text = inputCompressed
+					slog.Info("optimizer_step", "stage", "caveman_input", "before", beforeInput, "after", len(text), "saved", inputSaved)
+					m.RecordOptimization("caveman_input", inputSaved, "input")
+					totalSaved += inputSaved
 				}
+
+				// Phase 2: Append output-style injection
+				compressed, ratio := o.Caveman.Compress(text, tier)
+				if compressed != text {
+					beforeCav := len(text)
+					text = compressed
+					addedChars := len(text) - beforeCav
+					slog.Info("optimizer_step", "stage", "caveman_output", "before", beforeCav, "after", len(text), "added_input_chars", addedChars, "expected_output_ratio", ratio)
+					m.RecordOptimization("caveman_output", addedChars, "output")
+				}
+
+				m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 			}
 		}
 	}
 
 	if totalSaved > 0 {
 		tokensSaved := float64(totalSaved) / 4.0
-		m.RecordTokensSaved(int(tokensSaved + 0.5), "input")
+		m.RecordTokensSaved(int(tokensSaved+0.5), "input")
 		costSavings := tokensSaved * 3.0 / 1_000_000
 		m.RecordCostSavings(costSavings)
 	}

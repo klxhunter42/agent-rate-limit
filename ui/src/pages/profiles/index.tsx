@@ -304,116 +304,169 @@ function SetupGuideCard() {
           <p>Profiles let you route requests through specific provider configurations. Send the <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header with your request:</p>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
 {`# With curl
-curl http://localhost:9000/v1/chat/completions \\
-  -H "X-Profile: my-profile" \\
-  -H "Content-Type: application/json" \\
-  -d '{"model":"claude-sonnet-4-20250514","messages":[...]}'`}
+curl http://localhost:9000/v1/messages \
+  -H "X-Profile: my-profile" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet-4-20250514",
+    "max_tokens": 100,
+    "messages": [...]
+  }'`}
           </pre>
-          <p>The proxy looks up the profile and uses its <strong>target</strong>, <strong>baseUrl</strong>, <strong>apiKey</strong>, <strong>model</strong>, and <strong>accountIds</strong> to route the request. The profile's <strong>target</strong> determines which provider handles the request.</p>
+          <p>The gateway looks up the profile and uses its <strong>target</strong>, <strong>accountIds</strong>, <strong>model</strong>, and <strong>baseUrl</strong> to route the request. The profile&apos;s <strong>target</strong> determines which provider handles the request.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Or use a profile API token (<code className="bg-muted px-1 rounded text-xs">arl_</code> prefix) - no <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header needed. See <strong>API Key</strong> section below.
+          </p>
         </Section>
 
         <Section id="claude-oauth" title="Claude OAuth Profile">
           <p>Routes through Anthropic API using Claude OAuth Bearer token. Requires OAuth account with <code className="bg-muted px-1 rounded text-xs">user:inference</code> scope.</p>
+          <p className="mt-2">The gateway enables <strong>transparent passthrough</strong> for Claude OAuth requests:</p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li>3-path billing injection: Go direct {">"} Sidecar fallback {">"} Direct proxy</li>
+            <li>Skips optimizer and privacy masking pipeline</li>
+            <li>Preserves exact client payload for compatibility</li>
+            <li>Bootstraps Claude session automatically on first use</li>
+          </ul>
           <p className="mt-2"><strong>Setup:</strong></p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Create profile with target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code></li>
-            <li>Authenticate via Providers page to get OAuth token</li>
+            <li>Go to <strong>Providers</strong> page, click <strong>Connect</strong> on Claude (OAuth)</li>
+            <li>Browser opens Claude login - authorize with your account</li>
+            <li>Token is stored in Dragonfly automatically, refreshes every 30 min</li>
+            <li>Create a profile with target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code></li>
             <li>Select which accounts to include in Account Pool</li>
-            <li>Click <strong>Generate</strong> on the profile card to create an API key</li>
+            <li>Click <strong>Generate</strong> on the profile card to create an <code className="bg-muted px-1 rounded text-xs">arl_</code> token</li>
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# ~/.claude/settings.json
+{`// ~/.claude/settings.json
 {
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
+    "ANTHROPIC_API_KEY": "arl_your-generated-token"
   }
 }`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            The <code className="bg-muted px-1 rounded text-xs">arl_</code> token identifies the profile. No <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header needed. Model: any <code className="bg-muted px-1 rounded">claude-*</code> model.
+            Model: any <code className="bg-muted px-1 rounded">claude-*</code> model. Default: <code className="bg-muted px-1 rounded">claude-haiku-4-5-20251001</code>. Utilization-aware round-robin across accounts (prefers &lt;80% 5h usage).
           </p>
         </Section>
 
         <Section id="gemini-oauth" title="Gemini OAuth Profile">
           <p>Routes through Google Gemini CodeAssist API using Google OAuth token. Gateway auto-translates Anthropic format to Gemini format, so Claude Code works seamlessly.</p>
+          <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
+            <li>Uses CodeAssist proxy at <code className="bg-muted px-1 rounded text-xs">cloudcode-pa.googleapis.com</code></li>
+            <li>Token auto-refreshes every 30 minutes</li>
+            <li>Project ID resolved automatically during refresh cycle</li>
+          </ul>
           <p className="mt-2"><strong>Setup:</strong></p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Go to <strong>Providers</strong> page, click <strong>Connect</strong> on Gemini (OAuth)</li>
+            <li>Browser opens Google login - authorize with your account</li>
+            <li>Token is stored and refreshed automatically</li>
             <li>Create profile with target <code className="bg-muted px-1 rounded text-xs">gemini-oauth</code></li>
-            <li>Authenticate via Providers page to get Google OAuth token</li>
             <li>Select which accounts to include in Account Pool</li>
+            <li>Generate an <code className="bg-muted px-1 rounded text-xs">arl_</code> token for the profile</li>
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# ~/.claude/settings.json
+{`// ~/.claude/settings.json
 {
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
+    "ANTHROPIC_API_KEY": "arl_your-generated-token"
   }
 }`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            The <code className="bg-muted px-1 rounded text-xs">arl_</code> token identifies the profile. No <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header needed. Model: <code className="bg-muted px-1 rounded">claude-*</code> or <code className="bg-muted px-1 rounded">gemini-*</code>.
+            Model: <code className="bg-muted px-1 rounded">claude-*</code> or <code className="bg-muted px-1 rounded">gemini-*</code>. Default: <code className="bg-muted px-1 rounded">gemini-2.5-flash</code>. Note: <code className="bg-muted px-1 rounded text-xs">gemini-oauth</code> and <code className="bg-muted px-1 rounded text-xs">gemini</code> are separate providers - no cross-fallback.
           </p>
         </Section>
 
-        <Section id="zai-mode" title="Z.AI / GLM Mode (Default)">
-          <p>When <code className="bg-muted px-1 rounded text-xs">GLM_MODE=true</code>, the default routing sends all requests to Z.AI API. No profile needed.</p>
+        <Section id="zai-mode" title="Z.AI / GLM Mode">
+          <p>Controlled by <code className="bg-muted px-1 rounded text-xs">GLM_MODE</code> env var in <code className="bg-muted px-1 rounded text-xs">.env</code>:</p>
+          <ul className="list-disc list-inside space-y-1 ml-2">
+            <li><strong>GLM_MODE=true</strong>: Default routing sends all requests to Z.AI API. No profile needed. Key pool from <code className="bg-muted px-1 rounded text-xs">ZAI_API_KEYS</code> with adaptive limiter.</li>
+            <li><strong>GLM_MODE=false</strong>: Multi-provider proxy mode. Profile required for all requests (<code className="bg-muted px-1 rounded text-xs">X-Profile</code> header or <code className="bg-muted px-1 rounded text-xs">arl_</code> token).</li>
+          </ul>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# ~/.claude/settings.json
+{`// GLM_MODE=true: no profile needed
+// ~/.claude/settings.json
 {
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
+    "ANTHROPIC_API_KEY": "any-zai-api-key"
   }
 }`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            Model: <code className="bg-muted px-1 rounded">glm-*</code>. Adaptive limiter distributes across same-series models.
+            Model: <code className="bg-muted px-1 rounded">glm-*</code>. Vision: <code className="bg-muted px-1 rounded">glm-4.6v</code>, <code className="bg-muted px-1 rounded">glm-4.5v</code>. Adaptive limiter distributes across same-series models. Vision auto-routes images through native Zhipu endpoint.
           </p>
         </Section>
 
         <Section id="account-pool" title="Account Pool Selection">
-          <p>When a profile has <strong>accountIds</strong> set, the proxy selects an account from only those IDs in the provider token pool. This is useful for:</p>
+          <p>When a profile has <strong>accountIds</strong> set, the gateway selects an account from only those IDs in the provider token pool. This is useful for:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Isolating specific OAuth accounts per profile</li>
             <li>Separating free-tier vs paid-tier usage</li>
             <li>Rotating through a subset of available accounts</li>
           </ul>
-          <p>Leave <strong>accountIds</strong> empty to use all available accounts for the provider.</p>
+          <p className="mt-2"><strong>Token selection priority:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li><code className="bg-muted px-1 rounded text-xs">accountIds</code> set - round-robin among selected accounts (prefers &lt;80% 5h utilization, skips paused/expired)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">passthroughAuth</code> - use client&apos;s own Bearer token</li>
+            <li>Provider default token from token store</li>
+            <li>Fallback to resolver key pool</li>
+          </ol>
+          <p className="mt-1">Leave <strong>accountIds</strong> empty to use all available accounts for the provider.</p>
           <p className="text-xs text-muted-foreground mt-1">
             Deleting an account from Providers page automatically removes it from all profiles.
           </p>
         </Section>
 
         <Section id="api-key" title="API Key (Profile Token)">
-          <p>Each profile can generate a unique <code className="bg-muted px-1 rounded text-xs">arl_</code> token. Use this as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> in Claude Code or any client. The gateway resolves the token to its profile automatically.</p>
+          <p>Each profile can generate a unique <code className="bg-muted px-1 rounded text-xs">arl_</code> token. Use this as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> or <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> in Claude Code or any client. The gateway resolves the token to its profile automatically.</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Click <strong>Generate</strong> on any profile card</li>
-            <li>Copy the token and set it as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code></li>
+            <li>Copy the token and set it as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code></li>
             <li>No <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header needed - the token identifies the profile</li>
             <li>Click <strong>Revoke</strong> to invalidate a token at any time</li>
           </ul>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# Example: generate and use
-curl -X POST http://localhost:9000/v1/profiles/meow/token
+{`# Generate token
+curl -X POST http://localhost:9000/v1/profiles/meow/tokens
 # => {"token":"arl_abc123...","profile":"meow"}
 
-# Then set in Claude Code settings:
-ANTHROPIC_AUTH_TOKEN=arl_abc123...`}
+# Option A: Environment variables
+export ANTHROPIC_BASE_URL=http://localhost:9000
+export ANTHROPIC_API_KEY=arl_abc123...
+claude
+
+# Option B: settings.json
+# ~/.claude/settings.json
+{
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:9000",
+    "ANTHROPIC_API_KEY": "arl_abc123..."
+  }
+}`}
           </pre>
         </Section>
 
-        <Section id="docker-haiku" title="Claude Code Container (Haiku)">
-          <p>Run [[PERSON_2]] Code in a Docker container, routed through a profile to use Haiku via Claude OAuth. No local install needed.</p>
+        <Section id="docker-haiku" title="Claude Code Container">
+          <p>Run Claude Code in a Docker container, routed through a profile to use any model via OAuth. No local install needed.</p>
           <p className="mt-2"><strong>Setup:</strong></p>
           <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Create a profile with model <code className="bg-muted px-1 rounded text-xs">claude-haiku-4-5-20251001</code> and target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code></li>
+            <li>Create a profile with target <code className="bg-muted px-1 rounded text-xs">claude-oauth</code> (or any provider)</li>
             <li>Generate an <code className="bg-muted px-1 rounded text-xs">arl_</code> token for the profile</li>
-            <li>Create <code className="bg-muted px-1 rounded text-xs">docker/settings-meow.json</code>:</li>
+            <li>Create <code className="bg-muted px-1 rounded text-xs">{"docker/settings-{name}.json"}</code>:</li>
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`{
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
     "ANTHROPIC_API_KEY": "arl_your-generated-token"
@@ -433,25 +486,74 @@ ANTHROPIC_AUTH_TOKEN=arl_abc123...`}
             <li>Use it:</li>
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
-{`# One-shot prompt (no --bare needed)
+{`# One-shot prompt
 docker exec meow claude -p "say hello"
 
-# Interactive mode (--bare skips OAuth login)
-docker exec -it meow claude --bare`}
+# Interactive mode
+docker exec -it meow claude`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            <strong>--bare</strong> is required for interactive mode because Claude Code tries OAuth login first (<a href="https://github.com/anthropics/claude-code/issues/27900" className="underline" target="_blank" rel="noopener">known issue</a>). <code className="bg-muted px-1 rounded text-xs">-p</code> mode uses the API key directly. The gateway auto-strips unsupported parameters (effort, thinking) for Haiku.
+            The gateway auto-strips unsupported parameters (effort, thinking) for Haiku. Model overrides available: <code className="bg-muted px-1 rounded text-xs">opusModel</code>, <code className="bg-muted px-1 rounded text-xs">sonnetModel</code>, <code className="bg-muted px-1 rounded text-xs">haikuModel</code>.
+          </p>
+        </Section>
+
+        <Section id="multi-target" title="Multi-Target Profiles (Failover)">
+          <p>One profile can have multiple targets with automatic failover. When target #1 fails (rate limit, error, timeout), the gateway falls back to target #2, then #3, etc.</p>
+          <p className="mt-2"><strong>Setup:</strong></p>
+          <ol className="list-decimal list-inside space-y-1 ml-2">
+            <li>Click <strong>New</strong> on the Profiles page</li>
+            <li>Fill in the profile name</li>
+            <li>First target is created automatically - select provider and accounts</li>
+            <li>Click <strong>Add Target</strong> to add more targets</li>
+            <li>Use arrow buttons (up/down) to reorder priority</li>
+            <li>Click <strong>Create</strong></li>
+          </ol>
+          <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
+{`# Via API: create hybrid failover profile
+curl -X POST http://localhost:9000/v1/profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "hybrid",
+    "targets": [
+      {"id": "t1", "target": "claude-oauth", "accountIds": ["account-1"]},
+      {"id": "t2", "target": "gemini-oauth", "accountIds": ["account-2"]}
+    ]
+  }'`}
+          </pre>
+          <p className="text-xs text-muted-foreground mt-1">
+            Each target can have its own <code className="bg-muted px-1 rounded text-xs">accountIds</code>, <code className="bg-muted px-1 rounded text-xs">baseUrl</code>, and <code className="bg-muted px-1 rounded text-xs">apiKey</code>. Priority is determined by array order (index 0 = highest).
+          </p>
+        </Section>
+
+        <Section id="passthrough" title="Passthrough Auth">
+          <p>When <code className="bg-muted px-1 rounded text-xs">passthroughAuth</code> is enabled on a profile, the gateway uses the client&apos;s own <code className="bg-muted px-1 rounded text-xs">Authorization: Bearer</code> or <code className="bg-muted px-1 rounded text-xs">x-api-key</code> header instead of stored tokens. Useful for:</p>
+          <ul className="list-disc list-inside space-y-1">
+            <li>Letting each user authenticate with their own credentials</li>
+            <li>Transparent proxying without storing upstream tokens</li>
+          </ul>
+          <p className="text-xs text-muted-foreground mt-1">
+            Claude OAuth transparent passthrough is enabled automatically when the token has <code className="bg-muted px-1 rounded text-xs">sk-ant-oat01-</code> prefix.
           </p>
         </Section>
 
         <Section id="target" title="Target / Provider Types">
-          <p>The <strong>target</strong> field determines the upstream API format:</p>
+          <p>The <strong>target</strong> field determines the upstream API format and routing:</p>
           <ul className="list-disc list-inside space-y-1">
-            <li><code className="bg-muted px-1 rounded text-xs">claude-oauth</code> - Claude via OAuth (Bearer token + Anthropic API)</li>
-            <li><code className="bg-muted px-1 rounded text-xs">gemini-oauth</code> - Gemini via OAuth (Bearer token + CodeAssist API)</li>
-            <li><code className="bg-muted px-1 rounded text-xs">anthropic</code> - Anthropic API key format</li>
-            <li><code className="bg-muted px-1 rounded text-xs">gemini</code> - Google Gemini API key format</li>
-            <li><code className="bg-muted px-1 rounded text-xs">openai</code> - OpenAI API format</li>
+            <li><code className="bg-muted px-1 rounded text-xs">claude-oauth</code> - Claude via OAuth (Bearer + Anthropic API, billing injection)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">gemini-oauth</code> - Gemini via OAuth (Bearer + CodeAssist proxy)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">anthropic</code> - Anthropic direct API key</li>
+            <li><code className="bg-muted px-1 rounded text-xs">gemini</code> - Gemini direct API key</li>
+            <li><code className="bg-muted px-1 rounded text-xs">openai</code> - OpenAI API</li>
+            <li><code className="bg-muted px-1 rounded text-xs">zai</code> - Z.AI / Zhipu API (Anthropic format)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">openrouter</code> - OpenRouter (200+ models)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">copilot</code> - GitHub Copilot (device code auth)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">deepseek</code> - DeepSeek</li>
+            <li><code className="bg-muted px-1 rounded text-xs">qwen</code> - Qwen / Aliyun DashScope (device code auth)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">kimi</code> - Kimi / Moonshot</li>
+            <li><code className="bg-muted px-1 rounded text-xs">huggingface</code> - HuggingFace Inference</li>
+            <li><code className="bg-muted px-1 rounded text-xs">ollama</code> - Ollama (local models)</li>
+            <li><code className="bg-muted px-1 rounded text-xs">lotus</code> - Lotus LLM (OpenAI-compatible, model override: "default")</li>
+            <li><code className="bg-muted px-1 rounded text-xs">cursor</code> / <code className="bg-muted px-1 rounded text-xs">codebuddy</code> / <code className="bg-muted px-1 rounded text-xs">kilo</code> / <code className="bg-muted px-1 rounded text-xs">agy</code> - Other providers</li>
           </ul>
         </Section>
       </CardContent>

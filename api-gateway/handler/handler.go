@@ -1292,7 +1292,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// replace images with text descriptions, then route text-only to main model.
 	// Must run before the routing if/else chain so hasImages=false skips vision blocks.
 	if hasImages && decision != nil && decision.ProviderID == "zai" &&
-		h.cfg.VisionPreAnalysisEnabled && isNativeImageModel(selectedModel) {
+		h.cfg.VisionPreAnalysisEnabled {
 		imgBytes, imgCount := analyzeImagePayload(payload)
 		newBody, mainModel, analyzed := h.preAnalyzeImages(r, payload, body, apiKey, requestedModel)
 		if analyzed {

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
@@ -145,7 +146,7 @@ func extractVisionContent(payload map[string]any) (imageURIs []string, userText 
 
 // callVisionAnalysis sends images to Zhipu's vision API with MCP-style parameters
 // and returns the text description. Non-streaming, synchronous call.
-func (h *Handler) callVisionAnalysis(ctx context.Context, imageURIs []string, userPrompt string, apiKey string) (string, error) {
+func (h *Handler) callVisionAnalysisSingle(ctx context.Context, imageURIs []string, userPrompt string, apiKey string) (string, error) {
 	// Build OpenAI-format content blocks.
 	contentBlocks := make([]any, 0, len(imageURIs)+1)
 	for _, uri := range imageURIs {
@@ -232,6 +233,78 @@ func (h *Handler) callVisionAnalysis(ctx context.Context, imageURIs []string, us
 	return content, nil
 }
 
+// callVisionAnalysisParallel analyzes each image in parallel and returns combined descriptions.
+// No concurrency cap - partial failures are handled gracefully.
+func (h *Handler) callVisionAnalysisParallel(ctx context.Context, imageURIs []string, userPrompt string, apiKey string) (string, error) {
+	if len(imageURIs) == 1 {
+		return h.callVisionAnalysisSingle(ctx, imageURIs, userPrompt, apiKey)
+	}
+
+	type result struct {
+		idx  int
+		text string
+		err  error
+		ms   int64
+	}
+
+	var wg sync.WaitGroup
+	results := make(chan result, len(imageURIs))
+
+	for i, uri := range imageURIs {
+		wg.Add(1)
+		go func(idx int, imageURI string) {
+			defer wg.Done()
+			start := time.Now()
+			imgLen := len(imageURI)
+			desc, err := h.callVisionAnalysisSingle(ctx, []string{imageURI}, userPrompt, apiKey)
+			elapsed := time.Since(start).Milliseconds()
+			slog.Info("vision pre-analysis: single image result", "image_idx", idx, "image_bytes", imgLen, "duration_ms", elapsed, "error", err)
+			results <- result{idx: idx, text: desc, err: err, ms: elapsed}
+		}(i, uri)
+	}
+
+	wg.Wait()
+	close(results)
+
+	var parts []string
+	var errs []string
+	var maxMs int64
+	for r := range results {
+		if r.ms > maxMs {
+			maxMs = r.ms
+		}
+		if r.err != nil {
+			errs = append(errs, fmt.Sprintf("image[%d]: %v", r.idx, r.err))
+			continue
+		}
+		if len(imageURIs) > 1 {
+			parts = append(parts, fmt.Sprintf("[Image %d]: %s", r.idx+1, r.text))
+		} else {
+			parts = append(parts, r.text)
+		}
+	}
+
+	slog.Info("vision pre-analysis: parallel results",
+		"total_images", len(imageURIs),
+		"success", len(parts),
+		"failed", len(errs),
+		"wall_ms", maxMs,
+	)
+
+	if len(errs) == len(imageURIs) {
+		return "", fmt.Errorf("all %d image analyses failed: %s", len(imageURIs), strings.Join(errs, "; "))
+	}
+	if len(parts) == 0 {
+		return "", fmt.Errorf("no successful image analyses")
+	}
+
+	combined := strings.Join(parts, "\n\n")
+	if len(errs) > 0 {
+		combined += "\n\n[Note: some images failed to analyze: " + strings.Join(errs, "; ") + "]"
+	}
+	return combined, nil
+}
+
 // replaceImagesWithDescription replaces image content blocks in the last user message
 // with a text block containing the vision description. Returns count of replaced images.
 func replaceImagesWithDescription(payload map[string]any, description string, originalText string) int {
@@ -288,6 +361,67 @@ func replaceImagesWithDescription(payload map[string]any, description string, or
 	return replaced
 }
 
+// stripOldImageDescriptions removes [Image Analysis]: blocks from all user messages
+// except the last one. This reduces token usage in subsequent requests while
+// keeping the current image description intact.
+func stripOldImageDescriptions(payload map[string]any) int {
+	msgs, ok := payload["messages"].([]any)
+	if !ok || len(msgs) == 0 {
+		return 0
+	}
+
+	stripped := 0
+	for i := 0; i < len(msgs)-1; i++ {
+		m, ok := msgs[i].(map[string]any)
+		if !ok {
+			continue
+		}
+		if role, _ := m["role"].(string); role != "user" {
+			continue
+		}
+
+		content, ok := m["content"]
+		if !ok {
+			continue
+		}
+
+		switch v := content.(type) {
+		case string:
+			if idx := strings.Index(v, "\n\n[Image Analysis]: "); idx >= 0 {
+				m["content"] = v[:idx]
+				stripped++
+			} else if idx := strings.Index(v, "[Image Analysis]: "); idx >= 0 {
+				if idx == 0 {
+					m["content"] = ""
+				} else {
+					m["content"] = v[:idx]
+				}
+				stripped++
+			}
+		case []any:
+			for _, block := range v {
+				cb, ok := block.(map[string]any)
+				if !ok || cb["type"] != "text" {
+					continue
+				}
+				txt, _ := cb["text"].(string)
+				if idx := strings.Index(txt, "\n\n[Image Analysis]: "); idx >= 0 {
+					cb["text"] = txt[:idx]
+					stripped++
+				} else if idx := strings.Index(txt, "[Image Analysis]: "); idx >= 0 {
+					if idx == 0 {
+						cb["text"] = ""
+					} else {
+						cb["text"] = txt[:idx]
+					}
+					stripped++
+				}
+			}
+		}
+	}
+	return stripped
+}
+
 // preAnalyzeImages performs MCP-style vision pre-analysis on the request payload.
 // Extracts images, calls Zhipu vision API directly, and replaces image blocks
 // with text descriptions. Returns modified body, the original model for main routing,
@@ -306,14 +440,30 @@ func (h *Handler) preAnalyzeImages(r *http.Request, payload map[string]any, body
 	)
 
 	start := time.Now()
-	description, err := h.callVisionAnalysis(r.Context(), imageURIs, userText, apiKey)
+	description, err := h.callVisionAnalysisParallel(r.Context(), imageURIs, userText, apiKey)
+
 	if err != nil {
-		slog.Warn("vision pre-analysis: API call failed, falling back", "error", err, "duration_ms", time.Since(start).Milliseconds())
+		slog.Warn("vision pre-analysis: API call failed, replacing images with error text", "error", err, "duration_ms", time.Since(start).Milliseconds())
 		h.metrics.RecordVisionPreAnalysis(false, time.Since(start).Seconds())
-		return body, originalModel, false
+
+		// Don't fall back to direct proxy (which also fails for images).
+		// Replace images with a text placeholder so the main model can still respond.
+		errText := "[Image Analysis]: Unable to analyze the provided image(s). Error: " + err.Error()
+		if userText != "" {
+			errText = userText + "\n\n" + errText
+		}
+		replaceImagesWithDescription(payload, errText, userText)
+		stripOldImageDescriptions(payload)
+
+		newBody, marshalErr := json.Marshal(payload)
+		if marshalErr != nil {
+			return body, originalModel, false
+		}
+		return newBody, originalModel, true
 	}
 
 	replaced := replaceImagesWithDescription(payload, description, userText)
+	stripped := stripOldImageDescriptions(payload)
 
 	newBody, err = json.Marshal(payload)
 	if err != nil {
@@ -325,6 +475,7 @@ func (h *Handler) preAnalyzeImages(r *http.Request, payload map[string]any, body
 		"vision_model", h.cfg.VisionPreAnalysisModel,
 		"main_model", originalModel,
 		"images_replaced", replaced,
+		"old_descriptions_stripped", stripped,
 		"description_len", len(description),
 		"duration_ms", time.Since(start).Milliseconds(),
 	)

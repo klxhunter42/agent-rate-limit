@@ -174,8 +174,8 @@ func main() {
 		WarmStart:  optWarmStart,
 		Caveman:    optCaveman,
 		TextComp:   optTextComp,
-	ToolComp: optToolComp,
-	ToolFilter: optToolFilter,
+		ToolComp:   optToolComp,
+		ToolFilter: optToolFilter,
 	}
 
 	// Background optimizer goroutines.
