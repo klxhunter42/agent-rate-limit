@@ -891,8 +891,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				imgMaxDimension      = 1024
 				imgJPEGQuality       = 85
 			)
-		if n, saved := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
-			slog.Info("large images compressed", "count", n, "bytes_saved", saved)
+		if n, saved, orig := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
+			slog.Info("large images compressed", "count", n, "bytes_saved", saved, "model", selectedModel)
+			h.metrics.RecordImageCompression(selectedModel, orig, saved, n)
 			// Re-marshal body only when compression modified the payload
 			var marshalErr error
 			body, marshalErr = json.Marshal(payload)
@@ -1890,7 +1891,7 @@ func analyzeImagePayload(payload map[string]any) (totalBytes int, imageCount int
 // compressThreshold bytes of raw base64 data. Uses bimg (libvips) for high-quality
 // resize and WebP re-encoding. Compresses all images above threshold regardless
 // of whether the result is smaller.
-func compressLargeImages(payload map[string]any, compressThreshold int, maxDimension int, quality int) (compressed int, savedBytes int) {
+func compressLargeImages(payload map[string]any, compressThreshold int, maxDimension int, quality int) (compressed int, savedBytes int, originalBytes int) {
 	const maxDimensionDefault = 1024
 	if maxDimension <= 0 {
 		maxDimension = maxDimensionDefault
@@ -1901,7 +1902,7 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 
 	msgs, ok := payload["messages"].([]any)
 	if !ok {
-		return 0, 0
+		return 0, 0, 0
 	}
 	for _, msg := range msgs {
 		m, ok := msg.(map[string]any)
@@ -1962,6 +1963,7 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			src["media_type"] = "image/webp"
 			compressed++
 			savedBytes += len(data) - len(newData)
+			originalBytes += len(data)
 			slog.Info("image compressed",
 				"original_bytes", len(data),
 				"compressed_bytes", len(newData),
@@ -1971,7 +1973,7 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			)
 		}
 	}
-	return compressed, savedBytes
+	return compressed, savedBytes, originalBytes
 }
 
 // selectVisionModel chooses the best vision model based on total image payload

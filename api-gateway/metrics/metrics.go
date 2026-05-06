@@ -62,6 +62,9 @@ type Metrics struct {
 	MCPCacheHits          *prometheus.CounterVec
 	MCPCacheMisses        *prometheus.CounterVec
 	MCPQuotaUsage         *prometheus.GaugeVec
+	ImageCompressions     *prometheus.CounterVec
+	ImageBytesSaved       *prometheus.CounterVec
+	ImageBytesOriginal    *prometheus.CounterVec
 	registry              *prometheus.Registry
 	queueDepthFn          func() float64
 	pricing               map[string]modelPrice
@@ -249,11 +252,11 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Buckets:   []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
 		}, []string{"technique"}),
 
-	OptimizerTokensSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: namespace,
-		Name:      "optimizer_tokens_saved_total",
-		Help:      "Total estimated tokens saved by optimization.",
-	}, []string{"direction"}),
+		OptimizerTokensSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "optimizer_tokens_saved_total",
+			Help:      "Total estimated tokens saved by optimization.",
+		}, []string{"direction"}),
 
 		ProfileOptimizerSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -310,6 +313,24 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "mcp_quota_usage",
 			Help:      "Current MCP call count in the rate-limit window by account.",
 		}, []string{"account_id"}),
+
+		ImageCompressions: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "image_compressions_total",
+			Help:      "Number of images compressed via bimg/libvips.",
+		}, []string{"model"}),
+
+		ImageBytesSaved: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "image_bytes_saved_total",
+			Help:      "Bytes saved by image compression.",
+		}, []string{"model"}),
+
+		ImageBytesOriginal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "image_bytes_original_total",
+			Help:      "Original bytes of images before compression.",
+		}, []string{"model"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -357,9 +378,19 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.MCPCacheHits,
 		m.MCPCacheMisses,
 		m.MCPQuotaUsage,
+		m.ImageCompressions,
+		m.ImageBytesSaved,
+		m.ImageBytesOriginal,
 	)
 
 	return m
+}
+
+// RecordImageCompression records image compression metrics.
+func (m *Metrics) RecordImageCompression(model string, originalBytes, savedBytes int, count int) {
+	m.ImageCompressions.WithLabelValues(model).Add(float64(count))
+	m.ImageBytesSaved.WithLabelValues(model).Add(float64(savedBytes))
+	m.ImageBytesOriginal.WithLabelValues(model).Add(float64(originalBytes))
 }
 
 // RecordOptimization records characters saved and run count for an optimization technique.
@@ -374,7 +405,6 @@ func (m *Metrics) RecordOptimization(technique string, charsSaved int, direction
 func (m *Metrics) RecordOptimizationDuration(technique string, seconds float64) {
 	m.OptimizerDuration.WithLabelValues(technique).Observe(seconds)
 }
-
 
 // RecordTokensSaved records total estimated tokens saved with direction label (input/output).
 func (m *Metrics) RecordTokensSaved(tokens int, direction string) {
