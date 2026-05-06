@@ -888,21 +888,21 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if decision != nil && decision.ProviderID == "zai" {
 			const (
 				imgCompressThreshold = 1 // compress all images
-				imgMaxDimension      = 1024
-				imgJPEGQuality       = 85
+				imgMaxDimension      = 1600
+				imgJPEGQuality       = 75
 			)
-		if n, saved, orig := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
-			slog.Info("large images compressed", "count", n, "bytes_saved", saved, "model", selectedModel)
-			h.metrics.RecordImageCompression(selectedModel, orig, saved, n)
-			// Re-marshal body only when compression modified the payload
-			var marshalErr error
-			body, marshalErr = json.Marshal(payload)
-			if marshalErr != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-				return
+			if n, saved, orig := compressLargeImages(payload, imgCompressThreshold, imgMaxDimension, imgJPEGQuality); n > 0 {
+				slog.Info("large images compressed", "count", n, "bytes_saved", saved, "model", selectedModel)
+				h.metrics.RecordImageCompression(selectedModel, orig, saved, n)
+				// Re-marshal body only when compression modified the payload
+				var marshalErr error
+				body, marshalErr = json.Marshal(payload)
+				if marshalErr != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+					return
+				}
 			}
 		}
-	}
 	}
 
 	// Re-encode payload after modifications.
@@ -1327,7 +1327,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				h.metrics.IncError("upstream")
 				writeJSON(w, http.StatusBadGateway, map[string]string{"error": "zai anthropic vision proxy error: " + err.Error()})
 			}
-	} else {
+		} else {
 			slog.Info("vision via zai openai endpoint", "model", selectedModel, "apiKey_len", len(apiKey), "body_len", len(body))
 			if err := h.openaiProxy.ProxyOpenAI(w, r, h.cfg.ZAIOpenAIURL, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, 0, ""); err != nil {
 				slog.Error("zai openai vision proxy error", "error", err, "model", selectedModel)
@@ -1949,10 +1949,20 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			origW := meta.Size.Width
 			origH := meta.Size.Height
 
-			newImage, err := img.Process(bimg.Options{
+			opts := bimg.Options{
 				Quality: quality,
 				Type:    bimg.JPEG,
-			})
+			}
+			if origW > maxDimension || origH > maxDimension {
+				opts.Width = maxDimension
+				opts.Height = int(float64(origH) * float64(maxDimension) / float64(origW))
+				if opts.Height > maxDimension {
+					opts.Width = int(float64(origW) * float64(maxDimension) / float64(origH))
+					opts.Height = maxDimension
+				}
+			}
+
+			newImage, err := img.Process(opts)
 			if err != nil {
 				slog.Debug("bimg process failed, skip", "error", err)
 				continue
@@ -1972,12 +1982,16 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 			compressed++
 			savedBytes += len(data) - len(newData)
 			originalBytes += len(data)
+			newW, newH := origW, origH
+			if opts.Width > 0 {
+				newW, newH = opts.Width, opts.Height
+			}
 			slog.Info("image compressed",
 				"original_bytes", len(data),
 				"compressed_bytes", len(newData),
 				"saved", len(data)-len(newData),
 				"original_size", fmt.Sprintf("%dx%d", origW, origH),
-				"new_size", fmt.Sprintf("%dx%d", origW, origH),
+				"new_size", fmt.Sprintf("%dx%d", newW, newH),
 			)
 		}
 	}
@@ -1989,9 +2003,9 @@ func compressLargeImages(payload map[string]any, compressThreshold int, maxDimen
 //
 //	score = totalBase64KB + (imageCount * 300)
 //
-// glm-5.1 is the default for vision payloads (best quality, higher max_tokens).
+// glm-4.6v is the default for vision payloads (best accuracy per POC testing).
 func selectVisionModel(totalBytes int, imageCount int) string {
-	return "glm-5.1"
+	return "glm-4.6v"
 }
 
 // isNativeImageModel returns true if the model natively supports image input

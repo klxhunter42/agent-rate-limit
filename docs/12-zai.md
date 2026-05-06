@@ -90,34 +90,24 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 - `filterUnsupportedContent` was written only for Zhipu native (`open.bigmodel.cn`)
 - After migrating to api.z.ai (Anthropic-compatible), no format conversion needed because client already sends Anthropic format
 
-## Image Compression: WebP Bug Fix
+## Image Compression: Evolution
 
-### Problem
+### Phase 1: WebP Bug Fix
 
-Image responses from GLM models were incorrect (hallucinated content). Root cause: gateway compressed images to WebP format (`bimg.WEBP`) but Zhipu GLM models cannot interpret WebP data, resulting in the model hallucinating about image content.
+Initial compression used WebP (`bimg.WEBP`) which caused hallucinated image descriptions. Changed to JPEG with size guard to prevent Prometheus counter panic.
 
-### Symptoms
+### Phase 2: POC-Optimized Settings
 
-- Model describes image content that doesn't match the actual image
-- Model may return image URL instead of analyzing content
-- Affects all image types (PNG, JPEG) after WebP re-encoding
+Comprehensive POC testing (60+ combinations) with real photos revealed optimal settings:
 
-### Fix
+| Config | Before | After (POC-validated) |
+|---|---|---|
+| Format | JPEG | JPEG (no change) |
+| Quality | 85 | **75** (better accuracy, smaller size) |
+| Max dimension | unused | **1600px** (resize wired up) |
+| Default vision model | glm-5.1 | **glm-4.6v** (90% accuracy on real photos) |
 
-Changed compression output from `bimg.WEBP` to `bimg.JPEG` with a size guard:
-
-```go
-// Before: WebP (GLM can't read)
-newImage, err := img.Process(bimg.Options{Quality: quality, Type: bimg.WEBP})
-src["media_type"] = "image/webp"
-
-// After: JPEG (universal compatibility) + size guard
-newImage, err := img.Process(bimg.Options{Quality: quality, Type: bimg.JPEG})
-if len(newData) >= len(data) { continue }  // skip if compression increased size
-src["media_type"] = "image/jpeg"
-```
-
-Also fixed: Prometheus `counter cannot decrease` panic when JPEG compression produced larger output than input (savedBytes < 0). The size guard ensures `RecordImageCompression` is only called with positive saved values.
+POC results showed counter-intuitive finding: JPEG q75 outperforms q85 for accuracy. glm-4.6v scored 90% vs glm-5.1 at 80% on the same image.
 
 ### Files Changed
 

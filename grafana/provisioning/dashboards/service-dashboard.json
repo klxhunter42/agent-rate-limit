@@ -133,7 +133,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "USD",
-          "decimals": 2,
+          "decimals": 4,
           "color": {
             "mode": "thresholds"
           },
@@ -193,7 +193,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "USD",
-          "decimals": 2,
+          "decimals": 6,
           "color": {
             "mode": "thresholds"
           },
@@ -491,7 +491,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__interval]))) or on() vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_cost_total{model!=\"glm-5.1\"}[$__interval]))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -549,7 +549,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval]))) or on() vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_token_input_total{model!=\"glm-5.1\"}[$__interval]))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -617,7 +617,7 @@
       },
       "targets": [
         {
-          "expr": "(sort_desc(topk(10, sum by (model) (increase(api_gateway_token_input_total[$__range])) + sum by (model) (increase(api_gateway_token_output_total[$__range]))))) or on() vector(0)",
+          "expr": "sort_desc(topk(10, sum by (model) (increase(api_gateway_token_input_total{model!=\"glm-5.1\"}[$__range])) + sum by (model) (increase(api_gateway_token_output_total{model!=\"glm-5.1\"}[$__range]))))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -672,9 +672,10 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sort_desc(topk(10, sum by (profile) (increase(api_gateway_profile_requests_total[$__range]))))) or on() vector(0)",
+          "expr": "(sort_desc(topk(10, sum by (profile) (increase(api_gateway_profile_token_input_total[$__range])) + sum by (profile) (increase(api_gateway_profile_token_output_total[$__range]))))) or on() vector(0)",
           "legendFormat": "{{profile}}",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "fieldConfig": {
@@ -704,7 +705,7 @@
       "showPoints": "never",
       "spanNulls": true,
       "lineWidth": 2,
-      "description": "Top 10 profiles by request count. Only populated when profile routing is enabled (non-GLM mode)."
+      "description": "Top 10 profiles by total token usage (input + output) over the selected period. Only populated when profile routing is enabled (non-GLM mode)."
     },
     {
       "type": "piechart",
@@ -718,7 +719,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__range]))) or on() vector(0)",
+          "expr": "sum by (model) (increase(api_gateway_cost_total{model!=\"glm-5.1\"}[$__range]))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -839,7 +840,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_cost_savings_total[$__interval])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_cost_savings_total[$__interval]))",
           "legendFormat": "cost savings ($/s)",
           "refId": "A"
         }

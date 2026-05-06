@@ -122,16 +122,25 @@ Gateway compresses base64 images before forwarding to reduce bandwidth and laten
 
 | Setting | Value | Notes |
 |---|---|---|
-| Format | JPEG (quality 85) | WebP not supported by Zhipu GLM models |
-| Max dimension | 1024px | Resize if width or height exceeds |
+| Format | JPEG (quality 75) | Best accuracy per POC testing |
+| Max dimension | 1600px | Resize if width or height exceeds |
 | Threshold | 1 byte | Compress all images |
 | Size guard | Skip if compressed >= original | Keeps original when compression inflates |
 
+**POC Results (real photo, 20 keywords):**
+
+| Model | Format | Quality | Dim | Accuracy |
+|---|---|---|---|---|
+| glm-4.6v | JPEG | 75 | 1600 | **90%** |
+| glm-5.1 | WebP | 75 | 1600 | 85% |
+| glm-4.5v | JPEG | 75 | 1600 | 85% |
+
 **Compression pipeline:**
 1. Decode base64 image data
-2. Re-encode as JPEG at quality 85 via bimg/libvips
-3. If compressed base64 < original base64: replace payload, update `media_type` to `image/jpeg`
-4. If compressed base64 >= original: keep original format, skip
+2. If width or height > 1600px: resize to fit within 1600px
+3. Re-encode as JPEG at quality 75 via bimg/libvips
+4. If compressed base64 < original base64: replace payload, update `media_type` to `image/jpeg`
+5. If compressed base64 >= original: keep original format, skip
 
 **Prometheus metrics:**
 ```
@@ -146,7 +155,6 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 |---|---|
 | Privacy pipeline skipped | Vision path does not go through privacy masking |
 | tool_use on vision stripped | `server_tool_use`, `tool_use`, `tool_result` content blocks are filtered before sending (Z.AI doesn't support them) |
-| WebP not supported | Zhipu GLM models cannot interpret WebP images; gateway converts to JPEG |
 
 > **Note**: Error 1210 ("API parameter error") that previously occurred from sending `system` role and Anthropic-specific content blocks has been fixed (commit 7c08cb0) -- gateway now auto-filters roles and content types.
 
