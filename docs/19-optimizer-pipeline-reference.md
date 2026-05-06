@@ -1,7 +1,7 @@
 # Token Optimization Pipeline - Complete Reference
 
-Date: 2026-05-06
-Scope: All 14 optimizer stages in the API gateway pipeline
+Date: 2026-05-06 | Last load test: 2026-05-06 (10 requests, localhost, DEBUG=true)
+Scope: All 17 optimizer stages in the API gateway pipeline
 
 ---
 
@@ -152,6 +152,59 @@ Request → Handler.HandleMessages()
 - **Metrics**: `api_gateway_optimizer_chars_saved_total{technique="message_text"}`, `{technique="message_textcomp"}`
 - **Estimated savings**: 3-8% on message content
 
+
+### F18: ToolComp (`toolcomp/`)
+
+- **Saves**: INPUT tokens (tool_result blocks)
+- **Activates**: Always if enabled
+- **Config**:
+  - `TOOLCOMP_ENABLED` (default: true)
+  - `TOOLCOMP_MAX_LINES` (default: 50)
+- **Algorithm**: Format-aware compression for `tool_result` content blocks. Detects format (JSON, ShellLs, Table, Diff, Log, Prose) and applies format-specific compression: JSON compact, ls head+tail+summary, table strip separators, diff keep changes only, log dedup consecutive lines. Skips if input < 256 bytes or output would be larger.
+- **Metrics**: `api_gateway_optimizer_chars_saved_total{technique="toolcomp"}`
+- **Estimated savings**: 40-80% on tool_result blocks (shell output, JSON responses)
+- **Load test result**: 115 chars saved on shell ls output (1 run, 6 tool_result blocks processed)
+
+### F19: ToolFilter (`toolfilter/`)
+
+- **Saves**: INPUT tokens (tool manifest in request)
+- **Activates**: When tools array > MaxTools (default: 15)
+- **Config**:
+  - `TOOLFILTER_ENABLED` (default: true)
+  - `TOOLFILTER_MAX_TOOLS` (default: 15)
+  - `TOOLFILTER_ALWAYS_KEEP` (default: "Read,Edit,Write,Bash")
+- **Algorithm**: Intent-based scoring classifies user message (code/search/analysis/action), scores each tool by intent match + keyword overlap + description length, keeps top-K + always-keep list.
+- **Metrics**: (internal scoring, no separate Prometheus metric yet)
+- **Estimated savings**: 3000-6000 tokens/request on tool-heavy MCP sessions (8000+ token manifests)
+
+### F20: CompCache (`compcache/`)
+
+- **Saves**: Redis memory (indirect token savings via lower cache pressure)
+- **Activates**: Always if enabled (transparent wrapper around Redis)
+- **Config**:
+  - `COMPCACHE_ENABLED` (default: true)
+  - `COMPCACHE_MIN_SIZE` (default: 512 bytes)
+  - `COMPCACHE_LEVEL` (default: 3, zstd level 1-22)
+- **Algorithm**: Zstd compression wrapper around `redis.Client`. `CompressedSet` compresses values > 512 bytes with `zstd:` prefix. `CompressedGet` detects prefix, decompresses, backward compatible with raw values. Uses `klauspost/compress/zstd` from existing vendor.
+- **Metrics**: `CompressionRatio()` method for monitoring
+- **Estimated savings**: 60-80% Redis memory for cached optimizer values
+
+### TextRank Summarization (`summarizer/textrank.go`)
+
+- **Saves**: INPUT tokens (upgrades summarizer stage)
+- **Activates**: Red budget only, when `SUMMARIZER_METHOD=textrank` (default)
+- **Algorithm**: PageRank-style sentence scoring. Splits text into sentences, builds Jaccard similarity graph, runs 10 iterations with damping=0.85. Selects top-N sentences within MaxRatio budget, preserves original order. Falls back to first-sentence method when < 3 sentences.
+- **Metrics**: `api_gateway_optimizer_chars_saved_total{technique="summarizer"}` (same label, method in config)
+- **Expected improvement**: 10-30% better summary quality vs first-sentence at same token budget
+
+### Budget-Aware Disclosure (`disclosure/`)
+
+- **Saves**: INPUT tokens (tool_result blocks during high budget usage)
+- **Activates**: Yellow/Red budget levels
+- **Config**: Reuses existing `DISCLOSURE_L1_TOKENS`, `DISCLOSURE_L2_TOKENS`
+- **Algorithm**: `BudgetAwareEscalate(ctx, content, budgetLevel)` - Green: pass through. Yellow: truncate to L2Tokens*8 chars for content > 2000. Red: truncate to L1Tokens*4 for > 1000 chars, L2Tokens*6 for 500-1000.
+- **Metrics**: Internal, no separate Prometheus metric
+- **Estimated savings**: 50-70% on large tool_result blocks during yellow/red budget
 ### F4: Prefetcher (`prefetcher/`)
 
 - **Saves**: Indirect (latency reduction)
@@ -226,6 +279,9 @@ Request → Handler.HandleMessages()
 | caveman | Y | - | - | - | Y* |
 | whitespace+dedup | - | Y | Y | - | - |
 | message_textcomp | - | Y | - | - | - |
+| toolcomp | - | - | Y | - | - |
+| toolfilter | - | - | - | - | - |
+| compcache | - | - | - | - | - |
 
 *Y* = caveman injects style into system prompt to affect output, does not modify response directly
 
@@ -235,9 +291,9 @@ Request → Handler.HandleMessages()
 
 | Category | Stages | Mechanism |
 |----------|--------|-----------|
-| **Input savings** | semantic_dedup, chunker, delta, sketch, summarizer, textcomp, message ws+dedup, message_textcomp | Compress or truncate content before sending to provider |
+| **Input savings** | semantic_dedup, chunker, delta, sketch, summarizer, textcomp, message ws+dedup, message_textcomp, toolcomp, toolfilter | Compress or truncate content before sending to provider |
 | **Output savings** | caveman, intent_filter | Style injection or response filtering after receiving from provider |
-| **Indirect/meta** | prefetcher, bandit, waste, cache eviction, warmstart, packer | Improve other stages' effectiveness or reduce latency |
+| **Indirect/meta** | prefetcher, bandit, waste, cache eviction, warmstart, packer, compcache | Improve other stages' effectiveness, reduce cache memory |
 
 ---
 
@@ -254,6 +310,9 @@ Request → Handler.HandleMessages()
 | textcomp | 5-15% | - | 5-15% chars | always |
 | caveman | - | 30-75% | 30-75% output | all tiers |
 | message ws+dedup | 3-8% | - | 3-8% chars | always |
+| toolcomp | 40-80% | - | 40-80% tool_result | always |
+| toolfilter | 3000-6000 tok | - | 60-80% manifest | >15 tools |
+| compcache | indirect | - | 60-80% Redis mem | always |
 
 **Note**: Savings are cumulative but not additive - stages operate on the output of previous stages.
 
@@ -300,6 +359,14 @@ Request → Handler.HandleMessages()
 | `DISCLOSURE_ENABLED` | true | F15 |
 | `DISCLOSURE_L1_TOKENS` | 15 | F15 |
 | `DISCLOSURE_L2_TOKENS` | 60 | F15 |
+| `TOOLCOMP_ENABLED` | true | F18 |
+| `TOOLCOMP_MAX_LINES` | 50 | F18 |
+| `TOOLFILTER_ENABLED` | true | F19 |
+| `TOOLFILTER_MAX_TOOLS` | 15 | F19 |
+| `TOOLFILTER_ALWAYS_KEEP` | Read,Edit,Write,Bash | F19 |
+| `COMPCACHE_ENABLED` | true | F20 |
+| `COMPCACHE_MIN_SIZE` | 512 | F20 |
+| `COMPCACHE_LEVEL` | 3 | F20 |
 
 ---
 
@@ -309,11 +376,11 @@ Techniques from 7 improvement repos (`improvements/`) not yet in the gateway:
 
 | Technique | Source | Impact | Feasibility | Status |
 |-----------|--------|--------|-------------|--------|
-| TextRank summarization | token-reducer | High | High | Planned |
-| Tool result format compression | context-mode, trs | High | High | Planned |
-| Budget-aware progressive disclosure | token-savior | Medium | High | Planned |
-| Tool manifest filtering | token-savior (ts_search) | Very High | Medium | Planned |
-| Brotli Redis cache compression | token-optimizer-mcp | Medium | High | Planned |
+| TextRank summarization | token-reducer | High | High | **Implemented** (`summarizer/`, `SUMMARIZER_METHOD=textrank`) |
+| Tool result format compression | context-mode, trs | High | High | **Implemented** (`toolcomp/`, `TOOLCOMP_ENABLED=true`) |
+| Budget-aware progressive disclosure | token-savior | Medium | High | **Implemented** (`disclosure/`, `BudgetAwareEscalate`) |
+| Tool manifest filtering | token-savior (ts_search) | Very High | Medium | **Implemented** (`toolfilter/`, `TOOLFILTER_ENABLED=true`) |
+| Zstd Redis cache compression | token-optimizer-mcp | Medium | High | **Implemented** (`compcache/`, `COMPCACHE_ENABLED=true`) |
 | AST code graph navigation | code-review-graph, token-savior | Very High | Low (requires MCP) | Future |
 | Persistent memory engine | token-savior | High | Low (requires MCP) | Future |
 | BM25+vector hybrid search | token-reducer, token-savior | High | Low (requires embeddings) | Future |
@@ -342,3 +409,38 @@ sum by (detector, severity) (rate(api_gateway_waste_findings_total[5m]))
 ```
 
 To disable mock data: remove the `go seedOptimizers()` call in `metrics/metrics.go` or gate behind `SEED_MOCK_DATA=false`.
+
+
+---
+
+## Load Test Results (2026-05-06)
+
+**Setup**: 10 requests, localhost, `DEBUG=true`, Redis on localhost:6379, model `glm-4.7-flashx`
+
+### Per-Technique Chars Saved
+
+| Technique | Chars Saved | Runs | Avg/Run |
+|-----------|-------------|------|---------|
+| sketch_dedup | 7,128 | 9 | 792 |
+| message_block_tool_result | 140 | 6 | 23 |
+| toolcomp | 115 | 1 | 115 |
+| semantic_dedup | 43 | 11 | 4 |
+| textcomp | 26 | 2 | 13 |
+| message_block_text | 20 | 2 | 10 |
+| message_text | 20 | 1 | 20 |
+
+### Total
+
+- INPUT chars saved: **7,492** across 11 requests
+- Estimated tokens saved: ~1,873 (chars / 4)
+- Cost savings: $0.000005 (at $3/M tokens)
+- All optimization ran in < 5ms total per request
+
+### Notes
+
+- sketch_dedup dominates because repeated system prompts across requests trigger near-duplicate detection
+- toolcomp saved 115 chars on shell ls output (removed headers, kept first 5 + last 2 entries)
+- Budget level was always 0 (green) because test payloads were small vs 128K context window
+- Summarizer only activates on red budget (budgetLevel >= 2), not triggered in this test
+- ToolFilter only fires when tools array has > 15 entries, not triggered with 0-2 tools per request
+- Post-proxy feedback (bandit, waste, cache) did not fire because upstream proxy timed out before completing
