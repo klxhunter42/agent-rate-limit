@@ -54,6 +54,7 @@
     {
       "type": "stat",
       "title": "Total Input Units",
+      "description": "Sum of all input tokens consumed across models and providers over the selected time range. Unit: tokens.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -107,6 +108,7 @@
     {
       "type": "stat",
       "title": "Total Output Units",
+      "description": "Sum of all output tokens generated across models and providers over the selected time range. Unit: tokens.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -160,6 +162,7 @@
     {
       "type": "stat",
       "title": "Total Requests",
+      "description": "Total number of API requests processed over the selected time range. Unit: count.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -193,6 +196,7 @@
     {
       "type": "stat",
       "title": "Total Cost (USD)",
+      "description": "Estimated total cost from api_gateway_cost_total (input + output) over the selected time range. Unit: USD.",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -237,6 +241,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Model",
+      "description": "Cumulative input tokens stacked by model over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -261,7 +266,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -282,12 +287,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "timeseries",
       "title": "Output Units by Model",
+      "description": "Cumulative output tokens stacked by model over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -312,7 +318,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -333,12 +339,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "table",
       "title": "API Usage by Model (Accumulated)",
+      "description": "Instant table showing total input and output tokens per model over the selected time range. Unit: tokens.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -411,6 +418,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Profile",
+      "description": "Cumulative input tokens stacked by profile over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -435,7 +443,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -456,12 +464,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "timeseries",
       "title": "Output Units by Profile",
+      "description": "Cumulative output tokens stacked by profile over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -486,7 +495,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -507,12 +516,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "table",
       "title": "API Usage by Profile + Model",
+      "description": "Instant table showing total input and output tokens per profile and model combination. Unit: tokens.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -577,6 +587,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Account",
+      "description": "Cumulative input tokens stacked by account ID over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -601,7 +612,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -622,12 +633,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "timeseries",
       "title": "Output Units by Account",
+      "description": "Cumulative output tokens stacked by account ID over time. Unit: tokens per interval.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -652,7 +664,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -673,12 +685,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "table",
       "title": "API Usage by Account + Model",
+      "description": "Instant table showing total input and output tokens per account and model combination. Unit: tokens.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -743,6 +756,7 @@
     {
       "type": "timeseries",
       "title": "Input Unit Rate by Model",
+      "description": "Input token consumption rate (tokens/sec) broken down by model.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -751,7 +765,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval])))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval])))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -764,7 +778,7 @@
           "unit": "cps",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -785,12 +799,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "timeseries",
       "title": "Output Unit Rate by Model",
+      "description": "Output token generation rate (tokens/sec) broken down by model.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -799,7 +814,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval])))",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__interval])))",
           "legendFormat": "{{model}}",
           "datasource": {
             "type": "prometheus",
@@ -812,7 +827,7 @@
           "unit": "cps",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -833,12 +848,13 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "type": "timeseries",
       "title": "API Unit Rate by Account",
+      "description": "Token throughput rate per account. Input and output tokens/sec broken down by account_id. Unit: tokens/s.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -847,7 +863,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (account_id) (rate(api_gateway_account_token_input_total[$__interval])))",
+          "expr": "(sum by (account_id) (increase(api_gateway_account_token_input_total[$__interval])))",
           "legendFormat": "{{account_id}} in",
           "datasource": {
             "type": "prometheus",
@@ -855,7 +871,7 @@
           }
         },
         {
-          "expr": "(sum by (account_id) (rate(api_gateway_account_token_output_total[$__interval])))",
+          "expr": "(sum by (account_id) (increase(api_gateway_account_token_output_total[$__interval])))",
           "legendFormat": "{{account_id}} out",
           "datasource": {
             "type": "prometheus",
@@ -868,7 +884,7 @@
           "unit": "cps",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -889,7 +905,7 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     }
   ]

@@ -233,6 +233,7 @@
     },
     {
       "title": "Protection Activity",
+      "description": "Privacy filter throughput rate over time. Stacked series show total requests, requests with secrets, and requests with PII. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -255,7 +256,7 @@
             "fillOpacity": 30,
             "gradientMode": "scheme",
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal"
             },
@@ -326,27 +327,28 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_mask_requests_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total[$__interval]))) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         },
         {
-          "expr": "(sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "Secrets Found",
           "refId": "B"
         },
         {
-          "expr": "(sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "PII Found",
           "refId": "C"
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Detection Rate by Type",
+      "description": "PII detection rate broken down by entity type (EMAIL_ADDRESS, PHONE_NUMBER, etc.). Stacked area from api_gateway_pii_detected_total. Unit: detections/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -368,7 +370,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 40,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal"
             },
@@ -514,13 +516,13 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (rate(api_gateway_pii_detected_total[$__interval])))",
+          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__interval])))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -815,7 +817,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2
           },
           "unit": "s",
@@ -843,7 +845,7 @@
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -1015,6 +1017,7 @@
     },
     {
       "title": "Secrets Detection Trend",
+      "description": "Secrets detection rate over time. Rate of api_gateway_secrets_detected_total. Unit: detections/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 4,
@@ -1036,7 +1039,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 30,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal"
             },
@@ -1056,13 +1059,13 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_secrets_detected_total[$__interval])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_secrets_detected_total[$__interval])) or on() vector(0)",
           "legendFormat": "secrets/s",
           "refId": "A"
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -1078,6 +1081,7 @@
     },
     {
       "title": "Detection Summary",
+      "description": "PII detection counts grouped by entity type over the selected time range. From api_gateway_pii_detected_total. Unit: count.",
       "type": "table",
       "gridPos": {
         "h": 8,

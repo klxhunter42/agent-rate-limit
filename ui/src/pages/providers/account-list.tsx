@@ -12,6 +12,7 @@ interface AccountListProps {
   provider: string;
   accounts: AccountInfo[];
   ratelimits?: RateLimitStatus[];
+  disabled?: boolean;
   onRemove: (id: string) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
@@ -36,6 +37,7 @@ export function AccountList({
   provider,
   accounts,
   ratelimits,
+  disabled,
   onPause,
   onResume,
   onSetDefault,
@@ -139,9 +141,11 @@ export function AccountList({
           {/* Default star */}
           <button
             onClick={() => onSetDefault(acct.id)}
+            disabled={disabled}
             className={cn(
               'shrink-0 p-1 rounded hover:bg-muted transition-colors',
               acct.isDefault ? 'text-amber-500' : 'text-muted-foreground/30 hover:text-muted-foreground',
+              disabled && 'pointer-events-none opacity-50',
             )}
             title={acct.isDefault ? 'Default account' : 'Set as default'}
           >
@@ -151,11 +155,11 @@ export function AccountList({
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
             {acct.paused ? (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onResume(acct.id)} title="Resume">
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={disabled} onClick={() => onResume(acct.id)} title="Resume">
                 <Play className="h-3.5 w-3.5" />
               </Button>
             ) : (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onPause(acct.id)} title="Pause">
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={disabled} onClick={() => onPause(acct.id)} title="Pause">
                 <Pause className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -163,6 +167,7 @@ export function AccountList({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-destructive hover:text-destructive"
+              disabled={disabled}
               onClick={() => onRemove(acct.id)}
               title="Remove"
             >

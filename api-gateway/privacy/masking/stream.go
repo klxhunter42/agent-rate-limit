@@ -55,6 +55,11 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		processed, u.piiJSONBuffer = processStreamChunkJSON(u.piiJSONBuffer, processed, u.piiCtx)
 	}
+	// Same undefined fallback as ProcessChunk - GLM models may output "undefined"
+	// in JSON deltas (tool_use input) instead of preserving placeholders.
+	if strings.Contains(processed, "undefined") {
+		processed = u.replaceUndefinedFallback(processed)
+	}
 	return processed
 }
 
@@ -108,12 +113,8 @@ func (u *StreamUnmasker) Flush() string {
 		result += u.secretsCtx.RestorePlaceholdersJSON(u.secretsJSONBuffer)
 		u.secretsJSONBuffer = ""
 	}
-	jsonCombined := u.piiJSONBuffer
-	if result != "" {
-		jsonCombined = u.piiJSONBuffer // PII buffer is independent from text result
-	}
 	if u.piiCtx != nil && u.piiJSONBuffer != "" {
-		result += u.piiCtx.RestorePlaceholdersJSON(jsonCombined)
+		result += u.piiCtx.RestorePlaceholdersJSON(u.piiJSONBuffer)
 		u.piiJSONBuffer = ""
 	} else if u.piiJSONBuffer != "" {
 		result += u.piiJSONBuffer
@@ -158,10 +159,17 @@ func processStreamChunkJSON(buffer, chunk string, ctx *MaskContext) (output, rem
 // replaceUndefinedFallback replaces "undefined" strings with original values from
 // the mapping. Some models (e.g. GLM) output "undefined" instead of preserving
 // [[TYPE_N]] placeholders. This is a best-effort fallback to recover the original text.
+//
+// Handles two GLM failure modes:
+//  1. Model outputs "undefined" instead of placeholder -> replace with original
+//  2. Model outputs both placeholder AND "undefined" (e.g. "192.168.5.111 undefined")
+//     -> dedup by removing the trailing "undefined"
 func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 	if u.fallbackOriginals == nil {
 		u.fallbackOriginals = u.collectFallbackOriginals()
 	}
+
+	// Phase 1: Replace "undefined" with originals (budget-limited by available originals).
 	for u.fallbackConsumedIdx < len(u.fallbackOriginals) {
 		if !strings.Contains(text, "undefined") {
 			break
@@ -169,6 +177,34 @@ func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 		orig := u.fallbackOriginals[u.fallbackConsumedIdx]
 		u.fallbackConsumedIdx++
 		text = strings.Replace(text, "undefined", orig, 1)
+	}
+
+	// Phase 2: Remove leftover "undefined" that appear adjacent to an already-restored
+	// original value. Pattern: "<original> undefined" -> "<original>"
+	// This handles the case where GLM outputs the real value AND "undefined" together.
+	text = u.dedupAdjacentUndefined(text)
+
+	return text
+}
+
+// dedupAdjacentUndefined removes "undefined" that appears right after a restored
+// original value. Example: "192.168.5.111 undefined" -> "192.168.5.111"
+// Uses word-boundary check to avoid false positives inside other words.
+func (u *StreamUnmasker) dedupAdjacentUndefined(text string) string {
+	if len(u.fallbackOriginals) == 0 {
+		return text
+	}
+	for _, orig := range u.fallbackOriginals {
+		// Match "<original> undefined" with a space separator
+		pattern := orig + " undefined"
+		for strings.Contains(text, pattern) {
+			text = strings.Replace(text, pattern, orig, 1)
+		}
+		// Match "undefined <original>" with a space separator
+		pattern = "undefined " + orig
+		for strings.Contains(text, pattern) {
+			text = strings.Replace(text, pattern, orig, 1)
+		}
 	}
 	return text
 }

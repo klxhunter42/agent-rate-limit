@@ -597,7 +597,7 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 					// Arguments delta - unmask placeholders in tool call arguments
 					if args, _ := fn["arguments"].(string); args != "" && toolBlockOpen {
 						if unmasker != nil {
-							args = unmasker.ProcessChunk(args)
+							args = unmasker.ProcessChunkJSON(args)
 						}
 						escaped, _ := json.Marshal(args)
 						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))

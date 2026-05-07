@@ -123,6 +123,7 @@
     },
     {
       "title": "Cost Savings (USD)",
+      "description": "Estimated USD saved. tokens_saved x blended_rate. blended_rate = cost_input / token_input (weighted avg $/token).",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -174,6 +175,7 @@
     },
     {
       "title": "Optimization Runs",
+      "description": "Total optimizer pipeline invocations. Each API request triggers one run.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -212,6 +214,7 @@
     },
     {
       "title": "Optimization Efficiency",
+      "description": "Savings percentage = tokens_saved / tokens_sent x 100. Higher = more input tokens reduced.",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -265,6 +268,7 @@
     },
     {
       "title": "Avg Duration (ms)",
+      "description": "Average chunker reorder latency per optimization run.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -313,7 +317,8 @@
       "collapsed": false
     },
     {
-      "title": "Units Saved Over Time",
+      "title": "Tokens Saved Over Time",
+      "description": "Token savings rate (tokens/sec) stacked by technique. sketch_dedup usually dominates.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -327,24 +332,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval]))",
-          "legendFormat": "chunker",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4",
+          "legendFormat": "{{technique}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval]))",
-          "legendFormat": "delta",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval]))",
-          "legendFormat": "disclosure",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval]))",
-          "legendFormat": "sketch",
-          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -357,7 +347,7 @@
             "gradientMode": "scheme",
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "mode": "normal"
             }
@@ -383,11 +373,12 @@
         ]
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Cost Savings Over Time",
+      "description": "USD savings rate over time. tokens_saved x blended_rate in rate form.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -417,7 +408,7 @@
             "gradientMode": "scheme",
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "lineWidth": 2
         },
@@ -440,7 +431,7 @@
         ]
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -455,7 +446,8 @@
       "collapsed": false
     },
     {
-      "title": "Chars Saved by Technique",
+      "title": "Tokens Saved by Technique",
+      "description": "Cumulative tokens saved per technique over the selected range. Stacked timeseries. sketch_dedup usually dominates.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -469,7 +461,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range]))))",
+          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))) / 4)",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -483,7 +475,7 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -502,11 +494,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
-      "title": "Savings by Technique",
+      "title": "Token Savings Breakdown",
+      "description": "Token savings per technique excluding sketch_dedup. Shows non-dominant techniques' relative contribution. Unit: tokens (chars/4). For run count see Runs by Technique.",
       "type": "barchart",
       "datasource": {
         "type": "prometheus",
@@ -520,7 +513,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "instant": true,
           "format": "table"
@@ -544,6 +537,7 @@
     },
     {
       "title": "Runs by Technique",
+      "description": "Optimization invocation rate per technique. Shows how often each technique is applied, not savings volume.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -557,7 +551,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_runs_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -571,7 +565,7 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -581,7 +575,7 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -597,6 +591,7 @@
     },
     {
       "title": "Before vs After Optimization",
+      "description": "With = actual billed tokens (after optimizer). Without = estimated original tokens (before optimizer). Difference = tokens saved.",
       "type": "bargauge",
       "datasource": {
         "type": "prometheus",
@@ -677,6 +672,7 @@
     },
     {
       "title": "Optimization Rate Over Time",
+      "description": "Real-time savings percentage = tokens_saved / tokens_sent x 100 at each point.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -706,7 +702,7 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "lineWidth": 2
         },
@@ -729,11 +725,12 @@
         ]
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Optimizer Performance (P95)",
+      "description": "P95 latency of the waste scan component. Measures optimization overhead per request.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -763,7 +760,7 @@
           "custom": {
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "lineWidth": 2
         },
@@ -780,7 +777,7 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -796,6 +793,7 @@
     },
     {
       "title": "Technique Performance",
+      "description": "Per-technique breakdown: tokens saved (chars/4) and run count. Excludes sketch_dedup.",
       "type": "table",
       "datasource": {
         "type": "prometheus",
@@ -809,7 +807,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "refId": "A",
           "format": "table",
           "instant": true
@@ -840,7 +838,7 @@
               "__name__": true
             },
             "renameByName": {
-              "Value #A": "Chars Saved",
+              "Value #A": "Tokens Saved",
               "Value #B": "Runs",
               "Value #C": "Runs (total)"
             }
@@ -865,7 +863,7 @@
         "sortBy": [
           {
             "desc": true,
-            "displayName": "Chars Saved"
+            "displayName": "Tokens Saved"
           }
         ]
       }
@@ -933,6 +931,7 @@
     },
     {
       "title": "Waste Detection",
+      "description": "Rate of waste detection scans per second. Monitors waste detection component activity.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -946,7 +945,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_waste_findings_total[$__interval])) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_waste_findings_total[$__interval])) or on() vector(0)",
           "legendFormat": "scans/s",
           "refId": "A"
         }
@@ -960,7 +959,7 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -970,11 +969,12 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Wasted Units by Detector",
+      "description": "Tokens flagged as wasted by each detector type over the selected range.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -988,7 +988,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (detector) (increase(api_gateway_waste_tokens_wasted_total[$__range])) or on() vector(0)",
+          "expr": "sum by (detector) (increase(api_gateway_waste_tokens_wasted_total[$__interval])) or on() vector(0)",
           "legendFormat": "{{detector}}",
           "refId": "A"
         }
@@ -1002,7 +1002,7 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -1012,8 +1012,33 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
+    },
+    {
+      "title": "Reference",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Unit Conversion Reference",
+      "type": "text",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## Unit Conversion Reference\n\n| From | To | Formula |\n|------|----|----------|\n| Chars | Tokens | chars / 4 |\n| Tokens | Chars | tokens * 4 |\n| Tokens | Cost | tokens * blended_rate |\n\n**Key formulas:**\n- 1 token = 4 characters (heuristic)\n- blended_rate = cost_input / token_input (weighted avg $/token)\n- cost_savings = tokens_saved * blended_rate\n- without_opt = with_opt + tokens_saved\n- efficiency % = tokens_saved / with_opt * 100\n\n**Panel units:** tokens=token count (from chars / 4), cost=USD, runs=invocation count. All token/cost values are POST-optimization (billed amounts)."
+      }
     }
   ],
   "refresh": "30s",

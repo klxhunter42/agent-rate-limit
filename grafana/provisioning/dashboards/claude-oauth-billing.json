@@ -46,6 +46,7 @@
     },
     {
       "title": "Billing Path Distribution",
+      "description": "Request count per billing path (go_direct, sidecar, billing_rejected) over the selected range. Unit: request count.",
       "type": "piechart",
       "gridPos": {
         "h": 8,
@@ -248,6 +249,7 @@
     },
     {
       "title": "Request Rate by Billing Path",
+      "description": "Requests per second broken down by billing path. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -257,17 +259,17 @@
       },
       "targets": [
         {
-          "expr": "(sum by (path) (rate(api_gateway_billing_path_requests_total[$__interval])))",
+          "expr": "(sum by (path) (increase(api_gateway_billing_path_requests_total[$__interval])))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "none",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -427,11 +429,12 @@
         ]
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Billing Path Total (Last 1h)",
+      "description": "Total requests per billing path (Go Direct, Sidecar, Rejected) in the selected time window. Unit: count.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -611,6 +614,7 @@
     },
     {
       "title": "Go Direct Success Rate",
+      "description": "Percentage of requests routed via go_direct vs all billing paths. go_direct / (go_direct + sidecar + rejected) * 100. Unit: percent.",
       "type": "gauge",
       "gridPos": {
         "h": 4,
@@ -655,6 +659,7 @@
     },
     {
       "title": "Billing Path Latency",
+      "description": "Latency percentiles (p50, p95, p99) per billing path from api_gateway_billing_path_latency_seconds histogram. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -685,13 +690,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -707,6 +712,7 @@
     },
     {
       "title": "Requests by Profile & Model",
+      "description": "Request rate for go_direct billing path. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -716,17 +722,17 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "requests",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "none",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -734,11 +740,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "API Usage by Profile (OAuth)",
+      "description": "Input and output token rate per profile from api_gateway_profile_token_*_total. Unit: characters/s (cps).",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -748,12 +755,12 @@
       },
       "targets": [
         {
-          "expr": "(sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval])))",
+          "expr": "(sum by (profile) (increase(api_gateway_profile_token_input_total[$__interval])))",
           "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "(sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval])))",
+          "expr": "(sum by (profile) (increase(api_gateway_profile_token_output_total[$__interval])))",
           "legendFormat": "{{model}} out",
           "refId": "B"
         }
@@ -764,13 +771,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -786,6 +793,7 @@
     },
     {
       "title": "429 Rate Limit Hits",
+      "description": "Rate of upstream 429 (rate-limited) responses per second from api_gateway_upstream_429_total.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -795,7 +803,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "429/s",
           "refId": "A"
         }
@@ -804,7 +812,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 30,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -816,11 +824,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Upstream Retries",
+      "description": "Rate of upstream retry attempts per second from api_gateway_upstream_retries_total.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -830,7 +839,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
           "legendFormat": "retries/s",
           "refId": "A"
         }
@@ -839,7 +848,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 30,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -851,11 +860,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "TTFB by Model (Streaming)",
+      "description": "Time to first byte (p50, p95) per model from api_gateway_ttfb_seconds histogram. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -881,13 +891,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -903,6 +913,7 @@
     },
     {
       "title": "Profile Cost (USD)",
+      "description": "Estimated cost rate per profile and model from api_gateway_profile_cost_total, scaled to $/hr. Unit: USD.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -912,7 +923,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
+          "expr": "(sum by (profile, model) (increase(api_gateway_profile_cost_total[$__interval])))",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }
@@ -924,17 +935,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Cost by Model",
+      "description": "Estimated cost rate per profile and model from api_gateway_profile_cost_total, scaled to $/hr. Unit: USD.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -944,7 +956,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
+          "expr": "(sum by (profile, model) (increase(api_gateway_profile_cost_total[$__interval])))",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }
@@ -956,13 +968,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     }
   ],

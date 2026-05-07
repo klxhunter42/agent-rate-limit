@@ -864,7 +864,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 						continue
 					}
 					if unmasker != nil {
-						args = unmasker.ProcessChunk(args)
+						args = unmasker.ProcessChunkJSON(args)
 					}
 					if args != "" {
 						if !started {
@@ -2078,7 +2078,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						changed = evt.Delta.Thinking != before
 					} else if evt.Delta.PartialJSON != "" {
 						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
 						changed = evt.Delta.PartialJSON != before
 					}
 					if changed {

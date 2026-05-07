@@ -46,6 +46,7 @@
     },
     {
       "title": "Request Rate by Path",
+      "description": "Requests per second broken down by path, method, and status code. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -55,17 +56,17 @@
       },
       "targets": [
         {
-          "expr": "(sum by (path, method, status) (rate(api_gateway_request_latency_seconds_count[$__interval])))",
+          "expr": "(sum by (path, method, status) (increase(api_gateway_request_latency_seconds_count[$__interval])))",
           "legendFormat": "{{method}} {{path}} {{status}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "none",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -73,11 +74,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Latency Percentiles",
+      "description": "P50, P95, and P99 request latency from histogram_quantile of api_gateway_request_latency_seconds. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -108,17 +110,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Avg Latency by Path",
+      "description": "Average latency per path: rate(sum) / rate(count) of api_gateway_request_latency_seconds. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -139,17 +142,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Active Connections",
+      "description": "Current number of in-flight requests being processed by the gateway. Gauge: api_gateway_active_connections.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -168,7 +172,7 @@
         "defaults": {
           "custom": {
             "fillOpacity": 30,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -176,7 +180,7 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -192,6 +196,7 @@
     },
     {
       "title": "Input Units by Model",
+      "description": "Rate of input tokens per model from api_gateway_token_input_total. Unit: tokens/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -201,7 +206,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_token_input_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_token_input_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -212,17 +217,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Output Units by Model",
+      "description": "Rate of output tokens per model from api_gateway_token_output_total. Unit: tokens/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -232,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_token_output_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_token_output_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -243,13 +249,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -264,7 +270,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_upstream_429_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_upstream_429_total[$__interval]))) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         }
@@ -275,13 +281,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -297,6 +303,7 @@
     },
     {
       "title": "Concurrency Limit per Model",
+      "description": "Adaptive concurrency limit per model from api_gateway_adaptive_limit. Adjusts dynamically based on upstream error rate.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -315,7 +322,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2
           },
           "unit": "short",
@@ -343,11 +350,12 @@
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "In-Flight vs Limit per Model",
+      "description": "Compares current in-flight requests (solid) against the adaptive concurrency limit (dashed) per model.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -366,7 +374,7 @@
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2
           },
           "unit": "short",
@@ -419,7 +427,7 @@
         }
       ],
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -435,6 +443,7 @@
     },
     {
       "title": "Upstream 429s & Retries",
+      "description": "Rate of upstream 429 responses and retry attempts. Unit: ops/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -444,12 +453,12 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "B"
         }
@@ -460,17 +469,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Errors by Type",
+      "description": "Rate of upstream 429 errors by type label. Unit: ops/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -480,7 +490,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -491,17 +501,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Error Rate %",
+      "description": "Percentage of requests resulting in upstream 429 errors: upstream_429 rate / total request rate * 100. Unit: percent.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -522,17 +533,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Rate Limit Hits by Key",
+      "description": "Rate of upstream 429 responses grouped by rate limit key. Unit: ops/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -542,7 +554,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{key}}",
           "refId": "A"
         }
@@ -557,13 +569,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -578,7 +590,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_upstream_retries_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_upstream_retries_total[$__interval]))) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "A"
         }
@@ -589,17 +601,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Time to First Byte (TTFB)",
+      "description": "P50 and P95 time to first byte from upstream, via histogram_quantile of api_gateway_ttfb_seconds. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -625,17 +638,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Queue Depth",
+      "description": "Number of requests waiting in the gateway queue. Gauge: api_gateway_queue_depth. Yellow >50, red >200.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -674,13 +688,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -696,6 +710,7 @@
     },
     {
       "title": "Requests by Status",
+      "description": "Request rate by HTTP status code, excluding /health and /metrics. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -705,17 +720,17 @@
       },
       "targets": [
         {
-          "expr": "(sum by (status) (rate(api_gateway_request_latency_seconds_count{path!~\"/health|/metrics\"}[$__interval])))",
+          "expr": "(sum by (status) (increase(api_gateway_request_latency_seconds_count{path!~\"/health|/metrics\"}[$__interval])))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
+          "unit": "none",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -723,11 +738,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "API Units by Model",
+      "description": "Input and output token rate per model. Unit: tokens/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -737,12 +753,12 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval])))",
+          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval])))",
           "legendFormat": "{{model}} in",
           "refId": "A"
         },
         {
-          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval])))",
+          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__interval])))",
           "legendFormat": "{{model}} out",
           "refId": "B"
         }
@@ -753,17 +769,18 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Cost by Model",
+      "description": "Estimated cost rate per model from api_gateway_cost_total. Unit: USD/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -773,7 +790,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (rate(api_gateway_cost_total[$__interval])))",
+          "expr": "(sum by (model) (increase(api_gateway_cost_total[$__interval])))",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -784,13 +801,13 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never"
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
@@ -806,6 +823,7 @@
     },
     {
       "title": "Characters Saved by Technique",
+      "description": "Stacked rate of input characters saved per optimization technique. Unit: chars/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -815,17 +833,17 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
+          "expr": "sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "chars/s",
+          "unit": "none",
           "custom": {
             "fillOpacity": 30,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never",
             "stacking": {
@@ -836,11 +854,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Optimization Runs",
+      "description": "Optimizer run count per technique per interval. Unit: runs.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -850,17 +869,17 @@
       },
       "targets": [
         {
-          "expr": "(sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval])))",
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_runs_total[$__interval])))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops/s",
+          "unit": "none",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": true,
+            "spanNulls": false,
             "lineWidth": 2,
             "showPoints": "never"
           },
@@ -868,11 +887,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Total Characters Saved",
+      "description": "Total input characters saved by all optimizer techniques over the selected time range. Unit: chars.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -905,6 +925,7 @@
     },
     {
       "title": "Avg Savings Per Run",
+      "description": "Average characters saved per optimizer run: total chars saved / total runs. Unit: chars/run.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -937,6 +958,7 @@
     },
     {
       "title": "Input Tokens Total",
+      "description": "Total input tokens consumed per model over the selected time range. Unit: tokens.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -975,6 +997,7 @@
     },
     {
       "title": "Output Tokens Total",
+      "description": "Total output tokens generated per model over the selected time range. Unit: tokens.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1013,6 +1036,7 @@
     },
     {
       "title": "Input Tokens Cumulative",
+      "description": "Stacked cumulative input token increase per model over the time window. Unit: tokens.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1037,7 +1061,7 @@
           "custom": {
             "fillOpacity": 10,
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never",
             "stacking": {
               "mode": "normal"
@@ -1047,11 +1071,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Output Tokens Cumulative",
+      "description": "Stacked cumulative output token increase per model over the time window. Unit: tokens.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1076,7 +1101,7 @@
           "custom": {
             "fillOpacity": 10,
             "lineWidth": 2,
-            "spanNulls": true,
+            "spanNulls": false,
             "showPoints": "never",
             "stacking": {
               "mode": "normal"
@@ -1086,11 +1111,12 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Errors by Type",
+      "description": "Rate of gateway errors by type from api_gateway_error_total. Unit: errors/s.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1104,7 +1130,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (rate(api_gateway_error_total[$__interval])))",
+          "expr": "(sum by (type) (increase(api_gateway_error_total[$__interval])))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -1115,7 +1141,7 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -1125,11 +1151,12 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Rate Limit Hits",
+      "description": "Rate of rate limit hits. Shows how often requests are being throttled. Unit: hits/s.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1143,7 +1170,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (key) (rate(api_gateway_rate_limit_hits_total[$__interval])))",
+          "expr": "(sum by (key) (increase(api_gateway_rate_limit_hits_total[$__interval])))",
           "legendFormat": "{{key}}",
           "refId": "A"
         }
@@ -1154,7 +1181,7 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -1164,11 +1191,12 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     },
     {
       "title": "Model Fallbacks",
+      "description": "Rate of model fallback events. Shows how often requests fall back to alternative models. Unit: fallbacks/s.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1182,7 +1210,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (requested, fallback, reason) (rate(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum by (requested, fallback, reason) (increase(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
           "legendFormat": "{{requested}} -> {{fallback}} ({{reason}})",
           "refId": "A"
         }
@@ -1193,7 +1221,7 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": false
           },
           "color": {
             "mode": "palette-classic"
@@ -1203,7 +1231,7 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": true,
+      "spanNulls": false,
       "lineWidth": 2
     }
   ],

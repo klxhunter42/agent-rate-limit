@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import * as authApi from '@/lib/auth-api';
 import type { RateLimitStatus } from '@/lib/auth-api';
 import { useAuthFlow } from '@/hooks/use-auth-flow';
@@ -172,6 +173,7 @@ export default function ProvidersPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [apiKeyDialogProvider, setApiKeyDialogProvider] = useState<ProviderDef | null>(null);
   const [upstreamMap, setUpstreamMap] = useState<Record<string, string>>({});
   const [editingUpstream, setEditingUpstream] = useState<string | null>(null);
@@ -225,11 +227,24 @@ export default function ProvidersPage() {
   }, [authFlow.completed, loadAccounts, authFlow.reset]);
 
   const handleAction = async (id: string, fn: () => Promise<void>) => {
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const timeout = setTimeout(() => ac.abort(), 15_000);
+
     setActionLoading(id);
     try {
       await fn();
+      if (ac.signal.aborted) return;
       await loadAccounts();
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') {
+        toast.error('Action failed', { description: e?.message || 'Unknown error' });
+      } else {
+        toast.error('Action timed out', { description: 'Request took too long. Check backend logs.' });
+      }
     } finally {
+      clearTimeout(timeout);
       setActionLoading(null);
     }
   };
@@ -411,6 +426,7 @@ export default function ProvidersPage() {
                       provider={provider.id}
                       accounts={accounts}
                       ratelimits={ratelimits.filter((r) => r.provider === provider.id)}
+                      disabled={!!actionLoading}
                       onRemove={(id) => handleAction(id, () => authApi.removeAccount(provider.id, id))}
                       onPause={(id) => handleAction(id, () => authApi.pauseAccount(provider.id, id))}
                       onResume={(id) => handleAction(id, () => authApi.resumeAccount(provider.id, id))}
