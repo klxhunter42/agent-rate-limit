@@ -340,7 +340,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -349,7 +351,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -382,7 +384,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -391,7 +395,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -419,7 +423,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -428,7 +434,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -461,7 +467,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -470,7 +478,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }

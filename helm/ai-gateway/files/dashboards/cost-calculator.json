@@ -210,12 +210,13 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "points",
             "lineInterpolation": "smooth",
             "fillOpacity": 20,
             "showPoints": "never",
             "spanNulls": true,
-            "lineWidth": 2
+            "lineWidth": 2,
+            "pointSize": 6
           },
           "unit": "currencyUSD",
           "lineWidth": 2
@@ -228,7 +229,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         },
         "tooltip": {

@@ -267,7 +267,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -283,7 +285,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -320,7 +322,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -336,7 +340,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -450,7 +454,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -466,7 +472,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -503,7 +509,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -519,7 +527,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -631,7 +639,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -647,7 +657,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -684,7 +694,9 @@
             },
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -700,7 +712,7 @@
             "last",
             "sum"
           ],
-          "sort": "desc",
+          "sort": "last",
           "sortDesc": true
         }
       },
@@ -809,7 +821,9 @@
             "fillOpacity": 10,
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -825,7 +839,7 @@
             "mean",
             "max"
           ],
-          "sort": "desc",
+          "sort": "mean",
           "sortDesc": true
         }
       },
@@ -859,7 +873,9 @@
             "fillOpacity": 10,
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -875,7 +891,7 @@
             "mean",
             "max"
           ],
-          "sort": "desc",
+          "sort": "mean",
           "sortDesc": true
         }
       },
@@ -917,7 +933,9 @@
             "fillOpacity": 10,
             "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
@@ -933,7 +951,7 @@
             "mean",
             "max"
           ],
-          "sort": "desc",
+          "sort": "mean",
           "sortDesc": true
         }
       },

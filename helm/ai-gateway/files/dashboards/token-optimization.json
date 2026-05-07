@@ -378,7 +378,9 @@
             "spanNulls": true,
             "stacking": {
               "mode": "normal"
-            }
+            },
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         },
@@ -405,7 +407,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -441,7 +443,9 @@
             "gradientMode": "scheme",
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         },
@@ -468,7 +472,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -513,7 +517,9 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -529,7 +535,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       },
@@ -606,7 +612,9 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -620,7 +628,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -748,7 +756,9 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         },
@@ -775,7 +785,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -811,7 +821,9 @@
           "custom": {
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         },
@@ -825,7 +837,7 @@
             "mean",
             "max"
           ],
-          "sort": "desc",
+          "sort": "mean",
           "sortDesc": true
         }
       },
@@ -1018,7 +1030,9 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -1032,7 +1046,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -1066,7 +1080,9 @@
             "fillOpacity": 30,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -1080,7 +1096,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }

@@ -44,7 +44,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -53,7 +55,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -86,7 +88,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -95,7 +99,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -123,7 +127,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -132,7 +138,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -160,7 +166,9 @@
           "custom": {
             "lineWidth": 2,
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
@@ -169,7 +177,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }
@@ -268,7 +276,9 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -282,7 +292,7 @@
       "lineWidth": 2,
       "options": {
         "legend": {
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       }

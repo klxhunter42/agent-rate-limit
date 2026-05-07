@@ -522,7 +522,8 @@
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -538,7 +539,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       },
@@ -581,7 +582,8 @@
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -597,7 +599,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       },
@@ -747,7 +749,7 @@
             "value",
             "percent"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         },
         "pieType": "donut",
@@ -809,7 +811,8 @@
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -825,7 +828,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       },
@@ -869,7 +872,9 @@
               "mode": "off"
             },
             "spanNulls": true,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "thresholds": {
             "mode": "absolute",
@@ -893,7 +898,7 @@
           "calcs": [
             "sum"
           ],
-          "sort": "desc",
+          "sort": "sum",
           "sortDesc": true
         }
       },
