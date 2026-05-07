@@ -1997,7 +1997,6 @@ const fallbackMaxTokens = 4096
 // unsupportedContentTypes are Anthropic-specific block types that GLM does not handle.
 var unsupportedContentTypes = map[string]bool{
 	"server_tool_use": true,
-	"thinking":        true,
 }
 
 // unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
@@ -2045,13 +2044,6 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 		}
 	}
 
-	// GLM models reject extended fields that Claude Code sends (Z.AI error 1210)
-	if strings.HasPrefix(model, "glm-") {
-		for _, f := range []string{"tools", "tool_choice", "thinking", "budget_tokens",
-			"effort", "stream_options", "metadata", "output_config"} {
-			delete(payload, f)
-		}
-	}
 }
 
 // filterUnsupportedContent removes unsupported content block types from messages
