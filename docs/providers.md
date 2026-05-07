@@ -406,9 +406,9 @@ DeepSeek คิดเงินตาม token usage. ราคาประหย
 
 ---
 
-## 7. Kimi (Moonshot)
+## 7. Kimi
 
-Kimi AI โดย Moonshot AI. รองรับ context window ยาว.
+Kimi AI. Anthropic-compatible API สำหรับ coding tasks.
 
 ### Setup
 
@@ -419,17 +419,17 @@ KIMI_API_KEYS=sk-xxxx,sk-yyyy
 
 ### How to get API key
 
-1. ไปที่ [platform.moonshot.cn](https://platform.moonshot.cn)
+1. ไปที่ [kimi.com](https://kimi.com)
 2. ล็อกอิน หรือสมัคร
 3. ไปที่ API Keys -> Create new key
 4. คัดลอก key
 
 ### Auth mechanism
 
-- Header: `Authorization: Bearer <key>`
-- SDK: OpenAI-compatible API
-- Upstream: `https://api.moonshot.cn/v1`
-- Default model: `moonshot-v1-8k`
+- Header: `x-api-key: <key>`
+- SDK: Anthropic-compatible API (`/v1/messages`)
+- Upstream: `https://api.kimi.com/coding`
+- Default model: `kimi-for-coding`
 
 ---
 
@@ -700,7 +700,7 @@ OPENROUTER_API_KEYS=sk-or-v1-your-key
 # --- DeepSeek ---
 DEEPSEEK_API_KEYS=sk-your-key
 
-# --- Kimi (Moonshot) ---
+# --- Kimi ---
 KIMI_API_KEYS=sk-your-key
 
 # --- Hugging Face ---

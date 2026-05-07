@@ -98,7 +98,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         }
@@ -550,7 +550,7 @@
       },
       "targets": [
         {
-          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range]))))",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_secrets_detected_total[$__range]))))",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -745,7 +745,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         },

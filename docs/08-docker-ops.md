@@ -32,15 +32,14 @@ External port: **9000** (Caddy proxy). All other services are internal-only.
 | Dashboard UI           | `arl-dashboard`    | `./ui/Dockerfile.dev`                                          |       5173       | via proxy  |
 | Caddy Proxy            | `arl-proxy`        | `caddy:2-alpine`                                               |       9000       |  **9000**  |
 | Presidio PII           | `arl-presidio`     | `mcr.microsoft.com/presidio-analyzer:2.2.362`                  |       3000       |     -      |
-| Claude Code (test)     | `claude-code-meow` | `./docker/Dockerfile.claude-code`                              |        -         |     -      |
-| Claude Code (test)     | `claude-code-test` | `./docker/Dockerfile.claude-code`                              |        -         |     -      |
+| Claude Code (debug)    | `claude-code-debug`| `./docker/Dockerfile.claude-code`                              |        -         |     -      |
 
 ### Optional Profiles
 
 | Profile       | Services                               | Purpose                                           |
 |---------------|----------------------------------------|---------------------------------------------------|
 | `pii`         | `arl-presidio`                         | Presidio PII analyzer (legacy, replaced by regex) |
-| `test-client` | `claude-code-meow`, `claude-code-test` | Claude Code test clients                          |
+| `debug`       | `arl-mitmweb`, `claude-code-debug`     | mitmproxy + Claude Code CLI (traffic inspection)  |
 
 ---
 
@@ -63,7 +62,7 @@ docker-compose restart arl-prometheus       # Restart Prometheus
 
 # === With Optional Profiles ===
 docker-compose --profile pii up -d          # Start with Presidio
-docker-compose --profile test-client up -d  # Start with Claude Code test clients
+docker-compose --profile debug up -d        # Start with mitmproxy + Claude Code debug client
 
 # === Info ===
 docker stats                              # Resource usage

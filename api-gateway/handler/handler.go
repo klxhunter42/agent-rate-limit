@@ -221,6 +221,56 @@ func (h *Handler) trySidecarOrDirect(w http.ResponseWriter, r *http.Request, api
 	h.metrics.RecordBillingPathLatency("direct", model, time.Since(start).Seconds())
 	return err
 }
+
+// handleFallbackProxy routes a request to a fallback provider's proxy.
+func (h *Handler) handleFallbackProxy(w http.ResponseWriter, r *http.Request, fb *provider.RoutingDecision, body []byte, model string, isStream bool, feedbackFn proxy.FeedbackFunc, maskResult *privacy.MaskResult, oauthRefreshFn func(string) (string, bool), projectID string) {
+	switch fb.Format {
+	case provider.FormatOpenAI:
+		if h.openaiProxy != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, fb.UpstreamURL, fb.APIKey, body, model, isStream, feedbackFn, maskResult, fb.MaxContinuations, fb.ToolMode); err != nil {
+				slog.Error("fallback openai proxy error", "error", err, "model", model)
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			}
+		}
+	case provider.FormatGemini:
+		if h.geminiAPIProxy != nil {
+			if err := h.geminiAPIProxy.ProxyGemini(w, r, fb.UpstreamURL, fb.APIKey, body, model, isStream, feedbackFn, maskResult); err != nil {
+				slog.Error("fallback gemini proxy error", "error", err, "model", model)
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			}
+		}
+	default:
+		if h.openaiProxy != nil {
+			if err := h.openaiProxy.ProxyOpenAI(w, r, fb.UpstreamURL, fb.APIKey, body, model, isStream, feedbackFn, maskResult, fb.MaxContinuations, fb.ToolMode); err != nil {
+				slog.Error("fallback proxy error", "error", err, "model", model)
+				writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+			}
+		}
+	}
+}
+
+// tryProviderFallback resolves the next provider for a model, skipping the excluded provider.
+func (h *Handler) tryProviderFallback(model, excludeProvider string) *provider.RoutingDecision {
+	if h.resolver == nil {
+		return nil
+	}
+	return h.resolver.ResolveFallback(model, []string{excludeProvider})
+}
+
+// tryModelFallback returns a lighter model from the same provider that is not cooling down.
+func (h *Handler) tryModelFallback(providerID, model string) (fallbackModel string, ok bool) {
+	fallbacks, exists := modelFallbacks[model]
+	if !exists || len(fallbacks) == 0 {
+		return "", false
+	}
+	for _, fb := range fallbacks {
+		if h.resolver != nil && !h.resolver.IsCoolingDown(providerID, fb) {
+			return fb, true
+		}
+	}
+	return "", false
+}
+
 func (h *Handler) recordProfileUsage(profile, model string, input, output int, cost float64) {
 	h.metrics.RecordProfileUsage(profile, model, input, output, cost)
 	if h.usageHandler != nil {
@@ -501,7 +551,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	if h.resolver != nil {
 		// Profile with explicit target: resolve by provider, not by model name.
 		// This lets any model name (e.g. claude-sonnet-4-6) route through the
-		// profile's target provider (e.g. lotus).
+		// profile's target provider (e.g. lotuss).
 		if profileOverride != nil && profileOverride.Target != "" {
 			if d, ok := h.resolver.ResolveByProvider(profileOverride.Target); ok && d != nil {
 				decision = d
@@ -515,34 +565,70 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if decision == nil && transparent {
 			decision = h.resolver.ResolveTransparent(requestedModel)
 		}
+		// Fallback: if decision is nil (provider cooling down) and profile has a target,
+		// try the next provider from model rules.
+		if decision == nil && profileOverride != nil && profileOverride.Target != "" {
+			if fb := h.resolver.ResolveFallback(requestedModel, []string{profileOverride.Target}); fb != nil {
+				decision = fb
+				slog.Info("provider cooldown fallback", "original", profileOverride.Target, "fallback", fb.ProviderID, "model", requestedModel)
+			}
+		}
+	}
+
+	// Resolve effective account IDs: check target-level first, then top-level.
+	var effectiveAccountIDs []string
+	var effectiveProviderID string
+	if profileOverride != nil {
+		effectiveProviderID = profileOverride.Provider
+		if effectiveProviderID == "" {
+			effectiveProviderID = profileOverride.Target
+		}
+		for _, t := range profileOverride.Targets {
+			if t.Target == effectiveProviderID && len(t.AccountIDs) > 0 {
+				effectiveAccountIDs = t.AccountIDs
+				break
+			}
+		}
+		if len(effectiveAccountIDs) == 0 && len(profileOverride.AccountIDs) > 0 {
+			effectiveAccountIDs = profileOverride.AccountIDs
+		}
 	}
 
 	// Profile must have selected accounts when targeting a provider.
-	if profileOverride != nil && !profileOverride.PassthroughAuth && len(profileOverride.AccountIDs) == 0 {
-		pid := profileOverride.Provider
-		if pid == "" {
-			pid = profileOverride.Target
+	// If primary target has no accounts, try fallback to next target that has accounts.
+	if profileOverride != nil && !profileOverride.PassthroughAuth && len(effectiveAccountIDs) == 0 && effectiveProviderID != "" {
+		fallbackFound := false
+		for _, t := range profileOverride.Targets {
+			if t.Target == effectiveProviderID {
+				continue
+			}
+			if len(t.AccountIDs) > 0 {
+				effectiveProviderID = t.Target
+				effectiveAccountIDs = t.AccountIDs
+				if d, ok := h.resolver.ResolveByProvider(t.Target); ok && d != nil {
+					decision = d
+				}
+				slog.Info("profile fallback to target with accounts", "profile", profileOverride.Name, "original_provider", profileOverride.Target, "fallback_provider", t.Target, "accounts", t.AccountIDs)
+				fallbackFound = true
+				break
+			}
 		}
-		if pid != "" {
-			slog.Warn("profile has no accounts selected", "profile", profileOverride.Name, "provider", pid)
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "profile has no accounts selected for provider: " + pid})
+		if !fallbackFound {
+			slog.Warn("profile has no accounts selected", "profile", profileOverride.Name, "provider", effectiveProviderID)
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "profile has no accounts selected for provider: " + effectiveProviderID})
 			return
 		}
 	}
 
 	// Account pool: if profile has accountIds, pick from pool.
 	// Otherwise use profile API key, resolved token, or key pool.
-	if profileOverride != nil && len(profileOverride.AccountIDs) > 0 && h.tokenStore != nil {
-		providerID := ""
-		if profileOverride.Provider != "" {
-			providerID = profileOverride.Provider
-		} else if profileOverride.Target != "" {
-			providerID = profileOverride.Target
-		} else if decision != nil {
+	if profileOverride != nil && len(effectiveAccountIDs) > 0 && h.tokenStore != nil {
+		providerID := effectiveProviderID
+		if providerID == "" && decision != nil {
 			providerID = decision.ProviderID
 		}
 		if providerID != "" {
-			if tok, err := h.tokenStore.GetFromPool(providerID, profileOverride.AccountIDs); err == nil && tok != nil {
+			if tok, err := h.tokenStore.GetFromPool(providerID, effectiveAccountIDs); err == nil && tok != nil {
 				apiKey = tok.AccessToken
 				selectedTokenInfo = tok
 				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
@@ -652,7 +738,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.Info("profile base_url override", "profile", profileOverride.Name, "upstream", decision.UpstreamURL)
 	}
 
-	// Apply provider-level model override and max_tokens clamp (e.g., lotus -> "default")
+	// Apply provider-level model override and max_tokens clamp (e.g., lotuss -> "default")
 	if decision != nil && decision.ModelOverride != "" {
 		slog.Info("model override", "original", requestedModel, "override", decision.ModelOverride, "provider", decision.ProviderID)
 		payload["model"] = decision.ModelOverride
@@ -1086,12 +1172,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			profileOpts.UpstreamOverride = profileOverride.BaseURL
 		}
 		// When profile has a target provider, override model-based routing.
-		if profileOverride.Target != "" {
-			providerID := profileOverride.Target
+		// Use effectiveProviderID which accounts for fallback targets.
+		targetPID := effectiveProviderID
+		if targetPID == "" && profileOverride != nil {
+			targetPID = profileOverride.Target
 			if profileOverride.Provider != "" {
-				providerID = profileOverride.Provider
+				targetPID = profileOverride.Provider
 			}
-			if d, ok := h.resolver.ResolveByProvider(providerID); ok {
+		}
+		if targetPID != "" {
+			if d, ok := h.resolver.ResolveByProvider(targetPID); ok {
 				decision = d
 			}
 		}
@@ -1099,12 +1189,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if profileOverride.PassthroughAuth {
 			profileOpts.AuthMode = "bearer"
 			// Get ExtraHeaders from provider route table for anthropic-beta etc.
-			if profileOverride.Provider != "" || profileOverride.Target != "" {
-				pid := profileOverride.Provider
-				if pid == "" {
-					pid = profileOverride.Target
-				}
-				if d, ok := h.resolver.ResolveByProvider(pid); ok && d != nil {
+			if effectiveProviderID != "" {
+				if d, ok := h.resolver.ResolveByProvider(effectiveProviderID); ok && d != nil {
 					profileOpts.ExtraHeaders = d.ExtraHeaders
 					if profileOpts.UpstreamOverride == "" {
 						profileOpts.UpstreamOverride = d.UpstreamURL
@@ -1149,48 +1235,103 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Account rotation callback: on 429, pick a different account from the pool.
 	// Skip for passthrough auth - client manages their own token lifecycle.
-	rotateAccountFn := func(oldKey string) (string, bool) {
+	rotateAccountFn := func(oldKey string) (proxy.FallbackResult, bool) {
 		if profileOverride != nil && profileOverride.PassthroughAuth {
-			return "", false
+			return proxy.FallbackResult{}, false
 		}
-		pid := ""
-		var accountIDs []string
-		if profileOverride != nil {
-			pid = profileOverride.Provider
-			if pid == "" {
-				pid = profileOverride.Target
+		pid := effectiveProviderID
+		if pid == "" {
+			if profileOverride != nil {
+				pid = profileOverride.Provider
+				if pid == "" {
+					pid = profileOverride.Target
+				}
+			} else if decision != nil {
+				pid = decision.ProviderID
 			}
-			accountIDs = profileOverride.AccountIDs
-		} else if decision != nil {
-			pid = decision.ProviderID
 		}
 		if pid == "" || h.tokenStore == nil {
-			return "", false
+			return proxy.FallbackResult{}, false
+		}
+
+		// Try rotating accounts within same provider first.
+		accountIDs := effectiveAccountIDs
+		if len(accountIDs) == 0 && profileOverride != nil {
+			accountIDs = profileOverride.AccountIDs
+		}
+		if len(accountIDs) > 1 {
+			tok, err := h.tokenStore.GetFromPool(pid, accountIDs)
+			if err == nil && tok != nil && tok.AccessToken != oldKey {
+				slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID)
+				return proxy.FallbackResult{APIKey: tok.AccessToken}, true
+			}
 		}
 		if len(accountIDs) == 0 {
 			tokens, err := h.tokenStore.ListByProvider(pid)
-			if err != nil || len(tokens) <= 1 {
-				return "", false
-			}
-			for _, t := range tokens {
-				if !t.Paused && t.AccessToken != oldKey {
-					slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
-					return t.AccessToken, true
+			if err == nil && len(tokens) > 1 {
+				for _, t := range tokens {
+					if !t.Paused && t.AccessToken != oldKey {
+						slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
+						return proxy.FallbackResult{APIKey: t.AccessToken}, true
+					}
 				}
 			}
-			return "", false
 		}
-		if len(accountIDs) <= 1 {
-			return "", false
+
+		// No more accounts in current provider: try next provider from model rules.
+		if fb := h.tryProviderFallback(requestedModel, pid); fb != nil {
+			slog.Info("429: fallback to alternate provider", "from", pid, "to", fb.ProviderID)
+			return proxy.FallbackResult{APIKey: fb.APIKey, UpstreamURL: fb.UpstreamURL, AuthMode: string(fb.AuthMode)}, true
 		}
-		tok, err := h.tokenStore.GetFromPool(pid, accountIDs)
-		if err != nil || tok == nil || tok.AccessToken == oldKey {
-			return "", false
-		}
-		slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID)
-		return tok.AccessToken, true
+		return proxy.FallbackResult{}, false
 	}
 	profileOpts.OnRateLimitError = rotateAccountFn
+
+	// 403 fallback: try next target in profile's multi-target list.
+	forbiddenFn := func(oldKey string) (proxy.FallbackResult, bool) {
+		if profileOverride == nil || len(profileOverride.Targets) < 2 {
+			return proxy.FallbackResult{}, false
+		}
+		currentProvider := effectiveProviderID
+		currentIdx := -1
+		for i, t := range profileOverride.Targets {
+			if t.Target == currentProvider {
+				currentIdx = i
+				break
+			}
+		}
+		for offset := 1; offset < len(profileOverride.Targets); offset++ {
+			idx := (currentIdx + offset) % len(profileOverride.Targets)
+			t := profileOverride.Targets[idx]
+			pid := t.Target
+			accounts := t.AccountIDs
+			if len(accounts) == 0 {
+				continue
+			}
+			if d, ok := h.resolver.ResolveByProvider(pid); ok && d != nil {
+				var newKey string
+				if h.tokenStore != nil {
+					if tok, err := h.tokenStore.GetFromPool(pid, accounts); err == nil && tok != nil {
+						newKey = tok.AccessToken
+					}
+				}
+				if newKey == "" && d.APIKey != "" {
+					newKey = d.APIKey
+				}
+				if newKey == "" {
+					continue
+				}
+				slog.Warn("403 fallback to alternate target", "from", currentProvider, "to", pid, "profile", profileOverride.Name)
+				return proxy.FallbackResult{
+					APIKey:      newKey,
+					UpstreamURL: d.UpstreamURL,
+					AuthMode:    d.AuthMode,
+				}, true
+			}
+		}
+		return proxy.FallbackResult{}, false
+	}
+	profileOpts.OnForbidden = forbiddenFn
 
 	// Profile-selected OAuth token: enable transparent mode for sidecar routing.
 	if !transparent && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
@@ -1394,7 +1535,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		case provider.FormatGemini:
 			if visionDecision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
+				if h.resolver != nil && h.resolver.IsCoolingDown("gemini-oauth", selectedModel) {
+					if fb := h.tryProviderFallback(selectedModel, "gemini-oauth"); fb != nil {
+						slog.Info("gemini-oauth vision cooling down, skipping to fallback", "model", selectedModel, "fallback", fb.ProviderID)
+						h.handleFallbackProxy(w, r, fb, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+						break
+					}
+				}
+				err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+				if err != nil && strings.Contains(err.Error(), "429") {
+					if fb := h.tryProviderFallback(selectedModel, "gemini-oauth"); fb != nil {
+						slog.Info("code assist vision 429, falling back provider", "from", "gemini-oauth", "to", fb.ProviderID, "model", selectedModel)
+						h.handleFallbackProxy(w, r, fb, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+						break
+					}
+				}
+				if err != nil {
 					slog.Error("code assist vision failed", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
 					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "code assist vision error: " + err.Error()})
@@ -1445,7 +1601,26 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			routePath = "gemini_proxy"
 			if decision.ProviderID == "gemini-oauth" && h.codeAssistProxy != nil {
 				routePath = "codeassist_proxy"
-				if err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID); err != nil {
+				// Check cooldown: if gemini-oauth is cooling down from 429, skip to fallback provider.
+				if h.resolver != nil && h.resolver.IsCoolingDown("gemini-oauth", selectedModel) {
+					if fbModel, ok := h.tryModelFallback("gemini-oauth", selectedModel); ok {
+						slog.Info("gemini-oauth cooling down, falling back model", "from", selectedModel, "to", fbModel)
+						selectedModel = fbModel
+					} else if fb := h.tryProviderFallback(selectedModel, "gemini-oauth"); fb != nil {
+						slog.Info("gemini-oauth cooling down, skipping to fallback", "model", selectedModel, "fallback", fb.ProviderID)
+						h.handleFallbackProxy(w, r, fb, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+						break
+					}
+				}
+				err := h.codeAssistProxy.ProxyCodeAssist(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+				if err != nil && strings.Contains(err.Error(), "429") {
+					if fb := h.tryProviderFallback(selectedModel, "gemini-oauth"); fb != nil {
+						slog.Info("code assist 429, falling back provider", "from", "gemini-oauth", "to", fb.ProviderID, "model", selectedModel)
+						h.handleFallbackProxy(w, r, fb, body, selectedModel, isStream, feedbackFn, maskResult, oauthRefreshFn, codeAssistProjectID)
+						break
+					}
+				}
+				if err != nil {
 					slog.Error("code assist failed", "error", err, "model", selectedModel)
 					h.metrics.IncError("upstream")
 					writeJSON(w, http.StatusBadGateway, map[string]string{"error": "code assist error: " + err.Error()})
@@ -1562,7 +1737,7 @@ func validateChatRequest(req *ChatRequest) string {
 		req.Model = "glm-5"
 	}
 	if req.Provider == "" {
-		req.Provider = "glm"
+		req.Provider = provider.ResolveProviderByModel(req.Model)
 	}
 	return ""
 }
@@ -2290,6 +2465,36 @@ var providerDefaultModels = map[string]string{
 	"copilot":      "gpt-4o",
 	"openrouter":   "or-openai/gpt-4o",
 	"qwen":         "qwen-plus",
+}
+
+// modelFallbacks maps a model to lighter alternatives within the same provider.
+// When a model gets 429 rate-limited, the gateway tries these fallbacks in order.
+var modelFallbacks = map[string][]string{
+	// Gemini
+	"gemini-2.5-pro":        {"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"},
+	"gemini-2.5-flash":      {"gemini-2.5-flash-lite", "gemini-2.0-flash"},
+	"gemini-2.5-flash-lite": {"gemini-2.0-flash"},
+	// Claude
+	"claude-opus-4-7":          {"claude-opus-4-20250115", "claude-sonnet-4-6", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"},
+	"claude-opus-4-20250115":   {"claude-sonnet-4-6", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"},
+	"claude-sonnet-4-6":        {"claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"},
+	"claude-sonnet-4-20250514": {"claude-haiku-4-5-20251001"},
+	// OpenAI / GPT
+	"gpt-4.1":      {"gpt-4.1-mini", "gpt-4.1-nano"},
+	"gpt-4.1-mini": {"gpt-4.1-nano"},
+	"gpt-4o":       {"gpt-4o-mini"},
+	"o3":           {"o4-mini"},
+	"o3-pro":       {"o3", "o4-mini"},
+	"o4-mini":      {"gpt-4o-mini"},
+	// Z.AI (GLM)
+	"glm-5.1":     {"glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
+	"glm-5-turbo": {"glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
+	"glm-5":       {"glm-4.7", "glm-4.6", "glm-4.5"},
+	"glm-4.7":     {"glm-4.6", "glm-4.5"},
+	"glm-4.6":     {"glm-4.5"},
+	// Qwen
+	"qwen-plus": {"qwen-turbo"},
+	"qwen-max":  {"qwen-plus", "qwen-turbo"},
 }
 
 // mapModelForTarget returns the default model for a target provider when the

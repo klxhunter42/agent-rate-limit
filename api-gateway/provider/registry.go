@@ -106,11 +106,11 @@ func NewRegistry() *Registry {
 		UpstreamBase: envOr("ZAI_UPSTREAM_BASE", "https://api.z.ai/api/anthropic"),
 	}
 
-	r.providers["lotus"] = ProviderConfig{
-		ID:           "lotus",
-		Name:         "Lotus LLM",
+	r.providers["lotuss"] = ProviderConfig{
+		ID:           "lotuss",
+		Name:         "Lotuss",
 		AuthType:     AuthTypeAPIKey,
-		UpstreamBase: envOr("LOTUS_UPSTREAM_BASE", "https://llm.internal/custom/llm"),
+		UpstreamBase: envOr("LOTUSS_UPSTREAM_BASE", "https://llm.internal/custom/llm"),
 	}
 
 	r.providers["openrouter"] = ProviderConfig{
@@ -158,9 +158,9 @@ func NewRegistry() *Registry {
 
 	r.providers["kimi"] = ProviderConfig{
 		ID:           "kimi",
-		Name:         "Kimi (Moonshot)",
+		Name:         "Kimi",
 		AuthType:     AuthTypeAPIKey,
-		UpstreamBase: envOr("KIMI_UPSTREAM_BASE", "https://api.moonshot.cn/v1"),
+		UpstreamBase: envOr("KIMI_UPSTREAM_BASE", "https://api.kimi.com/coding"),
 	}
 
 	r.providers["huggingface"] = ProviderConfig{

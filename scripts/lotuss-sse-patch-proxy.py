@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Thin proxy that patches Lotus SSE streaming events to be Claude Code compatible.
+"""Thin proxy that patches Lotuss SSE streaming events to be Claude Code compatible.
 
-Lotus /v1/messages returns Anthropic-format responses but the streaming `message_start`
+Lotuss /v1/messages returns Anthropic-format responses but the streaming `message_start`
 event is missing `usage` (and `role`) in the message object, which causes:
   "Cannot set properties of undefined (setting 'output_tokens')"
 

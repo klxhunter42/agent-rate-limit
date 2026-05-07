@@ -723,7 +723,7 @@ Workers accept keys for multiple providers:
 | `openrouter`   | OpenRouter      | API Key     | `openrouter.ai/api`                   |
 | `qwen`         | Qwen (Aliyun)   | Device Code | `dashscope.aliyuncs.com`              |
 | `deepseek`     | DeepSeek        | API Key     | `api.deepseek.com`                    |
-| `kimi`         | Kimi (Moonshot) | API Key     | `api.moonshot.cn/v1`                  |
+| `kimi`         | Kimi            | API Key     | `api.kimi.com/coding`                 |
 | `huggingface`  | Hugging Face    | API Key     | `api-inference.huggingface.co/models` |
 | `ollama`       | Ollama          | API Key     | `localhost:11434`                     |
 | `agy`          | Antigravity     | API Key     | `antigravity.com`                     |

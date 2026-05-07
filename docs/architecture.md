@@ -1362,7 +1362,7 @@ Gateway maintains a provider registry for OAuth/API key auth flows and upstream 
 | `qwen`         | Qwen (Aliyun)         | Device code      | `dashscope.aliyuncs.com`              |
 | `claude`       | Claude (OAuth)        | Auth code (PKCE) | `api.anthropic.com`                   |
 | `deepseek`     | DeepSeek              | API key          | `api.deepseek.com`                    |
-| `kimi`         | Kimi (Moonshot)       | API key          | `api.moonshot.cn/v1`                  |
+| `kimi`         | Kimi                  | API key          | `api.kimi.com/coding`                 |
 | `huggingface`  | Hugging Face          | API key          | `api-inference.huggingface.co/models` |
 | `ollama`       | Ollama                | API key          | `localhost:11434` (configurable)      |
 | `agy`          | Antigravity           | API key          | `antigravity.com`                     |
@@ -1678,7 +1678,7 @@ PROVIDER_RPM_LIMITS=glm:5,openai:60,anthropic:50
 | **Gemini**      | `GEMINI_API_KEYS`      | 60            | gemini-2.0-flash                        |
 | **OpenRouter**  | `OPENROUTER_API_KEYS`  | 60            | Multi-provider aggregator               |
 | **DeepSeek**    | `DEEPSEEK_API_KEYS`    | 60            | deepseek-chat, deepseek-coder           |
-| **Kimi**        | `KIMI_API_KEYS`        | 60            | Moonshot AI                             |
+| **Kimi**        | `KIMI_API_KEYS`        | 60            | Kimi for Coding                        |
 | **HuggingFace** | `HUGGINGFACE_API_KEYS` | 60            | Open-source models                      |
 | **Ollama**      | `OLLAMA_API_KEYS`      | 60            | Local models (default: localhost:11434) |
 | **AGY**         | `AGY_API_KEYS`         | 60            | Antigravity                             |

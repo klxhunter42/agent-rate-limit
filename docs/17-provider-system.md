@@ -131,7 +131,7 @@ The `NewRegistry()` constructor registers 19 providers:
 | `openrouter`   | OpenRouter            | `api_key`     | `https://openrouter.ai/api`                   |
 | `qwen`         | Qwen (Aliyun)         | `device_code` | `https://dashscope.aliyuncs.com`              |
 | `deepseek`     | DeepSeek              | `api_key`     | `https://api.deepseek.com`                    |
-| `kimi`         | Kimi (Moonshot)       | `api_key`     | `https://api.moonshot.cn/v1`                  |
+| `kimi`         | Kimi                  | `api_key`     | `https://api.kimi.com/coding`                 |
 | `huggingface`  | Hugging Face          | `api_key`     | `https://api-inference.huggingface.co/models` |
 | `ollama`       | Ollama                | `api_key`     | `http://localhost:11434`                      |
 | `agy`          | Antigravity           | `api_key`     | `https://antigravity.com`                     |
@@ -206,7 +206,7 @@ type providerRoute struct {
 | `openrouter`   | OpenAI    | `bearer`  | `/v1/chat/completions`                 | `HTTP-Referer: https://github.com/klxhunter/agent-rate-limit`    | -                                                                                          |
 | `qwen`         | OpenAI    | `bearer`  | `/compatible-mode/v1/chat/completions` | none                                                             | Aliyun compatible mode                                                                     |
 | `deepseek`     | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
-| `kimi`         | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
+| `kimi`         | Anthropic | `api_key` | `/v1/messages`                         | none                                                             | -                                                                                          |
 | `huggingface`  | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
 | `ollama`       | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
 | `cursor`       | OpenAI    | `bearer`  | `/v1/chat/completions`                 | none                                                             | -                                                                                          |
@@ -865,7 +865,7 @@ When a custom provider is deleted:
 | `QWEN_CLIENT_ID`             | (empty)                                       | Qwen OAuth client ID        |
 | `QWEN_CLIENT_SECRET`         | (empty)                                       | Qwen OAuth client secret    |
 | `DEEPSEEK_UPSTREAM_BASE`     | `https://api.deepseek.com`                    | DeepSeek API base           |
-| `KIMI_UPSTREAM_BASE`         | `https://api.moonshot.cn/v1`                  | Kimi API base               |
+| `KIMI_UPSTREAM_BASE`         | `https://api.kimi.com/coding`                 | Kimi API base               |
 | `HUGGINGFACE_UPSTREAM_BASE`  | `https://api-inference.huggingface.co/models` | HF API base                 |
 | `OLLAMA_UPSTREAM_BASE`       | `http://localhost:11434`                      | Ollama API base             |
 | `AGY_UPSTREAM_BASE`          | `https://antigravity.com`                     | Antigravity API base        |

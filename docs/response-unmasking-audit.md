@@ -90,10 +90,35 @@ GLM mode toggle does not create separate code paths for masking/unmasking. The `
 | GeminiCodeAssistProxy           | OK                | OK     | FIXED                | OK    |
 | ClaudeSessionProxy              | N/A (stream only) | FIXED  | N/A                  | FIXED |
 
-## Files Changed
+### 6. [HIGH] input_json_delta (partial_json) unbuffered unmask
 
-- `api-gateway/proxy/anthropic.go` - Fix #1, Fix #3 (convertOpenAIResponse error path)
+**File:** `api-gateway/proxy/anthropic.go`
+
+**Problem:** Tool call arguments are streamed as `input_json_delta` events. Both `relayStreamWithTracking` and `ProxySidecar` used `ReplaceDirectJSON` (unbuffered) for these events. When a masked placeholder like `[[IP_ADDRESS_1]]` splits across streaming chunks (e.g. `[[IP_ADDR` in chunk 1, `ESS_1]]` in chunk 2), neither chunk contains the complete placeholder, so it is never replaced. Users saw raw `[[IP_ADDRESS_N]]` in Claude Code tool outputs.
+
+This is especially impactful because Claude Code (claude-sonnet-4-6) makes heavy use of tool calls (Edit, Bash, Read, etc.), and tool call arguments are a common place for IP addresses and other PII to appear.
+
+**Fix:**
+- Added `ProcessChunkJSON` to `StreamUnmasker` (`privacy/masking/stream.go`) with separate JSON-mode buffers (`piiJSONBuffer`, `secretsJSONBuffer`) and `processStreamChunkJSON` that uses `RestorePlaceholdersJSON` for JSON-safe replacement
+- Updated `Flush()` to also drain JSON-mode buffers
+- Changed both proxy paths to use `ProcessChunkJSON` instead of `ReplaceDirectJSON` for `partial_json` events
+
+---
+
+## Unmasking Method Reference
+
+| Method | Buffering | JSON-safe | Use for |
+|---|---|---|---|
+| `ProcessChunk` | Yes | No | `text_delta`, `thinking_delta` |
+| `ProcessChunkJSON` | Yes | Yes | `input_json_delta` (tool call arguments) |
+| `ReplaceDirect` | No | No | Catch-all text |
+| `ReplaceDirectJSON` | No | Yes | Raw SSE data lines, catch-all JSON |
+
+---
+
+- `api-gateway/proxy/anthropic.go` - Fix #1, Fix #3, Fix #6
 - `api-gateway/proxy/openai.go` - Fix #2, Fix #3
 - `api-gateway/proxy/gemini-apikey.go` - Fix #3
 - `api-gateway/proxy/gemini-codeassist.go` - Fix #5
 - `api-gateway/proxy/claude-session.go` - Fix #4
+- `api-gateway/privacy/masking/stream.go` - Fix #6 (ProcessChunkJSON)

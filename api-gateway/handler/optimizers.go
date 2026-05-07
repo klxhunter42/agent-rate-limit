@@ -117,6 +117,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 			slog.Info("optimizer_step", "stage", "sketch_dedup", "before", len(text), "after", len(text), "saved", saved)
 			m.RecordOptimization("sketch_dedup", saved, "input")
 			m.RecordOptimizationDuration("sketch", time.Since(start).Seconds())
+			totalSaved += saved
 		}
 	}
 

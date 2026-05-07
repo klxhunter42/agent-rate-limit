@@ -815,24 +815,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval]))",
-          "legendFormat": "chunker",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
+          "legendFormat": "{{technique}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval]))",
-          "legendFormat": "delta",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval]))",
-          "legendFormat": "disclosure",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval]))",
-          "legendFormat": "sketch",
-          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -897,7 +882,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -929,7 +914,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / (sum(increase(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range])) or on() vector(0)",
           "refId": "A"
         }
       ],

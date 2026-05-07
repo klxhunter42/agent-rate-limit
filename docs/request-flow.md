@@ -223,7 +223,7 @@ Resolve model prefix -> provider -> format: FormatOpenAI, auth: bearer
 | openrouter  | `https://openrouter.ai/api`                      |
 | qwen        | `https://dashscope.aliyuncs.com/compatible-mode` |
 | deepseek    | `https://api.deepseek.com`                       |
-| kimi        | `https://api.moonshot.cn`                        |
+| kimi        | `https://api.kimi.com/coding`                    |
 | huggingface | custom per-endpoint                              |
 | ollama      | `http://localhost:11434`                         |
 
@@ -333,7 +333,7 @@ Request resolution:
                      |
                      +-- or-* ------> OpenRouter (FormatOpenAI)
                      |
-                     +-- kimi-* ----> Kimi (FormatOpenAI)
+                     +-- kimi-* ----> Kimi (FormatAnthropic)
                      |
                      |
                      +-- custom-* --> Custom Provider (FormatOpenAI)

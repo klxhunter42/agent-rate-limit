@@ -951,7 +951,7 @@ Simple concurrent stress test for sync endpoint.
 | `OPENAI_UPSTREAM_BASE`      | `https://api.openai.com`                            | OpenAI API base        |
 | `OPENROUTER_UPSTREAM_BASE`  | `https://openrouter.ai/api`                         | OpenRouter API base    |
 | `DEEPSEEK_UPSTREAM_BASE`    | `https://api.deepseek.com`                          | DeepSeek API base      |
-| `KIMI_UPSTREAM_BASE`        | `https://api.moonshot.cn/v1`                        | Kimi/Moonshot API base |
+| `KIMI_UPSTREAM_BASE`        | `https://api.kimi.com/coding`                       | Kimi API base          |
 | `HUGGINGFACE_UPSTREAM_BASE` | `https://api-inference.huggingface.co/models`       | HuggingFace base       |
 | `OLLAMA_UPSTREAM_BASE`      | `http://localhost:11434`                            | Ollama local base      |
 | `QWEN_UPSTREAM_BASE`        | `https://dashscope.aliyuncs.com/compatible-mode/v1` | Qwen API base          |

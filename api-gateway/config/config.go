@@ -53,6 +53,9 @@ type Config struct {
 	UpstreamAPIKeys  []string
 	UpstreamRPMLimit int // per-key requests-per-minute budget
 
+	// Per-provider API keys.
+	KimiAPIKeys []string
+
 	// Adaptive probe: how many times the initial limit to probe upward.
 	// e.g. initial=1, multiplier=5 → maxLimit=5 (discovers real ceiling).
 	ProbeMultiplier int
@@ -172,6 +175,7 @@ func Load() *Config {
 		EnableAutoTruncate:       envBoolOr("ENABLE_AUTO_TRUNCATE", true),
 		TransientRetryMax:        envIntOr("TRANSIENT_RETRY_MAX", 10),
 		UpstreamAPIKeys:          parseAPIKeys(envOr("ZAI_API_KEYS", "")),
+		KimiAPIKeys:              parseAPIKeys(envOr("KIMI_API_KEYS", "")),
 		UpstreamRPMLimit:         envIntOr("UPSTREAM_RPM_LIMIT", 40),
 		ProbeMultiplier:          envIntOr("UPSTREAM_PROBE_MULTIPLIER", 5),
 		ModelPricing:             parseModelPricing(envOr("MODEL_PRICING", defaultModelPricing)),

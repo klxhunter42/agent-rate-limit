@@ -530,7 +530,7 @@ if allowed, pct, _ := h.quotaHandler.CheckQuota(providerID, accountID, requested
 | openrouter    | api_key     | openai    | openrouter.ai/api                   |
 | deepseek      | api_key     | openai    | api.deepseek.com                    |
 | qwen          | device_code | openai    | dashscope.aliyuncs.com              |
-| kimi          | api_key     | openai    | api.moonshot.cn/v1                  |
+| kimi          | api_key     | anthropic | api.kimi.com/coding                 |
 | huggingface   | api_key     | openai    | api-inference.huggingface.co/models |
 | ollama        | api_key     | openai    | localhost:11434                     |
 | agy           | api_key     | openai    | antigravity.com                     |
@@ -613,7 +613,29 @@ func (r *Resolver) MarkCooldown(providerID string, d time.Duration, model ...str
 - Checked via `isCoolingDown()` before attempting resolution
 - Cooldown is in-memory (sync.Map), not persisted
 
-### 6.7 Cross-Provider Fallback Prevention
+### 6.7 Model-Level Fallback (429 Handling)
+
+When a provider returns 429 for a specific model, the handler tries lighter models from the same provider before falling back to a different provider. This is defined in the `modelFallbacks` map:
+
+```go
+var modelFallbacks = map[string][]string{
+    "gemini-2.5-pro":      {"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"},
+    "claude-opus-4-7":     {"claude-opus-4-20250115", "claude-sonnet-4-6", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"},
+    "gpt-4.1":             {"gpt-4.1-mini", "gpt-4.1-nano"},
+    "gpt-4o":              {"gpt-4o-mini"},
+    "glm-5.1":             {"glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
+    // ... etc
+}
+```
+
+Helper: `tryModelFallback(providerID, model) (string, bool)` - iterates the fallback chain, skipping models that are also cooling down.
+
+**Fallback order on 429:**
+1. Model fallback (same provider, lighter model)
+2. Provider fallback (next provider in routing chain)
+3. Error (return 429 to client)
+
+### 6.8 Cross-Provider Fallback Prevention
 
 ```go
 if selectedModel != requestedModel {
@@ -627,7 +649,7 @@ if selectedModel != requestedModel {
 
 GLM models cannot fall back to Claude and vice versa. Same-provider fallback within the adaptive limiter is allowed.
 
-### 6.8 Provider Route Table
+### 6.9 Provider Route Table
 
 Each provider has a route entry defining:
 

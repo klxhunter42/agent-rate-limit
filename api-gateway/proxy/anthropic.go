@@ -1005,6 +1005,12 @@ func OpenAIToAnthropic(zhipu map[string]any, model string, toolMode ...string) m
 }
 
 // ProxyOptions configures proxy behavior for non-default upstream/auth scenarios.
+type FallbackResult struct {
+	APIKey      string
+	UpstreamURL string
+	AuthMode    string
+}
+
 type ProxyOptions struct {
 	AuthMode         string                                       // "api_key" (default) or "bearer"
 	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
@@ -1012,7 +1018,8 @@ type ProxyOptions struct {
 	Transparent      bool                                         // skip all body/header modifications (claude-oauth passthrough)
 	BillingInjected  bool                                         // billing header was injected in Go; return ErrBillingRejected on 400 reserved keyword
 	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
-	OnRateLimitError func(oldKey string) (newKey string, ok bool) // called on 429 to rotate account
+	OnRateLimitError func(oldKey string) (FallbackResult, bool)   // called on 429 to rotate account or fallback provider
+	OnForbidden      func(oldKey string) (FallbackResult, bool)   // called on 403 to fallback to another provider
 }
 
 var ErrBillingRejected = fmt.Errorf("billing header rejected by upstream (reserved keyword)")
@@ -1156,12 +1163,34 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			resp.Body.Close()
 			p.metrics.Inc429()
 			if opts != nil && opts.OnRateLimitError != nil {
-				if newKey, ok := opts.OnRateLimitError(apiKey); ok {
-					apiKey = newKey
-					slog.Info("upstream retry key rotation", "attempt", attempt+1, "model", model, "max_retries", p.cfg.UpstreamMaxRetries)
+				if fb, ok := opts.OnRateLimitError(apiKey); ok {
+					apiKey = fb.APIKey
+					if fb.UpstreamURL != "" {
+						upstreamURL = fb.UpstreamURL
+					}
+					if fb.AuthMode != "" {
+						opts.AuthMode = fb.AuthMode
+					}
+					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL)
 				}
 			}
 			continue
+		}
+
+		// On 403, try fallback to another provider in the profile.
+		if resp.StatusCode == 403 && opts != nil && opts.OnForbidden != nil {
+			resp.Body.Close()
+			if fb, ok := opts.OnForbidden(apiKey); ok {
+				slog.Warn("403 forbidden, falling back to alternate provider", "model", model, "new_upstream", fb.UpstreamURL)
+				apiKey = fb.APIKey
+				if fb.UpstreamURL != "" {
+					upstreamURL = fb.UpstreamURL
+				}
+				if fb.AuthMode != "" {
+					opts.AuthMode = fb.AuthMode
+				}
+				continue
+			}
 		}
 
 		// On 401 with OAuth bearer, try refreshing the token once.
@@ -1300,7 +1329,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				peeked := string(peekBuf[:n])
 				hasValidSSE := false
 				for _, line := range strings.Split(peeked, "\n") {
-					if strings.HasPrefix(line, "data: ") || strings.HasPrefix(line, "event: ") {
+					trimmed := strings.TrimSpace(line)
+					if strings.HasPrefix(trimmed, "data:") || strings.HasPrefix(trimmed, "event:") {
 						hasValidSSE = true
 						break
 					}
@@ -1687,7 +1717,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
-								evt.Delta.PartialJSON = unmasker.ReplaceDirectJSON(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							}
 							if changed {

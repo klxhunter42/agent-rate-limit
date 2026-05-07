@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-05-07] Kimi Provider Migration: Moonshot to Anthropic-Compatible API
+
+### เปลี่ยน: Kimi provider ย้ายจาก Moonshot platform มาใช้ Kimi's own Anthropic-compatible API
+
+Kimi provider ย้ายจาก OpenAI-compatible endpoint (`api.moonshot.cn`) ไปยัง Anthropic-compatible endpoint ของ Kimi เอง (`api.kimi.com/coding`)
+
+**การเปลี่ยนแปลง:**
+- Upstream URL: `https://api.moonshot.cn/v1` -> `https://api.kimi.com/coding`
+- API format: OpenAI (`/v1/chat/completions`) -> Anthropic (`/v1/messages`)
+- Default model: `moonshot-v1-8k` -> `kimi-for-coding`
+- Auth: API key (ไม่เปลี่ยนแปลง)
+- Kimi ย้ายออกจาก OpenAI-format provider group ไปยัง Anthropic-format provider group
+
+**ไฟล์ที่เกี่ยวข้อง:** `api-gateway/provider/registry.go`, docs
+
+---
+
 ## [2026-04-21] Bug Fixes: CodeAssist Error Handling, Favorite Toggle, Profile Edit
 
 ### แก้ไข: CodeAssist empty 200 on upstream errors (Critical)
@@ -318,7 +335,7 @@ Gateway provider registry ขยายจาก 5 เป็น 17 providers:
 
 **ใหม่ (API key auth):**
 - DeepSeek (`api.deepseek.com`)
-- Kimi / Moonshot (`api.moonshot.cn/v1`)
+- Kimi / Moonshot (`api.moonshot.cn/v1`) *(migrated 2026-05-07 to `api.kimi.com/coding`, Anthropic-compatible)*
 - Hugging Face (`api-inference.huggingface.co/models`)
 - Ollama (`localhost:11434`, configurable)
 - AGY / Antigravity (`antigravity.com`)

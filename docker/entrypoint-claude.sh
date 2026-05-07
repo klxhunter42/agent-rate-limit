@@ -52,9 +52,34 @@ except: pass
       echo "User OAuth token mounted for passthrough auth"
     fi
     mkdir -p /root/.claude
-    cat > /root/.claude/settings.json <<SETTINGS
-{"env":{"ANTHROPIC_BASE_URL":"http://arl-proxy:9000","ANTHROPIC_API_KEY":"$TOKEN"${AUTH_TOKEN_JSON}}${MODEL_JSON}${THINKING_JSON}}
-SETTINGS
+    BASE_URL="${ANTHROPIC_BASE_URL:-http://arl-proxy:9000}"
+    export _CFG_TOKEN="$TOKEN" _CFG_BASE_URL="$BASE_URL"
+    export _CFG_AUTH="$AUTH_TOKEN_JSON" _CFG_MODEL="$MODEL" _CFG_THINKING="$THINKING"
+    python3 <<'PYEOF'
+import json, os, re
+
+env = {
+    "ANTHROPIC_BASE_URL": os.environ["_CFG_BASE_URL"],
+    "ANTHROPIC_API_KEY": os.environ["_CFG_TOKEN"],
+}
+auth = os.environ.get("_CFG_AUTH", "")
+if auth:
+    m = re.match(r',?"([^"]+)":"([^"]*)"', auth)
+    if m:
+        env[m.group(1)] = m.group(2)
+
+s = {"apiKeyHelper": "echo $ANTHROPIC_API_KEY", "env": env}
+model = os.environ.get("_CFG_MODEL", "")
+if model:
+    s["model"] = model
+thinking = os.environ.get("_CFG_THINKING", "")
+if thinking:
+    s["alwaysThinkingEnabled"] = thinking.lower() == "true"
+
+with open("/root/.claude/settings.json", "w") as f:
+    json.dump(s, f, indent=2)
+    f.write("\n")
+PYEOF
     echo "Settings updated"
   else
     echo "WARNING: Failed to provision token"

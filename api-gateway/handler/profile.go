@@ -24,29 +24,29 @@ const profileTokensPrefix = "profile_tokens:"
 // Profile represents a configuration for connecting to an AI provider.
 // ProfileTarget represents a single target in a multi-target profile.
 type ProfileTarget struct {
-	ID         string   `json:"id,omitempty"`
-	Target     string   `json:"target"`
-	BaseURL    string   `json:"baseUrl,omitempty"`
-	APIKey     string   `json:"apiKey,omitempty"`
-	AccountIDs []string `json:"accountIds,omitempty"`
-	PassthroughAuth bool `json:"passthroughAuth,omitempty"`
+	ID              string   `json:"id,omitempty"`
+	Target          string   `json:"target"`
+	BaseURL         string   `json:"baseUrl,omitempty"`
+	APIKey          string   `json:"apiKey,omitempty"`
+	AccountIDs      []string `json:"accountIds,omitempty"`
+	PassthroughAuth bool     `json:"passthroughAuth,omitempty"`
 }
 
 type Profile struct {
-	Name            string   `json:"name"`
-	BaseURL         string   `json:"baseUrl"`
-	APIKey          string   `json:"apiKey"`
-	Model           string   `json:"model"`
-	OpusModel       string   `json:"opusModel,omitempty"`
-	SonnetModel     string   `json:"sonnetModel,omitempty"`
-	HaikuModel      string   `json:"haikuModel,omitempty"`
-	Target          string   `json:"target"`
-	Provider        string   `json:"provider,omitempty"`
-	AccountIDs      []string `json:"accountIds"`
-	Targets        []ProfileTarget `json:"targets,omitempty"`
-	PassthroughAuth bool     `json:"passthroughAuth,omitempty"`
-	CreatedAt       string   `json:"createdAt"`
-	UpdatedAt       string   `json:"updatedAt"`
+	Name            string          `json:"name"`
+	BaseURL         string          `json:"baseUrl"`
+	APIKey          string          `json:"apiKey"`
+	Model           string          `json:"model"`
+	OpusModel       string          `json:"opusModel,omitempty"`
+	SonnetModel     string          `json:"sonnetModel,omitempty"`
+	HaikuModel      string          `json:"haikuModel,omitempty"`
+	Target          string          `json:"target"`
+	Provider        string          `json:"provider,omitempty"`
+	AccountIDs      []string        `json:"accountIds"`
+	Targets         []ProfileTarget `json:"targets,omitempty"`
+	PassthroughAuth bool            `json:"passthroughAuth,omitempty"`
+	CreatedAt       string          `json:"createdAt"`
+	UpdatedAt       string          `json:"updatedAt"`
 }
 
 // ProfileToken represents a named API token tied to a profile.
@@ -569,7 +569,7 @@ func (h *ProfileHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 // --- token handlers ---
 
-// ListTokens returns all tokens for a profile.
+// ListTokens returns all tokens for a profile. Expired tokens are auto-revoked.
 func (h *ProfileHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
@@ -580,18 +580,29 @@ func (h *ProfileHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	data, err := h.redis.HGetAll(ctx, profileTokensPrefix+name).Result()
+	tokensKey := profileTokensPrefix + name
+	data, err := h.redis.HGetAll(ctx, tokensKey).Result()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list tokens"})
 		return
 	}
 
+	now := time.Now().UTC()
 	tokens := make([]ProfileToken, 0, len(data))
-	for _, val := range data {
+	for key, val := range data {
 		var pt ProfileToken
-		if json.Unmarshal([]byte(val), &pt) == nil {
-			tokens = append(tokens, pt)
+		if json.Unmarshal([]byte(val), &pt) != nil {
+			continue
 		}
+		if pt.ExpiresAt != "" {
+			if exp, err := time.Parse(time.RFC3339, pt.ExpiresAt); err == nil && exp.Before(now) {
+				h.redis.HDel(ctx, tokensKey, key)
+				h.redis.Del(ctx, profileTokenPrefix+pt.Token)
+				slog.Info("auto-revoked expired token", "profile", name, "keyName", pt.KeyName)
+				continue
+			}
+		}
+		tokens = append(tokens, pt)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"tokens": tokens})

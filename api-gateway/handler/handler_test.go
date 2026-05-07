@@ -85,7 +85,7 @@ func TestValidateChatRequest(t *testing.T) {
 				assert.Equal(t, 1024, reqCopy.MaxTokens)
 				assert.Equal(t, 0.7, reqCopy.Temperature)
 				assert.Equal(t, "glm-5", reqCopy.Model)
-				assert.Equal(t, "glm", reqCopy.Provider)
+				assert.Equal(t, "zai", reqCopy.Provider)
 			}
 		})
 	}
@@ -101,7 +101,7 @@ func TestValidateChatRequestDefaults(t *testing.T) {
 	assert.Equal(t, 1024, req.MaxTokens)
 	assert.Equal(t, 0.7, req.Temperature)
 	assert.Equal(t, "glm-5", req.Model)
-	assert.Equal(t, "glm", req.Provider)
+	assert.Equal(t, "zai", req.Provider)
 }
 
 func TestValidateChatRequestZeroValuesBecomeDefaults(t *testing.T) {
@@ -118,7 +118,7 @@ func TestValidateChatRequestZeroValuesBecomeDefaults(t *testing.T) {
 	assert.Equal(t, 1024, req.MaxTokens)
 	assert.Equal(t, 0.7, req.Temperature)
 	assert.Equal(t, "glm-5", req.Model)
-	assert.Equal(t, "glm", req.Provider)
+	assert.Equal(t, "zai", req.Provider)
 }
 
 func TestValidateChatRequestNegativeTemperature(t *testing.T) {

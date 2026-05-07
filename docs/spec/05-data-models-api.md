@@ -125,7 +125,7 @@ type ProviderConfig struct {
 | qwen         | Qwen (Aliyun)         | device_code | `https://dashscope.aliyuncs.com`              |
 | claude-oauth | Claude (OAuth)        | auth_code   | `https://api.anthropic.com`                   |
 | deepseek     | DeepSeek              | api_key     | `https://api.deepseek.com`                    |
-| kimi         | Kimi (Moonshot)       | api_key     | `https://api.moonshot.cn/v1`                  |
+| kimi         | Kimi                  | api_key     | `https://api.kimi.com/coding`                 |
 | huggingface  | Hugging Face          | api_key     | `https://api-inference.huggingface.co/models` |
 | ollama       | Ollama                | api_key     | `http://localhost:11434`                      |
 | agy          | Antigravity           | api_key     | `https://antigravity.com`                     |
@@ -247,7 +247,7 @@ type RoutingDecision struct {
 | gemini       | gemini    | api_key    | (dynamic URL)                          | -               | 0           | 0                 | -          |
 | gemini-oauth | gemini    | bearer     | (dynamic URL)                          | -               | 0           | 0                 | -          |
 | deepseek     | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
-| kimi         | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
+| kimi         | anthropic | api_key    | `/v1/messages`                         | -               | 0           | 0                 | -          |
 | huggingface  | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
 | ollama       | openai    | bearer     | `/v1/chat/completions`                 | -               | 0           | 0                 | -          |
 | agy          | anthropic | api_key    | `/v1/messages`                         | -               | 0           | 0                 | -          |

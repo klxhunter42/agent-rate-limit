@@ -196,7 +196,7 @@ func (w *RefreshWorker) doRefresh(ctx context.Context, pc ProviderConfig, t *Tok
 	}
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("refresh request: %w", err)
 	}
@@ -310,7 +310,7 @@ func (w *RefreshWorker) loadCodeAssistProject(ctx context.Context, pc ProviderCo
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("loadCodeAssist request: %w", err)
 	}
@@ -351,7 +351,7 @@ func (w *RefreshWorker) onboardAndLoad(ctx context.Context, pc ProviderConfig, a
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("onboardUser request: %w", err)
 	}
@@ -413,7 +413,7 @@ func (w *RefreshWorker) pollOperation(ctx context.Context, pc ProviderConfig, ac
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := getOAuthClient().Do(req)
 	if err != nil {
 		return "", fmt.Errorf("poll request: %w", err)
 	}

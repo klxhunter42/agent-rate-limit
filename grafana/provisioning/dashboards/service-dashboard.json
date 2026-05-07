@@ -182,7 +182,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 * sum(increase(api_gateway_cost_total{type=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1)) or on() vector(0)",
           "legendFormat": "Saved",
           "datasource": {
             "type": "prometheus",
@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -415,15 +415,15 @@
             "uid": "prometheus"
           },
           "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
-          "legendFormat": "Without Optimization"
+          "legendFormat": "With Optimization"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
-          "legendFormat": "With Optimization"
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
+          "legendFormat": "Without Optimization"
         }
       ],
       "fieldConfig": {
@@ -435,13 +435,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Without Optimization"
+              "options": "With Optimization"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#f97316",
+                  "fixedColor": "#22c55e",
                   "mode": "fixed"
                 }
               }
@@ -450,13 +450,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "With Optimization"
+              "options": "Without Optimization"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#22c55e",
+                  "fixedColor": "#f97316",
                   "mode": "fixed"
                 }
               }
@@ -828,7 +828,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_savings_total[$__interval]))",
+          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 * sum(rate(api_gateway_cost_total{type=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1)) or on() vector(0)",
           "legendFormat": "cost savings ($/s)",
           "refId": "A"
         }

@@ -49,7 +49,7 @@ Routes AI requests across 17+ providers with automatic format conversion.
 | OpenRouter         | API Key              | OpenAI format           | `proxy/openai.go`            |
 | Qwen               | API Key              | OpenAI format           | `proxy/openai.go`            |
 | DeepSeek           | API Key              | OpenAI format           | `proxy/openai.go`            |
-| Kimi               | API Key              | OpenAI format           | `proxy/openai.go`            |
+| Kimi               | API Key              | Anthropic format        | `proxy/anthropic.go`         |
 | HuggingFace        | API Key              | OpenAI format           | `proxy/openai.go`            |
 | Ollama             | API Key              | OpenAI format           | `proxy/openai.go`            |
 | Cursor             | OAuth Device Code    | OpenAI format           | `proxy/openai.go`            |

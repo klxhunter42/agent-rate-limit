@@ -182,7 +182,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 * sum(increase(api_gateway_cost_total{type=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1)) or on() vector(0)",
           "legendFormat": "Saved",
           "datasource": {
             "type": "prometheus",
@@ -238,7 +238,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -422,7 +422,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "legendFormat": "With Optimization"
         }
       ],
@@ -828,7 +828,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_cost_savings_total[$__interval]))",
+          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 * sum(rate(api_gateway_cost_total{type=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1)) or on() vector(0)",
           "legendFormat": "cost savings ($/s)",
           "refId": "A"
         }

@@ -58,7 +58,7 @@ services:
       GEMINI_OAUTH_CLIENT_ID: ${GEMINI_OAUTH_CLIENT_ID:-}
       GEMINI_OAUTH_CLIENT_SECRET: ${GEMINI_OAUTH_CLIENT_SECRET:-}
       GLM_MODE: ${GLM_MODE:-true}
-      LOTUSS_UPSTREAM_BASE: ${LOTUSS_UPSTREAM_BASE:-https://llm.internal/custom/llm}
+      LOTUSS_UPSTREAM_BASE: ${LOTUSS_UPSTREAM_BASE:-https://api-cpxis.lotuss.com/llm}
       LOTUSS_API_KEYS: ${LOTUSS_API_KEYS:-}
       CLI_SIDECAR_ENABLED: ${CLI_SIDECAR_ENABLED:-true}
       CLI_SIDECAR_URL: ${CLI_SIDECAR_URL:-http://127.0.0.1:8081}
@@ -68,6 +68,7 @@ services:
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
       DEBUG: ${DEBUG:-false}
+      SSL_CERT_FILE: /tmp/mitmproxy-ca-cert.pem
     depends_on:
       arl-dragonfly:
         condition: service_healthy
@@ -386,38 +387,29 @@ services:
     networks:
       - arl-network
 
-# --- Claude Code test client ---
-  claude-code-meow:
-    platform: linux/arm64
+  # --- Claude Code debug client (start with: docker compose --profile debug up) ---
+  claude-code-debug:
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
     build:
       context: ./docker
       dockerfile: Dockerfile.claude-code
-    container_name: claude-code-meow
-    profiles: ["test-client"]
+    container_name: claude-code-debug
+    profiles: ["debug"]
     volumes:
       - ./workspace:/workspace
+      - ./docker/settings-debug.json:/root/.claude/settings.json
     environment:
-      PROFILE_NAME: meow
+      PROFILE_NAME: debug
+      HTTPS_PROXY: http://arl-mitmweb:8083
+      HTTP_PROXY: http://arl-mitmweb:8083
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
       CLAUDE_CODE_DISABLE_ANALYTICS: 1
-    networks:
-      - arl-network
-    stdin_open: true
-    tty: true
-
-  claude-code-test:
-    platform: linux/arm64
-    build:
-      context: ./docker
-      dockerfile: Dockerfile.claude-code
-    container_name: claude-code-test
-    profiles: ["test-client"]
-    volumes:
-      - ./workspace:/workspace
-    environment:
-      PROFILE_NAME: test
-      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1
-      CLAUDE_CODE_DISABLE_ANALYTICS: 1
+    depends_on:
+      arl-gateway:
+        condition: service_healthy
+      arl-mitmweb:
+        condition: service_started
     networks:
       - arl-network
     stdin_open: true

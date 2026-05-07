@@ -1,0 +1,8 @@
+{
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://arl-proxy:9000",
+    "ANTHROPIC_API_KEY": "arl_f8c6857f27545cba9d857d80f1ad661604427bf17c5b9ec0977b5ffb67827f73"
+  },
+  "model": "kimi-k2.6"
+}

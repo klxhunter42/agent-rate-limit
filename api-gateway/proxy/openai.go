@@ -54,7 +54,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	modelCap := tokenizer.GetModelCapabilities(model)
 	slog.Info("request token estimate", "model", model, "estimated_input", estInput, "context_limit", modelCap.ContextWindow, "max_continuations", maxContinuations)
 
-	// For providers with auto-continuation (lotus, etc.): auto-compact + max_tokens adjustment.
+	// For providers with auto-continuation (lotuss, etc.): auto-compact + max_tokens adjustment.
 	// Lotus context=40000. When input exceeds threshold, truncate old messages to free space.
 	if maxContinuations > 0 && estInput > 0 {
 		const providerContextLimit = 40000
@@ -194,7 +194,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 		errBody := lastErrBody
 		slog.Info("upstream non-200", "status", lastResp.StatusCode, "maxContinuations", maxContinuations, "body_preview", string(errBody[:min(len(errBody), 200)]))
 
-		// If lotus returns 400 for max_tokens too large, retry with reduced max_tokens
+		// If lotuss returns 400 for max_tokens too large, retry with reduced max_tokens
 		// using the actual input token count from the error message.
 		if lastResp.StatusCode == 400 && maxContinuations > 0 &&
 			strings.Contains(string(errBody), "max_tokens") &&

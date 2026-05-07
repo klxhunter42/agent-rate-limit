@@ -813,7 +813,7 @@ Auto-discovers real upstream limit. Starts conservative, probes upward, backs of
 | **Google Gemini**                | generativelanguage.googleapis.com | gemini-2.0-flash |
 | **OpenRouter**                   | openrouter.ai/api/v1              | openai/gpt-4o    |
 | **DeepSeek**                     | api.deepseek.com                  | deepseek-chat    |
-| **Kimi**                         | api.moonshot.cn/v1                | moonshot-v1-8k   |
+| **Kimi**                         | api.kimi.com/coding               | kimi-for-coding  |
 | **Hugging Face**                 | api-inference.huggingface.co      | model repo ID    |
 | **Ollama**                       | localhost:11434                   | local model      |
 | **AGY, Cursor, CodeBuddy, Kilo** | Various                           | Various          |

@@ -74,6 +74,7 @@ docker-compose up
 | `privacy/pii/mask.go`   | PII masking with placeholder generation                      |
 | `privacy/config.go`     | Env var loading, default config                              |
 | `privacy/pipeline.go`   | Full mask/unmask pipeline (secrets + PII)                    |
+| `privacy/masking/stream.go` | `StreamUnmasker` with `ProcessChunk` (text/thinking) and `ProcessChunkJSON` (partial_json) |
 
 ---
 
@@ -125,6 +126,14 @@ Users saw `[[PERSON_2]]`, `[[PERSON_13]]` in responses instead of real names, be
 
 **Fix:** Added empty text guard after ProcessChunk.
 
+#### Bug #6 (HIGH) -- partial_json (input_json_delta) unbuffered unmask
+
+**File:** `proxy/anthropic.go` -- `relayStreamWithTracking()`, `ProxySidecar()`
+
+**Cause:** `input_json_delta` events (tool call arguments) used `ReplaceDirectJSON` which is unbuffered. When Claude Code calls tools (Edit, Bash, etc.) that contain masked values, the placeholder appears in the tool call's partial JSON stream. If `[[IP_ADDRESS_1]]` splits across chunks (e.g. chunk1=`[[IP_ADDR`, chunk2=`ESS_1]]`), neither chunk contains the complete placeholder, so it passes through unmodified. Users saw raw `[[IP_ADDRESS_N]]` in tool outputs.
+
+**Fix:** Added `ProcessChunkJSON` method to `StreamUnmasker` with separate JSON-mode buffers (`piiJSONBuffer`, `secretsJSONBuffer`) that accumulate partial placeholders across chunks, same as `ProcessChunk` does for text/thinking but using `RestorePlaceholdersJSON` for JSON-safe escaping. Both `relayStreamWithTracking` and `ProxySidecar` now use `ProcessChunkJSON` for partial_json events.
+
 ### Streaming Unmask Flow (after fix)
 
 ```
@@ -134,8 +143,16 @@ Request -> Mask PII/Secrets -> Upstream API
   |
   +---------------------------+
   | content_block_delta?      |
-  | YES -> ProcessChunk()     |
-  |   (buffered, every time)  |
+  | YES -> check delta type:  |
+  |   text_delta:             |
+  |     ProcessChunk()        |
+  |     (buffered, plain)     |
+  |   thinking_delta:         |
+  |     ProcessChunk()        |
+  |     (buffered, plain)     |
+  |   input_json_delta:       |
+  |     ProcessChunkJSON()    |
+  |     (buffered, JSON-safe) |
   |                           |
   | content_block_stop?       |
   | YES -> Flush() -> emit    |

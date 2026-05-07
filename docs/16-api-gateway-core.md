@@ -825,8 +825,20 @@ Model prefix -> provider mapping:
 | `kimi-`                     | kimi                    |
 
 API format per provider:
-- **Anthropic format**: anthropic, claude-oauth, claude, zai, agy
+- **Anthropic format**: anthropic, claude-oauth, claude, zai, agy, kimi
 - **Gemini format**: gemini, gemini-oauth
+
+### Model-Level Fallback
+
+When a model gets 429 rate-limited, the handler tries lighter models from the same provider before falling back to a different provider. Defined in `handler/handler.go` as the `modelFallbacks` map.
+
+Helper: `tryModelFallback(providerID, model) (fallbackModel string, ok bool)` - iterates the fallback chain, skipping models that are also cooling down.
+
+Integration points:
+- Vision ProxyCodeAssist cooldown check (line ~1538)
+- Main ProxyCodeAssist cooldown check (line ~1605)
+
+Order: model fallback -> provider fallback -> error.
 
 ---
 

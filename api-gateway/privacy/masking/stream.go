@@ -1,10 +1,23 @@
 package masking
 
+import (
+	"sort"
+	"strings"
+)
+
 type StreamUnmasker struct {
 	piiBuffer     string
 	secretsBuffer string
-	piiCtx        *MaskContext
-	secretsCtx    *MaskContext
+	// JSON-mode buffers for partial_json (input_json_delta) where replaced
+	// values must survive JSON string encoding.
+	piiJSONBuffer     string
+	secretsJSONBuffer string
+	piiCtx            *MaskContext
+	secretsCtx        *MaskContext
+	// Fallback sanitizer state for models that output "undefined" instead of
+	// preserving [[TYPE_N]] placeholders. Lazily populated.
+	fallbackOriginals   []string
+	fallbackConsumedIdx int
 }
 
 func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
@@ -23,6 +36,24 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	}
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		processed, u.piiBuffer = processStreamChunk(u.piiBuffer, processed, u.piiCtx)
+	}
+	// Fallback: models like GLM may output "undefined" instead of preserving placeholders.
+	if strings.Contains(processed, "undefined") {
+		processed = u.replaceUndefinedFallback(processed)
+	}
+	return processed
+}
+
+// ProcessChunkJSON does buffered JSON-safe unmasking for partial_json deltas.
+// Use for input_json_delta events where placeholders may be split across chunks
+// and replaced values must survive JSON string encoding.
+func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
+	processed := chunk
+	if u.secretsCtx != nil && len(u.secretsCtx.Mapping) > 0 {
+		processed, u.secretsJSONBuffer = processStreamChunkJSON(u.secretsJSONBuffer, processed, u.secretsCtx)
+	}
+	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
+		processed, u.piiJSONBuffer = processStreamChunkJSON(u.piiJSONBuffer, processed, u.piiCtx)
 	}
 	return processed
 }
@@ -71,6 +102,24 @@ func (u *StreamUnmasker) Flush() string {
 		result = u.piiBuffer + result
 		u.piiBuffer = ""
 	}
+
+	// Also flush JSON-mode buffers (partial_json path).
+	if u.secretsCtx != nil && u.secretsJSONBuffer != "" {
+		result += u.secretsCtx.RestorePlaceholdersJSON(u.secretsJSONBuffer)
+		u.secretsJSONBuffer = ""
+	}
+	jsonCombined := u.piiJSONBuffer
+	if result != "" {
+		jsonCombined = u.piiJSONBuffer // PII buffer is independent from text result
+	}
+	if u.piiCtx != nil && u.piiJSONBuffer != "" {
+		result += u.piiCtx.RestorePlaceholdersJSON(jsonCombined)
+		u.piiJSONBuffer = ""
+	} else if u.piiJSONBuffer != "" {
+		result += u.piiJSONBuffer
+		u.piiJSONBuffer = ""
+	}
+
 	return result
 }
 
@@ -93,4 +142,61 @@ func processStreamChunk(buffer, chunk string, ctx *MaskContext) (output, remaini
 	safeToProcess := combined[:partialStart]
 	toBuffer := combined[partialStart:]
 	return ctx.RestorePlaceholders(safeToProcess), toBuffer
+}
+
+func processStreamChunkJSON(buffer, chunk string, ctx *MaskContext) (output, remaining string) {
+	combined := buffer + chunk
+	partialStart := FindPartialPlaceholderStart(combined)
+	if partialStart < 0 {
+		return ctx.RestorePlaceholdersJSON(combined), ""
+	}
+	safeToProcess := combined[:partialStart]
+	toBuffer := combined[partialStart:]
+	return ctx.RestorePlaceholdersJSON(safeToProcess), toBuffer
+}
+
+// replaceUndefinedFallback replaces "undefined" strings with original values from
+// the mapping. Some models (e.g. GLM) output "undefined" instead of preserving
+// [[TYPE_N]] placeholders. This is a best-effort fallback to recover the original text.
+func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
+	if u.fallbackOriginals == nil {
+		u.fallbackOriginals = u.collectFallbackOriginals()
+	}
+	for u.fallbackConsumedIdx < len(u.fallbackOriginals) {
+		if !strings.Contains(text, "undefined") {
+			break
+		}
+		orig := u.fallbackOriginals[u.fallbackConsumedIdx]
+		u.fallbackConsumedIdx++
+		text = strings.Replace(text, "undefined", orig, 1)
+	}
+	return text
+}
+
+// collectFallbackOriginals returns original values from both contexts, sorted by
+// placeholder name for deterministic order.
+func (u *StreamUnmasker) collectFallbackOriginals() []string {
+	type entry struct {
+		placeholder string
+		original    string
+	}
+	var entries []entry
+	if u.secretsCtx != nil {
+		for p, orig := range u.secretsCtx.Mapping {
+			entries = append(entries, entry{p, orig})
+		}
+	}
+	if u.piiCtx != nil {
+		for p, orig := range u.piiCtx.Mapping {
+			entries = append(entries, entry{p, orig})
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].placeholder < entries[j].placeholder
+	})
+	result := make([]string, len(entries))
+	for i, e := range entries {
+		result[i] = e.original
+	}
+	return result
 }

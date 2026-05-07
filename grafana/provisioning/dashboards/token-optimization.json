@@ -54,7 +54,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -97,7 +97,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"output\"}[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"output\"}[$__range])) / 4 or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -136,7 +136,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_cost_savings_total[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 * sum(increase(api_gateway_cost_total{type=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1)) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -225,7 +225,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -401,7 +401,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(api_gateway_cost_savings_total[$__interval])) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 * sum(rate(api_gateway_cost_total{type=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1)) or on() vector(0)",
           "legendFormat": "savings ($/s)",
           "refId": "A"
         }
@@ -557,19 +557,9 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__range])) or on() vector(0)",
-          "legendFormat": "chunker",
+          "expr": "(sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{technique}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) or on() vector(0)",
-          "legendFormat": "delta",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range])) or on() vector(0)",
-          "legendFormat": "sketch",
-          "refId": "C"
         }
       ],
       "fieldConfig": {
@@ -620,14 +610,14 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_token_input_total[$__range])) or on() vector(0)",
           "refId": "A",
-          "legendFormat": "Without Optimization"
+          "legendFormat": "With Optimization"
         },
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__range]))) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
           "refId": "B",
-          "legendFormat": "With Optimization"
+          "legendFormat": "Without Optimization"
         }
       ],
       "fieldConfig": {
@@ -704,7 +694,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(api_gateway_optimizer_tokens_saved_total{direction=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1) * 100) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + 1) * 100) or on() vector(0)",
           "legendFormat": "optimization rate %",
           "refId": "A"
         }

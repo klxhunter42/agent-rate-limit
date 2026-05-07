@@ -29,7 +29,7 @@ docker-compose up -d --build arl-worker
 | `zai`         | `ZAI_API_KEYS`         | api.z.ai/api/anthropic              | Anthropic |
 | `openrouter`  | `OPENROUTER_API_KEYS`  | openrouter.ai/api                   | OpenAI    |
 | `deepseek`    | `DEEPSEEK_API_KEYS`    | api.deepseek.com                    | OpenAI    |
-| `kimi`        | `KIMI_API_KEYS`        | api.moonshot.cn/v1                  | OpenAI    |
+| `kimi`        | `KIMI_API_KEYS`        | api.kimi.com/coding                 | Anthropic |
 | `huggingface` | `HUGGINGFACE_API_KEYS` | api-inference.huggingface.co/models | OpenAI    |
 | `ollama`      | `OLLAMA_API_KEYS`      | localhost:11434                     | OpenAI    |
 | `agy`         | `AGY_API_KEYS`         | antigravity.com                     | Anthropic |
@@ -130,7 +130,7 @@ In GLM mode, unknown models fall back to `zai`.
 | `gemini`       | Gemini    | `api_key`   | (model + key in query)                 | -                                                                                   |
 | `gemini-oauth` | Gemini    | `bearer`    | (model in path)                        | -                                                                                   |
 | `deepseek`     | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
-| `kimi`         | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
+| `kimi`         | Anthropic | `api_key`   | `/v1/messages`                         | -                                                                                   |
 | `huggingface`  | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
 | `ollama`       | OpenAI    | `bearer`    | `/v1/chat/completions`                 | -                                                                                   |
 | `agy`          | Anthropic | `api_key`   | `/v1/messages`                         | -                                                                                   |

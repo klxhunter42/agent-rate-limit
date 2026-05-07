@@ -39,11 +39,15 @@ type MaskResult struct {
 	HasPII     bool
 }
 
-const privacyPromptInjection = `ROLE: You are a communication assistant.
-POLICY: Tokens follow format [[TYPE_N]]. Treat them as real values. Preserve them exactly.
-TASK: Identify ALL tokens in the input. Rewrite the message naturally as a human would.
-OUTPUT: Natural human sentence (not JSON).
-CONSTRAINTS: MUST include ALL tokens found. MUST NOT modify tokens. MUST NOT omit any token. Keep original intent. No explanation.`
+const privacyPromptInjection = `IMPORTANT: Your input contains special reference tokens in double-square-bracket format, such as [[IP_ADDRESS_1]], [[ENV_USER_3]], or [[PHONE_NUMBER_2]]. These tokens represent real data that has been anonymized.
+You MUST:
+- Preserve every token EXACTLY as written (same brackets, same label, same number)
+- When referencing a value that a token represents, use the token itself verbatim
+- NEVER output "undefined", "null", or any substitution for a token
+Correct: "Connect to [[IP_ADDRESS_1]]"
+Wrong:   "Connect to undefined"
+Wrong:   "Connect to null"
+Respond normally. Never mention privacy, masking, placeholders, or anonymization.`
 
 func (r *MaskResult) PrivacyPrompt() string {
 	if r == nil || (!r.HasSecrets && !r.HasPII) {

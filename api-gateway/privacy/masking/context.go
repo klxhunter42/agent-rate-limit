@@ -68,19 +68,26 @@ func jsonEscape(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '"':
+		c := s[i]
+		switch {
+		case c == '"':
 			b.WriteString(`\"`)
-		case '\\':
+		case c == '\\':
 			b.WriteString(`\\`)
-		case '\n':
+		case c == '\n':
 			b.WriteString(`\n`)
-		case '\r':
+		case c == '\r':
 			b.WriteString(`\r`)
-		case '\t':
+		case c == '\t':
 			b.WriteString(`\t`)
+		case c == '\b':
+			b.WriteString(`\b`)
+		case c == '\f':
+			b.WriteString(`\f`)
+		case c < 0x20:
+			fmt.Fprintf(&b, `\u%04x`, c)
 		default:
-			b.WriteByte(s[i])
+			b.WriteByte(c)
 		}
 	}
 	return b.String()

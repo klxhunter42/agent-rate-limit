@@ -52,7 +52,7 @@ func (r *Resolver) MarkCooldown(providerID string, d time.Duration, model ...str
 	r.cooldowns.Store(key, time.Now().Add(d))
 }
 
-func (r *Resolver) isCoolingDown(providerID string, model ...string) bool {
+func (r *Resolver) IsCoolingDown(providerID string, model ...string) bool {
 	key := providerID
 	if len(model) > 0 && model[0] != "" {
 		key = providerID + ":" + model[0]
@@ -76,13 +76,13 @@ type providerRoute struct {
 // When a provider returns finish_reason:"length", the gateway automatically
 // sends a continuation request up to this many times.
 var providerContinuations = map[string]int{
-	"lotus": 3,
+	"lotuss": 3,
 }
 
 // providerToolMode maps provider IDs to tool handling mode.
 // "native" = use OpenAI function calling format, convert tool_calls to Anthropic tool_use.
 var providerToolMode = map[string]string{
-	"lotus": "native",
+	"lotuss": "native",
 }
 
 var providerRouteTable = map[string]providerRoute{
@@ -125,14 +125,14 @@ var providerRouteTable = map[string]providerRoute{
 	"gemini":       {FormatGemini, "api_key", "", nil, "", 0},
 	"gemini-oauth": {FormatGemini, "bearer", "", nil, "", 0},
 	"deepseek":     {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
-	"kimi":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
+	"kimi":         {FormatAnthropic, "api_key", "/v1/messages", nil, "", 0},
 	"huggingface":  {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"ollama":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"agy":          {FormatAnthropic, "api_key", "/v1/messages", nil, "", 0},
 	"cursor":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"codebuddy":    {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
 	"kilo":         {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0},
-	"lotus":        {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 4096},
+	"lotuss":       {FormatOpenAI, "bearer", "/v1/chat/completions", nil, "default", 4096},
 }
 
 // RegisterProviderRoute adds a dynamic route entry for custom providers.
@@ -173,7 +173,7 @@ var modelRules = []modelRule{
 	{"huggingface/", []string{"huggingface"}},
 	{"ollama", []string{"ollama"}},
 	{"agy-", []string{"agy"}},
-	{"lotus-", []string{"lotus"}},
+	{"lotuss-", []string{"lotuss"}},
 }
 
 // ModelBelongsToProvider checks if a model name routes to the given provider
@@ -189,6 +189,17 @@ func ModelBelongsToProvider(model, providerID string) bool {
 		}
 	}
 	return false
+}
+
+// ResolveProviderByModel returns the first provider ID that matches the model prefix,
+// or "glm" as fallback.
+func ResolveProviderByModel(model string) string {
+	for _, rule := range modelRules {
+		if strings.HasPrefix(model, rule.prefix) {
+			return rule.providers[0]
+		}
+	}
+	return "glm"
 }
 
 // ResolveFallback returns the next routing decision for a model, skipping providers in excluded
@@ -274,7 +285,7 @@ func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool)
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
-	if r.isCoolingDown(providerID, model) {
+	if r.IsCoolingDown(providerID, model) {
 		return nil
 	}
 	if r.tokenStore == nil {
@@ -297,7 +308,7 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 // tryResolveRoundRobin cycles through all active tokens for a provider
 // Prefers accounts with low 5h utilization; falls back to all if all are high
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
-	if r.isCoolingDown(providerID, model) {
+	if r.IsCoolingDown(providerID, model) {
 		return nil
 	}
 	if r.tokenStore == nil {

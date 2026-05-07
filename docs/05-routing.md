@@ -137,7 +137,7 @@ Each provider has a pre-configured route format, auth mode, and URL suffix:
 | `gemini`       | gemini    | api_key     | (model+key in query)                   | Gemini API key                                                                        |
 | `gemini-oauth` | gemini    | bearer      | (model+key in query)                   | Gemini OAuth                                                                          |
 | `deepseek`     | openai    | bearer      | `/v1/chat/completions`                 | DeepSeek API                                                                          |
-| `kimi`         | openai    | bearer      | `/v1/chat/completions`                 | Kimi API                                                                              |
+| `kimi`         | anthropic | api_key     | `/v1/messages`                         | Kimi API                                                                              |
 | `huggingface`  | openai    | bearer      | `/v1/chat/completions`                 | HuggingFace                                                                           |
 | `ollama`       | openai    | bearer      | `/v1/chat/completions`                 | Ollama local                                                                          |
 | `agy`          | anthropic | api_key     | `/v1/messages`                         | AGY provider                                                                          |
@@ -175,6 +175,34 @@ Model-to-provider resolution uses prefix matching in priority order:
 | `agy-`         | `agy`                       |
 
 For `claude-oauth` and `gemini-oauth`, the resolver uses round-robin across active accounts, preferring accounts with lower 5h utilization (<80%).
+
+---
+
+## Model-Level Fallback (429 Handling)
+
+When a provider returns HTTP 429 (rate limit) for a specific model, the gateway automatically tries lighter models from the same provider before attempting a provider-level fallback. This is defined in the `modelFallbacks` map in `handler/handler.go`.
+
+**Fallback chain per model family:**
+
+| Model                | Fallback Chain                                                                  |
+|----------------------|---------------------------------------------------------------------------------|
+| `gemini-2.5-pro`     | `gemini-2.5-flash` -> `gemini-2.5-flash-lite` -> `gemini-2.0-flash`            |
+| `gemini-2.5-flash`   | `gemini-2.5-flash-lite` -> `gemini-2.0-flash`                                  |
+| `claude-opus-4-7`    | `claude-opus-4-20250115` -> `claude-sonnet-4-6` -> `claude-sonnet-4-20250514` -> `claude-haiku-4-5-20251001` |
+| `claude-sonnet-4-6`  | `claude-sonnet-4-20250514` -> `claude-haiku-4-5-20251001`                       |
+| `gpt-4.1`            | `gpt-4.1-mini` -> `gpt-4.1-nano`                                               |
+| `gpt-4o`             | `gpt-4o-mini`                                                                   |
+| `o3`                 | `o4-mini`                                                                       |
+| `glm-5.1`            | `glm-5` -> `glm-4.7` -> `glm-4.6` -> `glm-4.5`                                 |
+| `glm-5`              | `glm-4.7` -> `glm-4.6` -> `glm-4.5`                                            |
+| `qwen-plus`          | `qwen-turbo`                                                                    |
+
+**Fallback order on 429:**
+1. **Model fallback** - try lighter models from the same provider (checks cooldown per model)
+2. **Provider fallback** - try next provider in the routing chain (e.g., `gemini-oauth` -> `gemini` API key)
+3. **Error** - return 429 to client if all fallbacks exhausted
+
+The cooldown mechanism (`resolver.MarkCooldown`) tracks rate-limited provider+model pairs. When a model is cooling down, `tryModelFallback` skips it and tries the next model in the chain.
 
 ---
 
