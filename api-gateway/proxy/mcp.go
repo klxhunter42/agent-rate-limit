@@ -99,6 +99,18 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 		writeMCPError(w, nil, -32000, "no available API key")
 		return
 	}
+
+	// When key pool is empty (passthrough mode), fall back to client's own key.
+	if apiKey == "" {
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			apiKey = strings.TrimPrefix(auth, "Bearer ")
+		}
+	}
+	if apiKey == "" {
+		writeMCPError(w, nil, -32000, "no available API key")
+		return
+	}
+
 	currentKey := apiKey
 	defer p.keyPool.ReportSuccess(currentKey)
 
