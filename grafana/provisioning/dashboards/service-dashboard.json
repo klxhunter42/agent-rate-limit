@@ -107,7 +107,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -167,7 +168,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -223,7 +225,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -286,7 +289,8 @@
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
-        "orientation": "auto"
+        "orientation": "auto",
+        "sort": "desc"
       }
     },
     {
@@ -335,7 +339,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -384,7 +389,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -415,15 +421,15 @@
             "uid": "prometheus"
           },
           "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
-          "legendFormat": "With Optimization"
+          "legendFormat": "Without Optimization"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
-          "legendFormat": "Without Optimization"
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
+          "legendFormat": "With Optimization"
         }
       ],
       "fieldConfig": {
@@ -435,13 +441,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "With Optimization"
+              "options": "Without Optimization"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#22c55e",
+                  "fixedColor": "#f97316",
                   "mode": "fixed"
                 }
               }
@@ -450,13 +456,13 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Without Optimization"
+              "options": "With Optimization"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
-                  "fixedColor": "#f97316",
+                  "fixedColor": "#22c55e",
                   "mode": "fixed"
                 }
               }
@@ -476,7 +482,8 @@
         "minVizWidth": 0,
         "minVizHeight": 10,
         "namePlacement": "auto",
-        "valueMode": "text"
+        "valueMode": "text",
+        "sort": "desc"
       }
     },
     {
@@ -512,10 +519,11 @@
             "lineWidth": 2,
             "pointSize": 4,
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -530,11 +538,13 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -569,10 +579,11 @@
             "lineWidth": 2,
             "pointSize": 4,
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -587,11 +598,13 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -649,7 +662,8 @@
         "barWidth": 0.5,
         "stacking": "none",
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "desc"
         },
         "showValue": "always"
       }
@@ -691,7 +705,8 @@
         "showValue": "always",
         "stacking": "none",
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "desc"
         }
       }
     },
@@ -733,7 +748,9 @@
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         },
         "pieType": "donut",
         "tooltip": {
@@ -791,10 +808,11 @@
             "lineWidth": 2,
             "pointSize": 4,
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "color": {
               "mode": "palette-classic"
-            }
+            },
+            "drawStyle": "points"
           },
           "lineWidth": 2
         }
@@ -809,11 +827,13 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -851,8 +871,10 @@
             "thresholdsStyle": {
               "mode": "off"
             },
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "thresholds": {
             "mode": "absolute",
@@ -875,11 +897,13 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -971,7 +995,12 @@
           "custom": {
             "align": "center",
             "filterable": true,
-            "inspect": false
+            "inspect": false,
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
           },
           "color": {
             "mode": "thresholds"

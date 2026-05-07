@@ -29,7 +29,6 @@
   "panels": [
     {
       "title": "Jobs Processed / Failed / Retried",
-      "description": "Per-second rate of jobs processed (by provider), failed, and retried over time. Unit: operations/sec.",
       "type": "timeseries",
       "gridPos": {
         "h": 9,
@@ -39,17 +38,17 @@
       },
       "targets": [
         {
-          "expr": "increase(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
           "legendFormat": "Processed/s ({{provider}})",
           "refId": "A"
         },
         {
-          "expr": "increase(ai_worker_jobs_failed_total[$__interval])",
+          "expr": "rate(ai_worker_jobs_failed_total[$__interval])",
           "legendFormat": "Failed/s",
           "refId": "B"
         },
         {
-          "expr": "increase(ai_worker_jobs_retried_total[$__interval])",
+          "expr": "rate(ai_worker_jobs_retried_total[$__interval])",
           "legendFormat": "Retried/s",
           "refId": "C"
         }
@@ -59,21 +58,28 @@
           "unit": "ops",
           "custom": {
             "fillOpacity": 10,
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "noValue": "0",
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Total Jobs",
-      "description": "Cumulative count of processed, failed, and retried jobs over the selected time range. Unit: count.",
       "type": "stat",
       "gridPos": {
         "h": 9,
@@ -122,11 +128,13 @@
             ]
           }
         ]
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Queue Depth Over Time",
-      "description": "Number of jobs waiting in the AI worker queue. Yellow above 50, red above 200.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -145,9 +153,11 @@
         "defaults": {
           "custom": {
             "fillOpacity": 20,
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "noValue": "0",
           "color": {
@@ -173,12 +183,17 @@
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Active Workers",
-      "description": "Current number of active AI worker processes. Red at 0 (no workers running). Unit: count.",
       "type": "gauge",
       "gridPos": {
         "h": 8,
@@ -211,11 +226,13 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Error Rate %",
-      "description": "Percentage of failed jobs out of total processed. failed_rate / request_rate * 100, clamped to 100%.",
       "type": "gauge",
       "gridPos": {
         "h": 8,
@@ -253,11 +270,13 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Rate Limit Hits",
-      "description": "Total HTTP 429 responses received from upstream providers over the selected time range. Unit: count.",
       "type": "stat",
       "gridPos": {
         "h": 8,
@@ -280,11 +299,13 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Total Provider Errors",
-      "description": "Cumulative count of jobs that failed at the provider level over the selected time range. Unit: count.",
       "type": "stat",
       "gridPos": {
         "h": 8,
@@ -307,11 +328,13 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "API Usage - Input by Model",
-      "description": "Input token consumption rate broken down by model. Unit: tokens/sec.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -321,7 +344,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_token_input_total[$__interval])))",
+          "expr": "(sum by (model) (rate(api_gateway_token_input_total[$__interval])))",
           "legendFormat": "{{model}} input",
           "refId": "A"
         }
@@ -331,20 +354,27 @@
           "unit": "cps",
           "noValue": "0",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "API Usage - Output by Model",
-      "description": "Output token generation rate broken down by model. Unit: tokens/sec.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -354,7 +384,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (model) (increase(api_gateway_token_output_total[$__interval])))",
+          "expr": "(sum by (model) (rate(api_gateway_token_output_total[$__interval])))",
           "legendFormat": "{{model}} output",
           "refId": "A"
         }
@@ -364,20 +394,27 @@
           "unit": "cps",
           "noValue": "0",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Provider Latency (p50/p95/p99)",
-      "description": "Request latency percentiles (p50, p95, p99) computed from the request duration histogram, grouped by API path. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -407,20 +444,27 @@
           "unit": "s",
           "noValue": "-",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Worker Process Memory (RSS)",
-      "description": "Resident (RSS) and virtual memory usage of the AI worker process. Unit: bytes.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -445,20 +489,27 @@
           "unit": "bytes",
           "noValue": "-",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Worker CPU Usage",
-      "description": "CPU consumption rate of the AI worker process. Unit: cores (1.0 = 100% of one CPU core).",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -478,20 +529,27 @@
           "unit": "core",
           "noValue": "-",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Provider Errors by Provider",
-      "description": "Rate of provider failures and upstream 429 rate-limit responses, broken down by provider. Unit: operations/sec.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -501,12 +559,12 @@
       },
       "targets": [
         {
-          "expr": "increase(ai_worker_jobs_failed_total[$__interval])",
+          "expr": "rate(ai_worker_jobs_failed_total[$__interval])",
           "legendFormat": "{{provider}} errors/s",
           "refId": "A"
         },
         {
-          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "{{provider}} rate-limited/s",
           "refId": "B"
         }
@@ -516,20 +574,27 @@
           "unit": "ops",
           "noValue": "0",
           "custom": {
-            "spanNulls": false,
+            "spanNulls": true,
             "lineWidth": 2,
-            "showPoints": "never"
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "lineWidth": 2
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Account Input Tokens",
-      "description": "Input token consumption rate per account and model combination. Unit: tokens/sec.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -543,7 +608,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (account_id, model) (increase(api_gateway_account_token_input_total[$__interval])))",
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_input_total[$__interval])))",
           "legendFormat": "{{account_id}}/{{model}}",
           "refId": "A"
         }
@@ -554,7 +619,9 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -564,12 +631,17 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Account Output Tokens",
-      "description": "Output token generation rate per account and model combination. Unit: tokens/sec.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -583,7 +655,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (account_id, model) (increase(api_gateway_account_token_output_total[$__interval])))",
+          "expr": "(sum by (account_id, model) (rate(api_gateway_account_token_output_total[$__interval])))",
           "legendFormat": "{{account_id}}/{{model}}",
           "refId": "A"
         }
@@ -594,7 +666,9 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -604,8 +678,14 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,

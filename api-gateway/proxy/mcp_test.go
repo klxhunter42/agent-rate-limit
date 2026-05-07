@@ -202,6 +202,123 @@ func TestMCPProxy_RetryOnUpstreamError(t *testing.T) {
 	}
 }
 
+func TestMCPProxy_SSEResponse(t *testing.T) {
+	jsonResult := `{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"hello world"}]}}`
+	sseBody := "event: message\ndata: " + jsonResult + "\n\n"
+
+	proxy, ts := newTestMCPProxy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if accept := r.Header.Get("Accept"); !strings.Contains(accept, "text/event-stream") {
+			t.Errorf("expected Accept header with text/event-stream, got %s", accept)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte(sseBody))
+	}))
+	defer ts.Close()
+
+	reqBody := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"webReader","arguments":{"url":"https://example.com"}}}`
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/mcp/web_reader", strings.NewReader(reqBody))
+
+	proxy.ProxyMCP(w, r, "web_reader")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response is not valid JSON: %v, body: %s", err, w.Body.String())
+	}
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	// Verify Content-Type is application/json (gateway normalizes SSE to JSON).
+	if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+		t.Errorf("expected application/json Content-Type, got %s", ct)
+	}
+}
+
+func TestMCPProxy_SSEMultipleEvents(t *testing.T) {
+	progressEvent := `{"jsonrpc":"2.0","method":"notifications/progress","params":{"progressToken":"abc","progress":50}}`
+	resultEvent := `{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"page content"}]}}`
+	sseBody := "event: message\ndata: " + progressEvent + "\n\nevent: message\ndata: " + resultEvent + "\n\n"
+
+	proxy, ts := newTestMCPProxy(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte(sseBody))
+	}))
+	defer ts.Close()
+
+	reqBody := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"webReader","arguments":{"url":"https://example.com"}}}`
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/mcp/web_reader", strings.NewReader(reqBody))
+
+	proxy.ProxyMCP(w, r, "web_reader")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response is not valid JSON: %s, body: %s", err.Error(), w.Body.String())
+	}
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+}
+
+func TestExtractSSEJSONRPC(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{
+			"single event",
+			"data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+			false,
+		},
+		{
+			"multiple events",
+			"data: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\",\"params\":{}}\n\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+			false,
+		},
+		{
+			"event with prefix",
+			"event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+			false,
+		},
+		{
+			"empty body",
+			"",
+			true,
+		},
+		{
+			"no data lines",
+			"event: message\n\n",
+			true,
+		},
+		{
+			"invalid JSON in data",
+			"data: not-json\n\n",
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractSSEJSONRPC([]byte(tt.input))
+			if (err != nil) != tt.wantErr {
+				t.Errorf("extractSSEJSONRPC() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil && !json.Valid(got) {
+				t.Errorf("extractSSEJSONRPC() returned invalid JSON: %s", got)
+			}
+		})
+	}
+}
+
 func TestExtractToolName(t *testing.T) {
 	tests := []struct {
 		method string

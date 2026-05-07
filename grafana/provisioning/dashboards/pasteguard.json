@@ -80,6 +80,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -98,7 +101,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         }
@@ -123,6 +126,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -166,6 +172,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -218,6 +227,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -233,7 +245,6 @@
     },
     {
       "title": "Protection Activity",
-      "description": "Privacy filter throughput rate over time. Stacked series show total requests, requests with secrets, and requests with PII. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -251,16 +262,17 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "points",
             "lineInterpolation": "smooth",
             "fillOpacity": 30,
             "gradientMode": "scheme",
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2
+            "lineWidth": 2,
+            "pointSize": 6
           },
           "unit": "short",
           "lineWidth": 2
@@ -319,7 +331,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -327,28 +341,27 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_mask_requests_total[$__interval]))) or on() vector(0)",
           "legendFormat": "Total",
           "refId": "A"
         },
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "Secrets Found",
           "refId": "B"
         },
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_mask_requests_total{has_pii=\"true\"}[$__interval]))) or on() vector(0)",
           "legendFormat": "PII Found",
           "refId": "C"
         }
       ],
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
       "title": "Detection Rate by Type",
-      "description": "PII detection rate broken down by entity type (EMAIL_ADDRESS, PHONE_NUMBER, etc.). Stacked area from api_gateway_pii_detected_total. Unit: detections/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -366,15 +379,16 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "points",
             "lineInterpolation": "smooth",
             "fillOpacity": 40,
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2
+            "lineWidth": 2,
+            "pointSize": 6
           },
           "unit": "short",
           "lineWidth": 2
@@ -508,7 +522,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -516,13 +532,13 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__interval])))",
+          "expr": "(sum by (type) (rate(api_gateway_pii_detected_total[$__interval])))",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
       ],
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -552,7 +568,7 @@
       },
       "targets": [
         {
-          "expr": "(topk(10, sum by (type) (increase(api_gateway_secrets_detected_total[$__range]))))",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range]))))",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -570,7 +586,10 @@
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
-        "barWidth": 0.5
+        "barWidth": 0.5,
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -728,7 +747,10 @@
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
-        "barWidth": 0.5
+        "barWidth": 0.5,
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -747,7 +769,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         },
@@ -775,7 +797,9 @@
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sort": "sum",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -813,12 +837,13 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "points",
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
-            "spanNulls": false,
-            "lineWidth": 2
+            "spanNulls": true,
+            "lineWidth": 2,
+            "pointSize": 6
           },
           "unit": "s",
           "lineWidth": 2
@@ -831,7 +856,9 @@
           "calcs": [
             "mean",
             "max"
-          ]
+          ],
+          "sort": "mean",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -845,7 +872,7 @@
         }
       ],
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -927,6 +954,9 @@
             }
           ]
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -970,6 +1000,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -1013,11 +1046,13 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Secrets Detection Trend",
-      "description": "Secrets detection rate over time. Rate of api_gateway_secrets_detected_total. Unit: detections/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 4,
@@ -1035,15 +1070,16 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "line",
+            "drawStyle": "points",
             "lineInterpolation": "smooth",
             "fillOpacity": 30,
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2
+            "lineWidth": 2,
+            "pointSize": 6
           },
           "unit": "short",
           "lineWidth": 2
@@ -1051,7 +1087,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "hidden"
+          "displayMode": "hidden",
+          "sort": "sum",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -1059,13 +1097,13 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(api_gateway_secrets_detected_total[$__interval])) or on() vector(0)",
+          "expr": "sum(rate(api_gateway_secrets_detected_total[$__interval])) or on() vector(0)",
           "legendFormat": "secrets/s",
           "refId": "A"
         }
       ],
       "showPoints": "never",
-      "spanNulls": false,
+      "spanNulls": true,
       "lineWidth": 2
     },
     {
@@ -1081,7 +1119,6 @@
     },
     {
       "title": "Detection Summary",
-      "description": "PII detection counts grouped by entity type over the selected time range. From api_gateway_pii_detected_total. Unit: count.",
       "type": "table",
       "gridPos": {
         "h": 8,
@@ -1133,7 +1170,12 @@
           "custom": {
             "align": "left",
             "cellHeight": "sm",
-            "filterable": true
+            "filterable": true,
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
           }
         },
         "overrides": [

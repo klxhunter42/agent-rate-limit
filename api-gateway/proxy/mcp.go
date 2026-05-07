@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -8,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
@@ -31,7 +34,7 @@ var MCPServers = map[string]MCPServerConfig{
 	"web_search_prime": {
 		Name:     "Web Search Prime",
 		Endpoint: "https://api.z.ai/api/mcp/web_search_prime/mcp",
-		Status:   "broken",
+		Status:   "working",
 	},
 	"zread": {
 		Name:     "Zread",
@@ -185,6 +188,7 @@ func (p *MCPProxy) doUpstream(ctx context.Context, endpoint, apiKey string, body
 		return nil, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	resp, err := p.client.Do(req)
@@ -207,11 +211,59 @@ func (p *MCPProxy) doUpstream(ctx context.Context, endpoint, apiKey string, body
 		return nil, resp.StatusCode, fmt.Errorf("upstream returned empty response (status %d)", resp.StatusCode)
 	}
 
+	// Handle MCP Streamable HTTP SSE response (text/event-stream).
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "text/event-stream") {
+		extracted, err := extractSSEJSONRPC(respBody)
+		if err != nil {
+			return nil, resp.StatusCode, fmt.Errorf("SSE parse: %w (body: %s)", err, truncateBody(respBody, 200))
+		}
+		return extracted, resp.StatusCode, nil
+	}
+
 	if !json.Valid(respBody) {
 		return nil, resp.StatusCode, fmt.Errorf("upstream returned invalid JSON (status %d, body: %s)", resp.StatusCode, truncateBody(respBody, 200))
 	}
 
 	return respBody, resp.StatusCode, nil
+}
+
+// extractSSEJSONRPC parses an SSE body and returns the final JSON-RPC response.
+// SSE events are "data: <json>\n\n". The last event with an "id" field is the result.
+func extractSSEJSONRPC(sseBody []byte) ([]byte, error) {
+	var lastData []byte
+	scanner := bufio.NewScanner(bytes.NewReader(sseBody))
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "data: ") {
+			lastData = []byte(strings.TrimPrefix(line, "data: "))
+		} else if strings.HasPrefix(line, "data:") {
+			lastData = []byte(strings.TrimPrefix(line, "data:"))
+		}
+	}
+
+	if len(lastData) == 0 {
+		return nil, fmt.Errorf("no data events found in SSE stream")
+	}
+
+	if !json.Valid(lastData) {
+		return nil, fmt.Errorf("SSE data is not valid JSON: %s", truncateBody(lastData, 200))
+	}
+
+	// Verify it's a JSON-RPC response (has "id" field).
+	var peek struct {
+		ID any `json:"id"`
+	}
+	if err := json.Unmarshal(lastData, &peek); err != nil {
+		return nil, fmt.Errorf("SSE data JSON decode: %w", err)
+	}
+	if peek.ID == nil {
+		slog.Warn("SSE final event has no id, returning anyway", "data", truncateBody(lastData, 100))
+	}
+
+	return lastData, nil
 }
 
 func (p *MCPProxy) checkRateLimit(ctx context.Context, accountID string) bool {

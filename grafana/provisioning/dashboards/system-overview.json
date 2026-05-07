@@ -43,7 +43,6 @@
     },
     {
       "title": "Dragonfly Health",
-      "description": "Dragonfly (Redis-compatible) health status. 1 = healthy, 0 = down, null = N/A.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -106,12 +105,12 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "sort": "desc"
       }
     },
     {
       "title": "Connections",
-      "description": "Current active connections to the API gateway from api_gateway_active_connections.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -148,11 +147,13 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Queue Depth",
-      "description": "Pending items in the gateway queue (api_gateway_queue_depth) and AI worker queue (ai_worker_queue_depth).",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -194,11 +195,13 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Workers",
-      "description": "Number of active AI workers from ai_worker_active gauge.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -231,11 +234,13 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Rate Limit Hits",
-      "description": "Total upstream 429 responses in the selected time range from api_gateway_upstream_429_total.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -262,11 +267,13 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Error Rate",
-      "description": "429 error rate as a fraction of total requests: rate(429s) / rate(total_requests). Unit: percent.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -305,11 +312,13 @@
           }
         },
         "overrides": []
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
       "title": "Request Rate",
-      "description": "Aggregate request rate through the gateway from api_gateway_request_latency_seconds_count. Unit: req/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -319,29 +328,36 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_request_latency_seconds_count[$__interval]))) or on() vector(0)",
           "legendFormat": "requests/s",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "reqps",
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Job Rate",
-      "description": "Processed job rate (gateway requests) and failed job rate (ai_worker_jobs_failed_total). Unit: ops/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -351,12 +367,12 @@
       },
       "targets": [
         {
-          "expr": "increase(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_request_latency_seconds_count[$__interval]) or on() vector(0)",
           "legendFormat": "Processed",
           "refId": "A"
         },
         {
-          "expr": "increase(ai_worker_jobs_failed_total[$__interval])",
+          "expr": "rate(ai_worker_jobs_failed_total[$__interval])",
           "legendFormat": "Failed",
           "refId": "B"
         }
@@ -367,18 +383,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Latency p95",
-      "description": "P95 gateway request latency from api_gateway_request_latency_seconds histogram. Unit: seconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -399,18 +422,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "429s & Retries",
-      "description": "Rate of upstream 429 responses and retry attempts per second. Unit: ops/s.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -420,12 +450,12 @@
       },
       "targets": [
         {
-          "expr": "increase(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
           "legendFormat": "429s/s",
           "refId": "A"
         },
         {
-          "expr": "increase(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
           "legendFormat": "Retries/s",
           "refId": "B"
         }
@@ -436,14 +466,22 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,

@@ -23,7 +23,6 @@
   "panels": [
     {
       "title": "Goroutines",
-      "description": "Current number of Go goroutines in the gateway process. Sustained growth may indicate goroutine leaks.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -44,18 +43,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Memory",
-      "description": "Go runtime memory usage. heap_alloc = bytes allocated on the heap. stack_inuse = bytes in use by stack spans. Unit: bytes.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -81,18 +87,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "GC Pause",
-      "description": "Go garbage collector pause duration. Spikes correlate with STW pauses that can increase request latency. Unit: nanoseconds.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -113,18 +126,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Heap Objects",
-      "description": "Number of distinct objects allocated on the Go heap. Steady growth without GC reclaim indicates potential memory leak.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -145,18 +165,25 @@
           "lineWidth": 2,
           "custom": {
             "lineWidth": 2,
-            "spanNulls": false,
-            "showPoints": "never"
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "points",
+            "pointSize": 6
           }
         }
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Dragonfly Health",
-      "description": "Dragonfly (Redis-compatible) connectivity status. 1 = healthy, 0 = down. Based on api_gateway_dragonfly_up gauge.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -219,12 +246,12 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "sort": "desc"
       }
     },
     {
       "title": "Waste Detection Findings",
-      "description": "Rate of token waste findings per second, broken down by detector and severity. Based on api_gateway_waste_findings_total.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -238,7 +265,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (detector, severity) (increase(api_gateway_waste_findings_total[$__interval])))",
+          "expr": "(sum by (detector, severity) (rate(api_gateway_waste_findings_total[$__interval])))",
           "legendFormat": "{{detector}} ({{severity}})",
           "refId": "A"
         }
@@ -249,7 +276,9 @@
             "fillOpacity": 20,
             "lineWidth": 2,
             "showPoints": "never",
-            "spanNulls": false
+            "spanNulls": true,
+            "drawStyle": "points",
+            "pointSize": 6
           },
           "color": {
             "mode": "palette-classic"
@@ -259,8 +288,14 @@
         "overrides": []
       },
       "showPoints": "never",
-      "spanNulls": false,
-      "lineWidth": 2
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,
