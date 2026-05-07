@@ -101,7 +101,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "sort": "desc"
       }
     },
     {
@@ -154,7 +155,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "sort": "desc"
       }
     },
     {
@@ -187,7 +189,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "sort": "desc"
       }
     },
     {
@@ -220,7 +223,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "sort": "desc"
       }
     },
     {
@@ -278,7 +282,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -329,7 +335,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -388,7 +396,12 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": "left"
+            "align": "left",
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
           }
         },
         "overrides": []
@@ -452,7 +465,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -503,7 +518,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -561,6 +578,17 @@
       ],
       "options": {
         "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -618,7 +646,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -669,7 +699,9 @@
           "calcs": [
             "last",
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -727,6 +759,17 @@
       ],
       "options": {
         "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
+          }
+        }
       }
     },
     {
@@ -781,7 +824,9 @@
           "calcs": [
             "mean",
             "max"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -829,7 +874,9 @@
           "calcs": [
             "mean",
             "max"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -885,7 +932,9 @@
           "calcs": [
             "mean",
             "max"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",

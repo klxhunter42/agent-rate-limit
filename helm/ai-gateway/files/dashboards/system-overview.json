@@ -105,7 +105,8 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "sort": "desc"
       }
     },
     {
@@ -146,6 +147,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -191,6 +195,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -227,6 +234,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -257,6 +267,9 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -299,6 +312,9 @@
           }
         },
         "overrides": []
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -330,7 +346,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Job Rate",
@@ -366,7 +388,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Latency p95",
@@ -397,7 +425,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "429s & Retries",
@@ -433,7 +467,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,

@@ -241,7 +241,9 @@
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "pieType": "donut"
       }
@@ -428,7 +430,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Billing Path Total (Last 1h)",
@@ -606,7 +614,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "sort": "desc"
       }
     },
     {
@@ -650,7 +659,8 @@
       },
       "options": {
         "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "showThresholdMarkers": true,
+        "sort": "desc"
       }
     },
     {
@@ -692,7 +702,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Per-Profile Usage",
@@ -735,7 +751,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "API Usage by Profile (OAuth)",
@@ -771,7 +793,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Upstream Health",
@@ -817,7 +845,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Upstream Retries",
@@ -852,7 +886,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "TTFB by Model (Streaming)",
@@ -888,7 +928,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Cost Overview",
@@ -931,7 +977,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Cost by Model",
@@ -963,7 +1015,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "refresh": "10s",

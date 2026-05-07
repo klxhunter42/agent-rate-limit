@@ -50,7 +50,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Memory",
@@ -86,7 +92,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "GC Pause",
@@ -117,7 +129,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Heap Objects",
@@ -148,7 +166,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Dragonfly Health",
@@ -214,7 +238,8 @@
       "options": {
         "colorMode": "background",
         "graphMode": "none",
-        "justifyMode": "center"
+        "justifyMode": "center",
+        "sort": "desc"
       }
     },
     {
@@ -254,7 +279,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,

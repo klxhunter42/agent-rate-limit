@@ -82,6 +82,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -125,6 +128,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -151,6 +157,9 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -177,6 +186,9 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -215,7 +227,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -258,7 +272,10 @@
         "orientation": "horizontal",
         "groupWidth": 0.7,
         "barWidth": 0.5,
-        "stackBy": "model"
+        "stackBy": "model",
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -291,7 +308,10 @@
         "orientation": "horizontal",
         "groupWidth": 0.7,
         "barWidth": 0.5,
-        "stackBy": "model"
+        "stackBy": "model",
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -330,6 +350,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -356,7 +379,10 @@
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
-        "barWidth": 0.5
+        "barWidth": 0.5,
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     }
   ],

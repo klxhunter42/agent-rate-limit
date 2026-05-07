@@ -107,7 +107,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -167,7 +168,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -223,7 +225,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -286,7 +289,8 @@
         },
         "showThresholdLabels": false,
         "showThresholdMarkers": true,
-        "orientation": "auto"
+        "orientation": "auto",
+        "sort": "desc"
       }
     },
     {
@@ -335,7 +339,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -384,7 +389,8 @@
           ]
         },
         "graphMode": "area",
-        "colorMode": "background_solid"
+        "colorMode": "background_solid",
+        "sort": "desc"
       }
     },
     {
@@ -476,7 +482,8 @@
         "minVizWidth": 0,
         "minVizHeight": 10,
         "namePlacement": "auto",
-        "valueMode": "text"
+        "valueMode": "text",
+        "sort": "desc"
       }
     },
     {
@@ -530,7 +537,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -587,7 +596,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -649,7 +660,8 @@
         "barWidth": 0.5,
         "stacking": "none",
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "desc"
         },
         "showValue": "always"
       }
@@ -691,7 +703,8 @@
         "showValue": "always",
         "stacking": "none",
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "desc"
         }
       }
     },
@@ -733,7 +746,9 @@
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "pieType": "donut",
         "tooltip": {
@@ -809,7 +824,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -875,7 +892,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         }
       },
       "showPoints": "never",
@@ -971,7 +990,12 @@
           "custom": {
             "align": "center",
             "filterable": true,
-            "inspect": false
+            "inspect": false,
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
           },
           "color": {
             "mode": "thresholds"

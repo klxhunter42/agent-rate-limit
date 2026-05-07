@@ -68,7 +68,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Total Jobs",
@@ -120,6 +126,9 @@
             ]
           }
         ]
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -171,7 +180,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Active Workers",
@@ -207,6 +222,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -248,6 +266,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -274,6 +295,9 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -300,6 +324,9 @@
             "mode": "fixed"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -332,7 +359,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "API Usage - Output by Model",
@@ -364,7 +397,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Provider Latency (p50/p95/p99)",
@@ -406,7 +445,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Worker Process Memory (RSS)",
@@ -443,7 +488,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Worker CPU Usage",
@@ -475,7 +526,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Provider Errors by Provider",
@@ -512,7 +569,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Account Input Tokens",
@@ -551,7 +614,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Account Output Tokens",
@@ -590,7 +659,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,

@@ -80,6 +80,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -123,6 +126,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -166,6 +172,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -218,6 +227,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -318,7 +330,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -506,7 +520,9 @@
           "placement": "bottom",
           "calcs": [
             "sum"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -568,7 +584,10 @@
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
-        "barWidth": 0.5
+        "barWidth": 0.5,
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -726,7 +745,10 @@
       "options": {
         "orientation": "horizontal",
         "groupWidth": 0.7,
-        "barWidth": 0.5
+        "barWidth": 0.5,
+        "tooltip": {
+          "sort": "desc"
+        }
       }
     },
     {
@@ -773,7 +795,9 @@
           "values": [
             "value",
             "percent"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -829,7 +853,9 @@
           "calcs": [
             "mean",
             "max"
-          ]
+          ],
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -925,6 +951,9 @@
             }
           ]
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -968,6 +997,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -1011,6 +1043,9 @@
             "graphMode": "area"
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -1048,7 +1083,9 @@
       },
       "options": {
         "legend": {
-          "displayMode": "hidden"
+          "displayMode": "hidden",
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -1129,7 +1166,12 @@
           "custom": {
             "align": "left",
             "cellHeight": "sm",
-            "filterable": true
+            "filterable": true,
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
           }
         },
         "overrides": [

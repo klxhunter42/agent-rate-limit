@@ -74,7 +74,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Latency Percentiles",
@@ -115,7 +121,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Avg Latency by Path",
@@ -146,7 +158,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Active Connections",
@@ -177,7 +195,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "API Units & Fallback",
@@ -219,7 +243,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Output Units by Model",
@@ -250,7 +280,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Upstream 429 Rate",
@@ -282,7 +318,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Adaptive Limiter",
@@ -326,10 +368,8 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "sort": {
-            "by": "name",
-            "desc": true
-          }
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -397,10 +437,8 @@
         "legend": {
           "displayMode": "table",
           "placement": "bottom",
-          "sort": {
-            "by": "name",
-            "desc": true
-          }
+          "sort": "desc",
+          "sortDesc": true
         },
         "tooltip": {
           "mode": "multi"
@@ -467,7 +505,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Errors by Type",
@@ -498,7 +542,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Error Rate %",
@@ -529,7 +579,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Rate Limit Hits by Key",
@@ -564,7 +620,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Upstream Retry Rate",
@@ -596,7 +658,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Time to First Byte (TTFB)",
@@ -632,7 +700,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Queue Depth",
@@ -681,7 +755,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Profile Usage",
@@ -724,7 +804,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "API Units by Model",
@@ -760,7 +846,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Cost by Model",
@@ -791,7 +883,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Text Optimization",
@@ -852,7 +950,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Optimization Runs",
@@ -884,7 +988,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Total Characters Saved",
@@ -916,6 +1026,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -948,6 +1061,9 @@
             ]
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -986,6 +1102,9 @@
             "wideLayout": true
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -1024,6 +1143,9 @@
             "wideLayout": true
           }
         }
+      },
+      "options": {
+        "sort": "desc"
       }
     },
     {
@@ -1063,7 +1185,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Output Tokens Cumulative",
@@ -1102,7 +1230,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Errors by Type",
@@ -1141,7 +1275,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Rate Limit Hits",
@@ -1180,7 +1320,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     },
     {
       "title": "Model Fallbacks",
@@ -1219,7 +1365,13 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "desc",
+          "sortDesc": true
+        }
+      }
     }
   ],
   "schemaVersion": 39,
