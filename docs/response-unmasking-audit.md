@@ -81,14 +81,14 @@ GLM mode toggle does not create separate code paths for masking/unmasking. The `
 
 ## Unmasking Coverage Matrix (After Fix)
 
-| Proxy Handler                   | Non-Stream        | Stream | Error                | Flush |
-|---------------------------------|-------------------|--------|----------------------|-------|
-| AnthropicProxy (transparent)    | OK                | FIXED  | N/A (passes through) | FIXED |
-| AnthropicProxy (OpenAI convert) | OK                | OK     | FIXED                | OK    |
-| OpenAIProxy                     | OK                | FIXED  | FIXED                | FIXED |
-| GeminiAPIProxy                  | OK                | OK     | FIXED                | OK    |
-| GeminiCodeAssistProxy           | OK                | OK     | FIXED                | OK    |
-| ClaudeSessionProxy              | N/A (stream only) | FIXED  | N/A                  | FIXED |
+| Proxy Handler                   | Non-Stream        | Stream | Error                | Flush | Undefined Fallback |
+|---------------------------------|-------------------|--------|----------------------|-------|--------------------|
+| AnthropicProxy (transparent)    | OK                | FIXED  | N/A (passes through) | FIXED | FIXED (streaming)  |
+| AnthropicProxy (OpenAI convert) | OK                | OK     | FIXED                | OK    | FIXED (streaming)  |
+| OpenAIProxy                     | OK                | FIXED  | FIXED                | FIXED | FIXED (streaming)  |
+| GeminiAPIProxy                  | OK                | OK     | FIXED                | OK    | N/A                |
+| GeminiCodeAssistProxy           | OK                | OK     | FIXED                | OK    | N/A                |
+| ClaudeSessionProxy              | N/A (stream only) | FIXED  | N/A                  | FIXED | FIXED (streaming)  |
 
 ### 6. [HIGH] input_json_delta (partial_json) unbuffered unmask
 
@@ -122,3 +122,33 @@ This is especially impactful because Claude Code (claude-sonnet-4-6) makes heavy
 - `api-gateway/proxy/gemini-codeassist.go` - Fix #5
 - `api-gateway/proxy/claude-session.go` - Fix #4
 - `api-gateway/privacy/masking/stream.go` - Fix #6 (ProcessChunkJSON)
+
+### 7. [CRITICAL] GLM "undefined" fallback -- placeholder not preserved
+
+**Files:** `api-gateway/privacy/masking/stream.go`, `api-gateway/privacy/pipeline.go`
+
+**Problem:** Z.AI/GLM models output literal `undefined` instead of preserving `[[TYPE_N]]` placeholders in responses. Example: a masked IP `10.0.0.1` replaced by `[[IP_ADDRESS_1]]` comes back as `undefined`. In streaming mode, `undefined` can split across SSE chunks (chunk1=`undef`, chunk2=`ined`), bypassing per-chunk fallback detection. This caused garbled output like `undefinedundefinedundefined172.18.0.9` leaking to client.
+
+**Fix:**
+
+*Non-streaming* (`privacy/pipeline.go`):
+- Added `replaceUndefinedNonStream` with 3-phase budget-based replacement
+- Phase 1: Replace `undefined` with original values (budget-limited)
+- Phase 2: Dedup adjacent `<original> undefined` pairs
+- Phase 3: Strip remaining bare `undefined` after budget exhaustion
+
+*Streaming* (`privacy/masking/stream.go`):
+- Added `undefinedBuffer` field for cross-chunk `undefined` buffering
+- Added `bufferPartialUndefined(text)` -- detects partial "undefined" prefix at text tail (1-8 chars) and splits for next chunk
+- Added `stripPartialUndefined(text)` -- cleans up partial prefixes during flush
+- ProcessChunk/ProcessChunkJSON: prepend buffer -> fallback -> buffer tail -> strip leftovers
+- Flush drains `undefinedBuffer` with `stripPartialUndefined` + `stripStrayUndefined`
+- `HasContexts()` guard preserves legitimate `undefined` in code when no masking active
+
+**Test coverage:** 2700+ tests (edge cases, fuzz, random splits, unicode, JSON, budget exhaustion)
+
+**Files added:**
+- `api-gateway/privacy/masking/stream_undefined_edge_test.go` - 20 edge cases
+- `api-gateway/privacy/masking/stream_undefined_weird_test.go` - 30+ weird cases
+- `api-gateway/privacy/masking/stream_fuzz_test.go` - 1700 parametric fuzz tests
+- `api-gateway/privacy/masking/stream_unique_fuzz_test.go` - 99 unique + 900 random tests

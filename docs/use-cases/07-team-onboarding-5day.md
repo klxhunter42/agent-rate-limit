@@ -78,21 +78,21 @@ Request → Handler.HandleMessages()
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  AI Gateway - Request Flow                               │
-│                                                          │
+│  AI Gateway - Request Flow                              │
+│                                                         │
 │  Request Rate: 1 req/min     Budget: ● GREEN            │
 │  Model: glm-5                Provider: zai              │
-│                                                          │
-│  ┌─── Optimizers Activated ───────────────────────────┐  │
-│  │ semantic_dedup  ████████░░░░  12 chars saved       │  │
-│  │ chunker         ████████████░  cache reorder        │  │
-│  │ textcomp        ████░░░░░░░░  minor                │  │
-│  │ caveman (lite)  █████████████  336 chars replaced  │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                          │
-│  Input:  439 tokens (original ~530, saved 17%)           │
-│  Output: 50 tokens                                       │
-│  Latency: 1.2s (upstream) + 2.1ms (optimizer overhead)   │
+│                                                         │
+│  ┌─── Optimizers Activated ───────────────────────────┐ │
+│  │ semantic_dedup  ████████░░░░  12 chars saved       │ │
+│  │ chunker         ████████████░  cache reorder        ││
+│  │ textcomp        ████░░░░░░░░  minor                │ │
+│  │ caveman (lite)  █████████████  336 chars replaced  │ │
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  Input:  439 tokens (original ~530, saved 17%)          │
+│  Output: 50 tokens                                      │
+│  Latency: 1.2s (upstream) + 2.1ms (optimizer overhead)  │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -102,24 +102,24 @@ Request → Handler.HandleMessages()
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                    BUDGET LEVEL SYSTEM                          │
+│                    BUDGET LEVEL SYSTEM                         │
 │                                                                │
 │  ● GREEN    (< 50% context window)                             │
-│    เปิด: semantic_dedup, chunker, delta, sketch, textcomp,   │
+│    เปิด: semantic_dedup, chunker, delta, sketch, textcomp,     │
 │          caveman lite (30% output reduction)                   │
 │                                                                │
 │  ● YELLOW   (50-75% context window)                            │
-│    เปิด: ทุกอย่างใน GREEN +                                  │
+│    เปิด: ทุกอย่างใน GREEN +                                    │
 │          packer, disclosure truncation (L2),                   │
 │          caveman full (50% output reduction)                   │
 │                                                                │
 │  ● RED      (> 75% context window)                             │
-│    เปิด: ทุกอย่างใน YELLOW +                                │
+│    เปิด: ทุกอย่างใน YELLOW +                                   │
 │          summarizer (50-70% truncation),                       │
 │          intent_filter, caveman ultra (75% reduction)          │
 │                                                                │
-│  เมื่อ session ยาวนาน → context ใกล้เต็ม → budget เปลี่ยน  │
-│  → optimizer ทำงานหนักขึ้นอัตโนมัติ                          │
+│  เมื่อ session ยาวนาน → context ใกล้เต็ม → budget เปลี่ยน      │
+│  → optimizer ทำงานหนักขึ้นอัตโนมัติ                            │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -237,16 +237,16 @@ Password: (from GRAFANA_ADMIN_PASSWORD)
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  API Gateway Detailed - วรรณา's Session                         │
+│  API Gateway Detailed - วรรณา's Session                          │
 │                                                                  │
-│  ┌─── Request Rate ───────────────┐  ┌─── Latency ─────────────┐│
-│  │  ██████████░░ 2.1 req/min     │  │  p50: 1.3s              ││
-│  │  sync: ██████████  100%       │  │  p95: 2.1s              ││
-│  │  async: ░░░░░░░░░░   0%       │  │  p99: 3.4s              ││
+│  ┌─── Request Rate ───────────────┐  ┌─── Latency ─────────────┐ │
+│  │  ██████████░░ 2.1 req/min     │  │  p50: 1.3s              │  │
+│  │  sync: ██████████  100%       │  │  p95: 2.1s              │  │
+│  │  async: ░░░░░░░░░░   0%       │  │  p99: 3.4s              │  │
 │  └────────────────────────────────┘  └──────────────────────────┘│
 │                                                                  │
 │  ┌─── Optimizer Performance ──────────────────────────────────┐  │
-│  │                                                             │  │
+│  │                                                             │ │
 │  │  Technique          Runs   Chars Saved   Avg/Run           │  │
 │  │  ─────────────────────────────────────────────────────     │  │
 │  │  semantic_dedup       4       48          12.0             │  │
@@ -256,12 +256,12 @@ Password: (from GRAFANA_ADMIN_PASSWORD)
 │  │  message_text         2         2          1.0             │  │
 │  │  ─────────────────────────────────────────────────────     │  │
 │  │  TOTAL                       5,872 chars (~1,468 tokens)   │  │
-│  └─────────────────────────────────────────────────────────────┘  │
+│  └─────────────────────────────────────────────────────────────┘ │
 │                                                                  │
-│  ┌─── PasteGuard Events ─────────────────────────────────────┐  │
-│  │  Secrets detected: 1  (masked: __SECRET_1__)              │  │
-│  │  PII detected: 0                                          │  │
-│  │  Scan time: <1ms                                          │  │
+│  ┌─── PasteGuard Events ─────────────────────────────────────┐   │
+│  │  Secrets detected: 1  (masked: __SECRET_1__)              │   │
+│  │  PII detected: 0                                          │   │
+│  │  Scan time: <1ms                                          │   │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌─── Error Rate ─────────────────────────────────────────────┐  │
@@ -419,17 +419,17 @@ Waste findings → Grafana:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Session Metrics - วรรณา's Feature Development                  │
+│  Session Metrics - วรรณา's Feature Development                   │
 │                                                                  │
 │  ┌─── Budget Timeline ────────────────────────────────────────┐  │
-│  │  Turn  1-5:  ● GREEN    ████████████████░░░░░░░░░  25%    │  │
+│  │  Turn  1-5:  ● GREEN    ████████████████░░░░░░░░░  25%    │   │
 │  │  Turn  6-12: ● YELLOW   ██████████████████████████  60%    │  │
 │  │  Turn 13-20: ● YELLOW   ██████████████████████████  72%    │  │
 │  │  (approaching RED...)                                      │  │
-│  └─────────────────────────────────────────────────────────────┘  │
+│  └─────────────────────────────────────────────────────────────┘ │
 │                                                                  │
 │  ┌─── Optimizer Cumulative ───────────────────────────────────┐  │
-│  │                                                             │  │
+│  │                                                             │ │
 │  │  Technique          Runs   Total Saved   Contribution      │  │
 │  │  ─────────────────────────────────────────────────────     │  │
 │  │  toolcomp             8     12,400       42%  ████████████ │  │
@@ -452,8 +452,8 @@ Waste findings → Grafana:
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌─── Waste Alerts ───────────────────────────────────────────┐  │
-│  │  ⚠ oversized_context: context at 65%, 3 redundant reads   │  │
-│  │  ℹ redundant_tool_call: "handler.go" read 3 times         │  │
+│  │  ⚠ oversized_context: context at 65%, 3 redundant reads   │   │
+│  │  ℹ redundant_tool_call: "handler.go" read 3 times         │   │
 │  │  → Tip: consolidate file reads, use Edit instead           │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
@@ -489,51 +489,51 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 ┌──────────────────────────────────────────────────────────────────┐
 │  Cost Calculator & Savings                                       │
 │                                                                  │
-│  ┌─── วรรณา's Usage (7 days) ────────────────────────────────┐  │
-│  │                                                             │  │
-│  │  Total Requests:        342                                 │  │
-│  │  Avg Requests/Hour:     4.9                                 │  │
-│  │                                                             │  │
-│  │  Estimated Input Tokens:   127,400                          │  │
-│  │  Estimated Output Tokens:   41,800                          │  │
-│  │                                                             │  │
+│  ┌─── วรรณา's Usage (7 days) ────────────────────────────────┐   │
+│  │                                                             │ │
+│  │  Total Requests:        342                                 │ │
+│  │  Avg Requests/Hour:     4.9                                 │ │
+│  │                                                             │ │
+│  │  Estimated Input Tokens:   127,400                          │ │
+│  │  Estimated Output Tokens:   41,800                          │ │
+│  │                                                             │ │
 │  │  ─── Cost by Provider ────────────────────────────────     │  │
-│  │  Z.AI (glm-5):           $0.27   ██████████████████  72%  │  │
-│  │  Z.AI (glm-5-turbo):     $0.08   █████░               21% │  │
+│  │  Z.AI (glm-5):           $0.27   ██████████████████  72%  │   │
+│  │  Z.AI (glm-5-turbo):     $0.08   █████░               21% │   │
 │  │  Anthropic (sonnet):     $0.02   █                     5%  │  │
 │  │  Other:                  $0.01   ░                     2%  │  │
 │  │  ──────────────────────────────────────────────────────    │  │
-│  │  TOTAL COST:             $0.38                              │  │
-│  └─────────────────────────────────────────────────────────────┘  │
+│  │  TOTAL COST:             $0.38                              │ │
+│  └─────────────────────────────────────────────────────────────┘ │
 │                                                                  │
-│  ┌─── Optimizer Savings ─────────────────────────────────────┐  │
-│  │                                                             │  │
+│  ┌─── Optimizer Savings ─────────────────────────────────────┐   │
+│  │                                                             │ │
 │  │  Without optimizer:                                        │  │
 │  │    Est. input tokens:   198,300                            │  │
 │  │    Est. cost:           $0.59                              │  │
-│  │                                                             │  │
+│  │                                                             │ │
 │  │  With optimizer:                                           │  │
 │  │    Actual input tokens: 127,400                            │  │
-│  │    Tokens saved:        70,900 (35.8% reduction)          │  │
+│  │    Tokens saved:        70,900 (35.8% reduction)          │   │
 │  │    Cost saved:          $0.21                              │  │
 │  │    Actual cost:         $0.38                              │  │
-│  │                                                             │  │
-│  │  ┌─────────────────────────────────────────────────────┐  │  │
-│  │  │  $0.59 → $0.38 = 35.8% cost reduction               │  │  │
-│  │  │  ██████████████████████████████░░░░░░░░░░  64.2%    │  │  │
+│  │                                                             │ │
+│  │  ┌─────────────────────────────────────────────────────┐  │   │
+│  │  │  $0.59 → $0.38 = 35.8% cost reduction               │  │   │
+│  │  │  ██████████████████████████████░░░░░░░░░░  64.2%    │  │   │
 │  │  │  ████████████████████████████████████████░  100%     │  │  │
-│  │  │  ^actual cost         ^original cost               │  │  │
-│  │  └─────────────────────────────────────────────────────┘  │  │
-│  │                                                             │  │
+│  │  │  ^actual cost         ^original cost               │  │    │
+│  │  └─────────────────────────────────────────────────────┘  │   │
+│  │                                                             │ │
 │  │  Top savers:                                               │  │
-│  │  1. ToolComp:      28,400 tokens (40%)  ████████████      │  │
-│  │  2. Caveman:       18,200 tokens (26%)  ████████          │  │
+│  │  1. ToolComp:      28,400 tokens (40%)  ████████████      │   │
+│  │  2. Caveman:       18,200 tokens (26%)  ████████          │   │
 │  │  3. Packer:         9,800 tokens (14%)  █████              │  │
 │  │  4. Sketch:         5,600 tokens (8%)   ███                │  │
 │  │  5. Other:          8,900 tokens (12%)  ████               │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
-│  ┌─── Rate Limit Savings ────────────────────────────────────┐  │
+│  ┌─── Rate Limit Savings ────────────────────────────────────┐   │
 │  │  429 responses (rate limited): 23                          │  │
 │  │  These would have been expensive API calls if not limited  │  │
 │  │  Estimated cost avoided: $0.04                             │  │
@@ -550,25 +550,25 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 │  Pricing Table (per 1M tokens)                              │
 │                                                             │
 │  Provider       Model            Input    Output            │
-│  ──────────────────────────────────────────────────────    │
-│  Z.AI           glm-5.1          $1.40    $4.40            │
-│  Z.AI           glm-5-turbo      $1.20    $4.00            │
-│  Z.AI           glm-5            $1.00    $3.20  ← default│
-│  Z.AI           glm-4.7          $0.60    $2.20            │
-│  Z.AI           glm-4.7-flashx   $0.07    $0.40  ← cheap  │
-│  OpenAI         gpt-4o           $2.50   $10.00            │
-│  Anthropic      claude-sonnet    $3.00   $15.00            │
-│  Anthropic      claude-opus     $15.00   $75.00  ← premium│
-│  Gemini         gemini-2.5-pro   $1.25   $10.00            │
-│  Gemini         gemini-2.5-flash $0.15    $0.60  ← cheap  │
+│  ──────────────────────────────────────────────────────     │
+│  Z.AI           glm-5.1          $1.40    $4.40             │
+│  Z.AI           glm-5-turbo      $1.20    $4.00             │
+│  Z.AI           glm-5            $1.00    $3.20  ← default  │
+│  Z.AI           glm-4.7          $0.60    $2.20             │
+│  Z.AI           glm-4.7-flashx   $0.07    $0.40  ← cheap    │
+│  OpenAI         gpt-4o           $2.50   $10.00             │
+│  Anthropic      claude-sonnet    $3.00   $15.00             │
+│  Anthropic      claude-opus     $15.00   $75.00  ← premium  │
+│  Gemini         gemini-2.5-pro   $1.25   $10.00             │
+│  Gemini         gemini-2.5-flash $0.15    $0.60  ← cheap    │
 │                                                             │
-│  ตัวอย่าง:                                                   │
-│  1,000 requests × glm-5 × avg 400 input + 100 output       │
+│  ตัวอย่าง:                                                  │
+│  1,000 requests × glm-5 × avg 400 input + 100 output        │
 │  = 400K input + 100K output tokens                          │
-│  = ($0.40 + $0.32) = $0.72/day                             │
+│  = ($0.40 + $0.32) = $0.72/day                              │
 │                                                             │
 │  ถ้าใช้ claude-opus แทน:                                    │
-│  = ($6.00 + $7.50) = $13.50/day (18x แพงกว่า!)            │
+│  = ($6.00 + $7.50) = $13.50/day (18x แพงกว่า!)              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -578,16 +578,16 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  เทคนิคเขียน Prompt สำหรับ Optimization                           │
+│  เทคนิคเขียน Prompt สำหรับ Optimization                          │
 │                                                                  │
-│  1. ToolComp ทำงานดีกับ:                                        │
+│  1. ToolComp ทำงานดีกับ:                                         │
 │     - kubectl logs, go test output, JSON configs                 │
 │     - อย่าลบ output เอง! ให้ ToolComp compress ให้               │
-│     - Example: ส่ง full logs → ToolComp compress 72%            │
+│     - Example: ส่ง full logs → ToolComp compress 72%             │
 │                                                                  │
 │  2. Semantic Dedup ชอบ:                                          │
 │     - System prompt ที่มี repeated instructions                  │
-│     - ไม่ต้องกังวลเรื่องซ้ำ - dedup จัดการให้                     │
+│     - ไม่ต้องกังวลเรื่องซ้ำ - dedup จัดการให้                    │
 │                                                                  │
 │  3. Delta Encoding ดีกับ:                                        │
 │     - Iterative edit workflows (แก้ไฟล์ซ้ำๆ)                     │
@@ -599,16 +599,16 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 │     - หลีกเลี่ยงถ้าต้องการ explanation ยาวๆ                      │
 │                                                                  │
 │  5. เขียน prompt ให้ชัดเจน ไม่ verbose:                          │
-│     BAD:  "I would really appreciate it if you could            │
+│     BAD:  "I would really appreciate it if you could             │
 │            please help me understand how to..."                  │
 │     GOOD: "explain how to..."                                    │
-│     → TextComp จะ clean ให้ แต่ถ้าเราเขียนกระชับตั้งแต่แรก        │
+│     → TextComp จะ clean ให้ แต่ถ้าเราเขียนกระชับตั้งแต่แรก       │
 │       ก็ประหยัดได้มากกว่า                                        │
 │                                                                  │
 │  6. Session management:                                          │
 │     - เริ่ม session ใหม่สำหรับ topic ใหม่ (reset context)        │
 │     - อย่าใช้ session เดียวทั้งวัน (budget จะเข้า red)           │
-│     - Packer จะตัด context เก่า แต่ถ้าเริ new session ได้ดีกว่า   │
+│     - Packer จะตัด context เก่า แต่ถ้าเริ new session ได้ดีกว่า  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -616,18 +616,18 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Team Usage Comparison (This Week)                            │
+│  Team Usage Comparison (This Week)                           │
 │                                                              │
-│  Member      Requests   Tokens Used   Cost   Savings %      │
+│  Member      Requests   Tokens Used   Cost   Savings %       │
 │  ──────────────────────────────────────────────────────      │
-│  วรรณา        342       169,200      $0.38    35.8%         │
+│  วรรณา        342       169,200      $0.38    35.8%          │
 │  พี่เจ         891       485,000      $1.12    42.1%         │
-│  อร (Senior)  1,204     612,000      $1.38    48.3%         │
+│  อร (Senior)  1,204     612,000      $1.38    48.3%          │
 │  ──────────────────────────────────────────────────────      │
 │  Team Total   2,437     1,266,200     $2.88    43.7%         │
 │                                                              │
-│  Note: อร has higher savings because longer sessions          │
-│  → optimizers work harder on yellow/red budget                │
+│  Note: อร has higher savings because longer sessions         │
+│  → optimizers work harder on yellow/red budget               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -661,22 +661,22 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 │    ↓                                                             │
 │  Resolver: match model prefix → provider route                   │
 │    ↓                                                             │
-│  1. claude-oauth  → Anthropic (OAuth token, transparent mode)   │
+│  1. claude-oauth  → Anthropic (OAuth token, transparent mode)    │
 │    ↓ (fail)                                                      │
-│  2. anthropic     → Anthropic (API key)                         │
+│  2. anthropic     → Anthropic (API key)                          │
 │    ↓ (fail)                                                      │
-│  3. openai        → OpenAI (format conversion)                  │
+│  3. openai        → OpenAI (format conversion)                   │
 │    ↓ (fail)                                                      │
-│  4. zai           → Z.AI (Anthropic-compatible format)          │
+│  4. zai           → Z.AI (Anthropic-compatible format)           │
 │    ↓ (fail)                                                      │
-│  ... 14 more providers in chain                                 │
+│  ... 14 more providers in chain                                  │
 │                                                                  │
-│  Model → Provider mapping:                                      │
-│  claude-*   → claude-oauth → anthropic                          │
-│  gemini-*   → gemini-oauth → gemini                             │
-│  gpt-*/o3-* → openai                                            │
-│  glm-*      → zai                                               │
-│  or-*       → openrouter                                        │
+│  Model → Provider mapping:                                       │
+│  claude-*   → claude-oauth → anthropic                           │
+│  gemini-*   → gemini-oauth → gemini                              │
+│  gpt-*/o3-* → openai                                             │
+│  glm-*      → zai                                                │
+│  or-*       → openrouter                                         │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -706,13 +706,13 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  ToolFilter in Action                                         │
+│  ToolFilter in Action                                        │
 │                                                              │
 │  Session has 27 tools loaded:                                │
 │  Read, Edit, Write, Bash, WebSearch, analyze_image,          │
 │  NotebookEdit, TodoWrite, Skill, mcp_k8s_apply,              │
-│  mcp_k8s_logs, mcp_helm_upgrade, mcp_terraform_plan,        │
-│  mcp_vault_read, mcp_grafana_query, ...                     │
+│  mcp_k8s_logs, mcp_helm_upgrade, mcp_terraform_plan,         │
+│  mcp_vault_read, mcp_grafana_query, ...                      │
 │                                                              │
 │  User message: "debug the pod crash in namespace prod"       │
 │                                                              │
@@ -721,10 +721,10 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 │  Tool scoring:                                               │
 │  Bash              0.95  ★ always-keep                       │
 │  Read              0.90  ★ always-keep                       │
-│  mcp_k8s_logs      0.88  ★ intent match: k8s, debug         │
+│  mcp_k8s_logs      0.88  ★ intent match: k8s, debug          │
 │  Edit              0.75  ★ always-keep                       │
 │  Write             0.70  ★ always-keep                       │
-│  mcp_k8s_apply     0.65  ★ intent match: k8s                │
+│  mcp_k8s_apply     0.65  ★ intent match: k8s                 │
 │  WebSearch         0.30  ✗ low relevance                     │
 │  analyze_image     0.10  ✗ not relevant                      │
 │  NotebookEdit      0.05  ✗ not relevant                      │
@@ -732,7 +732,7 @@ URL: https://ai.klxhub.com/grafana/d/arl-cost
 │  ...                                                         │
 │                                                              │
 │  Result: 27 tools → 8 tools kept                             │
-│  Tokens saved: ~4,200 tokens (manifest compressed from        │
+│  Tokens saved: ~4,200 tokens (manifest compressed from       │
 │  ~8,000 to ~3,800 tokens)                                    │
 │                                                              │
 │  ALWAYS_KEEP list: Read, Edit, Write, Bash                   │
@@ -759,7 +759,7 @@ TOOLFILTER_ALWAYS_KEEP=Read,Edit,Write,Bash,mcp_k8s_logs
 │  When to Use Each Mode                                           │
 │                                                                  │
 │  ┌─── Transparent Mode ───────────────────────────────────────┐  │
-│  │ Provider: claude-oauth                                      │  │
+│  │ Provider: claude-oauth                                      │ │
 │  │ Detection: Bearer token + claude model                     │  │
 │  │ Pipeline: SKIPPED (raw bytes forwarded)                    │  │
 │  │ Benefits: Prompt cache works, beta flags preserved         │  │
@@ -778,11 +778,11 @@ TOOLFILTER_ALWAYS_KEEP=Read,Edit,Write,Bash,mcp_k8s_logs
 │  Decision tree:                                                  │
 │                                                                  │
 │  ใช้ claude-* model?                                             │
-│    YES → Transparent (cache important, cost covered by plan)    │
-│    NO → Normal mode (optimize everything, save tokens)          │
+│    YES → Transparent (cache important, cost covered by plan)     │
+│    NO → Normal mode (optimize everything, save tokens)           │
 │                                                                  │
 │  ข้อยกเว้น: ถ้าใช้ arl_ API key → ไม่เข้า transparent            │
-│  (เพราะ arl_ key = profile token, ไม่ใช่ OAuth)                 │
+│  (เพราะ arl_ key = profile token, ไม่ใช่ OAuth)                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -820,17 +820,17 @@ Fix:
 │  ┌─── Activity ───────────────────────────────────────────────┐  │
 │  │  Sessions: 12                                              │  │
 │  │  Total Requests: 478                                       │  │
-│  │  Models Used: glm-5 (68%), glm-5-turbo (18%),             │  │
+│  │  Models Used: glm-5 (68%), glm-5-turbo (18%),             │   │
 │  │               claude-sonnet (10%), glm-5.1 (4%)            │  │
 │  │  Avg Session Length: 8.3 turns                             │  │
-│  │  Longest Session: 22 turns (Wednesday feature dev)        │  │
+│  │  Longest Session: 22 turns (Wednesday feature dev)        │   │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
-│  ┌─── Optimization Summary ──────────────────────────────────┐  │
-│  │                                                             │  │
+│  ┌─── Optimization Summary ──────────────────────────────────┐   │
+│  │                                                             │ │
 │  │  Total tokens consumed:    245,600                         │  │
-│  │  Tokens saved by optimizer: 98,200 (40.0%)                │  │
-│  │                                                             │  │
+│  │  Tokens saved by optimizer: 98,200 (40.0%)                │   │
+│  │                                                             │ │
 │  │  Breakdown:                                                │  │
 │  │  ToolComp         42,800  (44%)  ████████████████████      │  │
 │  │  Caveman          24,500  (25%)  ████████████              │  │
@@ -838,10 +838,10 @@ Fix:
 │  │  Disclosure        8,900   (9%)  ████                      │  │
 │  │  Sketch            5,200   (5%)  ███                       │  │
 │  │  Other             4,400   (4%)  ██                        │  │
-│  │                                                             │  │
-│  │  Waste detected:                                            │  │
+│  │                                                             │ │
+│  │  Waste detected:                                            │ │
 │  │  redundant_tool_call:  5 instances                         │  │
-│  │  oversized_context:    2 instances                          │  │
+│  │  oversized_context:    2 instances                          │ │
 │  │  → วรรณา improved prompt habits after seeing waste data    │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
@@ -849,26 +849,26 @@ Fix:
 │  │  Total cost this week:   $0.54                             │  │
 │  │  Without optimizer:      $0.89                             │  │
 │  │  Money saved:            $0.35 (39.3%)                     │  │
-│  │                                                             │  │
+│  │                                                             │ │
 │  │  Cost by day:                                              │  │
 │  │  Mon: $0.06  █████ (simple questions)                      │  │
-│  │  Tue: $0.12  ██████████ (debugging with toolcomp)         │  │
-│  │  Wed: $0.28  ████████████████████████ (long feature dev)  │  │
-│  │  Thu: $0.05  ████ (light usage + dashboard review)        │  │
-│  │  Fri: $0.03  ███ (learning advanced features)             │  │
+│  │  Tue: $0.12  ██████████ (debugging with toolcomp)         │   │
+│  │  Wed: $0.28  ████████████████████████ (long feature dev)  │   │
+│  │  Thu: $0.05  ████ (light usage + dashboard review)        │   │
+│  │  Fri: $0.03  ███ (learning advanced features)             │   │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌─── PasteGuard ─────────────────────────────────────────────┐  │
 │  │  Secrets masked: 3 (API keys accidentally pasted)          │  │
-│  │  PII masked: 0                                            │  │
-│  │  Scan overhead: <1ms per request                          │  │
+│  │  PII masked: 0                                            │   │
+│  │  Scan overhead: <1ms per request                          │   │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌─── Bandit Learning Progress ───────────────────────────────┐  │
 │  │  Arms explored: 8/10                                       │  │
-│  │  Best arm for code tasks: textcomp_aggressive (θ=0.35)    │  │
-│  │  Best arm for debug: toolcomp (θ=0.42)                    │  │
-│  │  Worst arm: summarizer_early (θ=-0.05)                    │  │
+│  │  Best arm for code tasks: textcomp_aggressive (θ=0.35)    │   │
+│  │  Best arm for debug: toolcomp (θ=0.42)                    │   │
+│  │  Worst arm: summarizer_early (θ=-0.05)                    │   │
 │  │  Exploration rate: 15% (still learning)                    │  │
 │  └────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────┘
@@ -894,40 +894,40 @@ Fix:
 │                    WEEK 1 LEARNING PATH                          │
 │                                                                  │
 │  Day 1: Connection & Basics                                      │
-│  ├── Setup Claude Code → Gateway connection                     │
-│  ├── Understanding budget levels: green/yellow/red              │
-│  ├── First request, green optimizers activated                  │
-│  └── Savings: ~17% input, 30% output influence                  │
+│  ├── Setup Claude Code → Gateway connection                      │
+│  ├── Understanding budget levels: green/yellow/red               │
+│  ├── First request, green optimizers activated                   │
+│  └── Savings: ~17% input, 30% output influence                   │
 │                                                                  │
 │  Day 2: Real Debugging Task                                      │
-│  ├── ToolComp compressed kubectl logs (72% reduction)           │
-│  ├── PasteGuard protected accidentally pasted API key           │
-│  ├── Grafana dashboard showed per-optimizer metrics             │
-│  └── Real savings: 1,468 tokens in a debug session              │
+│  ├── ToolComp compressed kubectl logs (72% reduction)            │
+│  ├── PasteGuard protected accidentally pasted API key            │
+│  ├── Grafana dashboard showed per-optimizer metrics              │
+│  └── Real savings: 1,468 tokens in a debug session               │
 │                                                                  │
 │  Day 3: Long Feature Development Session                         │
-│  ├── Experienced yellow budget: packer + disclosure activated   │
-│  ├── Bandit learned preferences across 20 turns                 │
-│  ├── Waste Detection caught redundant file reads                │
-│  └── Cumulative: 7,315 tokens saved in one session              │
+│  ├── Experienced yellow budget: packer + disclosure activated    │
+│  ├── Bandit learned preferences across 20 turns                  │
+│  ├── Waste Detection caught redundant file reads                 │
+│  └── Cumulative: 7,315 tokens saved in one session               │
 │                                                                  │
 │  Day 4: Cost Awareness                                           │
-│  ├── Personal usage on Grafana: $0.38/week                      │
-│  ├── Understanding pricing per provider/model                   │
-│  ├── Prompt writing tips for better optimization                │
-│  └── Team comparison and benchmarks                             │
+│  ├── Personal usage on Grafana: $0.38/week                       │
+│  ├── Understanding pricing per provider/model                    │
+│  ├── Prompt writing tips for better optimization                 │
+│  └── Team comparison and benchmarks                              │
 │                                                                  │
 │  Day 5: Advanced Usage                                           │
-│  ├── Multi-provider routing and transparent mode                │
-│  ├── ToolFilter customization (ALWAYS_KEEP list)                │
-│  ├── When to use transparent vs normal mode                     │
-│  └── Contributing optimizer feedback                            │
+│  ├── Multi-provider routing and transparent mode                 │
+│  ├── ToolFilter customization (ALWAYS_KEEP list)                 │
+│  ├── When to use transparent vs normal mode                      │
+│  └── Contributing optimizer feedback                             │
 │                                                                  │
-│  ──────────────────────────────────────────────────────         │
+│  ──────────────────────────────────────────────────────          │
 │  WEEKLY TOTALS:                                                  │
-│  Requests: 478 | Cost: $0.54 | Saved: $0.35 (39.3%)           │
-│  Tokens saved: 98,200 | Secrets protected: 3                    │
-│  Waste detected: 7 instances | Bandit arms explored: 8          │
+│  Requests: 478 | Cost: $0.54 | Saved: $0.35 (39.3%)              │
+│  Tokens saved: 98,200 | Secrets protected: 3                     │
+│  Waste detected: 7 instances | Bandit arms explored: 8           │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -935,36 +935,36 @@ Fix:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  AI Gateway Quick Reference                                      │
-│                                                                  │
-│  Connection:                                                     │
+│  AI Gateway Quick Reference                                     │
+│                                                                 │
+│  Connection:                                                    │
 │    ANTHROPIC_BASE_URL=https://ai.klxhub.com                     │
-│    ANTHROPIC_AUTH_TOKEN=arl_<your-key>                           │
-│                                                                  │
-│  Dashboards:                                                     │
-│    Gateway:    https://ai.klxhub.com/                            │
-│    Grafana:    https://ai.klxhub.com/grafana                     │
-│    Health:     https://ai.klxhub.com/health                      │
-│                                                                  │
-│  Budget Levels:                                                  │
+│    ANTHROPIC_AUTH_TOKEN=arl_<your-key>                          │
+│                                                                 │
+│  Dashboards:                                                    │
+│    Gateway:    https://ai.klxhub.com/                           │
+│    Grafana:    https://ai.klxhub.com/grafana                    │
+│    Health:     https://ai.klxhub.com/health                     │
+│                                                                 │
+│  Budget Levels:                                                 │
 │    GREEN  (< 50%)  → basic optimizers, caveman lite (30%)       │
 │    YELLOW (50-75%) → + packer, disclosure, caveman full (50%)   │
 │    RED   (> 75%)   → + summarizer, caveman ultra (75%)          │
-│                                                                  │
-│  Key Optimizers:                                                 │
+│                                                                 │
+│  Key Optimizers:                                                │
 │    ToolComp   → compress shell/JSON/log output (40-80%)         │
-│    Caveman    → reduce output verbosity (30-75%)                 │
+│    Caveman    → reduce output verbosity (30-75%)                │
 │    Packer     → drop low-utility messages in long sessions      │
 │    PasteGuard → mask secrets/PII before sending to provider     │
 │    ToolFilter → trim tool manifest (60-80% manifest size)       │
-│                                                                  │
-│  Tips:                                                           │
-│    - New session for new topic (reset context)                   │
-│    - Let ToolComp handle large outputs (don't trim yourself)     │
-│    - Write concise prompts (TextComp helps but less is more)     │
-│    - Check Grafana weekly for usage and waste patterns            │
-│    - Claude models → transparent mode (cache preserved)          │
-│    - Z.AI models → normal mode (full optimization)               │
+│                                                                 │
+│  Tips:                                                          │
+│    - New session for new topic (reset context)                  │
+│    - Let ToolComp handle large outputs (don't trim yourself)    │
+│    - Write concise prompts (TextComp helps but less is more)    │
+│    - Check Grafana weekly for usage and waste patterns          │
+│    - Claude models → transparent mode (cache preserved)         │
+│    - Z.AI models → normal mode (full optimization)              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

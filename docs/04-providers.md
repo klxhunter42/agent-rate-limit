@@ -185,7 +185,7 @@ System that enables Claude Code CLI to use Sonnet/Opus through the gateway. The 
 │(Remote: 192.168.5.62)                                            │
 │                                                                  │
 │ANTHROPIC_BASE_URL=http://192.168.5.62:9000                       │
-│ANTHROPIC_AUTH_TOKEN=arl_2f3a72a7...                                 │
+│ANTHROPIC_AUTH_TOKEN=arl_2f3a72a7...                              │
 │                                                                  │
 │POST /v1/messages                                                 │
 │Headers: x-api-key: arl_2f3a72a7...                               │

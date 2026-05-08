@@ -21,14 +21,14 @@ Claude Code (client)
 │  1. Parse & detect images (hasImages=true)                       │
 │              │                                                   │
 │  2. compressLargeImages()                                        │
-│     - JPEG quality 75                                           │
-│     - Max dimension 1600px                                      │
+│     - JPEG quality 75                                            │
+│     - Max dimension 1600px                                       │
 │     - Compress only if > threshold                               │
 │              │                                                   │
-│  3. Route to Z.AI provider? (decision.ProviderID == "zai")      │
-│     └─ YES + VISION_PRE_ANALYSIS_ENABLED                        │
+│  3. Route to Z.AI provider? (decision.ProviderID == "zai")       │
+│     └─ YES + VISION_PRE_ANALYSIS_ENABLED                         │
 │              │                                                   │
-│  4. preAnalyzeImages() ─────────────────────────────────────┐   │
+│  4. preAnalyzeImages() ─────────────────────────────────────┐    │
 │     │                                                        │   │
 │     ├─ extractVisionContent()                                │   │
 │     │   - Extract base64 URIs from last user message         │   │
@@ -36,11 +36,11 @@ Claude Code (client)
 │     │                                                        │   │
 │     ├─ callVisionAnalysisParallel() ─── goroutine per image  │   │
 │     │   │                                                    │   │
-│     │   ├── goroutine 0 ──► Zhipu Vision API (glm-4.6v)     │   │
-│     │   ├── goroutine 1 ──► Zhipu Vision API (glm-4.6v)     │   │
-│     │   ├── goroutine 2 ──► Zhipu Vision API (glm-4.6v)     │   │
-│     │   ├── goroutine 3 ──► Zhipu Vision API (glm-4.6v)     │   │
-│     │   └── goroutine N ──► Zhipu Vision API (glm-4.6v)     │   │
+│     │   ├── goroutine 0 ──► Zhipu Vision API (glm-4.6v)     │    │
+│     │   ├── goroutine 1 ──► Zhipu Vision API (glm-4.6v)     │    │
+│     │   ├── goroutine 2 ──► Zhipu Vision API (glm-4.6v)     │    │
+│     │   ├── goroutine 3 ──► Zhipu Vision API (glm-4.6v)     │    │
+│     │   └── goroutine N ──► Zhipu Vision API (glm-4.6v)     │    │
 │     │       │                                                │   │
 │     │       │  OpenAI chat completions format                │   │
 │     │       │  Headers: X-Title, Accept-Language             │   │
@@ -49,7 +49,7 @@ Claude Code (client)
 │     │       │  thinking: disabled                            │   │
 │     │       ▼                                                │   │
 │     │   Collect results (partial failures OK)                │   │
-│     │   Combine: [Image 1]: desc\n\n[Image 2]: desc...      │   │
+│     │   Combine: [Image 1]: desc\n\n[Image 2]: desc...      │    │
 │     │                                                        │   │
 │     ├─ replaceImagesWithDescription()                        │   │
 │     │   - Replace image blocks with text:                    │   │
@@ -61,12 +61,12 @@ Claude Code (client)
 │     │                                                        │   │
 │     └─ Return text-only payload                              │   │
 │              │                                                   │
-│  5. hasImages = false → normal text routing                     │
+│  5. hasImages = false → normal text routing                      │
 │     (optimizer, privacy, upstream proxy)                         │
 │                                                                  │
-│  6. Forward to main model (glm-5, glm-5.1, etc)                 │
-│     - Sees only text, no images                                 │
-│     - Prompt injection tells model to trust [Image Analysis]:   │
+│  6. Forward to main model (glm-5, glm-5.1, etc)                  │
+│     - Sees only text, no images                                  │
+│     - Prompt injection tells model to trust [Image Analysis]:    │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
   │

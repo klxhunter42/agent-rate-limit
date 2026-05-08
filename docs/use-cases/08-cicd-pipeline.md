@@ -71,17 +71,17 @@ GitHub Actions triggered
 │ Step 3: POST /v1/messages → Gateway     │
 │         │                               │
 │         ├─ ToolFilter: เลือกเฉพาะ       │
-│         │  Read,Edit,Bash tools          │
-│         │  (ตัดออก 20+ tools ที่ไม่จำเป็น) │
-│         │  ประหยัด ~3000-6000 tokens     │
+│         │  Read,Edit,Bash tools         │
+│         │  (ตัดออก 20+ tools ไม่จำเป็น) │
+│         │  ประหยัด ~3000-6000 tokens    │
 │         │                               │
 │         ├─ Intent Filter (code intent): │
 │         │  สกัดเฉพาะ code suggestions   │
-│         │  ตัด explanation ออก           │
+│         │  ตัด explanation ออก          │
 │         │                               │
-│         ├─ PasteGuard: ตรวจ PR diff    │
-│         │  mask EMAIL_ADDRESS,           │
-│         │  PHONE_NUMBER อัตโนมัติ        │
+│         ├─ PasteGuard: ตรวจ PR diff     │
+│         │  mask EMAIL_ADDRESS,          │
+│         │  PHONE_NUMBER อัตโนมัติ       │
 │         │                               │
 │         └─ TextComp: บีบ verbose prompt │
 │            "Please carefully review..." │
@@ -241,67 +241,67 @@ Post-Response:
 02:30:00  PagerDuty alert triggered
           │
 02:30:01  ┌─────────────────────────────────────────┐
-          │ Webhook handler receives alert           │
-          │ POST → Optimizer Gateway /v1/messages    │
+          │ Webhook handler receives alert          │
+          │ POST → Optimizer Gateway /v1/messages   │
           │                                         │
-          │ F10 Warm Start:                          │
-          │ ค้นหา session ที่คล้ายกันใน Redis (7 วัน)  │
-          │ → เจอ incident "payment-service          │
-          │    CrashLoop 3 ครั้งที่แล้ว"                 │
-          │ → โหลด patterns มาใช้ทันที                │
-          │ ประหยัด cold-start waste ~15%            │
+          │ F10 Warm Start:                         │
+          │ ค้นหา session ที่คล้ายใน Redis (7 วัน)  │
+          │ → เจอ incident "payment-service         │
+          │    CrashLoop 3 ครั้งที่แล้ว"            │
+          │ → โหลด patterns มาใช้ทันที              │
+          │ ประหยัด cold-start waste ~15%           │
           │                                         │
-          │ F4 Prefetcher:                           │
-          │ ทำนายคำสั่งถัดไปจาก Markov chain           │
-          │   kubectl logs → kubectl describe →      │
-          │   kubectl get events                     │
-          │ → prefetch ข้อมูลเหล่านี้ล่วงหน้า             │
+          │ F4 Prefetcher:                          │
+          │ ทำนายคำสั่งถัดไปจาก Markov chain        │
+          │   kubectl logs → kubectl describe →     │
+          │   kubectl get events                    │
+          │ → prefetch ข้อมูลเหล่านี้ล่วงหน้า       │
           └─────────────────────────────────────────┘
           │
 02:30:03  ┌─────────────────────────────────────────┐
-          │ Step 1: Fetch diagnostic data            │
-          │ - kubectl logs payment-service --tail=100│
-          │ - kubectl describe pod payment-service   │
-          │ - kubectl get events --field-selector... │
+          │ Step 1: Fetch diagnostic data           │
+          │ - kubectl logs payment-svc --tail=100   │
+          │ - kubectl describe pod payment-service  │
+          │ - kubectl get events --field-selector...│
           │                                         │
-          │ F18 ToolComp: บีบ log output              │
-          │ Input: 150 บรรทัด kubectl logs (4,500ch) │
-          │ Output: 35 บรรทัด (head+tail+dedup)       │
-          │ → ประหยัด ~75% tool_result tokens        │
+          │ F18 ToolComp: บีบ log output            │
+          │ Input: 150 บรรทัด kubectl logs (4,500ch)│
+          │ Output: 35 บรรทัด (head+tail+dedup)     │
+          │ → ประหยัด ~75% tool_result tokens       │
           │                                         │
-          │ Log format detection: "Log" type         │
-          │ บีบ: dedup consecutive identical lines    │
-          │ "[ERROR] connection refused" x 50        │
-          │ → "[ERROR] connection refused (x50)"     │
+          │ Log format detection: "Log" type        │
+          │ บีบ: dedup consecutive identical lines  │
+          │ "[ERROR] connection refused" x 50       │
+          │ → "[ERROR] connection refused (x50)"    │
           └─────────────────────────────────────────┘
           │
 02:30:08  ┌─────────────────────────────────────────┐
-          │ Step 2: AI Analysis                      │
+          │ Step 2: AI Analysis                     │
           │                                         │
-          │ F11 Waste Detection (runs every 60s):    │
-          │ ตรวจพบ "retry_churn" pattern             │
-          │ → AI สั่ง kubectl logs ซ้ำ 3 ครั้ง          │
-          │ → Flag severity=medium                   │
+          │ F11 Waste Detection (runs every 60s):   │
+          │ ตรวจพบ "retry_churn" pattern            │
+          │ → AI สั่ง kubectl logs ซ้ำ 3 ครั้ง      │
+          │ → Flag severity=medium                  │
           │                                         │
-          │ F9 Sketch: ตรวจ near-duplicate prompt    │
-          │ "Analyze this pod error..." ≈ 0.92       │
-          │ similarity กับ incident ก่อนหน้า           │
-          │ → Flag ว่าเป็นปัญหาเดิม                     │
+          │ F9 Sketch: ตรวจ near-duplicate prompt   │
+          │ "Analyze this pod error..." ≈ 0.92      │
+          │ similarity กับ incident ก่อนหน้า        │
+          │ → Flag ว่าเป็นปัญหาเดิม                 │
           └─────────────────────────────────────────┘
           │
 02:30:12  ┌─────────────────────────────────────────┐
-          │ Step 3: Generate runbook                 │
+          │ Step 3: Generate runbook                │
           │                                         │
           │ F8 Delta Encoding:                      │
-          │ เปรียบเทียบ runbook ใหม่กับ cached baseline │
-          │ "sys:glm-5" key ใน Redis                 │
-          │ ส่งเฉพาะ +/=/- operations                 │
-          │ → ประหยัด ~40% input tokens               │
+          │ เปรียบเทียบ runbook กับ cached baseline │
+          │ "sys:glm-5" key ใน Redis                │
+          │ ส่งเฉพาะ +/=/- operations               │
+          │ → ประหยัด ~40% input tokens             │
           │                                         │
-          │ F16 Caveman (full tier - yellow budget): │
-          │ Inject: [OUTPUT STYLE - full]            │
-          │ → Model ตอบแบบ action items เท่านั้น       │
-          │ → ไม่มี "I see that..." filler             │
+          │ F16 Caveman (full tier - yellow budget):│
+          │ Inject: [OUTPUT STYLE - full]           │
+          │ → Model ตอบแบบ action items เท่านั้น    │
+          │ → ไม่มี "I see that..." filler          │
           └─────────────────────────────────────────┘
           │
 02:30:15  AI analysis complete → Post to Slack + PagerDuty
@@ -418,12 +418,12 @@ sum(rate(api_gateway_prefetcher_predictions_total[1h]))
 │ Gateway Optimization:                   │
 │                                         │
 │ F8 Delta Encoding:                      │
-│ เปรียบเทียบกับ baseline ของวันก่อน        │
+│ เปรียบเทียบกับ baseline ของวันก่อน      │
 │ key: "sys:glm-5" in Redis               │
-│ → ส่งเฉพาะ +/=/- operations              │
+│ → ส่งเฉพาะ +/=/- operations             │
 │ → "aws_instance.web: count 3→5"         │
 │ → "k8s_deployment.api: image tag diff"  │
-│ ประหยัด ~40-60% เพราะส่วนใหญ่ไม่เปลี่ยน    │
+│ ประหยัด ~40-60% เพราะส่วนใหญ่ไม่เปลี่ยน │
 │                                         │
 │ F20 CompCache:                          │
 │ บีบ cached Terraform state comparisons  │
@@ -431,15 +431,15 @@ sum(rate(api_gateway_prefetcher_predictions_total[1h]))
 │ → ประหยัด 60-80% Redis memory           │
 │                                         │
 │ F14 Cache Eviction:                     │
-│ รันทุก 5 นาที ลบ cached comparisons      │
-│ ที่มี ROI ต่ำ (bottom 10%)                │
-│ → ทิ้ง state ของ env ที่ไม่ได้ใช้แล้ว      │
-│ → เก็บ state ของ production ไว้ (high ROI)│
+│ รันทุก 5 นาที ลบ cached comparisons     │
+│ ที่มี ROI ต่ำ (bottom 10%)              │
+│ → ทิ้ง state ของ env ที่ไม่ได้ใช้แล้ว   │
+│ → เก็บ state production ไว้ (high ROI)  │
 │                                         │
 │ F9 Sketch:                              │
-│ ตรวจว่าวันนี้ diff เหมือนเมื่อวานไหม       │
+│ ตรวจว่าวันนี้ diff เหมือนเมื่อวานไหม    │
 │ → similarity > 0.85 → flag duplicate    │
-│ → ข้าม analysis ประหยัดทั้ง request       │
+│ → ข้าม analysis ประหยัดทั้ง request     │
 └─────────────────────────────────────────┘
          │
          ▼
@@ -592,7 +592,7 @@ spec:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    Deployment Pipeline                        │
+│                    Deployment Pipeline                       │
 │                                                              │
 │  Stage 1: Build & Test                                       │
 │     ↓ (auto-pass)                                            │
@@ -601,21 +601,21 @@ spec:
 │     ↓                                                        │
 │  Stage 3: Canary Metrics Collection (5 min observation)      │
 │     ↓                                                        │
-│  Stage 4: ★ AI GATE ★                                       │
+│  Stage 4: ★ AI GATE ★                                        │
 │     │                                                        │
 │     ├─ GREEN BUDGET (< 50% context):                         │
-│     │  Caveman lite: ตอบสั้น "APPROVE" หรือ "ROLLBACK: reason"│
+│     │  Caveman lite: ตอบสั้น "APPROVE" or "ROLLBACK: reason" │
 │     │  Intent filter: สกัดเฉพาะ decision keywords            │
 │     │                                                        │
 │     ├─ YELLOW BUDGET (50-75% context):                       │
-│     │  Caveman full: บีบ verbose metric explanations          │
-│     │  Budget-aware disclosure: truncate ให้เหลือ key metrics │
+│     │  Caveman full: บีบ verbose metric explanations         │
+│     │  Budget-aware disclosure: truncate ให้เหลือ key metrics│
 │     │  → เก็บเฉพาะ p99 latency, error rate, CPU/memory       │
 │     │                                                        │
 │     └─ RED BUDGET (> 75% context - multi-service deploy):    │
-│        Caveman ultra: raw decision เท่านั้น                    │
-│        Summarizer: บีบ 5 นาที metrics เป็น summary            │
-│        → Output: "REJECT" หรือ "APPROVE" + 1 บรรทัด           │
+│        Caveman ultra: raw decision เท่านั้น                  │
+│        Summarizer: บีบ 5 นาที metrics เป็น summary           │
+│        → Output: "REJECT" หรือ "APPROVE" + 1 บรรทัด          │
 │                                                              │
 │  Stage 5: Full Rollout (if APPROVED)                         │
 │     or                                                       │
@@ -901,15 +901,15 @@ BANDIT_ENABLED=true
 │  │   └─ F20 CompCache ─────────────── 60-80% Redis mem  │       │
 │  │                                                      │       │
 │  │  ┌─────────┐ ┌──────────┐ ┌─────────────────┐        │       │
-│  │  │ Dragonfly│ │Prometheus│ │ Grafana Dashboard│       │       │
+│  │  │ Dragonfly│ │Prometheus│ │ Grafana Dashboard│       │      │
 │  │  │ (Redis)  │ │ Metrics  │ │ (visualization) │       │       │
 │  │  └─────────┘ └──────────┘ └─────────────────┘        │       │
 │  └──────────────────────────────────────────────────────┘       │
 │                             │                                    │
 │                             ▼                                    │
 │                    ┌─────────────────┐                           │
-│                    │  AI Provider     │                           │
-│                    │  (Z.AI / Claude) │                           │
+│                    │  AI Provider     │                          │
+│                    │  (Z.AI / Claude) │                          │
 │                    └─────────────────┘                           │
 └─────────────────────────────────────────────────────────────────┘
 ```

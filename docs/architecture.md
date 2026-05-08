@@ -912,9 +912,9 @@ anthropicToZhipu() / AnthropicToOpenAI():
   │ content[].type="image"          ->    type="image_url"         │
   │   source.type="base64"          ->      url="data:mime;base64" │
   │   source.type="url"             ->      url=<original url>     │
-  │ content[].type="server_tool_use"-> ส่งผ่านเลย (passthrough) │
-  │ content[].type="tool_use" -> ส่งผ่านเลย (passthrough) │
-  │ content[].type="tool_result" -> ส่งผ่านเลย (passthrough) │
+  │ content[].type="server_tool_use"-> ส่งผ่านเลย (passthrough)    │
+  │ content[].type="tool_use" -> ส่งผ่านเลย (passthrough)          │
+  │ content[].type="tool_result" -> ส่งผ่านเลย (passthrough)       │
   │                                                                │
   │ system (string or array)        ->    นำหน้าไปที่ user msg แรก │
   │ stream: bool                    ->    stream: bool             │

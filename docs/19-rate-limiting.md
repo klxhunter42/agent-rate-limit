@@ -483,16 +483,16 @@ Post-proxy feedback loop:
                                     |
                                     v
                         +-----------------------+
-                        |  HTTP Middleware Chain |
+                        | HTTP Middleware Chain |
                         +-----------------------+
                                     |
                           +---------+---------+
                           |                   |
                    +------+------+    +-------+-------+
-| Distributed |    |   Internal    |
-| Rate Limiter |    |  path bypass  |
-| (global +    |    | (/health,     |
-|  per-agent)  |    |  /metrics)    |
+                   | Distributed |    |   Internal    |
+                   | Rate Limiter|    |  path bypass  |
+                   | (global +   |    | (/health,     |
+                   |  per-agent) |    |  /metrics)    |
                    +------+------+    +---------------+
                           |
                      [allowed?]
@@ -501,12 +501,12 @@ Post-proxy feedback loop:
                    |             |
               +----+----+       v
               | 429     |  +------------------------+
-| Response|  | Adaptive Concurrency    |
-              +---------+  | Limiter (Acquire slot)  |
-                           |                          |
-                           | Per-model limits,        |
-                           | series fallback,         |
-                           | cross-series spillover   |
+              | Response|  | Adaptive Concurrency   |
+              +---------+  | Limiter (Acquire slot) |
+                           |                        |
+                           | Per-model limits,      |
+                           | series fallback,       |
+                           | cross-series spillover |
                            +-----------+------------+
                                        |
                                   [slot acquired?]
@@ -515,16 +515,16 @@ Post-proxy feedback loop:
                                 |                   |
                         +-------+-----+            v
                         | 503 Timeout |  +-------------------------+
-| Response    |  | 13-Stage Optimizer      |
+                        | Response    |  | 13-Stage Optimizer      |
                         +-------------+  | Pipeline                |
                                          |                         |
                                          | 1. Semantic Dedup (F7)  |
                                          | 2. Chunker (F1)         |
                                          | 3. Delta Encode (F8)    |
                                          | 4. Sketch Dedup (F9)    |
-                                         |    - SimHash bit vector  |
-                                         |    - Hamming similarity  |
-                                         |    - Redis-backed cache  |
+                                         |    - SimHash bit vector |
+                                         |    - Hamming similarity |
+                                         |    - Redis-backed cache |
                                          | 5. Summarizer (F6, red) |
                                          | 6. Intent Filter (F13)  |
                                          | 7. Caveman (F16)        |
@@ -547,22 +547,22 @@ Post-proxy feedback loop:
                                          |                     |
                                          v                     v
                                    +-----+------+    +---------+--------+
-| Adaptive   |    | Post-Proxy       |
-| Feedback   |    | Feedback Loop    |
-|            |    |                  |
-| - Halve    |    | - Bandit Update  |
-|   limit    |    |   (reward =      |
-| - Record   |    |    output/input) |
-|   peak     |    | - Prefetcher     |
-| - 5s       |    |   Record         |
-|   cooldown |    | - Waste Detect   |
+                                   | Adaptive   |    | Post-Proxy       |
+                                   | Feedback   |    | Feedback Loop    |
+                                   |            |    |                  |
+                                   | - Halve    |    | - Bandit Update  |
+                                   |   limit    |    |   (reward =      |
+                                   | - Record   |    |    output/input) |
+                                   |   peak     |    | - Prefetcher     |
+                                   | - 5s       |    |   Record         |
+                                   |   cooldown |    | - Waste Detect   |
                                    +------------+    | - Cache ROI      |
                                                      +------------------+
                                                             |
                                                             v
                                                   +-------------------+
-                                                  | Release Concurrency|
-                                                  | Slot (AdaptiveLimiter)
+                                                  |Release Concurrency|
+                                                  | Slot (AdaptiveLimi|
                                                   |                   |
                                                   | - Signal waiters  |
                                                   | - Update RTT EWMA |
@@ -575,17 +575,17 @@ Post-proxy feedback loop:
                                                     |              |
                                                     v              v
                                            +--------+---+  +------+------+
-| Dragonfly   |  | HTTP Response|
-| Job Queue   |  | to client    |
-                                           |             |  +-------------+
+                                           | Dragonfly  |  |HTTP Response|
+                                           | Job Queue  |  | to client   |
+                                           |             | +-------------+
                                            | LPUSH job   |
-                                           | Result cache |
-                                           | (10m TTL)    |
+                                           | Result cache|
+                                           | (10m TTL)   |
                                            +-------------+
 
     +--------------------------------------------------------------+
-    |                    Redis/Dragonfly State                      |
-    |                                                               |
+    |                   Redis/Dragonfly State                      |
+    |                                                              |
     |  bandit:state:<armID>    Arm state (A, b matrices)  24h TTL  |
     |  sketch:recent:<session> Sketch bit vectors (100)   24h TTL  |
     |  result:<requestID>      Cached inference results   10m TTL  |

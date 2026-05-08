@@ -104,17 +104,17 @@ Removes near-duplicate sentences from system prompt. Keeps first occurrence, dro
   │  "You are a helpful assistant. When writing code, use modern    │
   │   practices. Be concise in your responses."                     │
   │                                                                 │
-  │  ████████████████████████████████░░░░░░░░░░░░  112 chars       │
+  │  ████████████████████████████████░░░░░░░░░░░░  112 chars        │
   │                                                                 │
   │  Saved: 122 chars (52%)                                         │
   │                                                                 │
   │  What was removed:                                              │
   │  - "You should always respond in a helpful manner"              │
-  │    (~similar to "You are a helpful assistant")                   │
+  │    (~similar to "You are a helpful assistant")                  │
   │  - "Make sure to use modern coding practices for all code"      │
-  │    (~similar to "use modern practices")                          │
+  │    (~similar to "use modern practices")                         │
   │  - "and keep answers brief"                                     │
-  │    (~similar to "Be concise")                                    │
+  │    (~similar to "Be concise")                                   │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
 ```
@@ -131,10 +131,10 @@ Applies to messages where `content` is a plain string (not content blocks).
   ┌─────────────────────────────────────────────────────────────────┐
   │  BEFORE                                                         │
   │                                                                 │
-  │  "Can you help me fix this bug?   The error says               │
+  │  "Can you help me fix this bug?   The error says                │
   │                                                                 │
   │                                                                 │
-  │   'connection refused'.  Can you help me fix this bug?         │
+  │   'connection refused'.  Can you help me fix this bug?          │
   │   I think it's a port issue."                                   │
   │                                                                 │
   │  ████████████████████████████████████████████  142 chars        │
@@ -142,10 +142,10 @@ Applies to messages where `content` is a plain string (not content blocks).
   ├─────────────────────────────────────────────────────────────────┤
   │  AFTER                                                          │
   │                                                                 │
-  │  "Can you help me fix this bug? The error says 'connection     │
+  │  "Can you help me fix this bug? The error says 'connection      │
   │   refused'. I think it's a port issue."                         │
   │                                                                 │
-  │  ████████████████████████████████░░░░░░░░░░░░  102 chars       │
+  │  ████████████████████████████████░░░░░░░░░░░░  102 chars        │
   │                                                                 │
   │  Saved: 40 chars (28%)                                          │
   │                                                                 │
@@ -170,8 +170,8 @@ Same as message_text but for structured content blocks (`[{"type":"text","text":
   │  BEFORE                                                         │
   │                                                                 │
   │  content: [                                                     │
-  │    {"type": "text", "text": "Look at this file:\n\n\n\n        │
-  │     The file contains the config.  The file contains           │
+  │    {"type": "text", "text": "Look at this file:\n\n\n\n         │
+  │     The file contains the config.  The file contains            │
   │     the config for the database."}                              │
   │  ]                                                              │
   │                                                                 │
@@ -181,11 +181,11 @@ Same as message_text but for structured content blocks (`[{"type":"text","text":
   │  AFTER                                                          │
   │                                                                 │
   │  content: [                                                     │
-  │    {"type": "text", "text": "Look at this file:\n\nThe file    │
+  │    {"type": "text", "text": "Look at this file:\n\nThe file     │
   │     contains the config for the database."}                     │
   │  ]                                                              │
   │                                                                 │
-  │  ████████████████████████████░░░░░░░░░░░░░░░░   82 chars       │
+  │  ████████████████████████████░░░░░░░░░░░░░░░░   82 chars        │
   │                                                                 │
   │  Saved: 38 chars (32%)                                          │
   │                                                                 │
@@ -227,7 +227,7 @@ Same whitespace optimization, but operates on the `content` field instead of `te
   │     pod-db-3b1e     CrashLoopBackOff"}                          │
   │  ]                                                              │
   │                                                                 │
-  │  ████████████████████████████████████░░░░░░░░  136 chars       │
+  │  ████████████████████████████████████░░░░░░░░  136 chars        │
   │                                                                 │
   │  Saved: 12 chars (8%)                                           │
   │                                                                 │
@@ -248,7 +248,7 @@ Runs after message_text. Removes English filler phrases and hedge words from str
   │                                                                 │
   │  "I was wondering if you could maybe help me figure out why     │
   │   the deployment is failing. I would like to basically          │
-  │   understand the root cause. Could you please also sort of     │
+  │   understand the root cause. Could you please also sort of      │
   │   check the logs?"                                              │
   │                                                                 │
   │  ████████████████████████████████████████████  185 chars        │
@@ -259,7 +259,7 @@ Runs after message_text. Removes English filler phrases and hedge words from str
   │  "help me figure out why the deployment is failing.             │
   │   understand the root cause. check the logs?"                   │
   │                                                                 │
-  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  104 chars       │
+  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  104 chars        │
   │                                                                 │
   │  Saved: 81 chars (44%)                                          │
   │                                                                 │
@@ -288,11 +288,11 @@ Does NOT remove content. Reorders chunks so stable (previously seen) chunks come
   │  BEFORE                                                         │
   │                                                                 │
   │  System prompt (order as written):                              │
-  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
-  │  │ NEW content  │ │ STABLE chunk │ │ NEW content  │            │
-  │  │ (novel)      │ │ (seen 5x)    │ │ (novel)      │            │
-  │  │ 400 chars    │ │ 600 chars    │ │ 300 chars    │            │
-  │  └──────────────┘ └──────────────┘ └──────────────┘            │
+  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
+  │  │ NEW content  │ │ STABLE chunk │ │ NEW content  │             │
+  │  │ (novel)      │ │ (seen 5x)    │ │ (novel)      │             │
+  │  │ 400 chars    │ │ 600 chars    │ │ 300 chars    │             │
+  │  └──────────────┘ └──────────────┘ └──────────────┘             │
   │                                                                 │
   │  Prompt cache: MISS (new content at start breaks cache prefix)  │
   │                                                                 │
@@ -300,14 +300,14 @@ Does NOT remove content. Reorders chunks so stable (previously seen) chunks come
   │  AFTER                                                          │
   │                                                                 │
   │  System prompt (reordered):                                     │
-  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐            │
-  │  │ STABLE chunk │ │ NEW content  │ │ NEW content  │            │
-  │  │ (seen 5x)    │ │ (novel)      │ │ (novel)      │            │
-  │  │ 600 chars    │ │ 400 chars    │ │ 300 chars    │            │
-  │  └──────────────┘ └──────────────┘ └──────────────┘            │
+  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
+  │  │ STABLE chunk │ │ NEW content  │ │ NEW content  │             │
+  │  │ (seen 5x)    │ │ (novel)      │ │ (novel)      │             │
+  │  │ 600 chars    │ │ 400 chars    │ │ 300 chars    │             │
+  │  └──────────────┘ └──────────────┘ └──────────────┘             │
   │                                                                 │
   │  Prompt cache: HIT on first 600 chars (cache prefix match)      │
-  │  Cost savings: 600 cached tokens at $3/1M = $0.0018/request    │
+  │  Cost savings: 600 cached tokens at $3/1M = $0.0018/request     │
   │                                                                 │
   │  Key insight: No text removed. Benefit is cache hit rate.       │
   │                                                                 │
@@ -325,22 +325,22 @@ Does NOT modify content. Computes how much could be saved if delta encoding were
 ```
   ┌─────────────────────────────────────────────────────────────────┐
   │                                                                 │
-  │  Input: "Configure the API gateway with TLS enabled..."        │
+  │  Input: "Configure the API gateway with TLS enabled..."         │
   │  (same system prompt as last 5 requests, minor changes)         │
   │                                                                 │
   │  Delta computation:                                             │
-  │  ┌──────────────────────────────────────────────────┐          │
-  │  │ Baseline (Redis): 2450 chars                     │          │
-  │  │ Current input:   2480 chars                     │          │
-  │  │ LCS overlap:     2100 chars (85% similar)       │          │
-  │  │ Potential saved:  2100 chars                     │          │
-  │  └──────────────────────────────────────────────────┘          │
+  │  ┌──────────────────────────────────────────────────┐           │
+  │  │ Baseline (Redis): 2450 chars                     │           │
+  │  │ Current input:   2480 chars                     │            │
+  │  │ LCS overlap:     2100 chars (85% similar)       │            │
+  │  │ Potential saved:  2100 chars                     │           │
+  │  └──────────────────────────────────────────────────┘           │
   │                                                                 │
   │  Output: ORIGINAL CONTENT UNCHANGED                             │
   │  Metric recorded: delta_metrics = 2100 chars potential savings  │
   │                                                                 │
   │  Why not apply: Sending diffs to LLMs corrupts meaning.         │
-  │  Value: Identifies sessions where caching would help.            │
+  │  Value: Identifies sessions where caching would help.           │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
 ```
@@ -370,12 +370,12 @@ Detects near-duplicate system prompts across requests in the same session. If a 
   │  Result: isDuplicate=true, charsSaved=len(content)              │
   │  Action: Caller can skip sending or use cached response         │
   │                                                                 │
-  │  ┌──────────────────────────────────────────────────┐          │
-  │  │ Request 1:  ████████████████████████████  2000   │          │
-  │  │ Request 2:  ████████████████████████████  2000   │          │
-  │  │             (97% similar = near-duplicate)       │          │
-  │  │ Saved:      2000 chars (if caller skips)         │          │
-  │  └──────────────────────────────────────────────────┘          │
+  │  ┌──────────────────────────────────────────────────┐           │
+  │  │ Request 1:  ████████████████████████████  2000   │           │
+  │  │ Request 2:  ████████████████████████████  2000   │           │
+  │  │             (97% similar = near-duplicate)       │           │
+  │  │ Saved:      2000 chars (if caller skips)         │           │
+  │  └──────────────────────────────────────────────────┘           │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
 ```
@@ -403,7 +403,7 @@ Extractive summarization that keeps the most important sentences. Only activates
   │   don't have known vulnerabilities. Check that the code         │
   │   follows the project's style guide. Verify that secrets        │
   │   are not hardcoded. Ensure proper input validation             │
-  │   exists at system boundaries."                                  │
+  │   exists at system boundaries."                                 │
   │                                                                 │
   │  ████████████████████████████████████████████  620 chars        │
   │                                                                 │
@@ -416,7 +416,7 @@ Extractive summarization that keeps the most important sentences. Only activates
   │   exists at system boundaries. Verify that secrets are not      │
   │   hardcoded."                                                   │
   │                                                                 │
-  │  ████████████████████████████░░░░░░░░░░░░░░░░  234 chars       │
+  │  ████████████████████████████░░░░░░░░░░░░░░░░  234 chars        │
   │                                                                 │
   │  Saved: 386 chars (62%)                                         │
   │  Method: PageRank scored "security" + "boundaries" +            │
@@ -453,7 +453,7 @@ Compresses input text by removing pleasantries, instruction fluff, and verbose s
   │   for API calls. Timeout ~30s. If connection fails,             │
   │   reconnect."                                                   │
   │                                                                 │
-  │  ██████████████████████░░░░░░░░░░░░░░░░░░░░░  118 chars       │
+  │  ██████████████████████░░░░░░░░░░░░░░░░░░░░░  118 chars         │
   │                                                                 │
   │  Saved: 192 chars (62%)                                         │
   │                                                                 │
@@ -507,7 +507,7 @@ Appends terse output-style instructions to the system prompt. The model reads th
   │   ClusterIP (default): internal only.                           │
   │   NodePort: expose on node IP:port.                             │
   │   LoadBalancer: cloud provider LB."                             │
-  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  250 tokens      │
+  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  250 tokens       │
   │                                                                 │
   │  Output tokens saved: ~250 (50%)                                │
   │  Input chars added: ~200 (style injection text)                 │
@@ -521,28 +521,28 @@ Appends terse output-style instructions to the system prompt. The model reads th
 ```
   ┌────────────────────────────────────────────────────────────────┐
   │                                                                │
-  │  User: "explain Docker volumes"                               │
+  │  User: "explain Docker volumes"                                │
   │                                                                │
   │  Normal (~400 tok):                                            │
   │  "Certainly! Docker volumes are a mechanism for persisting     │
   │   data generated by and used by Docker containers..."          │
   │  ██████████████████████████████████████████████████████████    │
   │                                                                │
-  │  Lite (~280 tok): "concise, bullet points, skip filler"       │
+  │  Lite (~280 tok): "concise, bullet points, skip filler"        │
   │  "Docker volumes persist data beyond container lifecycle.      │
-  │   Types: named volumes, bind mounts, tmpfs..."                │
-  │  ████████████████████████████████████████░░░░░░░░░░░░░░░░░    │
+  │   Types: named volumes, bind mounts, tmpfs..."                 │
+  │  ████████████████████████████████████████░░░░░░░░░░░░░░░░░     │
   │                                                                │
-  │  Full (~200 tok): "extremely terse, no filler, tables OK"     │
-  │  "Docker volumes: persistent storage for containers.          │
-  │   | Type | Use case |                                         │
-  │   | named | prod data |..."                                   │
-  │  ████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░    │
+  │  Full (~200 tok): "extremely terse, no filler, tables OK"      │
+  │  "Docker volumes: persistent storage for containers.           │
+  │   | Type | Use case |                                          │
+  │   | named | prod data |..."                                    │
+  │  ████████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░      │
   │                                                                │
-  │  Ultra (~100 tok): "raw output, symbols, zero prose"          │
-  │  "named: docker volume create; bind: -v /host:/container;     │
-  │   tmpfs: --tmpfs /run"                                        │
-  │  ██████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░    │
+  │  Ultra (~100 tok): "raw output, symbols, zero prose"           │
+  │  "named: docker volume create; bind: -v /host:/container;      │
+  │   tmpfs: --tmpfs /run"                                         │
+  │  ██████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░       │
   │                                                                │
   └────────────────────────────────────────────────────────────────┘
 ```
@@ -573,7 +573,7 @@ Runs on system prompt text (not messages). Removes English filler, hedges, and v
   │  System: "Validate all user inputs. Input validation is the     │
   │   first line of defense. Sanitize all data before processing."  │
   │                                                                 │
-  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  124 chars       │
+  │  ██████████████████████████░░░░░░░░░░░░░░░░░░  124 chars        │
   │                                                                 │
   │  Saved: 146 chars (54%)                                         │
   │                                                                 │
@@ -601,9 +601,9 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │  BEFORE (shell ls output, 200 files)                            │
   │                                                                 │
   │  tool_result content:                                           │
-  │  "file001.txt  file002.txt  file003.txt  file004.txt           │
-  │   file005.txt  file006.txt  file007.txt  file008.txt           │
-  │   file009.txt  file010.txt  ...  (190 more files) ...          │
+  │  "file001.txt  file002.txt  file003.txt  file004.txt            │
+  │   file005.txt  file006.txt  file007.txt  file008.txt            │
+  │   file009.txt  file010.txt  ...  (190 more files) ...           │
   │   file198.txt  file199.txt  file200.txt"                        │
   │                                                                 │
   │  ████████████████████████████████████████████  4200 chars       │
@@ -612,13 +612,13 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │  AFTER (shell ls format, MaxLines=50)                           │
   │                                                                 │
   │  tool_result content:                                           │
-  │  "file001.txt  file002.txt  file003.txt  file004.txt           │
-  │   file005.txt  file006.txt  file007.txt  file008.txt           │
-  │   file009.txt  file010.txt  file011.txt  file012.txt           │
-  │   ... 190 more files ...                                       │
+  │  "file001.txt  file002.txt  file003.txt  file004.txt            │
+  │   file005.txt  file006.txt  file007.txt  file008.txt            │
+  │   file009.txt  file010.txt  file011.txt  file012.txt            │
+  │   ... 190 more files ...                                        │
   │   file199.txt  file200.txt"                                     │
   │                                                                 │
-  │  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░  580 chars        │
+  │  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░  580 chars         │
   │                                                                 │
   │  Saved: 3620 chars (86%)                                        │
   │                                                                 │
@@ -631,9 +631,9 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │  tool_result content:                                           │
   │  {                                                              │
   │    "items": [                                                   │
-  │      { "id": 1, "name": "alpha",   "status": "running" },      │
-  │      { "id": 2, "name": "beta",    "status": "stopped" },      │
-  │      { "id": 3, "name": "gamma",   "status": "running" }       │
+  │      { "id": 1, "name": "alpha",   "status": "running" },       │
+  │      { "id": 2, "name": "beta",    "status": "stopped" },       │
+  │      { "id": 3, "name": "gamma",   "status": "running" }        │
   │    ],                                                           │
   │    "total": 3                                                   │
   │  }                                                              │
@@ -647,7 +647,7 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │   {"id":2,"name":"beta","status":"stopped"},                    │
   │   {"id":3,"name":"gamma","status":"running"}],"total":3}        │
   │                                                                 │
-  │  ██████████████████████████████░░░░░░░░░░░░░░  162 chars       │
+  │  ██████████████████████████████░░░░░░░░░░░░░░  162 chars        │
   │                                                                 │
   │  Saved: 68 chars (30%)                                          │
   │                                                                 │
@@ -662,19 +662,19 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │   index abc1234..def5678 100644                                 │
   │   --- a/main.go                                                 │
   │   +++ b/main.go                                                 │
-  │   @@ -10,15 +10,15 @@                                          │
+  │   @@ -10,15 +10,15 @@                                           │
   │   context line 1                          (unchanged)           │
   │   context line 2                          (unchanged)           │
   │   context line 3                          (unchanged)           │
-  │   -old line A                                                 │
-  │   -old line B                                                 │
-  │   +new line A                                                 │
-  │   +new line B                                                 │
+  │   -old line A                                                   │
+  │   -old line B                                                   │
+  │   +new line A                                                   │
+  │   +new line B                                                   │
   │   context line 7                          (unchanged)           │
   │   context line 8                          (unchanged)           │
   │   context line 9                          (unchanged)           │
-  │   -old line C                                                 │
-  │   +new line C"                                                │
+  │   -old line C                                                   │
+  │   +new line C"                                                  │
   │                                                                 │
   │  ████████████████████████████████████████████  580 chars        │
   │                                                                 │
@@ -684,7 +684,7 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │  "diff --git a/main.go b/main.go                                │
   │   --- a/main.go                                                 │
   │   +++ b/main.go                                                 │
-  │   @@ -10,15 +10,15 @@                                          │
+  │   @@ -10,15 +10,15 @@                                           │
   │   -old line A                                                   │
   │   -old line B                                                   │
   │   +new line A                                                   │
@@ -693,10 +693,10 @@ Auto-detects content format (JSON, shell ls, table, diff, log, prose) and applie
   │   -old line C                                                   │
   │   +new line C"                                                  │
   │                                                                 │
-  │  ██████████████████████░░░░░░░░░░░░░░░░░░░░░  310 chars       │
+  │  ██████████████████████░░░░░░░░░░░░░░░░░░░░░  310 chars         │
   │                                                                 │
   │  Saved: 270 chars (47%)                                         │
-  │  Kept: headers, all +/- changed lines, 1 context line          │
+  │  Kept: headers, all +/- changed lines, 1 context line           │
   │  Dropped: unchanged context lines                               │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
@@ -730,7 +730,7 @@ When request has >15 tools, scores each tool by relevance to user's intent and k
   │    mcp__k8s__apply,                 (K8s tools)                 │
   │    mcp__k8s__get_pods,              (K8s tools)                 │
   │    mcp__terraform__plan,            (Terraform tools)           │
-  │    ... 15 more                                                │
+  │    ... 15 more                                                  │
   │  ]                                                              │
   │  Total: 30 tools                                                │
   │  Token cost: ~4500 tokens for tool descriptions                 │
@@ -746,10 +746,10 @@ When request has >15 tools, scores each tool by relevance to user's intent and k
   │    Grep, Glob,                      (code search - high score)  │
   │    WebSearch,                       (search - medium score)     │
   │    NotebookEdit,                    (data - low score, cut)     │
-  │    ... top 15 by score                                         │
+  │    ... top 15 by score                                          │
   │  ]                                                              │
   │                                                                 │
-  │  Dropped: mcp__slack__*, mcp__grafana__*, mcp__jira__*,        │
+  │  Dropped: mcp__slack__*, mcp__grafana__*, mcp__jira__*,         │
   │           mcp__k8s__*, mcp__terraform__*                        │
   │  (irrelevant to "fix login bug" intent)                         │
   │                                                                 │
@@ -773,37 +773,37 @@ Not a compressor. Analyzes request patterns after the fact to identify waste. 7 
   │  Session: user-session-abc123                                   │
   │                                                                 │
   │  Request history (last 30 min):                                 │
-  │  ┌────────────────────────────────────────────────────────┐    │
-  │  │ Req  Input    Output   Notes                          │    │
-  │  │ #1   50000    0        empty response (timeout)        │    │
-  │  │ #2   50000    0        retry, same input               │    │
-  │  │ #3   50000    0        retry, same input               │    │
-  │  │ #4   50000    0        retry, same input               │    │
+  │  ┌────────────────────────────────────────────────────────┐     │
+  │  │ Req  Input    Output   Notes                          │      │
+  │  │ #1   50000    0        empty response (timeout)        │     │
+  │  │ #2   50000    0        retry, same input               │     │
+  │  │ #3   50000    0        retry, same input               │     │
+  │  │ #4   50000    0        retry, same input               │     │
   │  │ #5   2000     150      finally works (different input)  │    │
-  │  │ #6   120000   50       massive input, tiny output      │    │
-  │  │ #7   120000   45       same pattern                    │    │
-  │  │ #8   120000   50       same pattern                    │    │
-  │  └────────────────────────────────────────────────────────┘    │
+  │  │ #6   120000   50       massive input, tiny output      │     │
+  │  │ #7   120000   45       same pattern                    │     │
+  │  │ #8   120000   50       same pattern                    │     │
+  │  └────────────────────────────────────────────────────────┘     │
   │                                                                 │
   │  Waste findings:                                                │
-  │  ┌────────────────────────────────────────────────────────┐    │
-  │  │                                                        │    │
-  │  │  [HIGH] empty_response                                 │    │
-  │  │  4/8 requests returned 0 output tokens                 │    │
-  │  │  Wasted: ~200,000 input tokens ($0.60)                 │    │
-  │  │  Suggest: check upstream health, reduce input size     │    │
-  │  │                                                        │    │
-  │  │  [HIGH] retry_churn                                    │    │
-  │  │  3 identical retries with 0 output                     │    │
-  │  │  Wasted: ~150,000 tokens                               │    │
-  │  │  Suggest: implement circuit breaker                    │    │
-  │  │                                                        │    │
-  │  │  [MEDIUM] low_value_response                           │    │
-  │  │  3 requests: 120K input -> ~50 output tokens           │    │
-  │  │  Ratio: 0.04% (should be > 0.1%)                       │    │
-  │  │  Suggest: reduce context window, use summarizer        │    │
-  │  │                                                        │    │
-  │  └────────────────────────────────────────────────────────┘    │
+  │  ┌────────────────────────────────────────────────────────┐     │
+  │  │                                                        │     │
+  │  │  [HIGH] empty_response                                 │     │
+  │  │  4/8 requests returned 0 output tokens                 │     │
+  │  │  Wasted: ~200,000 input tokens ($0.60)                 │     │
+  │  │  Suggest: check upstream health, reduce input size     │     │
+  │  │                                                        │     │
+  │  │  [HIGH] retry_churn                                    │     │
+  │  │  3 identical retries with 0 output                     │     │
+  │  │  Wasted: ~150,000 tokens                               │     │
+  │  │  Suggest: implement circuit breaker                    │     │
+  │  │                                                        │     │
+  │  │  [MEDIUM] low_value_response                           │     │
+  │  │  3 requests: 120K input -> ~50 output tokens           │     │
+  │  │  Ratio: 0.04% (should be > 0.1%)                       │     │
+  │  │  Suggest: reduce context window, use summarizer        │     │
+  │  │                                                        │     │
+  │  └────────────────────────────────────────────────────────┘     │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
 ```
@@ -815,20 +815,20 @@ Not a compressor. Analyzes request patterns after the fact to identify waste. 7 
 ```
   ┌─────────────────────────────────────────────────────────────────┐
   │                                                                 │
-  │  Typical request with 10K char system prompt + 5 messages:     │
+  │  Typical request with 10K char system prompt + 5 messages:      │
   │                                                                 │
   │  Stage                  Before    After    Saved    %           │
   │  ─────────────────────────────────────────────────────          │
   │  semantic_dedup          10000     8200     1800    18%         │
   │  textcomp (sys)           8200     6800     1400    17%         │
   │  caveman_input            6800     5400     1400    21%         │
-  │  caveman_output (inject)  5400     5600      -200   -4%        │
+  │  caveman_output (inject)  5400     5600      -200   -4%         │
   │  message_text (x5)        4000     3200      800    20%         │
   │  message_textcomp         3200     2400      800    25%         │
-  │  toolcomp (tool_results)  8000     3000     5000    63%        │
-  │  toolfilter (30->15)      4500     2250     2250    50%        │
+  │  toolcomp (tool_results)  8000     3000     5000    63%         │
+  │  toolfilter (30->15)      4500     2250     2250    50%         │
   │  ─────────────────────────────────────────────────────          │
-  │  TOTAL                   50100    38850    13250    26%        │
+  │  TOTAL                   50100    38850    13250    26%         │
   │                                                                 │
   │  But output tokens also reduced by caveman_output:              │
   │  Output without style:    500 tokens                            │
@@ -838,8 +838,8 @@ Not a compressor. Analyzes request patterns after the fact to identify waste. 7 
   │  True total savings (input + output):                           │
   │  Input chars saved:  13,250 (~3,312 tokens)                     │
   │  Output tokens saved:       250                                 │
-  │  Cost saved per request: ~$0.005 (Sonnet)                      │
-  │  Cost saved per 10K req:  ~$50/day                             │
+  │  Cost saved per request: ~$0.005 (Sonnet)                       │
+  │  Cost saved per 10K req:  ~$50/day                              │
   │                                                                 │
   └─────────────────────────────────────────────────────────────────┘
 ```

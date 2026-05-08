@@ -2745,6 +2745,47 @@ func (h *Handler) AnthropicPassthrough(w http.ResponseWriter, r *http.Request) {
 	for _, hdr := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
 		httpReq.Header.Del(hdr)
 	}
+
+	// Resolve arl_ tokens before forwarding to Anthropic.
+	// arl_ tokens are gateway-internal and must not be sent to api.anthropic.com.
+	apiKey := httpReq.Header.Get("x-api-key")
+	if apiKey == "" {
+		if auth := httpReq.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			apiKey = strings.TrimPrefix(auth, "Bearer ")
+		}
+	}
+	if strings.HasPrefix(apiKey, "arl_") {
+		resolved := false
+		if h.profileRedis != nil {
+			if profileName, rerr := ResolveProfileToken(h.profileRedis, apiKey); rerr == nil && profileName != "" {
+				if p, perr := getProfile(ctx, h.profileRedis, profileName); perr == nil && p != nil {
+					if p.APIKey != "" {
+						httpReq.Header.Set("x-api-key", p.APIKey)
+						httpReq.Header.Del("Authorization")
+						resolved = true
+					} else if p.PassthroughAuth {
+						resolved = true
+					} else if h.keyPool != nil {
+						if poolKey, ok := h.keyPool.Acquire(); ok {
+							httpReq.Header.Set("x-api-key", poolKey)
+							httpReq.Header.Del("Authorization")
+							resolved = true
+						}
+					}
+				}
+				slog.Info("passthrough arl_ token resolved", "profile", profileName, "resolved", resolved)
+			}
+		}
+		if !resolved {
+			slog.Warn("passthrough rejected: unresolved arl_ token", "path", r.URL.Path)
+			writeJSON(w, http.StatusUnauthorized, proxy.ErrorResponse{
+				Type:  "error",
+				Error: proxy.ErrorDetail{Type: "authentication_error", Message: "invalid or expired profile token"},
+			})
+			return
+		}
+	}
+
 	// Claude OAuth tokens must be sent as x-api-key, not Authorization: Bearer.
 	if auth := httpReq.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 		tok := strings.TrimPrefix(auth, "Bearer ")

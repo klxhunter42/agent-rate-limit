@@ -329,14 +329,20 @@ Order matters: secrets are masked first during request processing, then PII is a
 
 #### StreamUnmasker (Streaming SSE)
 
-For streaming responses, the `StreamUnmasker` handles partial placeholder buffering:
+For streaming responses, the `StreamUnmasker` handles partial placeholder buffering and GLM "undefined" fallback:
 
 ```go
 type StreamUnmasker struct {
     piiBuffer     string        // buffer for partial PII placeholders
     secretsBuffer string        // buffer for partial secret placeholders
+    piiJSONBuffer     string    // JSON-mode buffer for partial PII placeholders
+    secretsJSONBuffer string    // JSON-mode buffer for partial secret placeholders
     piiCtx        *MaskContext
     secretsCtx    *MaskContext
+    // GLM undefined fallback state
+    fallbackOriginals   []string
+    fallbackConsumedIdx int
+    undefinedBuffer     string   // buffer for partial "undefined" across SSE chunks
 }
 ```
 
@@ -346,24 +352,46 @@ type StreamUnmasker struct {
 3. If partial found: process safe portion, buffer remainder.
 4. If no partial: process entire combined string, clear buffer.
 5. Apply secrets unmasking first, then PII unmasking.
+6. Prepend `undefinedBuffer` (partial "undefined" from previous chunk).
+7. Run undefined fallback if masking is active and text contains "undefined".
+8. Buffer tail that might be a partial "undefined" prefix (1-8 chars).
+9. Strip leftover `[[TYPE_N]]` placeholders.
+
+**ProcessChunkJSON(chunk)** - Same as ProcessChunk but uses JSON-safe replacement (`RestorePlaceholdersJSON`). For `input_json_delta` events where replaced values must survive JSON string encoding.
 
 **ReplaceDirect(text)** - Unbuffered replacement for non-delta SSE fields.
 
 **ReplaceDirectJSON(text)** - Same but JSON-escapes restored values.
 
-**Flush()** - Returns any remaining buffered content with restoration.
+**Flush()** - Returns any remaining buffered content with restoration. Drains all four buffers (secrets, PII, secretsJSON, piiJSON) plus `undefinedBuffer` with `stripPartialUndefined` + `stripStrayUndefined`.
+
+#### GLM "undefined" Fallback
+
+Some models (notably Z.AI/GLM) output literal `undefined` instead of preserving `[[TYPE_N]]` placeholders. The `replaceUndefinedFallback` method handles this with a 3-phase budget system:
+
+| Phase | Action | Condition |
+|-------|--------|-----------|
+| 1 | Replace `undefined` with original values | Budget = number of originals available |
+| 2 | Dedup adjacent `<original> undefined` pairs | Model outputs both placeholder AND undefined |
+| 3 | Strip remaining bare `undefined` | Budget exhausted, prevent garbled output |
+
+**Guards:**
+- `HasContexts()` check: only runs when masking is active. Preserves legitimate `undefined` in code (e.g. `typeof x === undefined`) when no masking context exists.
+- Cross-chunk buffering: `bufferPartialUndefined` detects text ending with a prefix of `"undefined"` (1-8 chars) and splits for next chunk. `stripPartialUndefined` cleans up during flush.
+
+**Non-streaming:** `replaceUndefinedNonStream` in `privacy/pipeline.go` applies the same 3-phase budget for complete response bodies.
 
 **Integration in proxy** (`proxy/anthropic.go`):
 
-| SSE Event Field      | Unmask Method         |
-|----------------------|-----------------------|
-| `delta.text`         | `ProcessChunk()`      |
-| `delta.thinking`     | `ProcessChunk()`      |
-| `delta.partial_json` | `ReplaceDirectJSON()` |
-| Raw SSE data lines   | `ReplaceDirectJSON()` |
-| Error bodies         | `UnmaskResponse()`    |
-| Non-streaming bodies | `UnmaskResponse()`    |
-| End of stream        | `Flush()`             |
+| SSE Event Field      | Unmask Method          | Notes |
+|----------------------|------------------------|-------|
+| `delta.text`         | `ProcessChunk()`       | Buffered, plain |
+| `delta.thinking`     | `ProcessChunk()`       | Buffered, plain |
+| `delta.partial_json` | `ProcessChunkJSON()`   | Buffered, JSON-safe |
+| Raw SSE data lines   | `ReplaceDirectJSON()`  | Unbuffered |
+| Error bodies         | `UnmaskResponse()`     | Full body |
+| Non-streaming bodies | `UnmaskResponse()`     | Full body |
+| End of stream        | `Flush()`              | Drain all buffers |
 
 ### Prometheus Metrics
 

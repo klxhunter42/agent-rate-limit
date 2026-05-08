@@ -103,11 +103,11 @@ Savings: 6,200 chars (~1,550 tokens)
 ┌─────────────────────────────────────────────────┐
 │  Budget: 0 / 200,000 tokens (GREEN)             │
 │  Input sent:    ~850 tokens (จากเดิม ~3,800)    │
-│  Output:        ~1,200 tokens                    │
-│  Session total: 2,050 tokens                     │
-│  Cost this turn: $0.012                          │
-│  Savings this turn: ~2,950 input tokens (78%)    │
-│  Running savings: 2,950 tokens                   │
+│  Output:        ~1,200 tokens                   │
+│  Session total: 2,050 tokens                    │
+│  Cost this turn: $0.012                         │
+│  Savings this turn: ~2,950 input tokens (78%)   │
+│  Running savings: 2,950 tokens                  │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -151,8 +151,8 @@ Delta ops: 41 ops, savings: 22% vs full prompt
 ```
 ┌─────────────────────────────────────────────────┐
 │  Budget: 6,800 / 200,000 tokens (GREEN - 3.4%)  │
-│  Cumulative input saved: 4,870 tokens            │
-│  Running savings: 4,870 tokens                   │
+│  Cumulative input saved: 4,870 tokens           │
+│  Running savings: 4,870 tokens                  │
 └─────────────────────────────────────────────────┘
 ```
 

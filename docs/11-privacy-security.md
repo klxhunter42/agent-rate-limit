@@ -74,7 +74,12 @@ docker-compose up
 | `privacy/pii/mask.go`   | PII masking with placeholder generation                      |
 | `privacy/config.go`     | Env var loading, default config                              |
 | `privacy/pipeline.go`   | Full mask/unmask pipeline (secrets + PII)                    |
-| `privacy/masking/stream.go` | `StreamUnmasker` with `ProcessChunk` (text/thinking) and `ProcessChunkJSON` (partial_json) |
+| `privacy/masking/stream.go` | `StreamUnmasker` with `ProcessChunk` (text/thinking), `ProcessChunkJSON` (partial_json), undefined fallback (3-phase budget), cross-chunk undefined buffering |
+| `privacy/masking/stream_undefined_edge_test.go` | 20 edge case tests for undefined fallback |
+| `privacy/masking/stream_undefined_weird_test.go` | 30+ weird edge cases (unicode, emoji, JSON, split positions) |
+| `privacy/masking/stream_fuzz_test.go` | 1700 parametric fuzz tests |
+| `privacy/masking/stream_unique_fuzz_test.go` | 99 unique + 900 random split tests |
+| `privacy/pipeline.go` | Non-streaming undefined fallback (`replaceUndefinedNonStream`) |
 
 ---
 
@@ -133,6 +138,34 @@ Users saw `[[PERSON_2]]`, `[[PERSON_13]]` in responses instead of real names, be
 **Cause:** `input_json_delta` events (tool call arguments) used `ReplaceDirectJSON` which is unbuffered. When Claude Code calls tools (Edit, Bash, etc.) that contain masked values, the placeholder appears in the tool call's partial JSON stream. If `[[IP_ADDRESS_1]]` splits across chunks (e.g. chunk1=`[[IP_ADDR`, chunk2=`ESS_1]]`), neither chunk contains the complete placeholder, so it passes through unmodified. Users saw raw `[[IP_ADDRESS_N]]` in tool outputs.
 
 **Fix:** Added `ProcessChunkJSON` method to `StreamUnmasker` with separate JSON-mode buffers (`piiJSONBuffer`, `secretsJSONBuffer`) that accumulate partial placeholders across chunks, same as `ProcessChunk` does for text/thinking but using `RestorePlaceholdersJSON` for JSON-safe escaping. Both `relayStreamWithTracking` and `ProxySidecar` now use `ProcessChunkJSON` for partial_json events.
+
+#### Bug #7 (CRITICAL) -- GLM outputs "undefined" instead of preserving placeholders
+
+**Files:** `privacy/masking/stream.go`, `privacy/pipeline.go`
+
+**Cause:** Z.AI/GLM models sometimes output literal `undefined` instead of preserving `[[TYPE_N]]` placeholders. For example, a masked IP `10.0.0.1` replaced by `[[IP_ADDRESS_1]]` comes back as `undefined` in the response. This causes garbled output like `undefinedundefinedundefined172.18.0.9` leaking to the client.
+
+The problem has two forms:
+1. **Non-streaming:** `undefined` appears in complete response body
+2. **Streaming:** `undefined` split across SSE chunks (e.g. chunk1=`undef`, chunk2=`ined`) -- existing fallback only runs per-chunk, so partial `undefined` passes through unmodified
+
+**Fix:**
+
+*Non-streaming* (`privacy/pipeline.go`):
+- Added `replaceUndefinedNonStream` with 3-phase budget-based replacement
+- Phase 1: Replace `undefined` with original values (budget = number of originals)
+- Phase 2: Dedup adjacent `<original> undefined` pairs
+- Phase 3: Strip remaining bare `undefined` after budget exhaustion
+
+*Streaming* (`privacy/masking/stream.go`):
+- Added `undefinedBuffer` field to `StreamUnmasker` for cross-chunk `undefined` buffering
+- Added `bufferPartialUndefined(text) (safe, buffer)` -- detects text ending with a prefix of `"undefined"` (1-8 chars) and splits it for next chunk
+- Added `stripPartialUndefined(text)` -- strips partial `undefined` prefixes during flush
+- `ProcessChunk` / `ProcessChunkJSON` flow: prepend buffer -> run fallback -> buffer tail partial -> strip leftovers
+- `Flush` drains `undefinedBuffer` with `stripPartialUndefined` + `stripStrayUndefined`
+- `HasContexts()` guard ensures legitimate `undefined` in code (e.g. `typeof x === undefined`) is preserved when no masking is active
+
+**Test coverage:** 2700+ tests across edge cases, fuzz, and random split scenarios.
 
 ### Streaming Unmask Flow (after fix)
 

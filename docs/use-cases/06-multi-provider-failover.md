@@ -9,30 +9,30 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Claude Code CLI / IDE                         │
-│              ANTHROPIC_BASE_URL=http://gateway:9000                  │
-│              ANTHROPIC_AUTH_TOKEN=arl_<profile-token>                   │
+│                        Claude Code CLI / IDE                        │
+│              ANTHROPIC_BASE_URL=http://gateway:9000                 │
+│              ANTHROPIC_AUTH_TOKEN=arl_<profile-token>               │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ HTTP POST /v1/messages
                                ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                      API Gateway (Go, :8080)                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
-│  │ Rate Limiter│  │ 13-Stage     │  │ Profile-Based Routing    │   │
-│  │ (Distributed│  │ Optimizer    │  │ claude-oauth -> Anthropic│   │
-│  │  + Adaptive)│  │ Pipeline     │  │ zai          -> Z.AI     │   │
-│  │             │  │              │  │ gemini-oauth -> Gemini   │   │
-│  │ per user    │  │ savings      │  │                          │   │
-│  └─────────────┘  └──────────────┘  └──────────────────────────┘   │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │
-│  │ Bandit (F5) │  │ Sketch (F9)  │  │ Cache Eviction (F14)     │   │
-│  │ LinUCB      │  │ SimHash      │  │ ROI-based cleanup        │   │
-│  │ adaptive    │  │ near-dup     │  │                          │   │
-│  └─────────────┘  └──────────────┘  └──────────────────────────┘   │
-│  ┌─────────────┐  ┌──────────────┐                                 │
-│  │ Warm Start  │  │ Caveman (F16)│                                 │
-│  │ (F10)       │  │ Style inject │                                 │
-│  └─────────────┘  └──────────────┘                                 │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐    │
+│  │ Rate Limiter│  │ 13-Stage     │  │ Profile-Based Routing    │    │
+│  │ (Distributed│  │ Optimizer    │  │ claude-oauth -> Anthropic│    │
+│  │  + Adaptive)│  │ Pipeline     │  │ zai          -> Z.AI     │    │
+│  │             │  │              │  │ gemini-oauth -> Gemini   │    │
+│  │ per user    │  │ savings      │  │                          │    │
+│  └─────────────┘  └──────────────┘  └──────────────────────────┘    │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐    │
+│  │ Bandit (F5) │  │ Sketch (F9)  │  │ Cache Eviction (F14)     │    │
+│  │ LinUCB      │  │ SimHash      │  │ ROI-based cleanup        │    │
+│  │ adaptive    │  │ near-dup     │  │                          │    │
+│  └─────────────┘  └──────────────┘  └──────────────────────────┘    │
+│  ┌─────────────┐  ┌──────────────┐                                  │
+│  │ Warm Start  │  │ Caveman (F16)│                                  │
+│  │ (F10)       │  │ Style inject │                                  │
+│  └─────────────┘  └──────────────┘                                  │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -40,7 +40,7 @@
      ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
      │  Anthropic   │ │    Z.AI      │ │   Gemini     │
      │ claude-oauth │ │     zai      │ │ gemini-oauth │
-     │ $3/M tokens  │ │ $0.5/M tokens│ │ $1.25/M tokens│
+     │ $3/M tokens  │ │ $0.5/M tokens│ │$1.25/M tokens│
      └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
@@ -232,7 +232,7 @@ PostProxyFeedback(sessionID, model, input, output)
 │ Claude (claude-oauth)   ████████████░░░  65%     │
 │   - code generation, complex refactoring         │
 │                                                  │
-│ Z.AI (glm-5)           ██████░░░░░░░░░  30%     │
+│ Z.AI (glm-5)           ██████░░░░░░░░░  30%      │
 │   - config editing, YAML/JSON edits              │
 │                                                  │
 │ Gemini (gemini-oauth)  ███░░░░░░░░░░░░░   5%     │
@@ -338,10 +338,10 @@ Optimizer stages ปรับ behavior สำหรับ Z.AI:
 │   - log analysis, doc review, summarization      │
 │   - bandit reward: 0.55 avg (good for analysis)  │
 │                                                  │
-│ Gemini fallback chain:                            │
-│   gemini-2.5-pro -> gemini-2.5-flash              │
-│                   -> gemini-2.5-flash-lite        │
-│                   -> gemini-2.0-flash             │
+│ Gemini fallback chain:                           │
+│   gemini-2.5-pro -> gemini-2.5-flash             │
+│                   -> gemini-2.5-flash-lite       │
+│                   -> gemini-2.0-flash            │
 │                                                  │
 └──────────────────────────────────────────────────┘
 ```
@@ -435,7 +435,7 @@ LinUCB scores หลังจาก 1 วันของการเรียน
 │   - code generation, refactoring, debugging      │
 │   - bandit reward: 0.82 (verified)               │
 │                                                  │
-│ Z.AI (glm-5)           ███░░░░░░░░░░░░  15%     │
+│ Z.AI (glm-5)           ███░░░░░░░░░░░░  15%      │
 │   - config editing, YAML/JSON, quick edits       │
 │   - bandit reward: 0.45 (acceptable)             │
 │                                                  │
@@ -501,18 +501,18 @@ LinUCB scores หลังจาก 1 วันของการเรียน
 ┌──────────────────────────────────────────────────────────────────┐
 │                    Cost Comparison                               │
 ├────────────────────────┬─────────────────┬───────────────────────┤
-│ สถานการณ์              │ ต้นทุน           │ หมายเหตุ              │
+│ สถานการณ์              │ ต้นทุน           │ หมายเหตุ             │
 ├────────────────────────┼─────────────────┼───────────────────────┤
-│ ไม่มี Gateway           │                 │                       │
+│ ไม่มี Gateway           │                 │                      │
 │ (ทุกอย่างไป Claude)     │ $12.50          │ 2.5M x $3/M +        │
 │                        │                 │ 800K x $15/M          │
-│                        │                 │ ไม่มี optimization     │
+│                        │                 │ ไม่มี optimization    │
 │                        │                 │ outage = งานหยุด      │
 ├────────────────────────┼─────────────────┼───────────────────────┤
-│ มี Gateway              │                 │                       │
-│ (multi-provider +      │ $4.20           │ ผสม provider           │
+│ มี Gateway              │                 │                      │
+│ (multi-provider +      │ $4.20           │ ผสม provider          │
 │  optimizer)            │                 │ + 40-60% token savings│
-│                        │                 │ outage = ยังทำงานได้   │
+│                        │                 │ outage = ยังทำงานได้  │
 ├────────────────────────┼─────────────────┼───────────────────────┤
 │ **ประหยัด**            │ **$8.30**       │ **66.4%**             │
 └────────────────────────┴─────────────────┴───────────────────────┘
@@ -593,29 +593,29 @@ sum by (provider) (rate(api_gateway_upstream_errors_total{code="429"}[5m]))
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  API Gateway - Multi-Provider Dashboard                            │
+│  API Gateway - Multi-Provider Dashboard                             │
 ├──────────────────────────────┬──────────────────────────────────────┤
-│  Provider Health             │  Request Rate (req/s)               │
-│  ┌────────┬────┬──────┐     │  ██ Claude  ████████████░░  80%     │
-│  │Status  │RPS │Lat   │     │  ██ GLM-5   ███░░░░░░░░░░░  15%     │
-│  ├────────┼────┼──────┤     │  ██ Gemini  █░░░░░░░░░░░░░░   5%     │
-│  │Claude  │ 12 │ 1.8s │     │                                      │
+│  Provider Health             │  Request Rate (req/s)                │
+│  ┌────────┬────┬──────┐     │  ██ Claude  ████████████░░  80%       │
+│  │Status  │RPS │Lat   │     │  ██ GLM-5   ███░░░░░░░░░░░  15%       │
+│  ├────────┼────┼──────┤     │  ██ Gemini  █░░░░░░░░░░░░░░   5%      │
+│  │Claude  │ 12 │ 1.8s │     │                                       │
 │  │GLM-5   │  3 │ 2.1s │     ├──────────────────────────────────────┤
-│  │Gemini  │  1 │ 1.5s │     │  Token Savings (%)                   │
-│  └────────┴────┴──────┘     │  ████████████████████░░░░  52%       │
+│  │Gemini  │  1 │ 1.5s │     │  Token Savings (%)                    │
+│  └────────┴────┴──────┘     │  ████████████████████░░░░  52%        │
 │                              │                                      │
 ├──────────────────────────────┼──────────────────────────────────────┤
 │  Bandit Arm Rewards          │  Cost (USD)                          │
-│  Claude  ████████████░ 0.82  │  Today: $4.20                       │
-│  GLM-5   ██████░░░░░░ 0.45  │  No-gateway: $12.50                  │
-│  Gemini  ███████░░░░░ 0.58  │  Savings: $8.30 (66%)                │
+│  Claude  ████████████░ 0.82  │  Today: $4.20                        │
+│  GLM-5   ██████░░░░░░ 0.45  │  No-gateway: $12.50                   │
+│  Gemini  ███████░░░░░ 0.58  │  Savings: $8.30 (66%)                 │
 │                              │                                      │
 ├──────────────────────────────┼──────────────────────────────────────┤
 │  Rate Limit Status           │  Optimizer Stage Breakdown           │
-│  Current: 55/min             │  delta:    ████████████░  20%       │
-│  Peak:    60/min             │  caveman:  ████████░░░░░  30%       │
-│  Cooldown: No                │  textcomp: ████░░░░░░░░   8%       │
-│                              │  sketch:   ██████░░░░░░░  15%       │
+│  Current: 55/min             │  delta:    ████████████░  20%        │
+│  Peak:    60/min             │  caveman:  ████████░░░░░  30%        │
+│  Cooldown: No                │  textcomp: ████░░░░░░░░   8%         │
+│                              │  sketch:   ██████░░░░░░░  15%        │
 └──────────────────────────────┴──────────────────────────────────────┘
 ```
 

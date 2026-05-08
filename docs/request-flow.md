@@ -12,7 +12,7 @@
 Client POST /v1/messages or /v1/chat/completions
         |
 +---[ Middleware ]------------------------------------------------+
-| 1. SecurityHeaders       (CSP, X-Frame-Options, etc.)          |
+| 1. SecurityHeaders       (CSP, X-Frame-Options, etc.)           |
 | 2. CorrelationID         (X-Correlation-ID propagate/generate)  |
 | 3. RealIP                (CF-Connecting-IP > X-Real-IP > XFF)   |
 | 4. IPFilter              (whitelist/blacklist by CIDR)          |
@@ -22,18 +22,18 @@ Client POST /v1/messages or /v1/chat/completions
 +-----------------------------------------------------------------+
         |
         v
-+---[ Handler Core ]---------------------------------------------+
-| 1. Read body (max 10 MB)                                       |
-| 2. Parse JSON, extract "model"                                 |
-| 3. Resolve provider via modelRules prefix match                |
-| 4. Profile routing (arl_ token / X-Profile header)             |
-| 5. API key resolution (7-level priority chain)                 |
-| 6. Quota check (daily budget vs QuotaBlockPct)                 |
-| 7. AdaptiveLimiter.Acquire(model)                              |
-| 8. System prompt injection (if enabled)                        |
-| 9. Smart max_tokens adjustment                                 |
-| 10. Token optimizer pipeline (13 stages)                       |
-| 11. Privacy masking (secrets + PII -> placeholders)            |
++---[ Handler Core ]----------------------------------------------+
+| 1. Read body (max 10 MB)                                        |
+| 2. Parse JSON, extract "model"                                  |
+| 3. Resolve provider via modelRules prefix match                 |
+| 4. Profile routing (arl_ token / X-Profile header)              |
+| 5. API key resolution (7-level priority chain)                  |
+| 6. Quota check (daily budget vs QuotaBlockPct)                  |
+| 7. AdaptiveLimiter.Acquire(model)                               |
+| 8. System prompt injection (if enabled)                         |
+| 9. Smart max_tokens adjustment                                  |
+| 10. Token optimizer pipeline (13 stages)                        |
+| 11. Privacy masking (secrets + PII -> placeholders)             |
 +-----------------------------------------------------------------+
         |
         +-- provider dispatch --> (see each provider below)

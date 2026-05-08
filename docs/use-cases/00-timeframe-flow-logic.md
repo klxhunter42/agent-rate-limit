@@ -86,21 +86,21 @@ Upstream Response
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    OPTIMIZE SYSTEM PROMPT                    │
-│                                                              │
-│  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐    │
-│  │ F7      │──►│ F1      │──►│ F8      │──►│ F9      │    │
-│  │ dedup   │   │ chunker │   │ delta   │   │ sketch  │    │
-│  └─────────┘   └─────────┘   └─────────┘   └─────────┘    │
+│                    OPTIMIZE SYSTEM PROMPT                   │
+│                                                             │
+│  ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐      │
+│  │ F7      │──►│ F1      │──►│ F8      │──►│ F9      │      │
+│  │ dedup   │   │ chunker │   │ delta   │   │ sketch  │      │
+│  └─────────┘   └─────────┘   └─────────┘   └─────────┘      │
 │       │              │             │             │          │
-│    ALWAYS         ALWAYS       ALWAYS        ALWAYS        │
-│                                                              │
-│                    ┌─────────────────────┐                   │
-│                    │  budgetLevel >= 2?  │                   │
-│                    └──────┬──────────────┘                   │
-│                     YES   │   NO                             │
-│                    ┌──────┴──────┐                           │
-│                    ▼             │                           │
+│    ALWAYS         ALWAYS       ALWAYS        ALWAYS         │
+│                                                             │
+│                    ┌─────────────────────┐                  │
+│                    │  budgetLevel >= 2?  │                  │
+│                    └──────┬──────────────┘                  │
+│                     YES   │   NO                            │
+│                    ┌──────┴──────┐                          │
+│                    ▼             │                          │
 │              ┌─────────┐        │                           │
 │              │ F6      │        │                           │
 │              │summryze │        │                           │
@@ -127,9 +127,9 @@ Upstream Response
 │                      │  │  input+output│                    │
 │                      │  └──────────────┘                    │
 │                      │       │                              │
-│                      │       ├── tier=lite  (Green: ~30%)  │
-│                      │       ├── tier=full  (Yellow: ~50%) │
-│                      │       └── tier=ultra (Red: ~75%)    │
+│                      │       ├── tier=lite  (Green: ~30%)   │
+│                      │       ├── tier=full  (Yellow: ~50%)  │
+│                      │       └── tier=ultra (Red: ~75%)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -293,7 +293,7 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         CLIENT REQUEST                                   │
+│                         CLIENT REQUEST                                  │
 │  POST /v1/messages                                                      │
 │  { model, system, messages[], tools[], stream }                         │
 └───────────────────────────┬─────────────────────────────────────────────┘
@@ -301,20 +301,20 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  PasteGuard: MaskRequest()                                              │
-│  ├── Extract text spans from: system, messages, tool_result content    │
-│  ├── Secret Detection (regex): SSH key, PEM, API keys, JWT, Bearer    │
-│  ├── Secret Masking: AKIAIOSFODNN7EXAMPLE → [[API_KEY_AWS_1]]        │
-│  ├── PII Detection (Presidio): EMAIL, PHONE, PERSON                   │
-│  └── PII Masking: user@example.com → [[EMAIL_ADDRESS_1]]              │
-│  Result: maskedBody + MaskContext (placeholder→original map)           │
+│  ├── Extract text spans from: system, messages, tool_result content     │
+│  ├── Secret Detection (regex): SSH key, PEM, API keys, JWT, Bearer      │
+│  ├── Secret Masking: AKIAIOSFODNN7EXAMPLE → [[API_KEY_AWS_1]]           │
+│  ├── PII Detection (Presidio): EMAIL, PHONE, PERSON                     │
+│  └── PII Masking: user@example.com → [[EMAIL_ADDRESS_1]]                │
+│  Result: maskedBody + MaskContext (placeholder→original map)            │
 └───────────────────────────┬─────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Token Estimation + Budget Level Calculation                            │
-│  ├── Content-type aware estimation (code/JSON/markdown/text)          │
-│  ├── Sum input + output tokens from session history                    │
-│  └── budgetLevel = 0 (green<50%), 1 (yellow 50-75%), 2 (red>75%)      │
+│  ├── Content-type aware estimation (code/JSON/markdown/text)            │
+│  ├── Sum input + output tokens from session history                     │
+│  └── budgetLevel = 0 (green<50%), 1 (yellow 50-75%), 2 (red>75%)        │
 └───────────────────────────┬─────────────────────────────────────────────┘
                             │
               ┌─────────────┼─────────────┐
@@ -340,8 +340,8 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Budget-Aware Disclosure (F15)                                          │
 │  ├── Green: passthrough                                                 │
-│  ├── Yellow: truncate tool_result > 2000 chars to L2*8                 │
-│  └── Red: truncate tool_result > 1000 chars to L1*4                    │
+│  ├── Yellow: truncate tool_result > 2000 chars to L2*8                  │
+│  └── Red: truncate tool_result > 1000 chars to L1*4                     │
 └───────────────────────────┬─────────────────────────────────────────────┘
                             │
                             ▼
@@ -354,8 +354,8 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  PasteGuard: Unmask Response                                            │
-│  ├── Non-stream: UnmaskResponse() → replace all placeholders at once   │
-│  └── Stream: StreamUnmasker → ProcessChunk() per SSE event             │
+│  ├── Non-stream: UnmaskResponse() → replace all placeholders at once    │
+│  └── Stream: StreamUnmasker → ProcessChunk() per SSE event              │
 │      ├── text_delta → buffered text unmask                              │
 │      ├── thinking_delta → buffered text unmask                          │
 │      └── input_json_delta → JSON-safe unmask                            │
@@ -364,17 +364,17 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  PostProxyFeedback() - Record telemetry                                 │
-│  ├── F4  prefetcher.Record()  → Markov chain training                  │
-│  ├── F11 waste.RecordRequest() → 14 waste pattern detectors            │
-│  ├── F14 cache.RecordHit()    → ROI tracking for eviction              │
-│  └── F5  bandit.Update()      → LinUCB reward signal                   │
-│      reward = output_tokens / input_tokens (capped at 1.0)             │
+│  ├── F4  prefetcher.Record()  → Markov chain training                   │
+│  ├── F11 waste.RecordRequest() → 14 waste pattern detectors             │
+│  ├── F14 cache.RecordHit()    → ROI tracking for eviction               │
+│  └── F5  bandit.Update()      → LinUCB reward signal                    │
+│      reward = output_tokens / input_tokens (capped at 1.0)              │
 │      reward = 0.0 if output == 0                                        │
 └───────────────────────────┬─────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    CLIENT RESPONSE                                       │
+│                    CLIENT RESPONSE                                      │
 │  Unmasked + all metrics recorded                                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```

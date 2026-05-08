@@ -371,11 +371,11 @@ Anthropic Request (เข้า)                  Z.AI Vision Request (ส่ง
     },                                │
     {                                 │     ↓↓↓ แปลงแล้ว ↓↓↓
       "role": "user",           ──────┤
-      "content": [                    {       "messages": [
+      "content": [                        {       "messages": [
         {"type":"image","source":{        "role": "user",
          "type":"base64",                 "content": "You are helpful...\n\nhi"
-         "media_type":"image/png",      },
-         "data":"iVBOR..."              {
+         "media_type":"image/png",        },
+         "data":"iVBOR..."                {
         }},                               "role": "user",
         {"type":"server_tool_use",         "content": [
          ...  <-- ถูกกรองออก!                {"type":"text","text":"describe"},
@@ -385,8 +385,8 @@ Anthropic Request (เข้า)                  Z.AI Vision Request (ส่ง
       ]                                        }
     }                                        }
   ]                                        ]
-}                                       }
-                                      }
+}                                         }
+                                          }
   role "system"    →  ถูกกรองออก, text ไป user แรก
   role "tool"      →  ถูกกรองออกทั้งหมด
   server_tool_use  →  ถูกกรองออก

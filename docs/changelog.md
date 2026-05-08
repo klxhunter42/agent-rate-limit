@@ -2,6 +2,26 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-08] GLM "undefined" Streaming Fix + server_tool_use Filtering Removed
+
+### แก้ไข: GLM "undefined" leaking in streaming responses (Critical)
+
+Z.AI/GLM models output literal `undefined` instead of preserving `[[TYPE_N]]` placeholders. When `undefined` split across SSE chunks (e.g. `undef` + `ined`), existing per-chunk fallback missed it, causing garbled output like `undefinedundefinedundefined172.18.0.9` leaking to client.
+
+**แก้:**
+- Added cross-chunk `undefinedBuffer` with `bufferPartialUndefined` / `stripPartialUndefined`
+- 3-phase budget fallback: replace with originals -> dedup adjacent -> strip remaining
+- `HasContexts()` guard preserves legitimate `undefined` in code when no masking active
+- Non-streaming: `replaceUndefinedNonStream` in `privacy/pipeline.go`
+
+**ไฟล์:** `api-gateway/privacy/masking/stream.go`, `api-gateway/privacy/pipeline.go`
+
+**Test coverage:** 2700+ tests across edge cases, fuzz, random splits
+
+**ไฟล์ทดสอบ:** `stream_undefined_edge_test.go`, `stream_undefined_weird_test.go`, `stream_fuzz_test.go`, `stream_unique_fuzz_test.go`, `undefined_fix_test.go`
+
+---
+
 ## [2026-05-08] server_tool_use Filtering Removed
 
 ### เปลี่ยน: Gateway no longer filters server_tool_use / server_tool_result blocks
@@ -101,39 +121,39 @@ Kimi provider ย้ายจาก OpenAI-compatible endpoint (`api.moonshot.cn
 Client (Claude Code)                    arl-gateway                     Z.AI Vision API
 ====================                    ===========                     ================
                                          │                                │
-POST /v1/messages                       │                                │
-  system: "Examine every pixel..."      │                                │
-  messages: [                           │                                │
-    {role: user,                        │                                │
-     content: [                         │                                │
-       {type: image, source: {...}},   │                                │
-       {type: text, text: "describe"}, │                                │
-       {type: server_tool_use, ...}    │   AnthropicToOpenAI()          │
-     ]}                                │   ┌─────────────────────┐      │
-  ]                                     │   │ 1. Extract system    │      │
-                                         │   │ 2. Filter roles:     │      │
-                                         │   │    keep user/assist   │      │
-                                         │   │    drop system/tool   │      │
-                                         │   │ 3. Filter content:    │      │
-                                         │   │    keep text/image/   │      │
-                                         │   │          image_url    │      │
-                                         │   │    drop server_tool_  │      │
-                                         │   │         use/tool_use  │      │
-                                         │   │ 4. Prepend system     │      │
-                                         │   │    text to first user │      │
-                                         │   └─────────────────────┘      │
+POST /v1/messages                       │                                 │
+  system: "Examine every pixel..."      │                                 │
+  messages: [                           │                                 │
+    {role: user,                        │                                 │
+     content: [                         │                                 │
+       {type: image, source: {...}},   │                                  │
+       {type: text, text: "describe"}, │                                  │
+       {type: server_tool_use, ...}    │   AnthropicToOpenAI()            │
+     ]}                                │     ┌───────────────────────┐    │
+  ]                                      │   │ 1. Extract system     │    │
+                                         │   │ 2. Filter roles:      │    │
+                                         │   │    keep user/assist   │    │
+                                         │   │    drop system/tool   │    │
+                                         │   │ 3. Filter content:    │    │
+                                         │   │    keep text/image/   │    │
+                                         │   │          image_url    │    │
+                                         │   │    drop server_tool_  │    │
+                                         │   │         use/tool_use  │    │
+                                         │   │ 4. Prepend system     │    │
+                                         │   │    text to first user │    │
+                                         │   └───────────────────────┘    │
                                          │                                │
-                                         POST /chat/completions ────────►│
-                                         model: glm-4.6v                 │
-                                         messages: [                     │
-                                           {role: user,                  │
-                                            content: [                   │
+                                         POST /chat/completions ────────► │
+                                         model: glm-4.6v                  │
+                                         messages: [                      │
+                                           {role: user,                   │
+                                            content: [                    │
                                               {type: text,
                                                text: "Examine...\n\ndescribe"},
-                                              {type: image_url,          │
-                                               image_url: {url: ...}}   │
-                                            ]}                          │
-                                         ]                               │
+                                              {type: image_url,           │
+                                               image_url: {url: ...}}     │
+                                            ]}                            │
+                                         ]                                │
 ```
 
 ---
