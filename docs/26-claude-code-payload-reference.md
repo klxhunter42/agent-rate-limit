@@ -123,7 +123,7 @@ prompt-caching-scope-2026-01-05,advanced-tool-use-2025-11-20,effort-2025-11-24
 
 ## Gateway Processing for Z.AI (GLM models)
 
-When these payloads route to Z.AI, the gateway strips unsupported fields and content blocks:
+When these payloads route to Z.AI, the gateway filters unsupported content blocks (server_tool_use only). Fields like tools/tool_choice are preserved:
 
 ### Fields stripped by `stripUnsupportedFields()`
 

@@ -157,7 +157,7 @@ API_KEY_GITHUB, JWT_TOKEN, BEARER_TOKEN
 #### Default PII Entities
 
 ```
-EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, SSN, IBAN,
+EMAIL_ADDRESS, PHONE_NUMBER  # Only EMAIL_ADDRESS and PHONE_NUMBER are enabled by default
 IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 ```
 
@@ -203,10 +203,10 @@ IP_ADDRESS, THAI_NATIONAL_ID, THAI_PHONE
 |--------------------|-------------------------------------------------------|------------|
 | `EMAIL_ADDRESS`    | Standard email format                                 | 0.95       |
 | `PHONE_NUMBER`     | International phone numbers                           | 0.90       |
-| `CREDIT_CARD`      | Visa/MC/Amex/Discover patterns                        | 0.95       |
-| `SSN`              | US SSN: `xxx-xx-xxxx`                                 | 0.90       |
+| `CREDIT_CARD`      | Visa/MC/Amex/Discover patterns                        | 0.95       | *(available but not in default set)*
+| `SSN`              | US SSN: `xxx-xx-xxxx`                                 | 0.90       | *(available but not in default set)*
 | `IBAN`             | 2-letter country + 2 check digits + up to 30 alphanum | 0.90       |
-| `IP_ADDRESS`       | IPv4 addresses                                        | 0.80       |
+| `IP_ADDRESS`       | IPv4 addresses                                        | 0.80       | *(available but not in default set)*
 | `THAI_NATIONAL_ID` | `x-xxxx-xxxxx-xx-x`                                   | 0.90       |
 | `THAI_PHONE`       | `0[2-9]x-xxx-xxxx` or `+66[2-9]x-xxx-xxxx`            | 0.90       |
 

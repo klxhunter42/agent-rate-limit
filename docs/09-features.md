@@ -174,15 +174,20 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 | **Cron / scheduled tasks**               | Async | Queue manages pacing automatically         |
 
 ### Sync Mode -- For Claude Code
-
-```bash
-# Set in ~/.claude/settings.json
+```json
+// ~/.claude/settings.json
 {
-  "ANTHROPIC_BASE_URL": "http://localhost:8080",
-  "ANTHROPIC_AUTH_TOKEN": "your-glm-key"
+  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:8080",
+    "ANTHROPIC_API_KEY": "arl_your-profile-token"
+  }
 }
 ```
 
+- Create profile token at Dashboard > Profiles (`http://localhost:9000/`)
+- `apiKeyHelper` is required for Claude Code interactive mode (without it, shows "Not logged in")
+- `arl_*` prefix triggers profile-based routing
 - Real-time SSE streaming
 - Tool loop works like direct API
 - Per-key rate limit: `AGENT_RATE_LIMIT=5` (5 req/min per key)
@@ -241,7 +246,7 @@ PROVIDER_RPM_LIMITS=glm:15,openai:120
 
 ## 3. Message Body Optimization
 
-Gateway performs token optimization at 2 levels: system prompt (7-stage pipeline from 13 components) and message content (lightweight whitespace + dedup).
+Gateway performs token optimization at 2 levels: system prompt (multi-stage pipeline from 13+ components) and message content (lightweight whitespace + dedup). Each optimizer stage can be overridden per-profile.
 
 ### Pipeline Flow
 
@@ -254,18 +259,65 @@ Request body (JSON)
 |   +-- Delta encoding (F8)
 |   +-- Sketch dedup (F9)
 |   +-- Summarizer (F6, red budget only)
-|   +-- Intent filter (F13)
-|   +-- Caveman compression (F16)
+|   +-- TextComp regex compression (F17)
+|   +-- Caveman compression (F16, transparent mode skip)
+|   +-- Pordee Thai compression (F17, transparent mode skip)
 |
 +-- Message content optimization (OptimizeMessages)
-|   +-- String content: whitespace collapse + sentence dedup
+|   +-- String content: whitespace collapse + sentence dedup + TextComp
 |   +-- Text blocks: whitespace collapse + sentence dedup
-|   +-- Tool result blocks: whitespace collapse + sentence dedup
+|   +-- Tool result blocks: whitespace collapse + sentence dedup + ToolComp
 |   +-- Skip: tool_use blocks, code blocks (```...```), privacy placeholders
 |
 +-- Privacy masking (PasteGuard)
     +-- Detect + mask secrets/PII
 ```
+
+### Per-Profile Optimizer Overrides
+
+Each profile can override which optimizer stages run, independent of the global configuration. This lets different teams or use-cases control compression aggressiveness.
+
+**Three-state logic per optimizer:**
+
+| Override value | Behavior |
+|---|---|
+| Not set (absent from map) | Use global default (instance enabled/disabled at startup) |
+| `true` | Force enable - runs if the component was instantiated at startup |
+| `false` | Force disable - skips even if globally enabled |
+
+**Available optimizer stages:**
+
+| Stage key | Component | Description |
+|---|---|---|
+| `semantic_dedup` | Tokenizer | Remove semantic duplicates from system prompt |
+| `chunker` | Chunker (F1) | Chunk and reorder system prompt for efficiency |
+| `delta` | Delta (F8) | Delta encoding metrics tracking |
+| `sketch` | Sketch (F9) | Sketch-based deduplication |
+| `summarizer` | Summarizer (F6) | Summarize on red budget level |
+| `textcomp` | TextComp (F17) | Regex-based filler/hedge removal |
+| `caveman` | Caveman (F16) | English terse output injection |
+| `pordee` | Pordee (F17) | Thai terse output injection |
+| `toolcomp` | ToolComp | Format-aware tool result compression |
+| `toolfilter` | ToolFilter | Filter tools by relevance |
+
+**API example - create profile with overrides:**
+
+```bash
+curl -X POST http://localhost:8080/v1/profiles \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "thai-team",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "optimizerOverrides": {
+      "pordee": true,
+      "caveman": false,
+      "summarizer": false
+    }
+  }'
+```
+
+This creates a profile that forces pordee ON (for Thai terse output), forces caveman OFF (not needed for Thai), and disables summarizer (preserves full fidelity). All other optimizers follow global defaults.
 
 ### Content Types Handled
 

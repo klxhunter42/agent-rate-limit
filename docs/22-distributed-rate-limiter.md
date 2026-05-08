@@ -36,7 +36,7 @@ Go gateway --POST /api/ratelimit/check--> DRL service --> Redis (Lua scripts)
 
 - **Protocol**: REST over HTTP (JSON)
 - **Latency target**: sub-millisecond for in-memory, <5ms for Redis-backed
-- **Failure mode**: The DRL fails closed (denies request on Redis failure). The gateway can implement its own local fallback if the DRL is unreachable.
+- **Failure mode**: The DRL service fails closed (denies request on Redis failure). The gateway itself is fail-open: if the DRL is unreachable, the gateway proceeds without rate limiting.
 
 ### 1.3 Package Structure
 

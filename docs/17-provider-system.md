@@ -117,7 +117,7 @@ Thread-safe via internal mutex on `AuthHandler`. The registry itself is not conc
 
 ### Built-in Providers
 
-The `NewRegistry()` constructor registers 19 providers:
+The `NewRegistry()` constructor registers 20 providers:
 
 | ID             | Name                  | Auth Type     | Upstream Base (default)                       |
 |----------------|-----------------------|---------------|-----------------------------------------------|

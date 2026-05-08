@@ -23,6 +23,8 @@ type StreamUnmasker struct {
 	// preserving [[TYPE_N]] placeholders. Lazily populated.
 	fallbackOriginals   []string
 	fallbackConsumedIdx int
+	// undefinedBuffer holds a partial "undefined" prefix split across SSE chunks.
+	undefinedBuffer string
 }
 
 func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
@@ -42,9 +44,24 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		processed, u.piiBuffer = processStreamChunk(u.piiBuffer, processed, u.piiCtx)
 	}
+	// Prepend previously buffered partial "undefined" prefix.
+	if u.undefinedBuffer != "" {
+		processed = u.undefinedBuffer + processed
+		u.undefinedBuffer = ""
+	}
 	// Fallback: models like GLM may output "undefined" instead of preserving placeholders.
-	if strings.Contains(processed, "undefined") {
+	// Only run when masking is active to avoid stripping legitimate "undefined" from
+	// code examples (e.g. typeof x === "undefined").
+	if u.HasContexts() && strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
+	}
+	// Buffer tail that might be a partial "undefined" split across SSE chunks.
+	// Must run AFTER fallback so the partial is preceded by the replacement value
+	// (non-alpha), not by "d" from a previous "undefined" (alpha).
+	if u.HasContexts() {
+		var buf string
+		processed, buf = bufferPartialUndefined(processed)
+		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
 	processed = stripLeftoverPlaceholders(processed)
@@ -62,10 +79,20 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		processed, u.piiJSONBuffer = processStreamChunkJSON(u.piiJSONBuffer, processed, u.piiCtx)
 	}
-	// Same undefined fallback as ProcessChunk - GLM models may output "undefined"
-	// in JSON deltas (tool_use input) instead of preserving placeholders.
-	if strings.Contains(processed, "undefined") {
+	// Prepend previously buffered partial "undefined" prefix.
+	if u.undefinedBuffer != "" {
+		processed = u.undefinedBuffer + processed
+		u.undefinedBuffer = ""
+	}
+	// Same undefined fallback as ProcessChunk - only when masking is active.
+	if u.HasContexts() && strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
+	}
+	// Buffer tail that might be a partial "undefined" split across SSE chunks.
+	if u.HasContexts() {
+		var buf string
+		processed, buf = bufferPartialUndefined(processed)
+		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
 	processed = stripLeftoverPlaceholders(processed)
@@ -128,6 +155,21 @@ func (u *StreamUnmasker) Flush() string {
 	} else if u.piiJSONBuffer != "" {
 		result += u.piiJSONBuffer
 		u.piiJSONBuffer = ""
+	}
+
+	// Flush undefined buffer: run fallback then strip leftovers.
+	if u.undefinedBuffer != "" {
+		ub := u.undefinedBuffer
+		u.undefinedBuffer = ""
+		if u.HasContexts() {
+			if strings.Contains(ub, "undefined") {
+				ub = u.replaceUndefinedFallback(ub)
+			}
+			// Strip partial "undefined" prefix at stream end (e.g. "undefi").
+			ub = stripPartialUndefined(ub)
+			ub = stripStrayUndefined(ub)
+		}
+		result += ub
 	}
 
 	return stripLeftoverPlaceholders(result)
@@ -249,6 +291,21 @@ func stripStrayUndefined(text string) string {
 	return result
 }
 
+// stripPartialUndefined removes text that is a prefix of "undefined" (1-8 chars).
+// Used during flush to clean up partial "undefined" at stream end.
+func stripPartialUndefined(text string) string {
+	target := "undefined"
+	for i := len(target) - 1; i >= 1; i-- {
+		if text == target[:i] {
+			return ""
+		}
+		if strings.HasSuffix(text, target[:i]) {
+			return text[:len(text)-i]
+		}
+	}
+	return text
+}
+
 // stripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that
 // survived the unmasking pipeline. These appear when GLM mangles placeholders
 // or when unmapped placeholders leak through.
@@ -257,6 +314,21 @@ func stripLeftoverPlaceholders(text string) string {
 		return text
 	}
 	return leftoverPlaceholderRe.ReplaceAllString(text, "")
+}
+
+// bufferPartialUndefined checks if text ends with a prefix of "undefined" and
+// splits it so the partial part can be buffered for the next SSE chunk.
+// Runs after fallback replacement, so any partial prefix at the end is very likely
+// the start of a split "undefined" from the model.
+func bufferPartialUndefined(text string) (safe, buffer string) {
+	target := "undefined"
+	for i := len(target) - 1; i >= 1; i-- {
+		prefix := target[:i]
+		if strings.HasSuffix(text, prefix) {
+			return text[:len(text)-len(prefix)], prefix
+		}
+	}
+	return text, ""
 }
 
 // collectFallbackOriginals returns original values from both contexts, sorted by

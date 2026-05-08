@@ -458,7 +458,7 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 		}
 	}
 	// Cap max_tokens for Z.AI vision models (max output ~4096).
-	const maxVisionTokens = 16384
+	const maxVisionTokens = 128000
 	if mt, ok := src["max_tokens"]; ok {
 		if v, ok := mt.(float64); ok && v > maxVisionTokens {
 			result["max_tokens"] = maxVisionTokens

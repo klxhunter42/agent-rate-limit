@@ -1005,6 +1005,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
 	// Skip only for image requests (base64/URLs get corrupted).
 	if !hasImages {
+		// Extract per-profile optimizer overrides
+		var optOverrides map[string]bool
+		if profileOverride != nil {
+			optOverrides = profileOverride.OptimizerOverrides
+		}
+
 		// Run token optimization pipeline on system prompt
 		if h.optimizers != nil {
 			budgetLevel := 0
@@ -1047,7 +1053,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					} else {
 						h.metrics.SetBudgetLevel(selectedModel, 0)
 					}
-					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent)
+					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
 					if optimized != sysText {
 						payload["system"] = optimized
 						if saved := len(sysText) - len(optimized); saved > 0 {
@@ -1061,12 +1067,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Run token optimization on message content
 		if h.optimizers != nil {
 			if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
-				h.optimizers.OptimizeMessages(msgs, h.metrics)
+				h.optimizers.OptimizeMessages(msgs, h.metrics, optOverrides)
 			}
 		}
 
 		// Tool manifest filtering - reduce tool count when > MaxTools
-		if h.optimizers != nil && h.optimizers.ToolFilter != nil {
+		if h.optimizers != nil && optimizerAllowed(optOverrides, "toolfilter", h.optimizers.ToolFilter) {
 			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
 				parsedTools := make([]toolfilter.Tool, 0, len(tools))
 				for _, t := range tools {
@@ -1728,7 +1734,7 @@ func validateChatRequest(req *ChatRequest) string {
 		return "messages must be non-empty"
 	}
 	if req.MaxTokens <= 0 {
-		req.MaxTokens = 8192
+		req.MaxTokens = 128000
 	}
 	if req.Temperature <= 0 {
 		req.Temperature = 0.7
@@ -1953,21 +1959,21 @@ func injectSystemPrompt(payload map[string]any, prompt string) {
 
 // modelMaxTokens defines optimal max_tokens defaults per model.
 var modelMaxTokens = map[string]int{
-	"glm-5.1":                   8192,
-	"glm-5-turbo":               4096,
-	"glm-5":                     8192,
-	"glm-4.7":                   4096,
-	"glm-4.7-flashx":            4096,
-	"glm-4.6":                   4096,
-	"glm-4.5":                   4096,
-	"glm-4.5-x":                 4096,
-	"glm-4.5-air":               4096,
-	"glm-4.5-airx":              4096,
-	"glm-4.6v":                  8192,
-	"glm-4.5v":                  4096,
-	"glm-z1-air":                8192,
-	"glm-z1-airx":               16384,
-	"glm-z1-flashx":             8192,
+	"glm-5.1":                   128000,
+	"glm-5-turbo":               128000,
+	"glm-5":                     128000,
+	"glm-4.7":                   128000,
+	"glm-4.7-flashx":            128000,
+	"glm-4.6":                   128000,
+	"glm-4.5":                   128000,
+	"glm-4.5-x":                 128000,
+	"glm-4.5-air":               128000,
+	"glm-4.5-airx":              128000,
+	"glm-4.6v":                  128000,
+	"glm-4.5v":                  128000,
+	"glm-z1-air":                128000,
+	"glm-z1-airx":               128000,
+	"glm-z1-flashx":             128000,
 	"claude-opus-4-7":           200000,
 	"claude-sonnet-4-6":         200000,
 	"claude-haiku-4-5-20251001": 200000,
@@ -1992,7 +1998,7 @@ func ApplyMaxTokensOverrides(overrides map[string]int) {
 	}
 }
 
-const fallbackMaxTokens = 16384
+const fallbackMaxTokens = 128000
 
 // unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
 var unsupportedTopLevelFields = []string{
@@ -2430,6 +2436,15 @@ var knownModels = []struct {
 	{"qwen-max", "qwen", "max", "openai", 0.40, 1.20, 32768, "none", false, false, false},
 	{"qwen-plus", "qwen", "plus", "openai", 0.08, 0.24, 131072, "none", false, false, false},
 	{"qwen-turbo", "qwen", "turbo", "openai", 0.03, 0.09, 1048576, "none", true, false, false},
+	// Kimi (Moonshot AI) - pricing from https://pricepertoken.com/pricing-page/provider/moonshotai
+	{"kimi-k2.6", "kimi", "k2.6", "anthropic", 0.745, 3.50, 262144, "none", false, true, false},
+	{"kimi-k2.5", "kimi", "k2.5", "anthropic", 0.44, 2.00, 262144, "none", false, true, false},
+	{"kimi-k2.5-thinking", "kimi", "k2.5", "anthropic", 0.44, 2.00, 262144, "budget", false, true, false},
+	{"kimi-k2.5-turbo", "kimi", "k2.5", "anthropic", 0.60, 3.00, 262144, "none", false, false, false},
+	{"kimi-k2-0905", "kimi", "k2", "anthropic", 0.40, 2.00, 262144, "none", false, false, false},
+	{"kimi-k2-thinking", "kimi", "k2", "anthropic", 0.60, 2.50, 131072, "budget", false, false, false},
+	{"kimi-k2-0711", "kimi", "k2", "anthropic", 0.55, 2.20, 131072, "none", false, false, false},
+	{"kimi-dev-72b", "kimi", "dev", "anthropic", 0, 0, 131072, "none", false, false, false},
 }
 
 // providerDefaultModels maps each provider to its default model.
@@ -2445,6 +2460,7 @@ var providerDefaultModels = map[string]string{
 	"copilot":      "gpt-4o",
 	"openrouter":   "or-openai/gpt-4o",
 	"qwen":         "qwen-plus",
+	"kimi":         "kimi-k2.6",
 }
 
 // modelFallbacks maps a model to lighter alternatives within the same provider.
@@ -2475,6 +2491,13 @@ var modelFallbacks = map[string][]string{
 	// Qwen
 	"qwen-plus": {"qwen-turbo"},
 	"qwen-max":  {"qwen-plus", "qwen-turbo"},
+	// Kimi
+	"kimi-k2.6":          {"kimi-k2.5", "kimi-k2-0905"},
+	"kimi-k2.5":          {"kimi-k2-0905", "kimi-k2-0711"},
+	"kimi-k2.5-thinking": {"kimi-k2.5", "kimi-k2-0905"},
+	"kimi-k2.5-turbo":    {"kimi-k2.5", "kimi-k2-0905"},
+	"kimi-k2-thinking":   {"kimi-k2-0905", "kimi-k2-0711"},
+	"kimi-k2-0905":       {"kimi-k2-0711"},
 }
 
 // mapModelForTarget returns the default model for a target provider when the

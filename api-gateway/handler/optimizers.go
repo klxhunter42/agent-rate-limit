@@ -15,6 +15,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/filter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/packer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/pordee"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
@@ -33,6 +34,27 @@ func PipelineStep(stage string, original, optimized string, m *metrics.Metrics) 
 		slog.Info("optimizer_step", "stage", stage, "before", len(original), "after", len(optimized), "saved", saved)
 	}
 	return optimized, saved
+}
+
+// optimizerAllowed checks whether a given optimizer stage should run,
+// given per-profile overrides and the global instance state.
+//   - override false => force disable (skip)
+//   - override true  + instance non-nil => force enable (run)
+//   - override true  + instance nil     => cannot enable (skip)
+//   - no override    + instance non-nil => global default (run)
+//   - no override    + instance nil     => global default (skip)
+func optimizerAllowed(overrides map[string]bool, stage string, instance interface{}) bool {
+	if overrides == nil {
+		return instance != nil
+	}
+	forced, hasOverride := overrides[stage]
+	if !hasOverride {
+		return instance != nil
+	}
+	if !forced {
+		return false
+	}
+	return instance != nil
 }
 
 // Optimizers holds all 13 token optimization components.
@@ -55,12 +77,14 @@ type Optimizers struct {
 	ToolComp   *toolcomp.ToolComp
 	ToolFilter *toolfilter.ToolFilter
 	CompCache  *compcache.CompCache
+	Pordee     *pordee.Pipeline
 }
 
 // OptimizeSystemPrompt applies the full optimization pipeline to system prompt text.
 // budgetLevel: 0=green, 1=yellow, 2=red
 // model: used for budget tracking and model-specific optimizations
-func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budgetLevel int, model string, transparent bool) string {
+// overrides: per-profile optimizer overrides (nil = use global defaults)
+func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budgetLevel int, model string, transparent bool, overrides map[string]bool) string {
 	slog.Info("optimize_system_prompt_entry", "len", len(text), "budget", budgetLevel, "model", model)
 	if text == "" {
 		return text
@@ -68,7 +92,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	totalSaved := 0
 
 	// Semantic dedup (F7 - always available via tokenizer)
-	func() {
+	if optimizerAllowed(overrides, "semantic_dedup", true) {
 		start := time.Now()
 		opt, saved := tokenizer.DeduplicateSemantic(text, 0.7)
 		if saved > 0 {
@@ -79,10 +103,10 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 			m.RecordOptimizationDuration("semantic_dedup", time.Since(start).Seconds())
 			totalSaved += saved
 		}
-	}()
+	}
 
 	// Chunker (F1)
-	if o.Chunker != nil {
+	if optimizerAllowed(overrides, "chunker", o.Chunker) {
 		start := time.Now()
 		opt, saved := o.Chunker.ChunkAndReorder(context.Background(), text)
 		if saved > 0 {
@@ -96,7 +120,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	}
 
 	// Delta encoding (F8) - metrics only, does not modify content
-	if o.Delta != nil {
+	if optimizerAllowed(overrides, "delta", o.Delta) {
 		start := time.Now()
 		_, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
 		if ok && saved > 0 {
@@ -107,7 +131,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	}
 
 	// Sketch dedup (F9)
-	if o.Sketch != nil {
+	if optimizerAllowed(overrides, "sketch", o.Sketch) {
 		start := time.Now()
 		isDup, _, saved := o.Sketch.CheckAndStore(context.Background(), model, text)
 		if isDup && saved > 0 {
@@ -119,7 +143,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	}
 
 	// Summarizer (F6) - only on red budget
-	if o.Summarizer != nil && budgetLevel >= 2 {
+	if optimizerAllowed(overrides, "summarizer", o.Summarizer) && budgetLevel >= 2 {
 		start := time.Now()
 		opt, saved := o.Summarizer.Summarize(context.Background(), text, budgetLevel)
 		if saved > 0 {
@@ -138,7 +162,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	// (passthrough), but if intent were misclassified it would destroy instructions.
 
 	// TextComp regex compression (F17) - removes filler/verbose text, safe for all modes
-	if o.TextComp != nil {
+	if optimizerAllowed(overrides, "textcomp", o.TextComp) {
 		start := time.Now()
 		opt, saved := o.TextComp.Compress(text)
 		if saved > 0 {
@@ -153,7 +177,7 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 
 	// Caveman compression (F16) - LLM + regex input compression + output-style injection
 	if !transparent {
-		if o.Caveman != nil {
+		if optimizerAllowed(overrides, "caveman", o.Caveman) {
 			shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
 			if shouldCompress {
 				start := time.Now()
@@ -181,6 +205,21 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 				m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 			}
 		}
+
+		// Pordee Thai compression (F17) - inject Thai terse output rules when Thai detected.
+		// Uses system prompt injection (same mechanism as caveman) so model generates terse Thai from the start.
+		if optimizerAllowed(overrides, "pordee", o.Pordee) {
+			shouldInject, level := o.Pordee.ShouldInject(text, budgetLevel)
+			if shouldInject {
+				start := time.Now()
+				beforePordee := len(text)
+				text, ratio := o.Pordee.Inject(text, level)
+				addedChars := len(text) - beforePordee
+				slog.Info("optimizer_step", "stage", "pordee", "before", beforePordee, "after", len(text), "added_input_chars", addedChars, "level", level.String(), "expected_output_ratio", ratio)
+				m.RecordOptimization("pordee", addedChars, "output")
+				m.RecordOptimizationDuration("pordee", time.Since(start).Seconds())
+			}
+		}
 	}
 
 	if totalSaved > 0 {
@@ -195,7 +234,8 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 
 // OptimizeMessages applies lightweight optimization to message content (whitespace + dedup).
 // Skips code blocks and privacy placeholders. Only applies to text content in user/assistant messages.
-func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
+// overrides: per-profile optimizer overrides (nil = use global defaults)
+func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics, overrides map[string]bool) {
 	slog.Info("optimize_messages_entry", "count", len(messages))
 	for _, msg := range messages {
 		msgMap, ok := msg.(map[string]any)
@@ -223,7 +263,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 				m.RecordOptimization("message_text", saved, "input")
 			}
 			// TextComp on string message content
-			if o.TextComp != nil {
+			if optimizerAllowed(overrides, "textcomp", o.TextComp) {
 				if tc, ok := msgMap["content"].(string); ok && tc != "" {
 					opt2, saved2 := o.TextComp.Compress(tc)
 					if saved2 > 0 {
@@ -265,7 +305,7 @@ func (o *Optimizers) OptimizeMessages(messages []any, m *metrics.Metrics) {
 					}
 				}
 				// ToolComp format-aware compression for tool_result blocks
-				if o.ToolComp != nil && blockType == "tool_result" {
+				if optimizerAllowed(overrides, "toolcomp", o.ToolComp) && blockType == "tool_result" {
 					if tc, ok := blockMap["content"].(string); ok && tc != "" {
 						opt, saved := o.ToolComp.Compress(tc)
 						if saved > 0 {

@@ -289,7 +289,7 @@ All services use `json-file` log driver with rotation:
 
 | Stage   | Base Image           | Purpose           |
 |---------|----------------------|-------------------|
-| Builder | `golang:1.25-alpine` | Compile Go binary |
+| Builder | `golang:1.24-alpine` | Compile Go binary |
 | Runtime | `alpine:3.20`        | Minimal runtime   |
 
 **Build optimizations**:
@@ -334,6 +334,7 @@ All services use `json-file` log driver with rotation:
    - `ANTHROPIC_BASE_URL` pointing to arl-proxy:9000
    - `ANTHROPIC_API_KEY` with provisioned token
    - Optional: `ANTHROPIC_AUTH_TOKEN` for OAuth passthrough
+ - `apiKeyHelper`: `"echo $ANTHROPIC_API_KEY"` (required for Claude Code interactive mode)
    - Model and thinking settings from previous config
 4. Set `CLAUDE_CODE_SIMPLE=1` when no TTY attached
 5. Exec `claude` with arguments

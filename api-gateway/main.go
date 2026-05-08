@@ -33,6 +33,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/middleware"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/packer"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/pordee"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/prefetcher"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
@@ -154,6 +155,7 @@ func main() {
 	optCache := cache.New(m.Registry(), optRdb)
 	optWarmStart := warmstart.New(m.Registry(), optRdb)
 	optCaveman := caveman.New(m.Registry())
+	optPordee := pordee.New(m.Registry())
 	optTextComp := textcomp.New(textcomp.LoadConfig())
 
 	optToolComp := toolcomp.New(toolcomp.LoadConfig())
@@ -176,6 +178,7 @@ func main() {
 		TextComp:   optTextComp,
 		ToolComp:   optToolComp,
 		ToolFilter: optToolFilter,
+		Pordee:     optPordee,
 	}
 
 	// Background optimizer goroutines.

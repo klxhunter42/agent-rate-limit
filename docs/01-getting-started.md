@@ -409,8 +409,14 @@ docker-compose up -d --build
 
 # 3. Use with Claude Code
 # Add to ~/.claude/settings.json:
-# "ANTHROPIC_BASE_URL": "http://localhost:9000"
-# "ANTHROPIC_AUTH_TOKEN": "your-key"
+# {
+#   "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
+#   "env": {
+#     "ANTHROPIC_BASE_URL": "http://localhost:9000",
+#     "ANTHROPIC_API_KEY": "arl_your-profile-token"
+#   }
+# }
+# Create profile token at: http://localhost:9000/ (Dashboard > Profiles)
 
 # 4. Monitor
 # Gateway Health: http://localhost:9000/health

@@ -26,7 +26,7 @@ Key capabilities:
 - Adaptive concurrency limiting per model with cross-series fallback
 - Profile-based routing with account pool rotation and round-robin
 - Transparent OAuth passthrough for Claude Code CLI
-- 13-stage token optimization pipeline (chunker, packer, delta, sketch, bandit, etc.)
+- 17-stage token optimization pipeline (chunker, packer, delta, sketch, bandit, etc.)
 - Privacy masking with PII/secret detection and SSE stream unmasking
 - Billing header injection (Go direct vs Node.js sidecar fallback)
 - HMAC-SHA256 signed Z.AI web chat API proxy
@@ -406,7 +406,7 @@ Key methods:
 - `ProxySidecar()`: Route through Node.js sidecar for billing
 - `ProxyNativeVision()`: Z.AI native vision endpoint (base64 images)
 
-`InjectBillingHeader()`: Injects billing system prompt entry with build hash into the messages array.
+`InjectBillingHeader()`: Injects billing system prompt entry with build hash into the system array (system[0] for identity, system[1] for billing).
 
 `relayStreamWithTracking()`: SSE relay with:
 - Real-time privacy unmasking (stream unmasker)
@@ -741,8 +741,8 @@ All config loaded from environment variables with sensible defaults for containe
 | `UPSTREAM_VISION_MODEL_LIMITS` | `glm-5.1:5,glm-4.6v:5,...`                  | Per-vision-model concurrency limits               |
 | `UPSTREAM_DEFAULT_LIMIT`       | `3`                                         | Default concurrency limit for unconfigured models |
 | `UPSTREAM_GLOBAL_LIMIT`        | `9`                                         | Hard cap across all models                        |
-| `UPSTREAM_MAX_RETRIES`         | `3`                                         | Max retries on upstream errors                    |
-| `UPSTREAM_RETRY_BACKOFF`       | `500ms`                                     | Base retry backoff                                |
+| `UPSTREAM_MAX_RETRIES`         | `20`                                         | Max retries on upstream errors                    |
+| `UPSTREAM_RETRY_BACKOFF`       | `2s`                                     | Base retry backoff                                |
 | `UPSTREAM_PROBE_MULTIPLIER`    | `5`                                         | Adaptive probe ceiling multiplier                 |
 | `UPSTREAM_RPM_LIMIT`           | `40`                                        | Per-key requests-per-minute                       |
 | `ENABLE_PROMPT_INJECTION`      | `true`                                      | System prompt injection toggle                    |
@@ -750,7 +750,7 @@ All config loaded from environment variables with sensible defaults for containe
 | `ENABLE_SMART_MAX_TOKENS`      | `true`                                      | Auto max_tokens calculation                       |
 | `PROMPT_INJECTION_TEXT`        | (default rules)                             | Custom system prompt injection text               |
 | `ENABLE_AUTO_TRUNCATE`         | `true`                                      | Auto-truncate on context overflow                 |
-| `TRANSIENT_RETRY_MAX`          | `3`                                         | Max transient error retries                       |
+| `TRANSIENT_RETRY_MAX`          | `10`                                         | Max transient error retries                       |
 | `ZAI_API_KEYS`                 | (empty)                                     | Comma-separated Z.AI API keys                     |
 | `MODEL_PRICING`                | (default pricing)                           | Per-model pricing `model:input:output`            |
 | `NATIVE_VISION_URL`            | `https://open.bigmodel.cn/...`              | Z.AI native vision endpoint                       |
@@ -763,7 +763,7 @@ All config loaded from environment variables with sensible defaults for containe
 | `DEFAULT_MODEL`                | `glm-5`                                     | Default model for requests                        |
 | `DEFAULT_PROVIDER`             | `glm`                                       | Default provider                                  |
 | `DEFAULT_TEMPERATURE`          | `0.7`                                       | Default temperature                               |
-| `DEFAULT_MAX_TOKENS`           | `1024`                                      | Default max tokens                                |
+| `DEFAULT_MAX_TOKENS`           | `128000`                                      | Default max tokens                                |
 | `GEMINI_CODEASSIST_ENDPOINT`   | `https://cloudcode-pa.googleapis.com/...`   | Gemini Code Assist URL                            |
 | `GEMINI_API_ENDPOINT`          | `https://generativelanguage.googleapis.com` | Gemini API URL                                    |
 | `GEMINI_DEFAULT_MODEL`         | `models/gemini-2.5-flash-preview-05-20`     | Default Gemini model                              |
@@ -777,7 +777,7 @@ All config loaded from environment variables with sensible defaults for containe
 | `CLI_SIDECAR_URL`              | `http://127.0.0.1:8081`                     | Sidecar URL                                       |
 | `MCP_ENABLED`                  | `true`                                      | MCP proxy toggle                                  |
 | `MCP_CACHE_TTL`                | `1h`                                        | MCP response cache TTL                            |
-| `MCP_MAX_RETRIES`              | `2`                                         | MCP max retries                                   |
+| `MCP_MAX_RETRIES`              | `5`                                         | MCP max retries                                   |
 | `MCP_RATE_LIMIT_PER_MIN`       | `30`                                        | MCP per-account rate limit                        |
 | `DASHBOARD_PASSWORD`           | (empty)                                     | Dashboard auth API key                            |
 | `DASHBOARD_URL`                | `https://ai.klxhub.com`                     | Dashboard public URL                              |
@@ -1063,3 +1063,46 @@ Acquire("glm-5.1")
 Resource limits: Gateway (1G/2CPU), Rate Limiter (1.5G/2CPU), Dragonfly (8G/2CPU), Worker (2G/2CPU).
 
 Network: `arl-network` (bridge). Volumes: `arl-dragonfly-data`, `arl-prometheus-data`, `arl-grafana-data`.
+
+---
+
+## 10. Gateway Token and Connection Defaults
+
+This section documents all hardcoded defaults that affect request handling, token limits, and connection settings. These are safety nets for clients that don't send explicit values.
+
+### 10.1 Token Limits
+
+| Setting | Value | Location | Purpose |
+|---------|-------|----------|---------|
+| `fallbackMaxTokens` | 128000 | handler/handler.go | Used when request has no `max_tokens` and model not in `modelMaxTokens` map |
+| `validateChatRequest` default | 128000 | handler/handler.go | Fallback for `/v1/chat/completions` requests with no `max_tokens` |
+| `maxVisionTokens` | 128000 | proxy/anthropic.go | Default `max_tokens` for vision proxy requests |
+| `DEFAULT_MAX_TOKENS` (env) | 128000 | config/config.go | Env var default, used when no explicit max_tokens in request |
+| `modelMaxTokens` (GLM models) | 128000 | handler/handler.go | Per-model default for all GLM models (glm-5.1, glm-4.7, etc.) |
+| `modelMaxTokens` (Claude models) | 200000 | handler/handler.go | Per-model default for Claude models (matches Anthropic API limit) |
+
+### 10.2 Comparison: Without Gateway vs With Gateway
+
+| Setting | Without Gateway (raw API) | With Gateway | Notes |
+|---------|--------------------------|--------------|-------|
+| `max_tokens` (Anthropic API) | Required field, no default | 128000 if omitted | Gateway fills in for clients that don't send it |
+| `max_tokens` (Claude Code) | Always sends 128000 | 128000 (passthrough) | No change, client sends explicit value |
+| `max_tokens` (Z.AI API) | Required field | 128000 if omitted | Gateway fills in for safety |
+| `max_tokens` (Vision) | Model-specific | 128000 | Matches Claude Code behavior |
+
+### 10.3 Connection and Retry Settings
+
+| Setting | Value | Location | Purpose |
+|---------|-------|----------|---------|
+| `MCP_MAX_RETRIES` | 5 | config/config.go | Max retries for MCP proxy requests |
+| Rate limiter client timeout | 5s | middleware/ratelimit.go | HTTP client timeout for rate limiter calls |
+| Rate limiter context timeout | 5s | middleware/ratelimit.go | Context timeout for rate limiter middleware |
+| WebSocket ReadLimit | 65536 | handler/websocket.go | Max WebSocket message size (64KB) |
+
+### 10.4 Why 128000
+
+All defaults are set to 128000 to match Claude Code's behavior. Claude Code always sends `max_tokens: 128000` in requests. By aligning gateway defaults:
+
+- Other clients (custom agents, web apps) get the same output capacity as Claude Code
+- No risk of truncated responses due to low defaults
+- The value is a safety net only - explicit `max_tokens` from clients always takes priority

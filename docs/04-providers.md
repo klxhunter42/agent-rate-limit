@@ -435,6 +435,7 @@ claude
 # Option B: settings.json
 # ~/.claude/settings.json
 {
+ "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://192.168.5.62:9000",
     "ANTHROPIC_API_KEY": "arl_2f3a72a7..."

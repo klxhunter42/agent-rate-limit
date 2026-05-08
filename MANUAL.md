@@ -2,7 +2,6 @@
 
 ## Setup & Configuration
 - [Getting Started](docs/01-getting-started.md) -- Architecture, traffic flow, tech stack, installation, environment variables, quick start, ports
-- [Claude Code Guide](docs/02-claude-code.md) -- Setup, architecture, tool loop, compatibility, rate limits, known limitations
 - [API Reference](docs/03-api-reference.md) -- All API endpoints (sync/async, auth, providers, profiles, admin, health)
 - [Providers](docs/04-providers.md) -- Provider registry, Claude OAuth flow, all supported providers
 

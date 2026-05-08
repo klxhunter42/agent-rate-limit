@@ -80,7 +80,7 @@ docker-compose down --rmi all  # Remove images
 
 Multi-stage build in `api-gateway/Dockerfile`:
 
-1. **Build stage**: `golang:1.25-alpine` - compiles Go binary with `CGO_ENABLED=0`
+1. **Build stage**: `golang:1.24-alpine` - compiles Go binary with `CGO_ENABLED=0`
 2. **Runtime stage**: `alpine:3.20` - minimal image with `ca-certificates`, `curl`, `nodejs`
 
 ```

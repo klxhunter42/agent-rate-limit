@@ -82,7 +82,7 @@ func TestValidateChatRequest(t *testing.T) {
 			err := validateChatRequest(&reqCopy)
 			assert.Equal(t, tt.wantErr, err)
 			if tt.mutate {
-				assert.Equal(t, 1024, reqCopy.MaxTokens)
+				assert.Equal(t, 128000, reqCopy.MaxTokens)
 				assert.Equal(t, 0.7, reqCopy.Temperature)
 				assert.Equal(t, "glm-5", reqCopy.Model)
 				assert.Equal(t, "zai", reqCopy.Provider)
@@ -98,7 +98,7 @@ func TestValidateChatRequestDefaults(t *testing.T) {
 	}
 	err := validateChatRequest(req)
 	assert.Equal(t, "", err)
-	assert.Equal(t, 1024, req.MaxTokens)
+	assert.Equal(t, 128000, req.MaxTokens)
 	assert.Equal(t, 0.7, req.Temperature)
 	assert.Equal(t, "glm-5", req.Model)
 	assert.Equal(t, "zai", req.Provider)
@@ -115,7 +115,7 @@ func TestValidateChatRequestZeroValuesBecomeDefaults(t *testing.T) {
 	}
 	err := validateChatRequest(req)
 	assert.Equal(t, "", err)
-	assert.Equal(t, 1024, req.MaxTokens)
+	assert.Equal(t, 128000, req.MaxTokens)
 	assert.Equal(t, 0.7, req.Temperature)
 	assert.Equal(t, "glm-5", req.Model)
 	assert.Equal(t, "zai", req.Provider)
@@ -219,31 +219,31 @@ func TestApplySmartMaxTokens(t *testing.T) {
 			name:     "glm-5.1 gets 8192",
 			payload:  map[string]any{},
 			model:    "glm-5.1",
-			expected: 8192,
+			expected: 128000,
 		},
 		{
 			name:     "glm-5-turbo gets 4096",
 			payload:  map[string]any{},
 			model:    "glm-5-turbo",
-			expected: 4096,
+			expected: 128000,
 		},
 		{
 			name:     "glm-4.5 gets 4096",
 			payload:  map[string]any{},
 			model:    "glm-4.5",
-			expected: 4096,
+			expected: 128000,
 		},
 		{
 			name:     "unknown model gets fallback 4096",
 			payload:  map[string]any{},
 			model:    "unknown-model",
-			expected: 4096,
+			expected: 128000,
 		},
 		{
 			name:     "glm-5 gets 8192",
 			payload:  map[string]any{},
 			model:    "glm-5",
-			expected: 8192,
+			expected: 128000,
 		},
 	}
 
@@ -421,7 +421,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 		expected []any // expected content of first message
 	}{
 		{
-			name: "strips server_tool_use blocks",
+			name: "keeps server_tool_use blocks",
 			payload: map[string]any{
 				"messages": []any{
 					map[string]any{
@@ -436,11 +436,12 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			},
 			expected: []any{
 				map[string]any{"type": "text", "text": "hello"},
+				map[string]any{"type": "server_tool_use", "id": "tu_123", "name": "bash", "input": map[string]any{"command": "ls"}},
 				map[string]any{"type": "text", "text": "world"},
 			},
 		},
 		{
-			name: "keeps image blocks as-is",
+			name: "keeps image and server_tool_use blocks",
 			payload: map[string]any{
 				"messages": []any{
 					map[string]any{
@@ -454,6 +455,7 @@ func TestFilterUnsupportedContent(t *testing.T) {
 			},
 			expected: []any{
 				map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": "aGVsbG8="}},
+				map[string]any{"type": "server_tool_use", "id": "tu_456", "name": "analyze", "input": map[string]any{}},
 			},
 		},
 		{
@@ -552,9 +554,9 @@ func TestFilterUnsupportedContentMultipleMessages(t *testing.T) {
 	// First message: server_tool_use stripped
 	m1 := msgs[0].(map[string]any)
 	assert.Equal(t, []any{
+		map[string]any{"type": "server_tool_use", "id": "tu_1", "name": "bash", "input": map[string]any{}},
 		map[string]any{"type": "text", "text": "result"},
 	}, m1["content"])
-
 	// Second message: tool_result kept as-is, image kept as-is
 	m2 := msgs[1].(map[string]any)
 	assert.Equal(t, []any{
@@ -737,37 +739,45 @@ func TestSelectVisionModel(t *testing.T) {
 	}
 }
 
-func TestStripUnsupportedFields_GLMMustRemoveOutputConfig(t *testing.T) {
+func TestStripUnsupportedFields_GLMMustRemoveContextManagement(t *testing.T) {
 	payload := map[string]any{
-		"model":    "glm-5.1",
-		"messages": []any{},
-		"system":   "you are helpful",
-		// Fields Claude Code sends that Z.AI rejects with 1210.
-		"tools":          []any{},
-		"tool_choice":    "auto",
-		"thinking":       map[string]any{"type": "enabled", "budget_tokens": 5000},
-		"budget_tokens":  5000,
-		"effort":         "high",
-		"stream_options": map[string]any{"include_usage": true},
-		"metadata":       map[string]any{"user_id": "abc"},
-		"output_config":  map[string]any{"effort": "high"},
-		"max_tokens":     4096,
+		"model":              "glm-5.1",
+		"messages":          []any{},
+		"system":            "you are helpful",
+		"tools":             []any{},
+		"tool_choice":       "auto",
+		"thinking":          map[string]any{"type": "enabled", "budget_tokens": 5000},
+		"budget_tokens":     5000,
+		"effort":            "high",
+		"stream_options":    map[string]any{"include_usage": true},
+		"metadata":          map[string]any{"user_id": "abc"},
+		"output_config":     map[string]any{"effort": "high"},
+		"context_management": map[string]any{},
+		"service_tier":      "auto",
+		"max_tokens":        4096,
 	}
 
 	stripUnsupportedFields(payload, false, "glm-5.1")
 
-	// All these must be gone for GLM models.
-	removed := []string{"tools", "tool_choice", "thinking", "budget_tokens",
-		"effort", "stream_options", "metadata", "output_config"}
+	// Only context_management and service_tier are stripped.
+	removed := []string{"context_management", "service_tier"}
 	for _, f := range removed {
 		_, exists := payload[f]
 		assert.False(t, exists, "field %q should be stripped for glm-5.1", f)
 	}
 
-	// These must survive.
+	// These fields survive - passed through to upstream.
+	surviving := []string{"tools", "tool_choice", "thinking", "budget_tokens",
+		"effort", "stream_options", "metadata", "output_config"}
+	for _, f := range surviving {
+		_, exists := payload[f]
+		assert.True(t, exists, "field %q should survive for glm-5.1", f)
+	}
+
 	assert.Equal(t, "glm-5.1", payload["model"])
 	assert.Equal(t, 4096, payload["max_tokens"])
 }
+
 
 func TestStripUnsupportedFields_NonGLMKeepsFields(t *testing.T) {
 	payload := map[string]any{
@@ -885,6 +895,8 @@ func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
 		"thinking":       map[string]any{"type": "enabled", "budget_tokens": 5000},
 		"stream_options": map[string]any{"include_usage": true},
 		"metadata":       map[string]any{"user_id": "test"},
+		"context_management": map[string]any{},
+		"service_tier":      "auto",
 		"model":          "glm-5.1",
 		"max_tokens":     8192,
 	}
@@ -893,11 +905,18 @@ func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
 	stripUnsupportedFields(payload, false, "glm-5.1")
 	filterUnsupportedContent(payload)
 
-	// All unsupported top-level fields gone.
-	removed := []string{"output_config", "tools", "thinking", "stream_options", "metadata"}
+	// Only context_management and service_tier are stripped by stripUnsupportedFields.
+	removed := []string{"context_management", "service_tier"}
 	for _, f := range removed {
 		_, exists := payload[f]
 		assert.False(t, exists, "field %q should be stripped", f)
+	}
+
+	// These fields survive - passed through to upstream.
+	surviving := []string{"output_config", "tools", "thinking", "stream_options", "metadata"}
+	for _, f := range surviving {
+		_, exists := payload[f]
+		assert.True(t, exists, "field %q should survive", f)
 	}
 
 	// System block: cache_control stripped, text preserved.

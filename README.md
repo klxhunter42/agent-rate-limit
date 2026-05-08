@@ -296,7 +296,6 @@ All providers           --> 200+ RPM
 | #   | Document                                          | Description                                  |
 |-----|---------------------------------------------------|----------------------------------------------|
 | 01  | [Getting Started](docs/01-getting-started.md)     | Architecture, install, env vars, ports       |
-| 02  | [Claude Code Guide](docs/02-claude-code.md)       | Setup, tool loop, compatibility, rate limits |
 | 03  | [API Reference](docs/03-api-reference.md)         | All 100+ API endpoints                       |
 | 04  | [Providers](docs/04-providers.md)                 | 18 providers, OAuth flows, token management  |
 | 05  | [Routing](docs/05-routing.md)                     | Profile-based routing, model mapping         |

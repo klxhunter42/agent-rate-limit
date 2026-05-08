@@ -13,8 +13,22 @@ import { fetchProfileUsage, fetchAccountUsage } from '@/lib/api';
 import type { ProfileUsage, AccountUsage } from '@/lib/api';
 import { InfoTip } from '@/components/shared/info-tip';
 import { copyToClipboard } from '@/lib/clipboard';
+import { cn } from '@/lib/utils';
 
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+const OPTIMIZER_STAGES = [
+  { key: 'semantic_dedup', label: 'Semantic Dedup', desc: 'Remove semantic duplicates' },
+  { key: 'chunker', label: 'Chunker', desc: 'Chunk and reorder system prompt' },
+  { key: 'delta', label: 'Delta', desc: 'Delta metrics tracking' },
+  { key: 'sketch', label: 'Sketch Dedup', desc: 'Sketch-based deduplication' },
+  { key: 'summarizer', label: 'Summarizer', desc: 'Summarize on high budget usage' },
+  { key: 'textcomp', label: 'Text Compression', desc: 'Regex filler/hedge removal' },
+  { key: 'caveman', label: 'Caveman', desc: 'English terse output injection' },
+  { key: 'pordee', label: 'Pordee (Thai)', desc: 'Thai terse output injection' },
+  { key: 'toolcomp', label: 'Tool Compression', desc: 'Format-aware tool result compression' },
+  { key: 'toolfilter', label: 'Tool Filter', desc: 'Filter tools by relevance' },
+] as const;
 
 interface ProfileTarget {
   id: string;
@@ -39,6 +53,7 @@ interface Profile {
   apiKey?: string;
   passthroughAuth?: boolean;
   baseUrl?: string;
+  optimizerOverrides?: Record<string, boolean>;
   [key: string]: unknown;
 }
 
@@ -751,6 +766,7 @@ function ProfileCard({
 }) {
   const [editName, setEditName] = useState(profile.name);
   const [editTargets, setEditTargets] = useState<ProfileTarget[]>([]);
+  const [editOptimizerOverrides, setEditOptimizerOverrides] = useState<Record<string, boolean>>({});
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [accountsMap, setAccountsMap] = useState<Map<string, AccountInfo[]>>(new Map());
   const [accountsLoading, setAccountsLoading] = useState<Set<string>>(new Set());
@@ -764,6 +780,7 @@ function ProfileCard({
   useEffect(() => {
     if (editing) {
       setEditName(profile.name);
+      setEditOptimizerOverrides((profile.optimizerOverrides as Record<string, boolean>) ?? {});
       if (profile.targets && profile.targets.length > 0) {
         setEditTargets(profile.targets.map((t) => ({ ...t, id: t.id || uid() })));
       } else {
@@ -913,6 +930,79 @@ function ProfileCard({
             </div>
           </div>
 
+          {/* Optimizer Overrides */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-muted-foreground font-medium">Optimizer Overrides</label>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => {
+                  const all: Record<string, boolean> = {};
+                  OPTIMIZER_STAGES.forEach(({ key }) => { all[key] = true; });
+                  setEditOptimizerOverrides(all);
+                }}>All On</Button>
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => {
+                  const all: Record<string, boolean> = {};
+                  OPTIMIZER_STAGES.forEach(({ key }) => { all[key] = false; });
+                  setEditOptimizerOverrides(all);
+                }}>All Off</Button>
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => setEditOptimizerOverrides({})}>
+                  Reset
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-md border p-2 space-y-0.5">
+              {OPTIMIZER_STAGES.map(({ key, label, desc }) => {
+                const overridden = key in editOptimizerOverrides;
+                const enabled = editOptimizerOverrides[key];
+                return (
+                  <div key={key} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-muted/30 group">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={overridden ? (enabled ? 'true' : 'false') : 'mixed'}
+                      className={cn(
+                        'relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+                        overridden
+                          ? enabled ? 'bg-green-500' : 'bg-red-400'
+                          : 'bg-muted'
+                      )}
+                      onClick={() => {
+                        setEditOptimizerOverrides(prev => {
+                          const next = { ...prev };
+                          if (!overridden) {
+                            next[key] = false;
+                          } else if (!enabled) {
+                            next[key] = true;
+                          } else {
+                            delete next[key];
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <span className={cn(
+                        'pointer-events-none block h-3 w-3 rounded-full bg-white shadow-sm ring-0 transition-transform',
+                        overridden
+                          ? (enabled ? 'translate-x-3.5' : 'translate-x-0')
+                          : 'translate-x-1.5'
+                      )} />
+                    </button>
+                    <span className="text-xs font-medium w-28">{label}</span>
+                    <span className="text-[10px] text-muted-foreground flex-1 hidden sm:inline">{desc}</span>
+                    <span className={cn(
+                      'text-[9px] font-mono px-1 py-0.5 rounded min-w-[32px] text-center',
+                      overridden
+                        ? enabled ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
+                        : 'bg-muted text-muted-foreground'
+                    )}>
+                      {overridden ? (enabled ? 'ON' : 'OFF') : 'AUTO'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex gap-2 justify-end">
             <Button size="sm" variant="ghost" onClick={onCancelEdit}>
               <X className="h-4 w-4 mr-1" /> Cancel
@@ -930,6 +1020,7 @@ function ProfileCard({
                 baseUrl: profile.baseUrl,
                 apiKey: profile.apiKey,
                 targets: editTargets,
+                optimizerOverrides: Object.keys(editOptimizerOverrides).length > 0 ? editOptimizerOverrides : undefined,
               });
             }}>
               <Check className="h-4 w-4 mr-1" /> Save
@@ -1123,8 +1214,23 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
             ))}
           </div>
         )}
+        {profile.optimizerOverrides && Object.keys(profile.optimizerOverrides).length > 0 && (
+          <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-muted-foreground">Optimizers:</span>
+            {Object.entries(profile.optimizerOverrides).map(([key, enabled]) => (
+              <span
+                key={key}
+                className={cn(
+                  'text-[9px] font-mono px-1.5 py-0.5 rounded',
+                  enabled ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-red-500/10 text-red-500 dark:text-red-400'
+                )}
+              >
+                {key}: {enabled ? 'ON' : 'OFF'}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mt-3 border-t pt-3">
-          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Key className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-medium">API Keys</span>
@@ -1135,7 +1241,6 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
             <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setShowNewKey(true)}>
               <Plus className="h-3 w-3 mr-1" /> New Key
             </Button>
-          </div>
 
           {showNewKey && (
             <div className="mb-2 p-3 rounded-md border bg-muted/30 space-y-2">

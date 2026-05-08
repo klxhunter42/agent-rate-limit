@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -229,8 +230,8 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 	slog.Info("unmask check",
 		"body_len", origLen,
 		"placeholders_in_body", found,
-		"secrets_mapping", len(result.SecretsCtx.Mapping),
-		"pii_mapping", len(result.PIICtx.Mapping),
+		"secrets_mapping", mapLen(result.SecretsCtx),
+		"pii_mapping", mapLen(result.PIICtx),
 	)
 
 	// Unmask secrets first (innermost), then PII (outermost).
@@ -252,6 +253,13 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 		}
 	}
 
+	// Fallback: GLM models may output "undefined" instead of preserving [[TYPE_N]] placeholders.
+	// The streaming path handles this in StreamUnmasker.replaceUndefinedFallback, but non-streaming
+	// responses need it here too.
+	if strings.Contains(text, "undefined") {
+		text = replaceUndefinedNonStream(text, result)
+	}
+
 	slog.Info("unmask done",
 		"orig_len", origLen,
 		"new_len", len(text),
@@ -270,6 +278,75 @@ func (p *Pipeline) NewStreamUnmasker(result *MaskResult) *masking.StreamUnmasker
 		secretsCtx = result.SecretsCtx
 	}
 	return masking.NewStreamUnmasker(piiCtx, secretsCtx)
+}
+
+func mapLen(ctx *masking.MaskContext) int {
+	if ctx == nil {
+		return 0
+	}
+	return len(ctx.Mapping)
+}
+
+// replaceUndefinedNonStream handles GLM's "undefined" output in non-streaming responses.
+// Only called when masking was active (HasSecrets || HasPII) and response contains "undefined".
+// Uses the same budget-based approach as StreamUnmasker.replaceUndefinedFallback.
+func replaceUndefinedNonStream(text string, result *MaskResult) string {
+	// Collect originals sorted by placeholder name for deterministic order.
+	type entry struct {
+		placeholder string
+		original    string
+	}
+	var entries []entry
+	if result.HasSecrets && result.SecretsCtx != nil {
+		for p, orig := range result.SecretsCtx.Mapping {
+			entries = append(entries, entry{p, orig})
+		}
+	}
+	if result.HasPII && result.PIICtx != nil {
+		for p, orig := range result.PIICtx.Mapping {
+			entries = append(entries, entry{p, orig})
+		}
+	}
+	if len(entries) == 0 {
+		return text
+	}
+
+	// Sort by placeholder name for deterministic ordering.
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].placeholder < entries[j].placeholder
+	})
+
+	// Phase 1: Replace "undefined" with originals (budget-limited).
+	for i := range entries {
+		if !strings.Contains(text, "undefined") {
+			break
+		}
+		text = strings.Replace(text, "undefined", entries[i].original, 1)
+	}
+
+	// Phase 2: Dedup adjacent "undefined" next to restored originals.
+	for _, e := range entries {
+		for strings.Contains(text, e.original+" undefined") {
+			text = strings.Replace(text, e.original+" undefined", e.original, 1)
+		}
+		for strings.Contains(text, "undefined "+e.original) {
+			text = strings.Replace(text, "undefined "+e.original, e.original, 1)
+		}
+	}
+
+	// Phase 3: Strip remaining bare "undefined" (budget exhausted).
+	for strings.Contains(text, "undefined") {
+		replaced := text
+		replaced = strings.Replace(replaced, "undefined ", " ", -1)
+		replaced = strings.Replace(replaced, " undefined", "", -1)
+		replaced = strings.Replace(replaced, "undefined", "", -1)
+		if replaced == text {
+			break
+		}
+		text = replaced
+	}
+
+	return text
 }
 
 func applyMaskedToPayload(payload map[string]any, span masking.TextSpan, maskedText string) {

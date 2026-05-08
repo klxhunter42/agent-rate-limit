@@ -33,20 +33,21 @@ type ProfileTarget struct {
 }
 
 type Profile struct {
-	Name            string          `json:"name"`
-	BaseURL         string          `json:"baseUrl"`
-	APIKey          string          `json:"apiKey"`
-	Model           string          `json:"model"`
-	OpusModel       string          `json:"opusModel,omitempty"`
-	SonnetModel     string          `json:"sonnetModel,omitempty"`
-	HaikuModel      string          `json:"haikuModel,omitempty"`
-	Target          string          `json:"target"`
-	Provider        string          `json:"provider,omitempty"`
-	AccountIDs      []string        `json:"accountIds"`
-	Targets         []ProfileTarget `json:"targets,omitempty"`
-	PassthroughAuth bool            `json:"passthroughAuth,omitempty"`
-	CreatedAt       string          `json:"createdAt"`
-	UpdatedAt       string          `json:"updatedAt"`
+	Name               string          `json:"name"`
+	BaseURL            string          `json:"baseUrl"`
+	APIKey             string          `json:"apiKey"`
+	Model              string          `json:"model"`
+	OpusModel          string          `json:"opusModel,omitempty"`
+	SonnetModel        string          `json:"sonnetModel,omitempty"`
+	HaikuModel         string          `json:"haikuModel,omitempty"`
+	Target             string          `json:"target"`
+	Provider           string          `json:"provider,omitempty"`
+	AccountIDs         []string        `json:"accountIds"`
+	Targets            []ProfileTarget `json:"targets,omitempty"`
+	PassthroughAuth    bool            `json:"passthroughAuth,omitempty"`
+	OptimizerOverrides map[string]bool `json:"optimizerOverrides,omitempty"`
+	CreatedAt          string          `json:"createdAt"`
+	UpdatedAt          string          `json:"updatedAt"`
 }
 
 // ProfileToken represents a named API token tied to a profile.
