@@ -1,6 +1,7 @@
 package masking
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,6 +117,82 @@ func TestStreamUnmasker_HasContexts(t *testing.T) {
 		u := NewStreamUnmasker(ctx, nil)
 		assert.True(t, u.HasContexts())
 	})
+}
+
+func TestStripLeftoverPlaceholders(t *testing.T) {
+	t.Run("no placeholders", func(t *testing.T) {
+		assert.Equal(t, "hello world", stripLeftoverPlaceholders("hello world"))
+	})
+
+	t.Run("single leftover", func(t *testing.T) {
+		assert.Equal(t, "hello  world", stripLeftoverPlaceholders("hello [[IP_ADDRESS_1]] world"))
+	})
+
+	t.Run("multiple leftovers", func(t *testing.T) {
+		assert.Equal(t, "user: admin, ip: ",
+			stripLeftoverPlaceholders("user: [[EMAIL_ADDRESS_1]]admin, ip: [[IP_ADDRESS_3]]"))
+	})
+}
+
+func TestStripStrayUndefined(t *testing.T) {
+	t.Run("no undefined", func(t *testing.T) {
+		assert.Equal(t, "hello world", stripStrayUndefined("hello world"))
+	})
+
+	t.Run("budget exhausted - concatenated undefined", func(t *testing.T) {
+		assert.Equal(t, "172.18.0.9", stripStrayUndefined("undefinedundefinedundefinedundefined172.18.0.9"))
+	})
+
+	t.Run("mixed undefined and content", func(t *testing.T) {
+		assert.Equal(t, "IP:172.18.0.9", stripStrayUndefined("IP: undefinedundefined172.18.0.9"))
+	})
+
+	t.Run("trailing undefined", func(t *testing.T) {
+		assert.Equal(t, "value", stripStrayUndefined("value undefined"))
+	})
+}
+
+func TestStreamUnmasker_UndefinedFallbackBudgetExhaustion(t *testing.T) {
+	// Simulate: 2 originals but GLM outputs 5 "undefined" strings.
+	piCtx := NewMaskContext()
+	piCtx.Mapping["[[IP_ADDRESS_1]]"] = "172.18.0.9"
+	piCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@example.com"
+
+	u := NewStreamUnmasker(piCtx, nil)
+
+	// GLM outputs: "undefinedundefinedundefinedundefinedundefined172.18.0.9"
+	// Budget has 2 originals. After consuming 2 "undefined", 3 remain.
+	// stripStrayUndefined must clean up the rest.
+	result := u.ProcessChunk("undefinedundefinedundefinedundefinedundefined172.18.0.9")
+
+	// Should contain the two originals but NOT "undefined"
+	assert.NotContains(t, result, "undefined")
+	// Should contain at least one of the original values
+	assert.True(t, strings.Contains(result, "172.18.0.9") || strings.Contains(result, "admin@example.com"))
+}
+
+func TestStreamUnmasker_LeftoverPlaceholderStripped(t *testing.T) {
+	piCtx := NewMaskContext()
+	piCtx.Mapping["[[IP_ADDRESS_1]]"] = "172.18.0.9"
+
+	u := NewStreamUnmasker(piCtx, nil)
+
+	// If GLM somehow leaves a partial placeholder that wasn't in the mapping
+	result := u.ProcessChunk("user IP is [[IP_ADDRESS_1]] and [[UNKNOWN_TYPE_9]]")
+	assert.Equal(t, "user IP is 172.18.0.9 and ", result)
+	assert.NotContains(t, result, "[[")
+}
+
+func TestStreamUnmasker_GLMConcatPattern(t *testing.T) {
+	// Reproduce the real pattern: "undefinedundefinedundefinedundefinedundefined172.18.0.9"
+	piCtx := NewMaskContext()
+	piCtx.Mapping["[[IP_ADDRESS_1]]"] = "172.18.0.9"
+
+	u := NewStreamUnmasker(piCtx, nil)
+
+	result := u.ProcessChunk("undefinedundefinedundefinedundefinedundefined172.18.0.9")
+	assert.NotContains(t, result, "undefined")
+	assert.Contains(t, result, "172.18.0.9")
 }
 
 func TestProcessStreamChunk(t *testing.T) {

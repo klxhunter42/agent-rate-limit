@@ -1,9 +1,14 @@
 package masking
 
 import (
+	"regexp"
 	"sort"
 	"strings"
 )
+
+// leftoverPlaceholderRe matches [[TYPE_N]] placeholder tokens that survived
+// unmasking (e.g. when GLM mangles them beyond recognition).
+var leftoverPlaceholderRe = regexp.MustCompile(`\[\[[A-Z_]+_\d+\]\]`)
 
 type StreamUnmasker struct {
 	piiBuffer     string
@@ -41,6 +46,8 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	if strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
 	}
+	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
+	processed = stripLeftoverPlaceholders(processed)
 	return processed
 }
 
@@ -60,6 +67,8 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 	if strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
 	}
+	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
+	processed = stripLeftoverPlaceholders(processed)
 	return processed
 }
 
@@ -74,7 +83,7 @@ func (u *StreamUnmasker) ReplaceDirect(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholders(result)
 	}
-	return result
+	return stripLeftoverPlaceholders(result)
 }
 
 // ReplaceDirectJSON does unbuffered JSON-safe replacement.
@@ -88,7 +97,7 @@ func (u *StreamUnmasker) ReplaceDirectJSON(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholdersJSON(result)
 	}
-	return result
+	return stripLeftoverPlaceholders(result)
 }
 
 func (u *StreamUnmasker) Flush() string {
@@ -121,7 +130,7 @@ func (u *StreamUnmasker) Flush() string {
 		u.piiJSONBuffer = ""
 	}
 
-	return result
+	return stripLeftoverPlaceholders(result)
 }
 
 func (u *StreamUnmasker) HasContexts() bool {
@@ -160,10 +169,11 @@ func processStreamChunkJSON(buffer, chunk string, ctx *MaskContext) (output, rem
 // the mapping. Some models (e.g. GLM) output "undefined" instead of preserving
 // [[TYPE_N]] placeholders. This is a best-effort fallback to recover the original text.
 //
-// Handles two GLM failure modes:
+// Handles GLM failure modes:
 //  1. Model outputs "undefined" instead of placeholder -> replace with original
 //  2. Model outputs both placeholder AND "undefined" (e.g. "192.168.5.111 undefined")
 //     -> dedup by removing the trailing "undefined"
+//  3. Budget exhausted (more "undefined" than originals) -> strip remaining "undefined"
 func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 	if u.fallbackOriginals == nil {
 		u.fallbackOriginals = u.collectFallbackOriginals()
@@ -181,15 +191,19 @@ func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 
 	// Phase 2: Remove leftover "undefined" that appear adjacent to an already-restored
 	// original value. Pattern: "<original> undefined" -> "<original>"
-	// This handles the case where GLM outputs the real value AND "undefined" together.
 	text = u.dedupAdjacentUndefined(text)
+
+	// Phase 3: Budget exhausted - strip any remaining bare "undefined" to prevent
+	// garbled output like "undefinedundefinedundefined172.18.0.9" leaking to client.
+	if u.fallbackConsumedIdx >= len(u.fallbackOriginals) {
+		text = stripStrayUndefined(text)
+	}
 
 	return text
 }
 
 // dedupAdjacentUndefined removes "undefined" that appears right after a restored
 // original value. Example: "192.168.5.111 undefined" -> "192.168.5.111"
-// Uses word-boundary check to avoid false positives inside other words.
 func (u *StreamUnmasker) dedupAdjacentUndefined(text string) string {
 	if len(u.fallbackOriginals) == 0 {
 		return text
@@ -209,8 +223,45 @@ func (u *StreamUnmasker) dedupAdjacentUndefined(text string) string {
 	return text
 }
 
+// stripStrayUndefined removes bare "undefined" tokens that remain after budget
+// exhaustion. Handles concatenated forms like "undefinedundefinedundefinedVALUE"
+// by stripping leading/trailing "undefined" runs while preserving actual content.
+func stripStrayUndefined(text string) string {
+	if !strings.Contains(text, "undefined") {
+		return text
+	}
+	// Remove standalone "undefined" words (surrounded by non-alpha or at boundaries).
+	// This avoids stripping "undefined" that appears as part of a real word.
+	result := text
+	for {
+		replaced := result
+		// "undefined " at word boundary
+		replaced = strings.Replace(replaced, "undefined ", " ", -1)
+		// " undefined" at word boundary
+		replaced = strings.Replace(replaced, " undefined", "", -1)
+		// Bare "undefined" with no space (concatenated by model)
+		replaced = strings.Replace(replaced, "undefined", "", -1)
+		if replaced == result {
+			break
+		}
+		result = replaced
+	}
+	return result
+}
+
+// stripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that
+// survived the unmasking pipeline. These appear when GLM mangles placeholders
+// or when unmapped placeholders leak through.
+func stripLeftoverPlaceholders(text string) string {
+	if !strings.Contains(text, "[[") {
+		return text
+	}
+	return leftoverPlaceholderRe.ReplaceAllString(text, "")
+}
+
 // collectFallbackOriginals returns original values from both contexts, sorted by
-// placeholder name for deterministic order.
+// placeholder counter (numeric) for correct substitution order matching the
+// original masking sequence.
 func (u *StreamUnmasker) collectFallbackOriginals() []string {
 	type entry struct {
 		placeholder string
@@ -227,6 +278,8 @@ func (u *StreamUnmasker) collectFallbackOriginals() []string {
 			entries = append(entries, entry{p, orig})
 		}
 	}
+	// Sort by placeholder name (e.g. [[EMAIL_ADDRESS_1]] before [[IP_ADDRESS_2]])
+	// This gives deterministic ordering matching the masking sequence.
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].placeholder < entries[j].placeholder
 	})

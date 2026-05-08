@@ -253,11 +253,6 @@
           "expr": "(sum(increase(api_gateway_upstream_429_total[$__range]))) or on() vector(0)",
           "legendFormat": "Gateway",
           "refId": "A"
-        },
-        {
-          "expr": "(sum(increase(api_gateway_upstream_429_total[$__range]))) or on() vector(0)",
-          "legendFormat": "Worker",
-          "refId": "B"
         }
       ],
       "fieldConfig": {

@@ -808,11 +808,6 @@
           "expr": "histogram_quantile(0.95, sum(rate(api_gateway_waste_scan_duration_seconds_bucket[$__interval])) by (le)) or on() vector(0)",
           "legendFormat": "waste_scan p95",
           "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_waste_scan_duration_seconds_bucket[$__interval])) by (le)) or on() vector(0)",
-          "legendFormat": "waste_scan p95",
-          "refId": "B"
         }
       ],
       "fieldConfig": {

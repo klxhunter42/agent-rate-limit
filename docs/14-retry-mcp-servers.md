@@ -102,9 +102,11 @@ Z.AI provides 4 MCP servers under the GLM Coding Plan. Three are remote (hosted 
 - **Endpoint**: `https://api.z.ai/api/mcp/web_reader/mcp`
 - **Auth**: Bearer token (Z.AI API key)
 - **Tool**: `webReader` - fetches complete webpage content (title, body, metadata, links)
-- **Status**: Working
+- **Transport**: MCP Streamable HTTP - server may respond with `text/event-stream` (SSE) or `application/json`
+- **Status**: Working (gateway normalizes SSE to JSON)
 - **Limitations**: Anti-scraping pages may return empty results
 - **Doc ref**: https://docs.z.ai/devpack/mcp/reader-mcp-server.md
+- **Gateway handling**: `extractSSEJSONRPC()` in [mcp.go](../api-gateway/proxy/mcp.go) parses SSE events and extracts the final JSON-RPC response. Gateway always returns `application/json` to the client.
 
 ### 2.4 Vision (`@z_ai/mcp-server`)
 
@@ -177,7 +179,54 @@ A web search discovers URLs. A web reader consumes URLs. You cannot replace a se
 
 ---
 
-## 3. Gateway Code References
+## 4. MCP Streamable HTTP / SSE Handling
+
+Z.AI MCP endpoints use the MCP Streamable HTTP transport. Responses may come as:
+- `Content-Type: application/json` - single JSON-RPC response
+- `Content-Type: text/event-stream` - SSE stream with multiple JSON-RPC events
+
+### 4.1 Problem (Pre-Fix)
+
+Gateway treated all upstream responses as raw JSON. When Z.AI returned SSE format:
+```
+event: message
+data: {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"..."}]}}
+
+```
+`json.Valid()` failed on the SSE framing (`event:`, `data:` prefixes), triggering retries that also failed. Client received `"JSON Parse error: Unexpected EOF"` from the raw SSE passthrough.
+
+### 4.2 Solution
+
+Gateway now:
+1. Sends `Accept: application/json, text/event-stream` header per MCP spec
+2. Detects `text/event-stream` Content-Type from upstream
+3. Calls `extractSSEJSONRPC()` to parse SSE events and extract the final JSON-RPC response (last `data:` line with an `id` field)
+4. Returns `application/json` to the client (SSE-to-JSON normalization)
+
+### 4.3 SSE Parsing Logic
+
+```
+extractSSEJSONRPC(sseBody):
+  scan each line
+  keep last "data: <json>" line
+  validate JSON
+  verify it has "id" field (JSON-RPC response)
+  return JSON bytes
+```
+
+Scanner buffer: 64KB initial, 10MB max (handles large webReader responses).
+
+### 4.4 Code References
+
+| Component | File | Function |
+|------------------------|-----------------------------------------------|--------------------------|
+| SSE detection | [proxy/mcp.go](../api-gateway/proxy/mcp.go) | `doUpstream()` line ~227 |
+| SSE parser | [proxy/mcp.go](../api-gateway/proxy/mcp.go) | `extractSSEJSONRPC()` |
+| SSE tests | [proxy/mcp_test.go](../api-gateway/proxy/mcp_test.go) | `TestMCPProxy_SSEResponse`, `TestMCPProxy_SSEMultipleEvents`, `TestExtractSSEJSONRPC` |
+
+---
+
+## 5. Gateway Code References
 
 | Component              | File                                                            | Key Lines                                                             |
 |------------------------|-----------------------------------------------------------------|-----------------------------------------------------------------------|
