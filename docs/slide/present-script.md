@@ -76,7 +76,7 @@ Algorithm การเลือก account ครับ
 
 Profile คือ named config ที่เก็บใน Redis ประกอบด้วย model, provider, account pool, และ base URL
 
-ระบบ token ทำงานแบบนี้ครับ - admin สร้าง profile เช่น team-a แล้ว generate profile token ออกมา ผู้ใช้เอา token นี้ไปใส่เป็น ANTHROPIC_API_KEY ใน Claude Code settings พอ request เข้ามา Gateway ดึง profile token แล้ว lookup ใน Redis เพื่อ override routing
+ระบบ token ทำงานแบบนี้ครับ - admin สร้าง profile เช่น team-a แล้ว generate profile token ออกมา ผู้ใช้เอา token นี้ไปใส่เป็น ANTHROPIC_AUTH_TOKEN ใน Claude Code settings พอ request เข้ามา Gateway ดึง profile token แล้ว lookup ใน Redis เพื่อ override routing
 
 Use case ที่ใช้จริงคือ แบ่งทีม - junior ใช้ Haiku, senior ใช้ Sonnet/Opus คุม cost ด้วยการกำหนด model ถูกลงตาม profile แยก provider ตามทีม หรือใช้ทดสอบเปรียบเทียบ provider โดยไม่ต้องแก้ config ที่ client
 
@@ -88,11 +88,13 @@ Use case ที่ใช้จริงคือ แบ่งทีม - junior 
 
 ขั้นตอนที่ 1 - Admin สร้าง profile ด้วย POST /v1/profiles แล้วสร้าง token ด้วย POST /v1/profiles/my-team/tokens จะได้ profile token กลับมา
 
-ขั้นตอนที่ 2 - แก้ไฟล์ settings.json ของ Claude Code ใส่ ANTHROPIC_BASE_URL ชี้ไปที่ gateway แล้วใส่ profile token เป็น ANTHROPIC_API_KEY พร้อม apiKeyHelper
+ขั้นตอนที่ 2 - แก้ไฟล์ settings.json ของ Claude Code ใส่ ANTHROPIC_BASE_URL ชี้ไปที่ gateway แล้วใส่ profile token เป็น ANTHROPIC_AUTH_TOKEN
 
 ขั้นตอนที่ 3 - รัน claude ปกติเลย ทั้ง interactive mode และ pipe mode ทุก request จะผ่าน gateway อัตโนมัติ
 
 เสร็จแล้วครับ ไม่ต้องแก้อะไรที่ client เพิ่มเติม
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 ---
 

@@ -3,7 +3,7 @@
 import json, subprocess, time, urllib.request, urllib.error
 
 GW = "http://localhost:8080"
-API_KEY = "REDACTED_KEY"
+API_KEY = os.environ.get("TEST_API_KEY", "")
 METRICS = "http://localhost:8080/metrics"
 
 def send(name, body):

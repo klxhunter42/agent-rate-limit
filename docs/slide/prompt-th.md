@@ -84,8 +84,10 @@ Profile = config ชื่อใน Redis ที่ override model, provider, ac
 
 ระบบ Token:
 - สร้าง profile "meow" (Haiku) -> ได้ token: `arl_meow_x7Kp9mNx...`
-- ใส่เป็น `ANTHROPIC_API_KEY` ใน Claude Code settings
+- ใส่เป็น `ANTHROPIC_AUTH_TOKEN` ใน Claude Code settings
 - Gateway ตรวจจับ prefix `arl_*` -> lookup Redis -> override routing
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 Use cases:
 - แบ่งทีม: junior ใช้ Haiku, senior ใช้ Sonnet/Opus
@@ -193,7 +195,7 @@ Fallback: อัตโนมัติสำหรับ API key providers, manua
 
 สามโหมดการตั้งค่า:
 1. Direct: ANTHROPIC_BASE_URL=http://localhost:8080, ANTHROPIC_AUTH_TOKEN=your-key
-2. Profile: ANTHROPIC_API_KEY=arl_meow_x7Kp9mNx... (route ตาม profile config)
+2. Profile: ANTHROPIC_AUTH_TOKEN=arl_meow_x7Kp9mNx.. (route à¸à¸²à¸¡ profile config)
 3. Docker: docker-compose พร้อม profile token, `claude --bare` สำหรับ interactive mode
 
 Compatibility matrix (ทั้งหมด PASS):

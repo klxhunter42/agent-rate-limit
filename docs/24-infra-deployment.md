@@ -332,9 +332,10 @@ All services use `json-file` log driver with rotation:
 2. Auto-provision token via `POST /v1/profiles/{PROFILE_NAME}/tokens`
 3. Configure `~/.claude/settings.json` with:
    - `ANTHROPIC_BASE_URL` pointing to arl-proxy:9000
-   - `ANTHROPIC_API_KEY` with provisioned token
-   - Optional: `ANTHROPIC_AUTH_TOKEN` for OAuth passthrough
- - `apiKeyHelper`: `"echo $ANTHROPIC_API_KEY"` (required for Claude Code interactive mode)
+   - `ANTHROPIC_AUTH_TOKEN` with provisioned token
+
+   > **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
+
    - Model and thinking settings from previous config
 4. Set `CLAUDE_CODE_SIMPLE=1` when no TTY attached
 5. Exec `claude` with arguments

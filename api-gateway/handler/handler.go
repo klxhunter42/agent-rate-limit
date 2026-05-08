@@ -499,9 +499,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					if p.APIKey != "" && hmac.Equal([]byte(authKey), []byte(p.APIKey)) {
 						profileName = xProfile
 						profileOverride = p
-					} else if p.APIKey == "" {
-						profileName = xProfile
-						profileOverride = p
 					} else {
 						slog.Warn("profile API key mismatch", "profile", xProfile, "remote", r.RemoteAddr)
 						writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid API key for profile: " + xProfile})

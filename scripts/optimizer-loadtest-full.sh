@@ -4,7 +4,7 @@
 
 set -e
 GATEWAY="http://localhost:8080"
-API_KEY="REDACTED_KEY"
+API_KEY="${TEST_API_KEY:?set TEST_API_KEY}"
 METRICS_URL="http://localhost:8080/metrics"
 
 send() {

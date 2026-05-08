@@ -1442,10 +1442,12 @@ gateway -> OTel Collector -> Prometheus -> Grafana
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://gateway:8080",
-    "ANTHROPIC_API_KEY": "<profile-token>"
+    "ANTHROPIC_AUTH_TOKEN": "<profile-token>"
   }
 }
 ```
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 <br>
 

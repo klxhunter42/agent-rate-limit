@@ -5005,7 +5005,7 @@ Turn 20: Post-proxy feedback
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Claude Code CLI / IDE                         │
 │              ANTHROPIC_BASE_URL=http://gateway:9000                  │
-│              ANTHROPIC_API_KEY=arl_<profile-token>                   │
+│              ANTHROPIC_AUTH_TOKEN=arl_<profile-token>                   │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ HTTP POST /v1/messages
                                ▼
@@ -5062,7 +5062,7 @@ Engineer -> Claude Code CLI -> gateway:9000 -> claude-oauth -> api.anthropic.com
 {
   "env": {
     "ANTHROPIC_BASE_URL": "http://gateway:9000",
-    "ANTHROPIC_API_KEY": "arl_2f3a72a7..."
+    "ANTHROPIC_AUTH_TOKEN": "arl_2f3a72a7..."
   }
 }
 ```

@@ -601,8 +601,8 @@ Path A: CLI ตัวจริง (Direct)
   CLI inject billing header เองใน client code
   → Bearer + billing header → 200
 
-Path B: CLI ผ่าน Gateway (apiKeyHelper)
-  CLI → apiKeyHelper → ส่ง Bearer token ตรง
+Path B: CLI ผ่าน Gateway (ANTHROPIC_AUTH_TOKEN)
+ CLI → ANTHROPIC_AUTH_TOKEN → ส่ง Bearer token ตรง
   Gateway → transparent=true → forward headers เดิม (มี billing header จาก CLI)
   Sidecar → inject billing header (ซ้ำ? skip เพราะ detect ว่ามีอยู่แล้ว)
   → 200

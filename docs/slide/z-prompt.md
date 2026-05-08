@@ -91,8 +91,10 @@ Profile = named config in Redis: model, provider, account pool, base URL
 
 Token system:
 - Create profile "team-a" -> Generate profile token
-- Use as ANTHROPIC_API_KEY in Claude Code settings
-- Gateway intercepts profile token -> lookup Redis -> override routing
+- Use as `ANTHROPIC_AUTH_TOKEN` in Claude Code settings
+- Gateway intercepts `arl_*` prefix -> lookup Redis -> override routing
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 Use cases:
 - Team segmentation: juniors on Haiku, seniors on Sonnet/Opus
@@ -112,10 +114,11 @@ Step 2 - Edit ~/.claude/settings.json:
   {
     "env": {
       "ANTHROPIC_BASE_URL": "http://gateway:8080",
-      "ANTHROPIC_API_KEY": "<profile_token>"
-    },
-    "apiKeyHelper": "echo $ANTHROPIC_API_KEY"
+      "ANTHROPIC_AUTH_TOKEN": "<profile_token>"
+ }
   }
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 Step 3 - Run:
   claude          # Interactive mode
@@ -195,7 +198,7 @@ Fallback chain:
 
 ### Slide 13: Claude Code Compatibility
 ```
-Setup: ANTHROPIC_BASE_URL=gateway + ANTHROPIC_API_KEY=profile_token
+Setup: ANTHROPIC_BASE_URL=gateway + ANTHROPIC_AUTH_TOKEN=profile_token
 
 Compatibility (all PASS):
 Read/Edit/Bash/Write, Streaming, Extended thinking, Image/Vision, MCP Servers, Multi-turn, Skills, Memory, NotebookEdit, TodoRead/TodoWrite

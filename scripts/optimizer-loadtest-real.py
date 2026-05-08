@@ -7,7 +7,7 @@ Captures DEBUG logs to show before/after per optimization stage.
 import json, time, urllib.request, urllib.error, subprocess, sys, os, re
 
 GW = "http://localhost:8080"
-KEY = "REDACTED_KEY"
+KEY = os.environ.get("TEST_API_KEY", "")
 LOG_FILE = "/tmp/gateway-debug.log"
 
 def send(name, model, body):

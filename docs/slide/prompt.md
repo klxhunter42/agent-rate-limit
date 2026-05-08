@@ -84,8 +84,10 @@ Profile = named config in Redis overriding model, provider, account pool, base U
 
 Token system:
 - Create profile "meow" (Haiku) -> Generate `arl_meow_x7Kp9mNx...`
-- Use as `ANTHROPIC_API_KEY` in Claude Code settings
+- Use as `ANTHROPIC_AUTH_TOKEN` in Claude Code settings
 - Gateway intercepts `arl_*` prefix -> lookup Redis -> override routing
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 Use cases:
 - Team segmentation: juniors on Haiku, seniors on Sonnet/Opus
@@ -193,7 +195,7 @@ Per-provider handling table:
 
 Three setup modes:
 1. Direct: ANTHROPIC_BASE_URL=http://localhost:8080, ANTHROPIC_AUTH_TOKEN=your-key
-2. Profile: ANTHROPIC_API_KEY=arl_meow_x7Kp9mNx... (routes to profile config)
+2. Profile: ANTHROPIC_AUTH_TOKEN=arl_meow_x7Kp9mNx.. (routes to profile config)
 3. Docker: docker-compose with profile token, `claude --bare` for interactive mode
 
 Compatibility matrix (all PASS):

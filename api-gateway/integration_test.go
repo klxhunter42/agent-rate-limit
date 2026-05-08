@@ -24,7 +24,7 @@ import (
 const (
 	gatewayURL  = "http://localhost:8080"
 	grafanaURL  = "http://localhost:3000"
-	testAPIKey  = "REDACTED_KEY"
+	testAPIKey  = os.Getenv("TEST_API_KEY")
 	grafanaUser = "admin"
 	grafanaPass = "klxhunter"
 )

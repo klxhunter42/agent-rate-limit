@@ -177,23 +177,24 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 ```json
 // ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:8080",
-    "ANTHROPIC_API_KEY": "arl_your-profile-token"
+    "ANTHROPIC_AUTH_TOKEN": "arl_your-profile-token"
   }
 }
 ```
 
 - Create profile token at Dashboard > Profiles (`http://localhost:9000/`)
-- `apiKeyHelper` is required for Claude Code interactive mode (without it, shows "Not logged in")
 - `arl_*` prefix triggers profile-based routing
 - Real-time SSE streaming
 - Tool loop works like direct API
 - Per-key rate limit: `AGENT_RATE_LIMIT=5` (5 req/min per key)
 - No need to set `GLM_API_KEYS` in `.env` (key comes from client)
 
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
+
 ### Async Mode -- For Batch Agents
+
 
 ```bash
 # Send job

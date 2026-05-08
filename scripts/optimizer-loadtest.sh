@@ -3,7 +3,7 @@
 # Sends varied requests and captures per-technique savings from Prometheus metrics
 
 GATEWAY="http://localhost:8080"
-API_KEY="REDACTED_KEY"
+API_KEY="${TEST_API_KEY:?set TEST_API_KEY}"
 METRICS_URL="http://localhost:9090/metrics"
 
 echo "=== Optimizer Load Test ==="

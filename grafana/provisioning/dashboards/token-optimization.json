@@ -491,7 +491,7 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(topk(10, sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range]))))",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
           "legendFormat": "{{technique}}",
           "refId": "A"
         }
@@ -503,6 +503,7 @@
               "mode": "normal"
             },
             "fillOpacity": 30,
+            "gradientMode": "scheme",
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,

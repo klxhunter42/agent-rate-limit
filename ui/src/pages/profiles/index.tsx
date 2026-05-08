@@ -1231,6 +1231,7 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
           </div>
         )}
         <div className="mt-3 border-t pt-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Key className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs font-medium">API Keys</span>
@@ -1241,6 +1242,7 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
             <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setShowNewKey(true)}>
               <Plus className="h-3 w-3 mr-1" /> New Key
             </Button>
+          </div>
 
           {showNewKey && (
             <div className="mb-2 p-3 rounded-md border bg-muted/30 space-y-2">

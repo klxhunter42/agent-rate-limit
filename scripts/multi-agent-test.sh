@@ -11,7 +11,7 @@ set -euo pipefail
 
 API_URL="http://localhost:8080/v1/chat/completions"
 RESULT_URL="http://localhost:8080/v1/result"
-API_KEY="${GLM_API_KEY:-REDACTED_KEY}"
+API_KEY="${GLM_API_KEY:-${TEST_API_KEY}}"
 MODEL="${TEST_MODEL:-glm-5}"
 
 # Colors

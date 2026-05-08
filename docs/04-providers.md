@@ -185,7 +185,7 @@ System that enables Claude Code CLI to use Sonnet/Opus through the gateway. The 
 │(Remote: 192.168.5.62)                                            │
 │                                                                  │
 │ANTHROPIC_BASE_URL=http://192.168.5.62:9000                       │
-│ANTHROPIC_API_KEY=arl_2f3a72a7...                                 │
+│ANTHROPIC_AUTH_TOKEN=arl_2f3a72a7...                                 │
 │                                                                  │
 │POST /v1/messages                                                 │
 │Headers: x-api-key: arl_2f3a72a7...                               │
@@ -429,18 +429,19 @@ curl -X POST http://192.168.5.62:9000/v1/profiles \
 # 4. Configure CLI on remote machine
 # Option A: Environment variables
 export ANTHROPIC_BASE_URL=http://192.168.5.62:9000
-export ANTHROPIC_API_KEY=arl_2f3a72a7eb07b4c43ffe87d8c19776eecf62c4c64e30285eee0796198bc91be1
+export ANTHROPIC_AUTH_TOKEN=arl_2f3a72a7eb07b4c43ffe87d8c19776eecf62c4c64e30285eee0796198bc91be1
 claude
 
 # Option B: settings.json
 # ~/.claude/settings.json
 {
- "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://192.168.5.62:9000",
-    "ANTHROPIC_API_KEY": "arl_2f3a72a7..."
+    "ANTHROPIC_AUTH_TOKEN": "arl_2f3a72a7..."
   }
 }
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 # 5. Test
 claude -p "Say hello" --model claude-sonnet-4-20250514

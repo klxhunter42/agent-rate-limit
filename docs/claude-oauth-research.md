@@ -192,9 +192,10 @@ body:       JSON สำหรับ claude-oauth, form-urlencoded สำหร�
 
 ## Auth Sources (Claude Code CLI priority)
 
-1. `ANTHROPIC_API_KEY` env var
-2. `apiKeyHelper` script (settings.json)
-3. `ANTHROPIC_AUTH_TOKEN` env var
-4. `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`
-5. OAuth token จาก macOS Keychain (`Claude Code-credentials`)
-6. `CCR_OAUTH_TOKEN_FILE`
+1. `ANTHROPIC_AUTH_TOKEN` env var
+2. `apiKeyHelper` script (settings.json) -- legacy, prefer `ANTHROPIC_AUTH_TOKEN`
+3. `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`
+4. OAuth token จาก macOS Keychain (`Claude Code-credentials`)
+5. `CCR_OAUTH_TOKEN_FILE`
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.

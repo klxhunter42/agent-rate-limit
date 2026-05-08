@@ -226,16 +226,17 @@ curl -X POST http://localhost:8080/v1/messages \
   -H "Content-Type: application/json" \
   -d '{"model":"claude-sonnet-4-20250514","max_tokens":100,"messages":[...]}'
 
-# Use with Claude Code (apiKeyHelper)
+# Use with Claude Code
 # ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
     "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_API_KEY": "arl_your-profile-token"
+    "ANTHROPIC_AUTH_TOKEN": "arl_your-profile-token"
   }
 }
 ```
+
+> **Note:** `apiKeyHelper` + `ANTHROPIC_API_KEY` is the legacy method. Use `ANTHROPIC_AUTH_TOKEN` instead.
 
 ---
 
