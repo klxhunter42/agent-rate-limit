@@ -109,7 +109,7 @@ func (c *WSClient) readPump() {
 		c.hub.Unregister(c)
 		c.conn.Close()
 	}()
-	c.conn.SetReadLimit(512)
+	c.conn.SetReadLimit(65536)
 	c.conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(wsPongWait))

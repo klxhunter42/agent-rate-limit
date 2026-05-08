@@ -45,7 +45,7 @@ func NewRateLimiter(cfg *config.Config, m *metrics.Metrics) *RateLimiter {
 		cfg:     cfg,
 		metrics: m,
 		client: &http.Client{
-			Timeout: 2 * time.Second,
+			Timeout: 5 * time.Second,
 		},
 		checkURL: cfg.RateLimiterCheckURL(),
 	}
@@ -116,7 +116,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
 		isAnthropic := strings.HasPrefix(r.URL.Path, "/v1/messages")

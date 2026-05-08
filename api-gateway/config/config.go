@@ -198,7 +198,7 @@ func Load() *Config {
 		DefaultModel:       envOr("DEFAULT_MODEL", "glm-5"),
 		DefaultProvider:    envOr("DEFAULT_PROVIDER", "glm"),
 		DefaultTemperature: envFloatOr("DEFAULT_TEMPERATURE", 0.7),
-		DefaultMaxTokens:   envIntOr("DEFAULT_MAX_TOKENS", 1024),
+		DefaultMaxTokens:   envIntOr("DEFAULT_MAX_TOKENS", 8192),
 
 		// Gemini endpoints.
 		GeminiCodeAssistEndpoint: envOr("GEMINI_CODEASSIST_ENDPOINT", "https://cloudcode-pa.googleapis.com/v1internal"),
@@ -227,7 +227,7 @@ func Load() *Config {
 		// MCP proxy (GLM mode only).
 		MCPEnabled:         envBoolOr("MCP_ENABLED", true),
 		MCPCacheTTL:        envDurationOr("MCP_CACHE_TTL", 1*time.Hour),
-		MCPMaxRetries:      envIntOr("MCP_MAX_RETRIES", 2),
+		MCPMaxRetries:      envIntOr("MCP_MAX_RETRIES", 5),
 		MCPRateLimitPerMin: envIntOr("MCP_RATE_LIMIT_PER_MIN", 30),
 
 		// Vision pre-analysis (MCP-style direct API call).

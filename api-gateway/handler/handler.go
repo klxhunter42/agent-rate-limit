@@ -1728,7 +1728,7 @@ func validateChatRequest(req *ChatRequest) string {
 		return "messages must be non-empty"
 	}
 	if req.MaxTokens <= 0 {
-		req.MaxTokens = 1024
+		req.MaxTokens = 8192
 	}
 	if req.Temperature <= 0 {
 		req.Temperature = 0.7
@@ -1992,7 +1992,7 @@ func ApplyMaxTokensOverrides(overrides map[string]int) {
 	}
 }
 
-const fallbackMaxTokens = 4096
+const fallbackMaxTokens = 16384
 
 // unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
 var unsupportedTopLevelFields = []string{
