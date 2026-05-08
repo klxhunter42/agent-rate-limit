@@ -300,7 +300,176 @@ Client                          Gateway                        Upstream
 
 ---
 
-## 6. GLM_MODE=true vs false Comparison
+## 6. Profile with Mixed Provider Accounts
+
+When a profile has account pools from multiple providers (e.g. zai + kimi),
+routing and account selection are two separate lookups that can mismatch.
+
+### Profile Setup
+
+```
+Profile: shared-team
+  targets:
+    - target: zai,   accountIDs: [zai-acc-1, zai-acc-2]
+    - target: kimi,  accountIDs: [kimi-acc-1, kimi-acc-2]
+
+Redis token store:
+  zai/zai-acc-1   -> token_abc
+  zai/zai-acc-2   -> token_def
+  kimi/kimi-acc-1 -> token_ghi
+  kimi/kimi-acc-2 -> token_jkl
+```
+
+### How effectiveProviderID is determined
+
+`effectiveProviderID` comes from the **profile config**, not from the resolver.
+It determines which account pool is used for token selection.
+
+```
+effectiveProviderID = profile.Provider
+if empty → profile.Target        (primary target)
+
+accountIDs = targets[effectiveProviderID].AccountIDs
+if empty → profile.AccountIDs    (top-level fallback)
+```
+
+Source: `handler/handler.go` lines 576-592
+
+### 6A. Model matches profile target (happy path)
+
+```
+REQUEST: model=glm-5.1  profile=shared-team (target=zai)
+         │
+         ▼
+  Resolver: "glm-" → zai
+  decision.providerID = "zai"
+         │
+         ▼
+  Profile: effectiveProviderID = "zai" (from profile.Target)
+           targets[zai].accountIDs = [zai-acc-1, zai-acc-2]
+         │
+         ▼
+  GetFromPool("zai", [zai-acc-1, zai-acc-2])
+    → picks zai-acc-1 (round-robin, low utilization)
+    → apiKey = token_abc
+         │
+         ▼
+  Upstream: Z.AI  +  Auth: zai token     ← MATCH ✅
+```
+
+### 6B. Different model, different provider
+
+```
+REQUEST: model=kimi-latest  profile=shared-team (target=zai)
+         │
+         ▼
+  Resolver: "kimi-" → kimi
+  decision.providerID = "kimi"
+         │
+         ▼
+  Profile: effectiveProviderID = "zai" (from profile.Target)
+           targets[zai].accountIDs = [zai-acc-1, zai-acc-2]
+         │
+         ▼
+  GetFromPool("zai", [zai-acc-1, zai-acc-2])
+    → picks zai-acc-1
+    → apiKey = token_abc
+         │
+         ▼
+  Upstream: Kimi  +  Auth: zai token     ← MISMATCH ❌
+  (sends zai token to Kimi API - will fail)
+```
+
+### 6C. Claude model with no Anthropic account (GLM_MODE=true)
+
+```
+REQUEST: model=claude-opus-4-7  profile=shared-team (target=zai)
+         │
+         ▼
+  Resolver: "claude-"
+    claude-oauth → no stored token → nil
+    anthropic   → no stored token → nil
+    GLM fallback → zai
+  decision.providerID = "zai"
+         │
+         ▼
+  Profile: effectiveProviderID = "zai" (from profile.Target)
+           targets[zai].accountIDs = [zai-acc-1, zai-acc-2]
+         │
+         ▼
+  GetFromPool("zai", [zai-acc-1, zai-acc-2])
+    → picks zai-acc-1
+    → apiKey = token_abc
+         │
+         ▼
+  Upstream: Z.AI  +  Auth: zai token  ← route matches
+  but model=claude-opus-4-7 → Z.AI may reject if unsupported
+```
+
+### 6D. No account matches at all
+
+```
+REQUEST: model=claude-opus-4-7  profile=shared-team (target=kimi)
+  (no claude-oauth, no anthropic tokens stored)
+         │
+         ▼
+  Resolver: GLM fallback → zai
+         │
+         ▼
+  Profile: effectiveProviderID = "kimi" (from profile.Target)
+           targets[kimi].accountIDs = [kimi-acc-1, kimi-acc-2]
+         │
+         ▼
+  GetFromPool("kimi", [kimi-acc-1, kimi-acc-2])
+    → picks kimi-acc-1
+    → apiKey = token_ghi
+         │
+         ▼
+  Upstream: Z.AI  +  Auth: kimi token   ← MISMATCH ❌
+  (sends kimi token to Z.AI - Z.AI rejects unknown key)
+```
+
+### Termination: when no upstream can handle the model
+
+```
+Profile has no claude/anthropic accounts
+No stored tokens for claude-oauth or anthropic
+GLM fallback sends to Z.AI
+Z.AI does not support claude-* models
+         │
+         ▼
+  ┌──────────────────────────────┐
+  │  Z.AI                        │
+  │  "claude-opus-4-7?"          │
+  │  ❌ 400/404 model not found  │
+  └──────────────┬───────────────┘
+                 │
+                 ▼
+  Gateway returns upstream error to client
+  No retry / no further fallback
+  END
+```
+
+Three possible termination states:
+
+```
+┌──────────────────────────────────┬──────────────────────────────────────┐
+│  Condition                       │  Result                              │
+├──────────────────────────────────┼──────────────────────────────────────┤
+│  Profile has no accounts at all  │  Gateway returns 403                 │
+│  for resolved provider           │  "profile has no accounts selected"  │
+├──────────────────────────────────┼──────────────────────────────────────┤
+│  Upstream does not support model │  Upstream error (400/404) returned   │
+│  (e.g. claude-* on Z.AI)        │  to client as-is                     │
+├──────────────────────────────────┼──────────────────────────────────────┤
+│  Auth key mismatch (wrong pool)  │  Upstream auth error (401/403)       │
+│  (e.g. kimi token sent to Z.AI) │  returned to client as-is            │
+└──────────────────────────────────┴──────────────────────────────────────┘
+```
+
+---
+
+## 7. GLM_MODE=true vs false Comparison
 
 ```
 ┌───────────────────────┬──────────────────────┬──────────────────────┐

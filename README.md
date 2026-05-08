@@ -227,6 +227,66 @@ That's it. Claude Code works as-is -- tools, streaming, multi-turn conversations
 
 <br/>
 
+## GLM Mode
+
+The gateway operates in two modes via `GLM_MODE` env var (default: `true`).
+
+### GLM_MODE=true (default)
+
+Z.AI-first proxy. No provider registration needed. Send any model, gateway routes it.
+
+```
+Client                   Gateway                        Upstream
+  │                        │                               │
+  │  model: glm-5.1        │                               │
+  │───────────────────────►│  "glm-" → zai ──────────────►│ Z.AI ✅
+  │                        │                               │
+  │  model: claude-opus... │                               │
+  │───────────────────────►│  "claude-" → no token stored  │
+  │                        │  → fallback to zai ─────────►│ Z.AI ✅
+  │                        │                               │
+  │  model: unknown-model  │                               │
+  │───────────────────────►│  no rule match               │
+  │                        │  → fallback to zai ─────────►│ Z.AI ✅
+```
+
+- No profile required (ZAI_API_KEYS pool as fallback)
+- GLM models shown in `/v1/models`
+- MCP proxy endpoints active
+- All models fall back to Z.AI when no provider token stored
+
+### GLM_MODE=false
+
+Pure multi-provider proxy. Each provider needs its own credentials.
+
+```
+Client                   Gateway                        Upstream
+  │                        │                               │
+  │  model: claude-opus... │                               │
+  │───────────────────────►│  "claude-" → claude-oauth     │
+  │                        │  no stored token → nil        │
+  │                        │  ❌ 401 rejected              │
+  │                        │  (no fallback)                │
+```
+
+- Profile required (401 if no valid profile)
+- GLM models hidden from `/v1/models`
+- Each model must have a valid stored token or valid client credential
+- No Z.AI safety net
+
+### Quick Comparison
+
+| | GLM_MODE=true | GLM_MODE=false |
+|---|---|---|
+| Profile required | No | Yes |
+| Unknown model | Falls back to Z.AI | 401 |
+| No stored token | Falls back to Z.AI | 401 |
+| Profiles still work | Yes (takes priority) | Yes (required) |
+
+> See [docs/routing-and-auth.md](docs/routing-and-auth.md) for detailed routing diagrams and auth resolution chain.
+
+<br/>
+
 ## Supported Providers
 
 | Provider     | Format    | Auth    | Models                                             |
