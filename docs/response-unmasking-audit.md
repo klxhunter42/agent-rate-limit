@@ -152,3 +152,33 @@ This is especially impactful because Claude Code (claude-sonnet-4-6) makes heavy
 - `api-gateway/privacy/masking/stream_undefined_weird_test.go` - 30+ weird cases
 - `api-gateway/privacy/masking/stream_fuzz_test.go` - 1700 parametric fuzz tests
 - `api-gateway/privacy/masking/stream_unique_fuzz_test.go` - 99 unique + 900 random tests
+
+### 8. [HIGH] Garbled "undefined" leaks when masking is inactive
+
+**Files:** `api-gateway/privacy/masking/stream.go`, `api-gateway/proxy/anthropic.go`
+
+**Problem:** Bug #7's fix (3-phase undefined fallback) only runs when privacy masking is active (`HasSecrets || HasPII`). When no PII/secrets detected, unmasker is nil, and GLM's garbled `undefinedundefined...` passes straight to client.
+
+**Fix:** Added `SanitizeGarbledOutput(text string) string` -- a masking-independent final guard:
+- Regex `(?:undefined[\s]*){2,}` matches 2+ consecutive "undefined"
+- Single "undefined" preserved (code: `typeof x === "undefined"`)
+- Wired into all 4 response write points (stream + non-stream, both ProxyTransparent and ProxySidecar)
+
+**Response path coverage:**
+
+| Response path | File | Integration point |
+|---|---|---|
+| ProxyTransparent stream | `relayStreamWithTracking` | After unmasker (or standalone if unmasker is nil) on text/thinking deltas |
+| ProxyTransparent non-stream | `handleNonStreamResponse` | Before JSON validation |
+| ProxySidecar stream | Scanner loop | When unmasker is nil, content_block_delta events |
+| ProxySidecar non-stream | Before `w.Write(respBody)` | Before final write |
+
+**Behavior examples:**
+
+| Input | Output |
+|---|---|
+| `undefinedundefinedundefined` | `` (stripped) |
+| `http://undefinedundefined192.168.5.111` | `http://192.168.5.111` |
+| `undefined undefined undefined` | `` (stripped) |
+| `typeof x === "undefined"` | `typeof x === "undefined"` (single, preserved) |
+| `if (x === undefined && y === undefined)` | `if (x === undefined && y === undefined)` (non-consecutive, preserved) |

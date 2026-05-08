@@ -2,6 +2,61 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-09] Masking-Independent "undefined" Guard + GLM Mode Routing Fix
+
+### เพิ่ม: SanitizeGarbledOutput -- final undefined guard (independent of masking)
+
+GLM models output garbled repeated `undefinedundefined...` in responses. Existing guards only run when privacy masking is active (`HasSecrets || HasPII`). When no masking occurs, garbled output leaks to the client unchanged.
+
+**Fix:**
+
+Added `SanitizeGarbledOutput(text string) string` in `privacy/masking/stream.go`:
+- Regex `(?:undefined[\s]*){2,}` matches 2+ consecutive "undefined" (with optional whitespace)
+- Single "undefined" (e.g. `typeof x === "undefined"`) is preserved
+- Runs at 4 response write points, regardless of masking state
+
+**Response paths covered:**
+
+| Path | Location |
+|---|---|
+| ProxyTransparent stream | `relayStreamWithTracking` -- text/thinking deltas always sanitized |
+| ProxyTransparent non-stream | `handleNonStreamResponse` -- body sanitized before JSON validation |
+| ProxySidecar stream | Scanner loop -- content_block_delta sanitized when unmasker is nil |
+| ProxySidecar non-stream | `w.Write(respBody)` -- body sanitized before write |
+
+**Files:** `api-gateway/privacy/masking/stream.go`, `api-gateway/proxy/anthropic.go`
+
+---
+
+### แก้ไข: GLM_MODE=true Z.AI fallback for all models
+
+Resolver previously only fell back to Z.AI when the model's provider list included "zai". Now in GLM mode, ANY model without stored credentials falls back to Z.AI, not just `glm-*`.
+
+**Before:**
+```
+claude-sonnet request -> no Anthropic token -> nil -> 401 rejected
+```
+
+**After (GLM_MODE=true):**
+```
+claude-sonnet request -> no Anthropic token -> Z.AI fallback -> 200 OK
+```
+
+**File:** `api-gateway/provider/resolver.go` -- `Resolve()` GLM fallback block
+
+---
+
+### เพิ่ม: GLM Mode documentation
+
+Added GLM Mode section to README.md with:
+- Diagrams for GLM_MODE=true (Z.AI fallback) and GLM_MODE=false (strict routing)
+- Quick comparison table (profile required, unknown model behavior, fallback behavior)
+- Link to detailed routing-and-auth.md
+
+**Files:** `README.md`, `docs/routing-and-auth.md`
+
+---
+
 ## [2026-05-08] GLM "undefined" Streaming Fix + server_tool_use Filtering Removed
 
 ### แก้ไข: GLM "undefined" leaking in streaming responses (Critical)

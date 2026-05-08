@@ -42,6 +42,8 @@ var (
 	// htmlDetailTagRe converts GLM <details><summary> HTML to markdown.
 	htmlDetailTagRe  = regexp.MustCompile(`</?details[^>]*>`)
 	htmlSummaryTagRe = regexp.MustCompile(`<summary>(.*?)</summary>`)
+
+	thaiCharRe = regexp.MustCompile(`[\x{0E00}-\x{0E7F}]`)
 )
 
 // toolUseStripper buffers streaming text and strips XML blocks
@@ -79,6 +81,10 @@ func hasOpenTag(s string) bool {
 }
 
 func (s *toolUseStripper) Feed(text string) string {
+	// Fast path: skip regex entirely when no '<' and buffer is empty
+	if s.buf.Len() == 0 && !strings.Contains(text, "<") {
+		return text
+	}
 	s.buf.WriteString(text)
 	content := s.buf.String()
 
@@ -383,7 +389,7 @@ func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode s
 	}
 
 	// Detect Thai in user messages and append language hint.
-	thaiRe := regexp.MustCompile(`[\x{0E00}-\x{0E7F}]`)
+	thaiRe := thaiCharRe
 	hasThai := false
 	for _, m := range messages {
 		if m["role"] != "user" {
@@ -1748,6 +1754,44 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 				}
 			}
 
+			// Sanitize garbled "undefined" in content_block_delta when unmasker is inactive.
+			if unmasker == nil && strings.HasPrefix(line, "data: ") {
+				data := line[6:]
+				if strings.Contains(data, `"content_block_delta"`) {
+					var evt struct {
+						Type  string `json:"type"`
+						Index int    `json:"index"`
+						Delta struct {
+							Type     string `json:"type"`
+							Text     string `json:"text,omitempty"`
+							Thinking string `json:"thinking,omitempty"`
+						} `json:"delta"`
+					}
+					if json.Unmarshal([]byte(data), &evt) == nil {
+						var sanitized bool
+						if evt.Delta.Text != "" {
+							clean := masking.SanitizeGarbledOutput(evt.Delta.Text)
+							if clean != evt.Delta.Text {
+								evt.Delta.Text = clean
+								sanitized = true
+							}
+						}
+						if evt.Delta.Thinking != "" {
+							clean := masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+							if clean != evt.Delta.Thinking {
+								evt.Delta.Thinking = clean
+								sanitized = true
+							}
+						}
+						if sanitized {
+							if newData, err := json.Marshal(evt); err == nil {
+								line = "data: " + string(newData)
+							}
+						}
+					}
+				}
+			}
+
 			fmt.Fprintln(w, line)
 
 			if flusher != nil {
@@ -1790,6 +1834,8 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		}
 	}
 
+	// Final guard: strip repeated "undefined" from garbled GLM output.
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.Write(respBody)
 	return nil
 }
@@ -1915,6 +1961,8 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 			}
 		}
 	}
+	// Final guard: strip repeated "undefined" from garbled GLM output.
+	body = []byte(masking.SanitizeGarbledOutput(string(body)))
 	// Validate JSON before writing to client. If upstream sent truncated JSON
 	// (e.g. connection reset mid-body), wrap it in a valid error response so
 	// the client gets parseable JSON instead of "Unexpected EOF".
@@ -1991,51 +2039,53 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		}
 		data := line[6:]
 
-		// Unmask placeholders in SSE data lines.
-		// content_block_delta must always be processed when unmasker is active
-		// because a [[PERSON_N]] placeholder can be split across chunks --
-		// the second chunk won't contain "[[" so a naive guard would skip it,
-		// leaving the buffer stuck and the raw placeholder leaking to the client.
-		if unmasker != nil {
-			if strings.Contains(data, `"content_block_delta"`) {
-				var evt struct {
-					Type  string `json:"type"`
-					Index int    `json:"index"`
-					Delta struct {
-						Type        string `json:"type"`
-						Text        string `json:"text,omitempty"`
-						Thinking    string `json:"thinking,omitempty"`
-						PartialJSON string `json:"partial_json,omitempty"`
-					} `json:"delta"`
-				}
-				if json.Unmarshal([]byte(data), &evt) == nil {
-					var changed bool
-					if evt.Delta.Text != "" {
-						before := evt.Delta.Text
+		// Unmask placeholders and sanitize garbled output in SSE data lines.
+		// SanitizeGarbledOutput runs even without unmasker to catch repeated
+		// "undefined" from GLM models regardless of masking state.
+		if strings.Contains(data, `"content_block_delta"`) {
+			var evt struct {
+				Type  string `json:"type"`
+				Index int    `json:"index"`
+				Delta struct {
+					Type        string `json:"type"`
+					Text        string `json:"text,omitempty"`
+					Thinking    string `json:"thinking,omitempty"`
+					PartialJSON string `json:"partial_json,omitempty"`
+				} `json:"delta"`
+			}
+			if json.Unmarshal([]byte(data), &evt) == nil {
+				var changed bool
+				if evt.Delta.Text != "" {
+					before := evt.Delta.Text
+					if unmasker != nil {
 						evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
-						changed = evt.Delta.Text != before
-					} else if evt.Delta.Thinking != "" {
-						before := evt.Delta.Thinking
+					}
+					evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
+					changed = evt.Delta.Text != before
+				} else if evt.Delta.Thinking != "" {
+					before := evt.Delta.Thinking
+					if unmasker != nil {
 						evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
-						changed = evt.Delta.Thinking != before
-					} else if evt.Delta.PartialJSON != "" {
-						before := evt.Delta.PartialJSON
-						evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
-						changed = evt.Delta.PartialJSON != before
 					}
-					if changed {
-						unmaskHits++
-						if newData, err := json.Marshal(evt); err == nil {
-							line = "data: " + string(newData)
-						}
-					}
+					evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+					changed = evt.Delta.Thinking != before
+				} else if evt.Delta.PartialJSON != "" && unmasker != nil {
+					before := evt.Delta.PartialJSON
+					evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
+					changed = evt.Delta.PartialJSON != before
 				}
-			} else if strings.Contains(data, "[[") {
-				unmasked := unmasker.ReplaceDirectJSON(data)
-				if unmasked != data {
+				if changed {
 					unmaskHits++
-					line = "data: " + unmasked
+					if newData, err := json.Marshal(evt); err == nil {
+						line = "data: " + string(newData)
+					}
 				}
+			}
+		} else if unmasker != nil && strings.Contains(data, "[[") {
+			unmasked := unmasker.ReplaceDirectJSON(data)
+			if unmasked != data {
+				unmaskHits++
+				line = "data: " + unmasked
 			}
 		}
 

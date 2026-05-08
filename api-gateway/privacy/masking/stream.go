@@ -306,6 +306,22 @@ func stripPartialUndefined(text string) string {
 	return text
 }
 
+// garbledUndefinedRe matches 2+ consecutive "undefined" tokens with optional
+// whitespace between them. Single "undefined" (e.g. in code: typeof x === "undefined")
+// is preserved. This catches GLM's garbled output like "undefinedundefined" or
+// "undefined undefined undefined" that occurs regardless of masking state.
+var garbledUndefinedRe = regexp.MustCompile(`(?:undefined[\s]*){2,}`)
+
+// SanitizeGarbledOutput strips repeated "undefined" tokens from model output.
+// This is a last-resort guard that runs independently of the masking pipeline.
+// It only targets 2+ consecutive "undefined" to avoid stripping legitimate uses.
+func SanitizeGarbledOutput(text string) string {
+	if !strings.Contains(text, "undefined") {
+		return text
+	}
+	return garbledUndefinedRe.ReplaceAllString(text, "")
+}
+
 // stripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that
 // survived the unmasking pipeline. These appear when GLM mangles placeholders
 // or when unmapped placeholders leak through.

@@ -74,7 +74,7 @@ docker-compose up
 | `privacy/pii/mask.go`   | PII masking with placeholder generation                      |
 | `privacy/config.go`     | Env var loading, default config                              |
 | `privacy/pipeline.go`   | Full mask/unmask pipeline (secrets + PII)                    |
-| `privacy/masking/stream.go` | `StreamUnmasker` with `ProcessChunk` (text/thinking), `ProcessChunkJSON` (partial_json), undefined fallback (3-phase budget), cross-chunk undefined buffering |
+| `privacy/masking/stream.go` | `StreamUnmasker` with `ProcessChunk` (text/thinking), `ProcessChunkJSON` (partial_json), undefined fallback (3-phase budget), cross-chunk undefined buffering, `SanitizeGarbledOutput` (masking-independent final guard) |
 | `privacy/masking/stream_undefined_edge_test.go` | 20 edge case tests for undefined fallback |
 | `privacy/masking/stream_undefined_weird_test.go` | 30+ weird edge cases (unicode, emoji, JSON, split positions) |
 | `privacy/masking/stream_fuzz_test.go` | 1700 parametric fuzz tests |
@@ -167,6 +167,33 @@ The problem has two forms:
 
 **Test coverage:** 2700+ tests across edge cases, fuzz, and random split scenarios.
 
+#### Bug #8 (HIGH) -- Garbled "undefined" leaks when masking is inactive
+
+**Files:** `privacy/masking/stream.go`, `proxy/anthropic.go`
+
+**Cause:** Bugs #7's fix (3-phase undefined fallback) only runs when the privacy pipeline is active (`HasSecrets || HasPII`). When no PII/secrets are detected in a request, the unmasker is nil, and GLM's garbled `undefinedundefined...` output passes straight to the client.
+
+**Fix:**
+
+Added `SanitizeGarbledOutput(text string) string` -- a masking-independent final guard:
+- Regex `(?:undefined[\s]*){2,}` matches 2+ consecutive "undefined"
+- Single "undefined" preserved (e.g. code: `typeof x === "undefined"`)
+- Runs at 4 response write points regardless of masking state:
+  1. `relayStreamWithTracking` -- text/thinking deltas (always)
+  2. `handleNonStreamResponse` -- body before JSON validation
+  3. `ProxySidecar` stream -- content_block_delta when unmasker is nil
+  4. `ProxySidecar` non-stream -- body before `w.Write`
+
+**Before vs After:**
+
+| Input | Before (no masking) | After |
+|---|---|---|
+| `undefinedundefinedundefined` | Leaked to client | Stripped |
+| `http://undefinedundefined192.168.5.111` | Leaked to client | `http://192.168.5.111` |
+| `undefined undefined undefined` | Leaked to client | Stripped |
+| `typeof x === "undefined"` | Passed through | Passed through (single) |
+| `if (x === undefined && y === undefined)` | Passed through | Passed through (non-consecutive) |
+
 ### Streaming Unmask Flow (after fix)
 
 ```
@@ -174,32 +201,38 @@ Request -> Mask PII/Secrets -> Upstream API
   |
   SSE Stream Response
   |
-  +---------------------------+
-  | content_block_delta?      |
-  | YES -> check delta type:  |
-  |   text_delta:             |
-  |     ProcessChunk()        |
-  |     (buffered, plain)     |
-  |   thinking_delta:         |
-  |     ProcessChunk()        |
-  |     (buffered, plain)     |
-  |   input_json_delta:       |
-  |     ProcessChunkJSON()    |
-  |     (buffered, JSON-safe) |
-  |                           |
-  | content_block_stop?       |
-  | YES -> Flush() -> emit    |
-  |   delta before stop       |
-  |                           |
-  | other + contains [[[      |
-  | YES -> ReplaceDirectJSON  |
-  |                           |
-  | Relay to client           |
-  +---------------------------+
+  +-------------------------------------------+
+  | content_block_delta?                      |
+  | YES -> check delta type:                  |
+  |   text_delta:                             |
+  |     unmasker active?                      |
+  |       YES -> ProcessChunk() (buffered)    |
+  |     SanitizeGarbledOutput() (always)      |
+  |   thinking_delta:                         |
+  |     unmasker active?                      |
+  |       YES -> ProcessChunk() (buffered)    |
+  |     SanitizeGarbledOutput() (always)      |
+  |   input_json_delta:                       |
+  |     unmasker active?                      |
+  |       YES -> ProcessChunkJSON() (buffered)|
+  |                                           |
+  | content_block_stop?                       |
+  | YES -> Flush() -> emit delta before stop  |
+  |                                           |
+  | other + contains [[ + unmasker active?    |
+  | YES -> ReplaceDirectJSON                  |
+  |                                           |
+  | Relay to client                           |
+  +-------------------------------------------+
   |
   End of stream -> Flush() -> emit
   |
   Unmasked Response
+
+Non-stream path:
+  Body -> UnmaskResponse() (if masking active)
+       -> SanitizeGarbledOutput() (always)
+       -> JSON validation -> w.Write()
 ```
 
 ### Known Limitation
