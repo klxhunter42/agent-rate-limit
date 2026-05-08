@@ -347,11 +347,11 @@ Vision requests ขณะนี้รองรับ SSE streaming แล้ว 
 
 **Workaround**: ย่อรูปก่อนส่ง, หรือใช้ URL image แทน base64
 
-### server_tool_use / tool_use / tool_result blocks stripped (FIXED)
+### server_tool_use / tool_use / tool_result blocks (PASSTHROUGH)
 
-Content blocks ประเภท `server_tool_use`, `tool_use`, `tool_result` และ Anthropic-specific อื่นๆ ถูกกรองออกก่อนส่งไป Z.AI vision upstream ส่งผ่านเฉพาะ `text`, `image`, `image_url` เท่านั้น
+Content blocks including `server_tool_use`, `tool_use`, `tool_result` are now **passed through as-is** for the Z.AI Anthropic-compatible endpoint. These blocks are only filtered when routing to the Zhipu native vision endpoint (`open.bigmodel.cn`), which does not support them.
 
-**เหตุผล**: Z.AI vision API ไม่รองรับ content types เหล่านี้ -- ส่งไปจะเจอ error 1210 ("API 调用参数有误") นอกจากนี้ยังส่งผ่านเฉพาะ role `user` และ `assistant` เท่านั้น ข้อความระบบจะถูกนำหน้าไปที่ข้อความผู้ใช้แรกแทนการใช้ `role: "system"`
+**Note**: The Zhipu native vision API still requires filtering: only `text`, `image`, `image_url` content types and `user`/`assistant` roles are supported there.
 
 **ไฟล์**: `api-gateway/proxy/anthropic.go`
 

@@ -88,7 +88,10 @@ func New(reg prometheus.Registerer, rdb *redis.Client) *Delta {
 	return &Delta{cfg: cfg, rdb: rdb, m: m}
 }
 
-// Encode computes a diff between current content and a cached version.
+// Encode measures delta savings against a cached baseline without modifying content.
+// Returns the ORIGINAL content unchanged - delta encoding is only used for metrics.
+// Sending diff format to LLMs would corrupt meaning since models cannot interpret
+// the serialized op format.
 func (d *Delta) Encode(ctx context.Context, cacheKey, content string) (string, int, bool) {
 	if d.rdb == nil {
 		return content, 0, false
@@ -119,21 +122,14 @@ func (d *Delta) Encode(ctx context.Context, cacheKey, content string) (string, i
 		return content, 0, false
 	}
 
-	// Serialize ops
-	var buf bytes.Buffer
-	for _, op := range result.Ops {
-		buf.WriteByte(op.Type)
-		fmt.Fprintf(&buf, "%d:%s", len(op.Data), op.Data)
-	}
-	delta := buf.String()
-
-	// Store new baseline
+	// Store new baseline for future measurements
 	d.rdb.Set(ctx, "delta:baseline:"+cacheKey, content, 24*time.Hour)
 
-	d.m.encodes.WithLabelValues("delta").Inc()
+	d.m.encodes.WithLabelValues("metric_only").Inc()
 	d.m.charsSaved.Add(float64(result.SavedBytes))
 	d.m.savingsPct.Observe(savingsPct)
-	return delta, result.SavedBytes, true
+	// Return original content unchanged - delta metrics are informational only
+	return content, result.SavedBytes, true
 }
 
 // Decode applies a delta patch to reconstruct the original content.

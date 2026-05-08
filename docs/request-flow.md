@@ -85,7 +85,7 @@ Request enters handler
     - SSE relay to client
     - Privacy unmasking in-flight
     - NO response rewriting (no HTML conversion, no stop_reason rewrite,
-      no server_tool filtering, no XML stripping)
+      no server_tool filtering, no XML stripping) (server_tool_use blocks now passed through)
     - Token tracking + telemetry feedback
 ```
 

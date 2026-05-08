@@ -272,7 +272,7 @@ State variables:
   ttfbRecorded: bool     -- first line seen
   inputTokens: int       -- from message_start.usage
   outputTokens: int      -- from message_delta.usage
-  filteredBlocks: map[int]bool -- server_tool_use block indices to skip
+  filteredBlocks: map[int]bool -- (unused, server_tool_use blocks no longer filtered)
 
 Per-line processing:
   1. If not ttfbRecorded -> RecordTTFB, set true

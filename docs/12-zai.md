@@ -51,8 +51,8 @@ Client (Claude Code)
 v
 Gateway handler.go
 |
-+- filterUnsupportedContent() <- line 735
-|  only removes "server_tool_use" blocks
++- filterUnsupportedContent() <- line 735 (no-op)
+|  content blocks pass through as-is (including server_tool_use)
 |  image block: no conversion, keep type "image" <- FIXED
 |
 +- HasImageContent() -> true
@@ -79,7 +79,7 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 
 | File                                         | Relevant Section                                                        |
 |----------------------------------------------|-------------------------------------------------------------------------|
-| `api-gateway/handler/handler.go`             | `filterUnsupportedContent()`, `HasImageContent()`, vision routing block |
+| `api-gateway/handler/handler.go`             | `filterUnsupportedContent()` (no-op), `HasImageContent()`, vision routing block |
 | `api-gateway/proxy/anthropic.go`             | `HasImageContent()`, `rewriteImageToGLMFormat()` (no longer called)     |
 | `api-gateway/config/config.go`               | `VisionModelLimits`, `UPSTREAM_VISION_MODEL_LIMITS`                     |
 | `api-gateway/middleware/adaptive_limiter.go` | Vision limits separated from language limits                            |
@@ -87,7 +87,7 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 ## Lesson Learned
 
 - When changing upstream endpoint, verify that middleware transforming payload is still correct
-- `filterUnsupportedContent` was written only for Zhipu native (`open.bigmodel.cn`)
+- `filterUnsupportedContent` no longer filters content blocks (previously filtered `server_tool_use`)
 - After migrating to api.z.ai (Anthropic-compatible), no format conversion needed because client already sends Anthropic format
 
 ## Image Compression: Evolution

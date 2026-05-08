@@ -156,7 +156,7 @@ ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 30 2>&1 | grep -v he
 
 **Error 1210 (Invalid API parameter)** means Z.AI received a field it does not support. The gateway strips these fields automatically:
 - Top-level: `tools`, `tool_choice`, `thinking`, `budget_tokens`, `effort`, `stream_options`, `metadata`, `output_config`, `context_management`, `service_tier`
-- Content blocks: `server_tool_use` type, `cache_control` on any block
+- Content blocks: `cache_control` on any block (server_tool_use no longer filtered)
 
 If 1210 still occurs, the `content analysis` log will show exactly which block types and extra keys remain in the payload.
 

@@ -1994,11 +1994,6 @@ func ApplyMaxTokensOverrides(overrides map[string]int) {
 
 const fallbackMaxTokens = 4096
 
-// unsupportedContentTypes are Anthropic-specific block types that GLM does not handle.
-var unsupportedContentTypes = map[string]bool{
-	"server_tool_use": true,
-}
-
 // unsupportedTopLevelFields are request fields Claude Code sends that non-Anthropic upstreams reject.
 var unsupportedTopLevelFields = []string{
 	"context_management",
@@ -2046,25 +2041,18 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 
 }
 
-// filterUnsupportedContent removes unsupported content block types from messages
-// and strips cache_control from all blocks (Z.AI does not support it).
+// filterUnsupportedContent strips cache_control from all content blocks
+// (Z.AI does not support Anthropic cache_control hints).
 func filterUnsupportedContent(payload map[string]any) {
 	strip := func(blocks []any) []any {
-		filtered := make([]any, 0, len(blocks))
 		for _, block := range blocks {
 			cb, ok := block.(map[string]any)
 			if !ok {
-				filtered = append(filtered, block)
-				continue
-			}
-			t, _ := cb["type"].(string)
-			if unsupportedContentTypes[t] {
 				continue
 			}
 			delete(cb, "cache_control")
-			filtered = append(filtered, cb)
 		}
-		return filtered
+		return blocks
 	}
 
 	// Filter messages

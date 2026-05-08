@@ -211,7 +211,7 @@ Image request -> open.bigmodel.cn/api/paas/v4/chat/completions (OpenAI-compatibl
 
 Z.AI vision API รองรับเฉพาะ `user` and `assistant` roles และ `text`, `image`, `image_url` content types.
 Gateway ทำการแปลงอัตโนมัติ: system prompt text ถูก prepend เข้าไปใน first user message,
-และ Anthropic-specific content blocks (`server_tool_use`, `tool_use`, `tool_result`) ถูก strip ออกก่อนส่ง
+Content blocks (including `server_tool_use`, `tool_use`, `tool_result`) are now passed through as-is
 
 Vision models ที่รองรับ:
 
@@ -228,7 +228,7 @@ SSE streaming รองรับแล้ว: Zhipu SSE chunks ถูก convert
 
 **การแปลง format อัตโนมัติ** (ไม่ต้องตั้งค่าเพิ่มเติม):
 - `role: "system"` → ถูกกรองออก, text นำหน้าไปที่ user message แรก
-- `server_tool_use`, `tool_use`, `tool_result` → ถูกกรองออก (Z.AI ไม่รองรับ)
+- `server_tool_use`, `tool_use`, `tool_result` → passed through as-is (no longer filtered)
 - `type: "image"` (Anthropic) → `type: "image_url"` (Z.AI format)
 - ส่งผ่านเฉพาะ role `user`/`assistant` และ content type `text`/`image`/`image_url`
 

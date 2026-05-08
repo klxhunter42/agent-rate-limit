@@ -181,7 +181,7 @@ Placeholders that split across content block boundary (text -> thinking) cannot 
 
 `GLM_MODE=true` (default value) caused Z.AI features to run on all models including claude:
 - Resolver fallback sends claude model to Z.AI when no Anthropic token available
-- `filterUnsupportedContent` strips claude request content blocks
+- `filterUnsupportedContent` is now a no-op (content blocks pass through as-is)
 - Vision routing sends claude image request to Z.AI vision endpoint
 
 `GLM_MODE=false` hides Z.AI models from listing (correct) but shouldn't have other effects.
@@ -196,7 +196,7 @@ GLM_MODE should be an infrastructure-level toggle (key sync, model listing only)
 |---|---|---|
 | `provider/resolver.go:Resolve()` | Z.AI fallback for all models that can't find token | Z.AI fallback only for models with `zai` as intended provider or unmatched prefix rule |
 | `handler/handler.go:666` | `!GLMMode && decision == nil` reject | `decision == nil && profileOverride == nil` reject in all cases |
-| `handler/handler.go:735` | `GLMMode` -> filterUnsupportedContent | `decision.ProviderID == "zai"` only |
+| `handler/handler.go:735` | `GLMMode` -> filterUnsupportedContent | `filterUnsupportedContent()` is now a no-op |
 | `handler/handler.go:1072` | `GLMMode && hasImages && (decision==nil \|\| zai)` | `hasImages && decision != nil && decision.ProviderID == "zai"` only |
 
 ### GLM_MODE Still Used (correct)
@@ -214,8 +214,8 @@ claude-sonnet-4 request -> Resolve() -> matched "claude-" rule -> no token -> ni
 glm-5.1 request -> Resolve() -> matched "glm-" rule -> zai token
   -> yes: zai decision
   -> no token: zai decision (empty key, from pool)
-  -> handler: filterUnsupportedContent OK, vision auto-route OK
+  -> handler: content blocks pass through as-is, vision auto-route OK
 
 unknown-model request -> Resolve() -> no rule matched -> GLM fallback -> zai decision
-  -> handler: filterUnsupportedContent OK
+  -> handler: content blocks pass through as-is
 ```

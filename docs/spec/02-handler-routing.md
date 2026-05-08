@@ -737,7 +737,7 @@ if decision.ProviderID == "zai" {
 }
 ```
 
-Removes content blocks with `type: "server_tool_use"` from all messages.
+No longer removes `server_tool_use` blocks -- they are passed through as-is to the upstream endpoint.
 
 ### 7.5 Max Tokens Clamp
 

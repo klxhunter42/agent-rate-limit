@@ -311,15 +311,10 @@ var (
 		{regexp.MustCompile(`(?i)\bin order to\b`), "to"},
 		{regexp.MustCompile(`(?i)\bfor the purpose of\b`), "to"},
 		{regexp.MustCompile(`(?i)\bwill not work properly\b`), "breaks"},
-		{regexp.MustCompile(`(?i)\bhelps?\b`), ""},
-		{regexp.MustCompile(`(?i)\bprevents?\b`), "stops"},
+		// "helps" and "prevents" rules removed: corrupts meaning in technical context.
 	}
 
-	articleRules = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)\bthe\b`),
-		regexp.MustCompile(`(?i)\ba\b`),
-		regexp.MustCompile(`(?i)\ban\b`),
-	}
+	// Article rules removed: deleting "the"/"a"/"an" corrupts semantics for minimal savings.
 
 	multiSpaceRe   = regexp.MustCompile(`  +`)
 	multiNewlineRe = regexp.MustCompile(`\n{3,}`)
@@ -347,11 +342,7 @@ func (c *CavemanPipeline) CompressInput(text string, tier CompressionTier) (stri
 		text = rule.re.ReplaceAllString(text, rule.repl)
 	}
 
-	if tier == TierFull || tier == TierUltra || tier == TierWenyan {
-		for _, rule := range articleRules {
-			text = rule.ReplaceAllString(text, "")
-		}
-	}
+		// Article removal removed: corrupts semantics in technical text.
 
 	text = unmaskProtected(text, regions)
 

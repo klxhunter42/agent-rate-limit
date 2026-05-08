@@ -66,11 +66,11 @@ Nil fields = feature disabled. All components are optional.
 |-----------|---------------------|-------------|---------------|----------------|----------------------|---------------------------------------------------|
 | 1         | Semantic Dedup      | F7          | Always        | Raw text       | Deduped text         | Jaccard similarity sentence dedup (threshold 0.7) |
 | 2         | Chunker             | F1          | Always        | Deduped text   | Reordered text       | Rabin-Karp chunk, reorder stable-first            |
-| 3         | Delta Encoding      | F8          | Always        | Reordered text | Delta-encoded string | LCS diff against cached baseline                  |
+| 3         | Delta Encoding      | F8          | Always        | Reordered text | Original text (metrics only) | LCS diff measures potential savings without mutating content |
 | 4         | Sketch Dedup        | F9          | Always        | Text           | Metrics only         | SimHash near-duplicate detection                  |
-| 5         | Summarizer          | F6          | Red only      | Text           | Summarized text      | Extractive: first sentence per paragraph          |
-| 6         | Intent Filter       | F13         | Always        | Text           | Filtered text        | Classify intent, extract code/key lines           |
-| 7         | Caveman Compression | F16         | Always        | Text           | Text + injection     | Append output-style system prompt                 |
+| 5         | Summarizer          | F6          | Red only      | Text           | Summarized text      | Extractive: first sentence per paragraph (boundary-aware truncation) |
+| 6         | TextComp            | F17         | Always        | Text           | Compressed text      | Regex filler/hedge/verbose removal                |
+| 7         | Caveman Compression | F16         | Always        | Text           | Text + injection     | Append output-style system prompt (no article removal) |
 
 After all stages: if `totalSaved > 0`, records `tokensSaved` and `costSavings` ($3/M token estimate).
 

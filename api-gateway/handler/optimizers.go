@@ -95,17 +95,14 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		}
 	}
 
-	// Delta encoding (F8)
+	// Delta encoding (F8) - metrics only, does not modify content
 	if o.Delta != nil {
 		start := time.Now()
-		encoded, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
+		_, saved, ok := o.Delta.Encode(context.Background(), "sys:"+model, text)
 		if ok && saved > 0 {
-			beforeD := len(text)
-			text = encoded
-			slog.Info("optimizer_step", "stage", "delta", "before", beforeD, "after", len(text), "saved", beforeD-len(text))
-			m.RecordOptimization("delta", saved, "input")
+			slog.Info("optimizer_step", "stage", "delta_metrics", "potential_saved", saved)
+			m.RecordOptimization("delta_metrics", saved, "input")
 			m.RecordOptimizationDuration("delta", time.Since(start).Seconds())
-			totalSaved += saved
 		}
 	}
 
@@ -135,20 +132,10 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 		}
 	}
 
-	// Intent filter (F13)
-	if o.Filter != nil {
-		start := time.Now()
-		intent := o.Filter.ClassifyIntent(nil)
-		opt, saved := o.Filter.FilterResponse(text, intent)
-		if saved > 0 {
-			beforeIF := len(text)
-			text = opt
-			slog.Info("optimizer_step", "stage", "intent_filter", "before", beforeIF, "after", len(text), "saved", beforeIF-len(text))
-			m.RecordOptimization("intent_filter", saved, "input")
-			m.RecordOptimizationDuration("intent_filter", time.Since(start).Seconds())
-			totalSaved += saved
-		}
-	}
+	// Intent filter (F13) - disabled on system prompt to prevent stripping
+	// instructions. FilterResponse was designed for response filtering, not input.
+	// Applying it to system prompts with nil messages defaults to IntentChat
+	// (passthrough), but if intent were misclassified it would destroy instructions.
 
 	// TextComp regex compression (F17) - removes filler/verbose text, safe for all modes
 	if o.TextComp != nil {

@@ -154,7 +154,7 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 | Limitation                  | Detail                                                                                                              |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------|
 | Privacy pipeline skipped    | Vision path does not go through privacy masking                                                                     |
-| tool_use on vision stripped | `server_tool_use`, `tool_use`, `tool_result` content blocks are filtered before sending (Z.AI doesn't support them) |
+| server_tool_use passthrough | `server_tool_use`, `server_tool_result` blocks are passed through as-is (no longer filtered). Only filtered for Zhipu native vision endpoint. |
 
 > **Note**: Error 1210 ("API parameter error") that previously occurred from sending `system` role and Anthropic-specific content blocks has been fixed (commit 7c08cb0) -- gateway now auto-filters roles and content types.
 

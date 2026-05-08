@@ -173,9 +173,16 @@ func firstSentence(text string) string {
 			}
 		}
 	}
-	// No sentence boundary found, take first 200 chars
+	// No sentence boundary found, truncate at last word boundary before 200 chars
 	if len(text) > 200 {
-		return text[:200] + "..."
+		cut := 200
+		for i := 199; i >= 0; i-- {
+			if text[i] == ' ' || text[i] == '\n' {
+				cut = i
+				break
+			}
+		}
+		return text[:cut] + "..."
 	}
 	return text
 }

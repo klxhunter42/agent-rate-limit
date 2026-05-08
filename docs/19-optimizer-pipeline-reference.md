@@ -15,10 +15,9 @@ Request → Handler.HandleMessages()
   ├─ OptimizeSystemPrompt(systemPrompt, budgetLevel, model)
   │   ├─ F7  semantic_dedup    (always)
   │   ├─ F1  chunker           (always if enabled)
-  │   ├─ F8  delta             (always if enabled)
+  │   ├─ F8  delta             (metrics only - no content mutation)
   │   ├─ F9  sketch            (always if enabled)
   │   ├─ F6  summarizer        (red budget only)
-  │   ├─ F13 intent_filter     (always if enabled)
   │   ├─ F17 textcomp          (always if enabled)
   │   └─ F16 caveman           (skip if transparent mode)
   │
@@ -44,9 +43,9 @@ Request → Handler.HandleMessages()
 
 | Level   | Trigger                 | Stages Activated                                              |
 |---------|-------------------------|---------------------------------------------------------------|
-| Green   | < 50% of context window | semantic_dedup, chunker, delta, sketch, textcomp              |
+| Green   | < 50% of context window | semantic_dedup, chunker, delta (metrics), sketch, textcomp     |
 | Yellow  | 50-75%                  | All green stages + packer (if enabled)                        |
-| Red     | > 75%                   | All stages including summarizer, intent_filter, caveman ultra |
+| Red     | > 75%                   | All stages including summarizer, caveman ultra                |
 
 ---
 
@@ -82,9 +81,9 @@ Request → Handler.HandleMessages()
 - **Config**:
   - `DELTA_ENABLED` (default: true)
   - `DELTA_MIN_SAVINGS_PCT` (default: 10.0)
-- **Algorithm**: Line-level LCS diff against Redis-cached baseline (keyed by `sys:{model}`). Encodes as `+`/`-`/`=` operations. Falls back to passthrough if savings < min threshold or content > 50KB/200 ops.
-- **Metrics**: `api_gateway_delta_encodes_total{result}`, `delta_chars_saved_total`
-- **Estimated savings**: 20-60% on iterative edit workflows
+- **Algorithm**: Line-level LCS diff against Redis-cached baseline (keyed by `sys:{model}`). **Metrics only** - measures potential savings without mutating content. Sending diff format to LLMs would corrupt meaning since models cannot interpret the serialized op format. Falls back to passthrough if savings < min threshold or content > 50KB/200 ops.
+- **Metrics**: `api_gateway_delta_encodes_total{result="metric_only"}`, `delta_chars_saved_total`
+- **Estimated savings**: 0% (informational - measures potential delta, does not modify content)
 
 ### F9: Sketch Near-Duplicate (`sketch/`)
 
@@ -111,15 +110,15 @@ Request → Handler.HandleMessages()
 - **Metrics**: `api_gateway_summarizer_calls_total{method}`, `summarizer_chars_saved_total{method}`
 - **Estimated savings**: 50-70% on red budget (emergency truncation)
 
-### F13: Intent Filter (`filter/`)
+### F13: Intent Filter (`filter/`) - DISABLED on system prompt
 
-- **Saves**: OUTPUT tokens
-- **Activates**: Always if enabled (applied to system prompt in current pipeline)
+- **Saves**: OUTPUT tokens (intended for response filtering, NOT system prompts)
+- **Activates**: Disabled on system prompt pipeline. Still available for response filtering.
 - **Config**:
   - `FILTER_ENABLED` (default: true)
-- **Algorithm**: Regex intent classification (code/analysis/search/action/chat). Code intent extracts only code blocks. Search intent extracts key lines (bullets, file paths). Others pass through.
+- **Algorithm**: Regex intent classification (code/analysis/search/action/chat). Code intent extracts only code blocks. Search intent extracts key lines (bullets, file paths). Others pass through. **Removed from system prompt pipeline** because `FilterResponse` strips instructions when applied to input - it was designed for output filtering only. Called with `nil` messages, it defaulted to `IntentChat` (passthrough), but any misclassification would destroy system instructions.
 - **Metrics**: `api_gateway_filter_intents_total{intent}`, `filter_chars_saved_total{intent}`
-- **Estimated savings**: 10-40% for code/search-heavy sessions
+- **Estimated savings**: 0% (disabled on input), available for response filtering
 
 ### F17: TextComp (`textcomp/`)
 
@@ -140,9 +139,9 @@ Request → Handler.HandleMessages()
   - `CAVEMAN_ENABLED` (default: true)
   - `CAVEMAN_AUTO_DETECT` (default: true)
   - `CAVEMAN_MIN_SIZE` (default: 500)
-- **Algorithm**: Injects `[OUTPUT STYLE]` directive into system prompt. 4 tiers: lite (30% reduction, green budget), full (50%, yellow), ultra (75%, red), wenyan (70%). Validates code blocks and identifiers preserved after compression.
+- **Algorithm**: Injects `[OUTPUT STYLE]` directive into system prompt. 4 tiers: lite (30% reduction, green budget), full (50%, yellow), ultra (75%, red), wenyan (70%). Validates code blocks and identifiers preserved after compression. **Input compression rules updated**: article removal (`the`/`a`/`an`) and semantics-altering synonym rules (`helps`->`""`, `prevents`->`stops`) removed to prevent meaning corruption in technical text.
 - **Metrics**: `api_gateway_caveman_compressions_total{tier,result}`, `caveman_compression_ratio`
-- **Estimated savings**: 30-75% output tokens depending on tier
+- **Estimated savings**: 30-75% output tokens depending on tier (slightly reduced input compression, unchanged output savings)
 
 ### Message Processing (in `OptimizeMessages`)
 

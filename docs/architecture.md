@@ -864,8 +864,8 @@ arl-gateway (:8080)
   ├─ parse body, resolve key, acquire model slot
   │
   ├─ filterUnsupportedContent():
-  │     strip server_tool_use blocks
-  │     convert Anthropic image -> GLM image_url format
+  │ no-op (content blocks pass through as-is)
+  │ server_tool_use, image, etc. all preserved
   │
   ├─ HasImageContent() scan messages?
   │
@@ -912,9 +912,9 @@ anthropicToZhipu() / AnthropicToOpenAI():
   │ content[].type="image"          ->    type="image_url"         │
   │   source.type="base64"          ->      url="data:mime;base64" │
   │   source.type="url"             ->      url=<original url>     │
-  │ content[].type="server_tool_use"->    X กรองออก (ไม่รองรับ)    │
-  │ content[].type="tool_use"       ->    X กรองออก (ไม่รองรับ)    │
-  │ content[].type="tool_result"    ->    X กรองออก (ไม่รองรับ)    │
+  │ content[].type="server_tool_use"-> ส่งผ่านเลย (passthrough) │
+  │ content[].type="tool_use" -> ส่งผ่านเลย (passthrough) │
+  │ content[].type="tool_result" -> ส่งผ่านเลย (passthrough) │
   │                                                                │
   │ system (string or array)        ->    นำหน้าไปที่ user msg แรก │
   │ stream: bool                    ->    stream: bool             │
@@ -953,7 +953,7 @@ zhipuToAnthropic():
 ก่อน routing, `AnthropicToOpenAI()` ประมวลผล messages ทั้งหมด:
 
 1. กรอง role ที่ Z.AI ไม่รองรับ: `system`, `tool` ถูกตัดออก
-2. กรอง content type ที่ Z.AI ไม่รองรับ: `server_tool_use`, `tool_use`, `tool_result` ถูกตัดออก
+2. content types ทั้งหมดส่งผ่าน (passthrough): `server_tool_use`, `tool_use`, `tool_result` ไม่ถูกตัดออกแล้ว
 3. ส่งผ่านเฉพาะ: `text`, `image`, `image_url`
 4. แปลงรูปแบบรูปภาพจาก Anthropic เป็น GLM-compatible `image_url`:
    ```

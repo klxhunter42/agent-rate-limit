@@ -252,7 +252,7 @@ func HasImageContent(payload map[string]any) bool {
 
 // AnthropicToOpenAI converts an Anthropic Messages API payload to OpenAI Chat Completions format.
 // Z.AI vision API only accepts "user" and "assistant" roles, so system prompts are prepended
-// to the first user message. Unsupported content types (server_tool_use, tool_use, etc.) are filtered.
+// to the first user message.
 func AnthropicToOpenAI(body []byte, model string, m *metrics.Metrics, toolMode string) (map[string]any, error) {
 	var src map[string]any
 	if err := json.Unmarshal(body, &src); err != nil {
@@ -1650,7 +1650,6 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
-		filteredBlocks := make(map[int]bool)
 		var sidecarInputTokens, sidecarOutputTokens int
 		var lastUnmaskBlockIdx int = -1
 
@@ -1745,32 +1744,6 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 						if unmasked != data {
 							line = "data: " + unmasked
 						}
-					}
-				}
-			}
-
-			// Filter out server_tool_use and server_tool_result content blocks BEFORE writing
-			if strings.HasPrefix(line, "data: ") {
-				data := line[6:]
-				if strings.Contains(data, `"content_block_start"`) {
-					var cbs struct {
-						Index        int `json:"index"`
-						ContentBlock struct {
-							Type string `json:"type"`
-						} `json:"content_block"`
-					}
-					if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
-						filteredBlocks[cbs.Index] = true
-						slog.Debug("sidecar: filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
-						continue
-					}
-				}
-				if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
-					var idxEvt struct {
-						Index int `json:"index"`
-					}
-					if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
-						continue
 					}
 				}
 			}
@@ -1964,9 +1937,6 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		return nil
 	}
 
-	// Filter server_tool_use and server_tool_result blocks from response content.
-	body = filterServerToolBlocks(body)
-
 	// Write headers only after body is fully buffered so errors above can still
 	// return a proper JSON error to the caller without "headers already sent".
 	copyResponseHeaders(w, resp)
@@ -2004,40 +1974,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
 	var streamStart = time.Now()
-	filteredBlocks := make(map[int]bool)
-
 	for scanner.Scan() {
 		if !ttfbRecorded {
 			p.metrics.RecordTTFB(model, time.Since(streamStart))
 			ttfbRecorded = true
 		}
 		line := scanner.Text()
-
-		// Filter out server_tool_use and server_tool_result content blocks.
-		if strings.HasPrefix(line, "data: ") {
-			data := line[6:]
-			if strings.Contains(data, `"content_block_start"`) {
-				var cbs struct {
-					Index        int `json:"index"`
-					ContentBlock struct {
-						Type string `json:"type"`
-					} `json:"content_block"`
-				}
-				if json.Unmarshal([]byte(data), &cbs) == nil && (cbs.ContentBlock.Type == "server_tool_use" || cbs.ContentBlock.Type == "server_tool_result") {
-					filteredBlocks[cbs.Index] = true
-					slog.Debug("filtered server tool block", "type", cbs.ContentBlock.Type, "index", cbs.Index)
-					continue
-				}
-			}
-			if len(filteredBlocks) > 0 && (strings.Contains(data, `"content_block_delta"`) || strings.Contains(data, `"content_block_stop"`)) {
-				var idxEvt struct {
-					Index int `json:"index"`
-				}
-				if json.Unmarshal([]byte(data), &idxEvt) == nil && filteredBlocks[idxEvt.Index] {
-					continue
-				}
-			}
-		}
 
 		// Parse SSE data lines for unmasking and token tracking.
 		if !strings.HasPrefix(line, "data: ") {
@@ -2200,36 +2142,6 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 // convertHTMLDetails converts <details><summary> HTML in text content blocks to markdown.
 // Only applied for GLM models that emit these tags as formatting noise.
-// filterServerToolBlocks removes server_tool_use and server_tool_result content blocks
-// from a non-stream response body so the client never sees "Unsupported content type" warnings.
-func filterServerToolBlocks(body []byte) []byte {
-	var resp map[string]any
-	if json.Unmarshal(body, &resp) != nil {
-		return body
-	}
-	content, ok := resp["content"].([]any)
-	if !ok {
-		return body
-	}
-	filtered := make([]any, 0, len(content))
-	for _, block := range content {
-		if m, ok := block.(map[string]any); ok {
-			if t, _ := m["type"].(string); t == "server_tool_use" || t == "server_tool_result" {
-				continue
-			}
-		}
-		filtered = append(filtered, block)
-	}
-	if len(filtered) == len(content) {
-		return body
-	}
-	resp["content"] = filtered
-	out, err := json.Marshal(resp)
-	if err != nil {
-		return body
-	}
-	return out
-}
 
 func convertHTMLDetails(body []byte) []byte {
 	var resp map[string]any

@@ -2,6 +2,24 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-08] server_tool_use Filtering Removed
+
+### เปลี่ยน: Gateway no longer filters server_tool_use / server_tool_result blocks
+
+Gateway previously filtered `server_tool_use` and `server_tool_result` content blocks from requests and responses when routing to Z.AI. These blocks are now passed through to upstream and client unchanged.
+
+**การเปลี่ยนแปลง:**
+- `filterUnsupportedContent()` is now a no-op for `server_tool_use` blocks
+- `server_tool_use` and `server_tool_result` blocks pass through as-is in both directions
+- Streaming response handling no longer skips/filters `server_tool_use` content blocks
+- Vision routing (`AnthropicToOpenAI`) still filters these for Zhipu native vision endpoint (that endpoint does not support them)
+
+**เหตุผล:** Z.AI Anthropic-compatible endpoint now handles `server_tool_use` blocks correctly. Filtering was needed previously but is no longer required.
+
+**ไฟล์ที่เกี่ยวข้อง:** `api-gateway/handler/handler.go`, `api-gateway/proxy/anthropic.go`
+
+---
+
 ---
 
 ## [2026-05-07] Kimi Provider Migration: Moonshot to Anthropic-Compatible API

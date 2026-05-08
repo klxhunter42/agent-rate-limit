@@ -76,7 +76,7 @@ func (d *Disclosure) Escalate(ctx context.Context, content, query string, maxTok
 	}
 	l1Content := content
 	if fullLen > l1Budget {
-		l1Content = content[:l1Budget]
+		l1Content = truncateAtBoundary(content, l1Budget)
 	}
 
 	if query == "" {
@@ -147,8 +147,44 @@ func (d *Disclosure) ftsExtract(content, query string, budget int) string {
 	return strings.Join(matched, "\n\n")
 }
 
+// truncateAtBoundary truncates content at the last sentence or word boundary
+// before the budget limit, preventing mid-word/mid-sentence cuts.
+func truncateAtBoundary(content string, budget int) string {
+	if budget >= len(content) {
+		return content
+	}
+	if budget <= 0 {
+		return ""
+	}
+
+	// Try to cut at last sentence boundary (., !, ?) followed by space/newline
+	cut := budget
+	for i := budget - 1; i >= 0; i-- {
+		ch := content[i]
+		if ch == '.' || ch == '!' || ch == '?' {
+			if i+1 < len(content) && (content[i+1] == ' ' || content[i+1] == '\n') {
+				cut = i + 1
+				break
+			}
+		}
+	}
+
+	// If no sentence boundary found within 50 chars of budget, try word boundary
+	if budget-cut > 50 {
+		for i := budget - 1; i >= 0; i-- {
+			if content[i] == ' ' || content[i] == '\n' {
+				cut = i
+				break
+			}
+		}
+	}
+
+	return content[:cut]
+}
+
 // BudgetAwareEscalate applies progressive disclosure based on budget level.
 // Green: pass through. Yellow: L2 for large content (>2000 chars). Red: L1 for >1000, L2 for 500-1000.
+// Uses boundary-aware truncation to avoid cutting mid-word.
 func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, budgetLevel int) (string, int) {
 	fullLen := len(content)
 	if fullLen == 0 || !d.cfg.Enabled {
@@ -164,7 +200,7 @@ func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, bu
 			if l2Budget > fullLen {
 				l2Budget = fullLen
 			}
-			truncated := content[:l2Budget]
+			truncated := truncateAtBoundary(content, l2Budget)
 			saved := fullLen - len(truncated)
 			return truncated, saved
 		}
@@ -175,7 +211,7 @@ func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, bu
 			if l1Budget > fullLen {
 				l1Budget = fullLen
 			}
-			truncated := content[:l1Budget]
+			truncated := truncateAtBoundary(content, l1Budget)
 			saved := fullLen - len(truncated)
 			return truncated, saved
 		}
@@ -184,7 +220,7 @@ func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, bu
 			if l2Budget > fullLen {
 				l2Budget = fullLen
 			}
-			truncated := content[:l2Budget]
+			truncated := truncateAtBoundary(content, l2Budget)
 			saved := fullLen - len(truncated)
 			return truncated, saved
 		}
@@ -193,4 +229,3 @@ func (d *Disclosure) BudgetAwareEscalate(ctx context.Context, content string, bu
 		return content, 0
 	}
 }
-

@@ -784,7 +784,7 @@ func TestStripUnsupportedFields_NonGLMKeepsFields(t *testing.T) {
 	assert.True(t, hasThinking, "thinking should survive for non-GLM models")
 }
 
-func TestFilterUnsupportedContent_StripsServerToolUseFromMessages(t *testing.T) {
+func TestFilterUnsupportedContent_ServerToolUseKeptInMessages(t *testing.T) {
 	payload := map[string]any{
 		"messages": []any{
 			map[string]any{
@@ -801,8 +801,9 @@ func TestFilterUnsupportedContent_StripsServerToolUseFromMessages(t *testing.T) 
 
 	msgs := payload["messages"].([]any)
 	content := msgs[0].(map[string]any)["content"].([]any)
-	assert.Len(t, content, 1, "server_tool_use should be removed from messages")
+	assert.Len(t, content, 2, "server_tool_use should be kept in messages")
 	assert.Equal(t, "text", content[0].(map[string]any)["type"])
+	assert.Equal(t, "server_tool_use", content[1].(map[string]any)["type"])
 }
 
 func TestFilterUnsupportedContent_StripsCacheControlFromSystem(t *testing.T) {
@@ -906,16 +907,16 @@ func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
 	assert.False(t, hasCC, "system cache_control stripped")
 	assert.Equal(t, "long system prompt...", sysBlock["text"])
 
-	// User message: image kept, text kept, server_tool_use removed, cache_control stripped.
+	// User message: image kept, text kept, server_tool_use kept, cache_control stripped.
 	msgs := payload["messages"].([]any)
 	userContent := msgs[0].(map[string]any)["content"].([]any)
-	assert.Len(t, userContent, 2, "server_tool_use removed from user message")
+	assert.Len(t, userContent, 3, "server_tool_use kept in user message")
 	assert.Equal(t, "image", userContent[0].(map[string]any)["type"])
 	_, hasTextCC := userContent[1].(map[string]any)["cache_control"]
 	assert.False(t, hasTextCC, "cache_control stripped from user text block")
 
-	// Assistant message: server_tool_use removed, text preserved.
+	// Assistant message: server_tool_use kept, text preserved, cache_control stripped.
 	assistantContent := msgs[1].(map[string]any)["content"].([]any)
-	assert.Len(t, assistantContent, 1, "server_tool_use removed from assistant message")
-	assert.Equal(t, "result", assistantContent[0].(map[string]any)["text"])
+	assert.Len(t, assistantContent, 2, "server_tool_use kept in assistant message")
+	assert.Equal(t, "result", assistantContent[1].(map[string]any)["text"])
 }
