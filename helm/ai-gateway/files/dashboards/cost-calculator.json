@@ -210,13 +210,12 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "points",
+            "drawStyle": "line",
             "lineInterpolation": "smooth",
             "fillOpacity": 20,
             "showPoints": "never",
             "spanNulls": true,
-            "lineWidth": 2,
-            "pointSize": 6
+            "lineWidth": 2
           },
           "unit": "currencyUSD",
           "lineWidth": 2

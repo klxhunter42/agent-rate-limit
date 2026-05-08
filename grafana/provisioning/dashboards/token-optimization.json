@@ -224,7 +224,7 @@
     },
     {
       "title": "Optimization Efficiency",
-      "type": "gauge",
+      "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -275,7 +275,12 @@
         "overrides": []
       },
       "options": {
-        "sort": "desc"
+        "sort": "desc",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -345,24 +350,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval]))",
-          "legendFormat": "chunker",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
+          "legendFormat": "{{technique}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval]))",
-          "legendFormat": "delta",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval]))",
-          "legendFormat": "disclosure",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval]))",
-          "legendFormat": "sketch",
-          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -379,8 +369,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         },
@@ -444,8 +433,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         },
@@ -518,8 +506,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "mode": "palette-classic"
@@ -613,8 +600,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "mode": "palette-classic"
@@ -757,8 +743,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         },
@@ -817,8 +802,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         },
@@ -1026,8 +1010,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "mode": "palette-classic"
@@ -1076,8 +1059,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "mode": "palette-classic"

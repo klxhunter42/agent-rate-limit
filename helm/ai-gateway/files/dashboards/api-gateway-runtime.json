@@ -45,8 +45,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -89,8 +88,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -128,8 +126,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -167,8 +164,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -277,8 +273,7 @@
             "lineWidth": 2,
             "showPoints": "never",
             "spanNulls": true,
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "mode": "palette-classic"

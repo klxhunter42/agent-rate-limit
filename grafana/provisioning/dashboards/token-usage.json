@@ -268,8 +268,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -323,8 +322,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -455,8 +453,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -510,8 +507,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -640,8 +636,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -695,8 +690,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -822,8 +816,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -874,8 +867,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -934,8 +926,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }

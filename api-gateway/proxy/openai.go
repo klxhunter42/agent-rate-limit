@@ -381,6 +381,25 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 		return fmt.Errorf("read openai response: %w", err)
 	}
 
+	if !json.Valid(body) {
+		slog.Warn("openai upstream returned invalid JSON, wrapping as error",
+			"model", model,
+			"status", resp.StatusCode,
+			"body_len", len(body),
+			"body_preview", string(body[:min(200, len(body))]),
+		)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(map[string]any{
+			"type": "error",
+			"error": map[string]any{
+				"type":    "api_error",
+				"message": "upstream returned malformed response",
+			},
+		})
+		return nil
+	}
+
 	var openaiResp map[string]any
 	if err := json.Unmarshal(body, &openaiResp); err != nil {
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
@@ -459,7 +478,7 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 
 	flusher, _ := w.(http.Flusher)
 	scanner := bufio.NewScanner(resp.Body)
-	const maxSSELineSize = 256 * 1024
+	const maxSSELineSize = 8 * 1024 * 1024
 	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
 
 	started := isContinuation

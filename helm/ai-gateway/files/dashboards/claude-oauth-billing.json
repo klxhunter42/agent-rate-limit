@@ -272,8 +272,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         },
@@ -622,7 +621,7 @@
     },
     {
       "title": "Go Direct Success Rate",
-      "type": "gauge",
+      "type": "stat",
       "gridPos": {
         "h": 4,
         "w": 3,
@@ -660,9 +659,12 @@
         }
       },
       "options": {
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sort": "desc"
+        "sort": "desc",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -699,8 +701,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -749,8 +750,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -794,8 +794,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -843,8 +842,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "fixedColor": "red",
@@ -886,8 +884,7 @@
             "spanNulls": true,
             "lineWidth": 2,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "color": {
             "fixedColor": "orange",
@@ -935,8 +932,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -986,8 +982,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },
@@ -1026,8 +1021,7 @@
             "lineWidth": 2,
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           }
         }
       },

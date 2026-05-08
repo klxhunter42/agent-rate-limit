@@ -262,7 +262,7 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "points",
+            "drawStyle": "line",
             "lineInterpolation": "smooth",
             "fillOpacity": 30,
             "gradientMode": "scheme",
@@ -271,8 +271,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2,
-            "pointSize": 6
+            "lineWidth": 2
           },
           "unit": "short",
           "lineWidth": 2
@@ -379,7 +378,7 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "points",
+            "drawStyle": "line",
             "lineInterpolation": "smooth",
             "fillOpacity": 40,
             "showPoints": "never",
@@ -387,8 +386,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2,
-            "pointSize": 6
+            "lineWidth": 2
           },
           "unit": "short",
           "lineWidth": 2
@@ -837,13 +835,12 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "points",
+            "drawStyle": "line",
             "lineInterpolation": "smooth",
             "fillOpacity": 10,
             "showPoints": "never",
             "spanNulls": true,
-            "lineWidth": 2,
-            "pointSize": 6
+            "lineWidth": 2
           },
           "unit": "s",
           "lineWidth": 2
@@ -878,7 +875,7 @@
     {
       "title": "Processing Health",
       "description": "P95 mask duration - Healthy < 0.5s, Warning < 1s, Slow > 1s",
-      "type": "gauge",
+      "type": "stat",
       "gridPos": {
         "h": 8,
         "w": 4,
@@ -956,7 +953,12 @@
         }
       },
       "options": {
-        "sort": "desc"
+        "sort": "desc",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -1070,7 +1072,7 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "drawStyle": "points",
+            "drawStyle": "line",
             "lineInterpolation": "smooth",
             "fillOpacity": 30,
             "showPoints": "never",
@@ -1078,8 +1080,7 @@
             "stacking": {
               "mode": "normal"
             },
-            "lineWidth": 2,
-            "pointSize": 6
+            "lineWidth": 2
           },
           "unit": "short",
           "lineWidth": 2

@@ -230,7 +230,7 @@
       }
     },
     {
-      "type": "gauge",
+      "type": "stat",
       "title": "Optimization Rate",
       "description": "How much the optimization pipeline reduces API costs. Higher is better.",
       "gridPos": {
@@ -287,10 +287,12 @@
             "lastNotNull"
           ]
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "orientation": "auto",
-        "sort": "desc"
+        "sort": "desc",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true
       }
     },
     {
@@ -517,13 +519,12 @@
               "mode": "normal"
             },
             "lineWidth": 2,
-            "pointSize": 4,
             "showPoints": "never",
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
             },
-            "drawStyle": "points"
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -577,13 +578,12 @@
               "mode": "normal"
             },
             "lineWidth": 2,
-            "pointSize": 4,
             "showPoints": "never",
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
             },
-            "drawStyle": "points"
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -806,13 +806,12 @@
               "mode": "normal"
             },
             "lineWidth": 2,
-            "pointSize": 4,
             "showPoints": "never",
             "spanNulls": true,
             "color": {
               "mode": "palette-classic"
             },
-            "drawStyle": "points"
+            "drawStyle": "line"
           },
           "lineWidth": 2
         }
@@ -873,8 +872,7 @@
             },
             "spanNulls": true,
             "showPoints": "never",
-            "drawStyle": "points",
-            "pointSize": 6
+            "drawStyle": "line"
           },
           "thresholds": {
             "mode": "absolute",
