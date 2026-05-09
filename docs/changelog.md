@@ -2,6 +2,85 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-10] Comprehensive SanitizeGarbledOutput Coverage (undefined Recurrence Fix)
+
+### Root Cause
+
+`SanitizeGarbledOutput` was added incrementally to specific paths when the "undefined" bug was first discovered. The fix had two gaps:
+
+1. **Regex too narrow**: `(?:undefined[\s]*){2,}` only matched 2+ consecutive "undefined". GLM changed behavior to emit single "undefined" which passed through.
+
+2. **Incomplete path coverage**: Only `relayStreamWithTracking` and `ProxySidecar` (unmasker=nil branch) had sanitization. All other proxy paths had zero coverage.
+
+### แก้ไข: Regex จับ single undefined
+
+```
+Before: (?:undefined[\s]*){2,}   -- จับ 2+ ตัวเท่านั้น
+After:  (?:undefined[\s]*)+      -- จับ 1+ ตัว (single + repeated)
+```
+
+**File:** `api-gateway/privacy/masking/stream.go`
+
+---
+
+### แก้ไข: SanitizeGarbledOutput ทุก streaming + non-stream path
+
+**Before (4 paths covered):**
+
+| Path | Status |
+|---|---|
+| relayStreamWithTracking text deltas | OK |
+| ProxySidecar (unmasker=nil) | OK |
+| handleNonStreamResponse | OK |
+| ProxySidecar non-stream | OK |
+| openai.go streaming | BUG - no sanitization |
+| openai.go non-stream | BUG - no sanitization |
+| convertOpenAIStreamResponse | BUG - no sanitization |
+| convertOpenAIResponse non-stream | BUG - no sanitization |
+| gemini-apikey.go streaming | BUG - no sanitization |
+| gemini-apikey.go non-stream | BUG - no sanitization |
+| gemini-codeassist.go streaming | BUG - no sanitization |
+| gemini-codeassist.go non-stream | BUG - no sanitization |
+| claude-session.go streaming | BUG - no sanitization |
+| All flush paths (unmasker.Flush, stripper.Flush) | BUG - no sanitization |
+
+**After (all paths covered):**
+
+| Path | File | Coverage |
+|---|---|---|
+| relayStreamWithTracking text/thinking deltas | anthropic.go | ProcessChunk + SanitizeGarbledOutput |
+| relayStreamWithTracking flush paths | anthropic.go | Flush + SanitizeGarbledOutput |
+| ProxySidecar (unmasker active) | anthropic.go | ProcessChunk + SanitizeGarbledOutput |
+| ProxySidecar (unmasker nil) | anthropic.go | SanitizeGarbledOutput |
+| ProxySidecar flush paths | anthropic.go | Flush + SanitizeGarbledOutput |
+| handleNonStreamResponse | anthropic.go | SanitizeGarbledOutput |
+| convertOpenAIStreamResponse | anthropic.go | ProcessChunk + SanitizeGarbledOutput |
+| convertOpenAIResponse non-stream | anthropic.go | SanitizeGarbledOutput |
+| openai.go streaming text path | openai.go | ProcessChunk + SanitizeGarbledOutput |
+| openai.go flush paths | openai.go | Flush + SanitizeGarbledOutput |
+| openai.go non-stream | openai.go | SanitizeGarbledOutput |
+| gemini-apikey.go streaming | gemini-apikey.go | ProcessChunk + SanitizeGarbledOutput |
+| gemini-apikey.go flush paths | gemini-apikey.go | Flush + SanitizeGarbledOutput |
+| gemini-apikey.go non-stream (x2) | gemini-apikey.go | SanitizeGarbledOutput |
+| gemini-codeassist.go streaming | gemini-codeassist.go | ProcessChunk + SanitizeGarbledOutput |
+| gemini-codeassist.go flush paths | gemini-codeassist.go | Flush + SanitizeGarbledOutput |
+| gemini-codeassist.go non-stream | gemini-codeassist.go | SanitizeGarbledOutput |
+| claude-session.go streaming | claude-session.go | ProcessChunk + SanitizeGarbledOutput |
+| claude-session.go flush paths | claude-session.go | Flush + SanitizeGarbledOutput |
+
+**Files:** `api-gateway/privacy/masking/stream.go`, `api-gateway/proxy/anthropic.go`, `api-gateway/proxy/openai.go`, `api-gateway/proxy/gemini-apikey.go`, `api-gateway/proxy/gemini-codeassist.go`, `api-gateway/proxy/claude-session.go`
+
+---
+
+### เพิ่ม: Grafana Dashboard Panels (41+ panels)
+
+- token-optimization.json: 6 pordee + 4 optimizer + 23 sub-metric panels
+- api-gateway-overview.json: 18 panels (bandit, cache eviction, vision, prefetcher, warmstart, summarizer)
+- Fixed datasource on 83 panels across 7 dashboards
+- All metrics tests pass (TestNoMissingMetrics, TestRegisteredMetricsComplete, TestDashboardPromQLValidation)
+
+---
+
 ## [2026-05-09] Masking-Independent "undefined" Guard + GLM Mode Routing Fix
 
 ### เพิ่ม: SanitizeGarbledOutput -- final undefined guard (independent of masking)

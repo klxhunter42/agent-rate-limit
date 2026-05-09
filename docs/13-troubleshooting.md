@@ -160,6 +160,77 @@ ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 30 2>&1 | grep -v he
 
 If 1210 still occurs, the `content analysis` log will show exactly which block types and extra keys remain in the payload.
 
+## GLM "undefined" Garbled Output in Response
+
+**Symptom:** GLM model responses contain bare "undefined" tokens in output text. Can appear as single "undefined" or repeated "undefinedundefinedundefined...".
+
+**Root cause:** GLM models emit "undefined" instead of preserving `[[TYPE_N]]` placeholder tokens. This happens regardless of whether privacy masking is active.
+
+**Why it keeps coming back:** The fix was originally applied only to `relayStreamWithTracking` (main Anthropic streaming path). GLM requests can route through multiple proxy paths (OpenAI, Gemini, Claude Session, Zhipu conversion), and none of those had sanitization. Additionally, the regex `(?:undefined[\s]*){2,}` only matched 2+ consecutive, so single "undefined" passed through.
+
+**Fix (2026-05-10): Comprehensive coverage across all proxy paths:**
+
+1. Regex changed from `{2,}` to `+` (matches single + repeated "undefined")
+2. `SanitizeGarbledOutput` added to ALL 19 output paths across 6 proxy files
+3. All flush paths (`unmasker.Flush()`, `stripper.Flush()`) now sanitize before writing to client
+
+```
+Sanitization coverage (every output path):
+
+  anthropic.go:
+    relayStreamWithTracking text/thinking    -> SanitizeGarbledOutput
+    relayStreamWithTracking flush            -> SanitizeGarbledOutput
+    ProxySidecar ProcessChunk (active)       -> SanitizeGarbledOutput
+    ProxySidecar (inactive)                  -> SanitizeGarbledOutput
+    ProxySidecar flush                       -> SanitizeGarbledOutput
+    handleNonStreamResponse                  -> SanitizeGarbledOutput
+    convertOpenAIStreamResponse              -> SanitizeGarbledOutput
+    convertOpenAIResponse non-stream         -> SanitizeGarbledOutput
+
+  openai.go:
+    streaming text path                      -> SanitizeGarbledOutput
+    streaming flush paths                    -> SanitizeGarbledOutput
+    non-stream response                      -> SanitizeGarbledOutput
+
+  gemini-apikey.go:
+    streaming ProcessChunk                   -> SanitizeGarbledOutput
+    streaming flush                          -> SanitizeGarbledOutput
+    non-stream (raw fallback)                -> SanitizeGarbledOutput
+    non-stream (converted)                   -> SanitizeGarbledOutput
+
+  gemini-codeassist.go:
+    streaming ProcessChunk                   -> SanitizeGarbledOutput
+    streaming flush                          -> SanitizeGarbledOutput
+    non-stream response                      -> SanitizeGarbledOutput
+
+  claude-session.go:
+    streaming ProcessChunk                   -> SanitizeGarbledOutput
+    streaming flush                          -> SanitizeGarbledOutput
+```
+
+**Stream pipeline order (per content_block_delta):**
+```
+1. stripper.Feed(text)       <- buffer + strip HTML/XML
+2. unmasker.ProcessChunk()   <- unmask PII/secrets
+3. SanitizeGarbledOutput()   <- strip garbled "undefined"
+4. relay to client
+```
+
+**Verification:**
+```bash
+# Check gateway is running latest code
+ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 5 2>&1"
+
+# Search for "undefined" in a test GLM response
+ssh klxhunter@192.168.5.111 'docker exec arl-proxy curl -s -X POST \
+  http://arl-gateway:8080/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: YOUR_ZAI_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -d "{\"model\":\"glm-5.1\",\"max_tokens\":50,\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}]}"' | grep -i undefined
+# Should return nothing (all "undefined" stripped)
+```
+
 ## GLM Streaming: `<details><summary>` HTML Tags in Response
 
 **Symptom:** GLM model responses contain raw HTML tags like `<details><summary>temp/</summary>` instead of formatted markdown. Happens in streaming mode only.
