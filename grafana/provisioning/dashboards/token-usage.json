@@ -938,6 +938,7 @@
     {
       "type": "timeseries",
       "title": "Output Unit Rate by Model",
+      "description": "Output token throughput rate per second, grouped by model",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -993,6 +994,7 @@
     {
       "type": "timeseries",
       "title": "API Unit Rate by Account",
+      "description": "Token throughput rate per second, grouped by account/key",
       "gridPos": {
         "h": 8,
         "w": 24,

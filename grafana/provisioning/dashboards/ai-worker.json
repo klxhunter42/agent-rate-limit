@@ -29,6 +29,7 @@
   "panels": [
     {
       "title": "Jobs Processed / Failed / Retried",
+      "description": "Job processing stats: successful completions, failures, and retry attempts",
       "type": "timeseries",
       "gridPos": {
         "h": 9,
@@ -83,6 +84,7 @@
     },
     {
       "title": "Total Jobs",
+      "description": "Total job count by status: processed, failed, retried",
       "type": "stat",
       "gridPos": {
         "h": 9,
@@ -142,6 +144,7 @@
     },
     {
       "title": "Queue Depth Over Time",
+      "description": "Number of jobs waiting in the processing queue over time. Sustained high depth = worker bottleneck.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -204,6 +207,7 @@
     },
     {
       "title": "Active Workers",
+      "description": "Number of currently active worker goroutines processing jobs",
       "type": "gauge",
       "gridPos": {
         "h": 8,
@@ -247,6 +251,7 @@
     },
     {
       "title": "Error Rate %",
+      "description": "Job failure rate as percentage of total jobs. Spikes indicate upstream or processing issues.",
       "type": "stat",
       "gridPos": {
         "h": 8,
@@ -300,6 +305,7 @@
     },
     {
       "title": "Rate Limit Hits",
+      "description": "Number of rate limit hits encountered by workers when calling upstream APIs",
       "type": "stat",
       "gridPos": {
         "h": 8,
@@ -333,6 +339,7 @@
     },
     {
       "title": "Total Provider Errors",
+      "description": "Total errors from upstream API providers (timeouts, 5xx, connection failures)",
       "type": "stat",
       "gridPos": {
         "h": 8,
@@ -366,6 +373,7 @@
     },
     {
       "title": "API Usage - Input by Model",
+      "description": "Input token consumption per model for AI worker jobs",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -409,6 +417,7 @@
     },
     {
       "title": "API Usage - Output by Model",
+      "description": "Output token generation per model for AI worker jobs",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -452,6 +461,7 @@
     },
     {
       "title": "Provider Latency (p50/p95/p99)",
+      "description": "Upstream API call latency percentiles. High p99 = slow provider responses.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -505,6 +515,7 @@
     },
     {
       "title": "Worker Process Memory (RSS)",
+      "description": "Worker process resident set size (memory usage) over time",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -553,6 +564,7 @@
     },
     {
       "title": "Worker CPU Usage",
+      "description": "Worker process CPU usage percentage over time",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -596,6 +608,7 @@
     },
     {
       "title": "Provider Errors by Provider",
+      "description": "Error count grouped by upstream provider (Claude, OpenAI, Gemini, etc.)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -644,6 +657,7 @@
     },
     {
       "title": "Account Input Tokens",
+      "description": "Input token usage per API account/key for billing tracking",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -690,6 +704,7 @@
     },
     {
       "title": "Account Output Tokens",
+      "description": "Output token usage per API account/key for billing tracking",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

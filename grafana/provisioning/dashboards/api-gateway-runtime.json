@@ -23,6 +23,7 @@
   "panels": [
     {
       "title": "Goroutines",
+      "description": "Number of active Go goroutines. Spikes without corresponding traffic may indicate goroutine leaks.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -65,6 +66,7 @@
     },
     {
       "title": "Memory",
+      "description": "Process memory usage (heap alloc, sys, total alloc). Watch for monotonic growth.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -112,6 +114,7 @@
     },
     {
       "title": "GC Pause",
+      "description": "Garbage collection pause duration. Frequent long pauses = memory pressure.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -154,6 +157,7 @@
     },
     {
       "title": "Heap Objects",
+      "description": "Number of objects on the Go heap. Monotonic growth = potential memory leak.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -196,6 +200,7 @@
     },
     {
       "title": "Dragonfly Health",
+      "description": "Dragonfly cache connectivity and health status",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -268,6 +273,7 @@
     },
     {
       "title": "Waste Detection Findings",
+      "description": "Token waste detection results grouped by detector and severity",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

@@ -487,6 +487,7 @@
     },
     {
       "title": "Chars Saved by Technique",
+      "description": "Stacked characters saved over time per optimization technique (input direction)",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -583,6 +584,7 @@
     },
     {
       "title": "Runs by Technique",
+      "description": "Stacked optimization run rate per technique showing execution frequency",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -791,6 +793,7 @@
     },
     {
       "title": "Optimizer Performance (P95)",
+      "description": "P95 waste scan duration over time. Measures overhead of the waste detection pipeline.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1254,6 +1257,7 @@
     },
     {
       "title": "Injections by Result",
+      "description": "Injection results over time grouped by outcome (e.g. compressed, skipped, error)",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1317,6 +1321,7 @@
     },
     {
       "title": "Injections by Level",
+      "description": "Distribution of injections by compression level. Higher levels = more aggressive compression.",
       "type": "piechart",
       "datasource": {
         "type": "prometheus",
@@ -1580,6 +1585,7 @@
     },
     {
       "title": "Chunker Performance",
+      "description": "Chunker metrics: total chunks created, cache hit rate, and reorder performance",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -2341,6 +2347,7 @@
     },
     {
       "title": "Budget Utilization",
+      "description": "Current optimization budget utilization gauge: 0=minimal, 1=moderate, 2=aggressive",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -2458,6 +2465,7 @@
     },
     {
       "title": "Disclosure",
+      "description": "Progressive disclosure metrics: FTS hit rate and chars saved by layered context disclosure",
       "type": "row",
       "datasource": {
         "type": "prometheus",
