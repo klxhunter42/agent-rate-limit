@@ -196,6 +196,7 @@ maxTransient defaults to 2
 | HTTP 429                               | Retry with backoff         | `attempt < UpstreamMaxRetries`                 |
 | HTTP 429 + OnRateLimitError            | Retry with key rotation    | `OnRateLimitError != nil`                      |
 | HTTP 401 + bearer + OnAuthError        | Retry with refreshed token | Single attempt                                 |
+| HTTP 401 + transparent + OnAuthError   | Retry with refreshed token | Single attempt, transparent header forwarding  |
 | HTTP 200 + empty body                  | Retry as transient         | `transientAttempts < maxTransient`             |
 | HTTP 200 + malformed body              | Retry as transient         | `transientAttempts < maxTransient`             |
 | ClassifyError = ActionTruncateAndRetry | Truncate + retry           | `truncationAttempts < 1 && EnableAutoTruncate` |
@@ -216,20 +217,23 @@ maxTransient defaults to 2
 3. Unmask secrets/PII if maskResult active
 4. Trim verbose patterns if `cfg.EnableResponseTrim`
 5. Filter out `server_tool_use` content blocks
-6. Copy allowed response headers
-7. Write status + body
+6. Sanitize repeated "undefined" via `SanitizeGarbledOutput`
+7. Convert GLM `<details><summary>` HTML to markdown via `convertHTMLDetails` (GLM models only)
+8. Copy allowed response headers
+9. Write status + body
 
 **Stream response handling (`relayStreamWithTracking`):**
 1. Wrap body with context timeout (10 min)
-2. Scan lines, forward non-data lines as-is
-3. Unmask `content_block_delta` events (text, thinking, partial_json)
-4. Unmask lines containing `[[` (direct JSON replacement)
-5. Flush unmasker buffer at `content_block_stop` boundaries
-6. Filter `server_tool_use` blocks (skip start/delta/stop for that index)
-7. Parse `message_start` for input tokens, `message_delta` for output tokens
-8. Record TTFB on first line
-9. After stream ends, flush remaining unmasker buffer
-10. Fallback to estimated input tokens if upstream reported 0
+2. Initialize `toolUseStripper` for GLM models (buffers cross-chunk XML/HTML)
+3. Scan lines, forward non-data lines as-is
+4. For `content_block_delta` text deltas: apply `stripper.Feed()` then `unmasker.ProcessChunk()` then `SanitizeGarbledOutput`
+5. Unmask lines containing `[[` (direct JSON replacement)
+6. Flush unmasker buffer at `content_block_stop` boundaries
+7. Filter `server_tool_use` blocks (skip start/delta/stop for that index)
+8. Parse `message_start` for input tokens, `message_delta` for output tokens
+9. Record TTFB on first line
+10. After stream ends: flush `stripper` buffer, then flush unmasker buffer
+11. Fallback to estimated input tokens if upstream reported 0
 
 #### 3.2.2 `ProxySidecar` -- Node.js Sidecar Relay
 
@@ -1148,7 +1152,7 @@ remaining := unmasker.Flush()                    // at block boundaries and stre
 
 | Proxy                   | 429 Retries              | Transient Retries                   | Truncation | Backoff   | Max Backoff | Special                                   |
 |-------------------------|--------------------------|-------------------------------------|------------|-----------|-------------|-------------------------------------------|
-| Anthropic (transparent) | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 1 attempt  | quadratic | 5 min       | Key rotation on 429, token refresh on 401 |
+| Anthropic (transparent) | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 1 attempt  | quadratic | 5 min       | Key rotation on 429, token refresh on 401 (non-transparent), transparent 401 refresh |
 | OpenAI                  | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0          | quadratic | 5 min       | max_tokens reduction on 400               |
 | GeminiCodeAssist        | 0                        | 0                                   | 0          | none      | n/a         | 401 refresh once                          |
 | GeminiAPI               | `cfg.UpstreamMaxRetries` | `cfg.TransientRetryMax` (default 2) | 0          | quadratic | 5 min       | none                                      |

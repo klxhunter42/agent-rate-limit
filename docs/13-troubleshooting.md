@@ -160,3 +160,131 @@ ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 30 2>&1 | grep -v he
 
 If 1210 still occurs, the `content analysis` log will show exactly which block types and extra keys remain in the payload.
 
+## GLM Streaming: `<details><summary>` HTML Tags in Response
+
+**Symptom:** GLM model responses contain raw HTML tags like `<details><summary>temp/</summary>` instead of formatted markdown. Happens in streaming mode only.
+
+**Why Claude Code CLI normally doesn't have this problem:** CLI connects directly to Anthropic API (Claude models). Claude models never emit `<details><summary>` HTML. This noise is specific to GLM models (Z.AI) only. The gateway must clean it before forwarding to the client.
+
+**Root cause:** The `toolUseStripper` struct (defined in `proxy/anthropic.go`) was only wired into `openai.go` streaming, never into `relayStreamWithTracking` (the Anthropic streaming handler). GLM models emit `<details><summary>` as formatting noise that must be buffered across SSE chunks and converted to markdown.
+
+```
+GLM SSE chunks arrive split across multiple events:
+  chunk 1: "Here is the <det"
+  chunk 2: "ails><summary>temp/"
+  chunk 3: "</summary>"
+
+Without toolUseStripper:
+  → client sees raw HTML fragments as-is
+
+With toolUseStripper:
+  chunk 1: "Here is the <det"  → buffer (incomplete tag)
+  chunk 2: "ails><summary>temp/" → buffer (still incomplete)
+  chunk 3: "</summary>"         → complete! convert to markdown
+  → client sees: "Here is the **temp/**"
+```
+
+**Fix (2026-05-09):** Wired `toolUseStripper` into `relayStreamWithTracking`:
+1. Initialize `stripper = &toolUseStripper{}` for GLM models (`strings.HasPrefix(model, "glm-")`)
+2. Apply `stripper.Feed()` on text deltas before unmasking (step in stream pipeline)
+3. Call `stripper.Flush()` at stream end before unmasker flush
+4. Also wired `convertHTMLDetails()` into both non-stream paths (`handleNonStreamResponse` and `ProxySidecar`)
+
+**Stream pipeline order (per content_block_delta):**
+```
+1. stripper.Feed(text)       ← NEW: buffer + strip HTML/XML
+2. unmasker.ProcessChunk()   ← existing: unmask PII/secrets
+3. SanitizeGarbledOutput()   ← existing: strip repeated "undefined"
+4. relay to client
+```
+
+**Verification:**
+```bash
+ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 50 2>&1 | grep stripper"
+# Should see: "stripper flushed remaining" if any HTML was processed
+```
+
+## Agent 401: GLM Model Request with Wrong API Key
+
+**Symptom:** Agent (Claude Code, VS Code) calls gateway with `model=glm-*` and gets 401. Server has `GLM_MODE=true`.
+
+**Root cause chain:**
+
+1. `ZAI_API_KEYS` key pool is empty or all keys are exhausted
+2. Fallback at `handler.go:694` picks up client's `x-api-key` (Claude OAuth token `sk-ant-oat01-*`)
+3. `handler.go:715` detects `sk-ant-oat01-` prefix and forces `transparent = true`
+4. `ProxyTransparent` forwards ALL headers to Z.AI upstream with the Anthropic OAuth token
+5. Z.AI doesn't recognize Anthropic tokens -> 401
+
+```
+BEFORE (401 - opaque error)
+
+  Agent: model=glm-5.1, x-api-key=sk-ant-oat01-...
+        |
+        v
+  Key resolution:
+    profile?       -> no
+    transparent?   -> no
+    decision key?  -> empty
+    key pool?      -> empty
+    fallback:      -> client x-api-key = "sk-ant-oat01-..."
+        |
+        v
+  sk-ant-oat01- detected -> transparent = true
+        |
+        v
+  ProxyTransparent: sends Anthropic token to api.z.ai
+        |
+        v
+  Z.AI: 401 (doesn't recognize Anthropic OAuth token)
+        |
+        v
+  Agent sees opaque "Unauthorized" with no actionable info
+
+
+AFTER (clear rejection before upstream)
+
+  Agent: model=glm-5.1, x-api-key=sk-ant-oat01-...
+        |
+        v
+  Key resolution:
+    profile?       -> no
+    transparent?   -> no
+    decision key?  -> empty
+    key pool?      -> empty
+    fallback:      -> client x-api-key = "sk-ant-oat01-..."
+        |
+        v
+  GLM guard (handler.go):
+    GLMMode=true?         YES
+    ProviderID=="zai"?    YES (glm-5.1 routes to zai)
+    apiKey="sk-ant-oat01-"? YES
+        |
+        v
+  REJECT immediately:
+    401 "No Z.AI API key available.
+    Configure ZAI_API_KEYS or use a profile
+    with a Z.AI token."
+        |
+        v
+  Agent sees clear error with actionable fix
+```
+
+**Fix (2026-05-09):** Two-part fix:
+
+1. **GLM guard** (`handler.go:715-729`): Before transparent-mode detection, check if `GLM_MODE=true`, provider is `zai`, and the resolved API key is an Anthropic OAuth token. If so, reject immediately with a clear error message instead of forwarding to Z.AI.
+
+2. **Transparent 401 handler** (`proxy/anthropic.go`): Added retry logic in `ProxyTransparent` that attempts token refresh when upstream returns 401 for transparent OAuth requests (covers the case where a Claude OAuth token expires mid-session).
+
+**Verification:**
+```bash
+# Check if key pool is the issue
+ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 100 2>&1 | grep -E 'key pool|glm mode'"
+
+# Check for GLM guard rejections
+ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 100 2>&1 | grep 'glm request with anthropic oauth token rejected'"
+
+# Check for transparent token sent to Z.AI (should NOT appear after fix)
+ssh klxhunter@192.168.5.111 "docker logs arl-gateway --tail 100 2>&1 | grep -E 'transparent.*sidecar|upstream 401'"
+```
+

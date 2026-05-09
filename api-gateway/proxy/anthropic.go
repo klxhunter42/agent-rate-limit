@@ -1251,6 +1251,53 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			return fmt.Errorf("upstream 401: token refresh failed")
 		}
 
+		// On 401 in transparent mode with OAuth token, attempt refresh.
+		// Transparent mode normally forwards client headers as-is, but if
+		// the upstream rejects with 401, we can refresh the OAuth token.
+		if resp.StatusCode == 401 && opts != nil && opts.Transparent && opts.OnAuthError != nil {
+			resp.Body.Close()
+			if newKey, ok := opts.OnAuthError(apiKey); ok {
+				slog.Warn("upstream retry with refreshed transparent token", "model", model, "status", resp.StatusCode)
+				apiKey = newKey
+				httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
+				if err != nil {
+					return fmt.Errorf("create retry request: %w", err)
+				}
+				// Forward all client headers (transparent mode) with refreshed token.
+				for k, vv := range r.Header {
+					httpReq.Header[k] = vv
+				}
+				httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+				httpReq.Header.Del("x-api-key")
+				for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding"} {
+					httpReq.Header.Del(h)
+				}
+				httpReq.Header.Set("Accept-Encoding", "identity")
+				httpReq.ContentLength = int64(len(body))
+				start2 := time.Now()
+				resp2, err2 := p.client.Do(httpReq)
+				rtt2 := time.Since(start2)
+				if err2 != nil {
+					return fmt.Errorf("retry after refresh failed: %w", err2)
+				}
+				if feedback != nil {
+					feedback(resp2.StatusCode, rtt2, resp2.Header)
+				}
+				lastResp = resp2
+				break
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(401)
+			json.NewEncoder(w).Encode(ErrorResponse{
+				Type: "error",
+				Error: ErrorDetail{
+					Type:    "authentication_error",
+					Message: "OAuth token expired and refresh failed. Please re-authenticate.",
+				},
+			})
+			return fmt.Errorf("upstream 401: transparent token refresh failed")
+		}
+
 		if resp.StatusCode == http.StatusOK {
 			// Validate response is not empty/malformed before treating as success
 			if !isStream {
@@ -1836,6 +1883,10 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 	// Final guard: strip repeated "undefined" from garbled GLM output.
 	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+	// Convert GLM <details><summary> HTML to markdown.
+	if strings.HasPrefix(model, "glm-") {
+		respBody = convertHTMLDetails(respBody)
+	}
 	w.Write(respBody)
 	return nil
 }
@@ -1963,6 +2014,10 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	}
 	// Final guard: strip repeated "undefined" from garbled GLM output.
 	body = []byte(masking.SanitizeGarbledOutput(string(body)))
+	// Convert GLM <details><summary> HTML to markdown.
+	if strings.HasPrefix(model, "glm-") {
+		body = convertHTMLDetails(body)
+	}
 	// Validate JSON before writing to client. If upstream sent truncated JSON
 	// (e.g. connection reset mid-body), wrap it in a valid error response so
 	// the client gets parseable JSON instead of "Unexpected EOF".
@@ -2005,6 +2060,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+
+	// GLM models emit <details><summary> and XML tool blocks in streaming text.
+	var stripper *toolUseStripper
+	if strings.HasPrefix(model, "glm-") {
+		stripper = &toolUseStripper{}
+	}
 
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		slog.Info("stream unmasker active", "has_secrets", maskResult.HasSecrets, "has_pii", maskResult.HasPII,
@@ -2057,6 +2118,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				var changed bool
 				if evt.Delta.Text != "" {
 					before := evt.Delta.Text
+					if stripper != nil {
+						evt.Delta.Text = stripper.Feed(evt.Delta.Text)
+					}
 					if unmasker != nil {
 						evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
 					}
@@ -2162,6 +2226,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			f.Flush()
 		}
 		return nil
+	}
+
+	// Flush GLM HTML/XML stripper before unmasker.
+	if stripper != nil {
+		if remaining := stripper.Flush(); remaining != "" {
+			slog.Info("stripper flushed remaining", "len", len(remaining))
+		}
 	}
 
 	// Emit any remaining unmasker buffer as a final content_block_delta.

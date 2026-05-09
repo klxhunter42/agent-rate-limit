@@ -711,7 +711,23 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Profile-selected OAuth token: enable transparent mode for sidecar routing.
+
+	// GLM guard: never send Anthropic OAuth token to Z.AI upstream.
+	// When GLM_MODE=true, model=glm-*, and key pool is empty, the fallback
+	// above picks up the client's x-api-key (Anthropic OAuth token).
+	// Forwarding that to Z.AI causes 401. Reject early with a clear error.
+	if h.cfg.GLMMode && decision != nil && decision.ProviderID == "zai" && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+		slog.Warn("glm request with anthropic oauth token rejected", "model", requestedModel, "provider", decision.ProviderID)
+		writeJSON(w, http.StatusUnauthorized, proxy.ErrorResponse{
+			Type: "error",
+			Error: proxy.ErrorDetail{
+				Type:    "authentication_error",
+				Message: "No Z.AI API key available. Configure ZAI_API_KEYS or use a profile with a Z.AI token.",
+			},
+		})
+		return
+	}
+
 	if !transparent && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
 		transparent = true
 		slog.Info("profile OAuth token, enabling transparent sidecar routing", "profile", func() string {
