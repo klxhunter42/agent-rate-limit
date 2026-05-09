@@ -75,6 +75,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -130,6 +134,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -188,6 +196,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -227,6 +239,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -276,6 +292,10 @@
         "justifyMode": "auto",
         "textMode": "auto",
         "wideLayout": true
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -305,6 +325,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -334,6 +358,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -373,6 +401,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -412,6 +444,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -461,6 +497,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -505,6 +545,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -544,6 +588,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -588,6 +636,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {

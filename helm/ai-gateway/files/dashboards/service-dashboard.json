@@ -109,6 +109,10 @@
         "graphMode": "area",
         "colorMode": "background_solid",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -170,6 +174,10 @@
         "graphMode": "area",
         "colorMode": "background_solid",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -227,6 +235,10 @@
         "graphMode": "area",
         "colorMode": "background_solid",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -293,6 +305,10 @@
         "justifyMode": "auto",
         "textMode": "auto",
         "wideLayout": true
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -343,6 +359,10 @@
         "graphMode": "area",
         "colorMode": "background_solid",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -393,6 +413,10 @@
         "graphMode": "area",
         "colorMode": "background_solid",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -486,6 +510,10 @@
         "namePlacement": "auto",
         "valueMode": "text",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -546,7 +574,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -605,7 +637,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "row",
@@ -666,6 +702,10 @@
           "sort": "desc"
         },
         "showValue": "always"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -708,6 +748,10 @@
           "mode": "single",
           "sort": "desc"
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -762,6 +806,10 @@
             "lastNotNull"
           ]
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -833,7 +881,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -902,7 +954,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "row",
@@ -1134,6 +1190,10 @@
           }
         ],
         "cellHeight": "sm"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     }
   ]

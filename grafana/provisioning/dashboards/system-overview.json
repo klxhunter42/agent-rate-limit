@@ -107,6 +107,10 @@
         "graphMode": "none",
         "justifyMode": "center",
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -150,6 +154,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -198,6 +206,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -237,6 +249,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -265,6 +281,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -310,6 +330,10 @@
       },
       "options": {
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -348,6 +372,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -391,6 +419,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -429,6 +461,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -472,6 +508,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     }
   ],

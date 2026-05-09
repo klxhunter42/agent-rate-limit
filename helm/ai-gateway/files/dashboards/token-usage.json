@@ -49,7 +49,11 @@
         "x": 0,
         "y": 0
       },
-      "collapsed": false
+      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "stat",
@@ -103,6 +107,10 @@
           ]
         },
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -157,6 +165,10 @@
           ]
         },
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -191,6 +203,10 @@
           ]
         },
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -225,6 +241,10 @@
           ]
         },
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -236,7 +256,11 @@
         "x": 0,
         "y": 5
       },
-      "collapsed": false
+      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -290,7 +314,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -344,7 +372,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "table",
@@ -410,6 +442,10 @@
       },
       "options": {
         "showHeader": true
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -421,7 +457,11 @@
         "x": 0,
         "y": 22
       },
-      "collapsed": false
+      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -475,7 +515,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -529,7 +573,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "table",
@@ -593,6 +641,10 @@
             ]
           }
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -604,7 +656,11 @@
         "x": 0,
         "y": 39
       },
-      "collapsed": false
+      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -658,7 +714,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -712,7 +772,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "table",
@@ -776,6 +840,10 @@
             ]
           }
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -787,7 +855,11 @@
         "x": 0,
         "y": 56
       },
-      "collapsed": false
+      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -838,7 +910,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -889,7 +965,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     },
     {
       "type": "timeseries",
@@ -948,7 +1028,11 @@
       },
       "showPoints": "never",
       "spanNulls": true,
-      "lineWidth": 2
+      "lineWidth": 2,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     }
   ]
 }

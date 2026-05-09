@@ -246,6 +246,10 @@
           "sortDesc": true
         },
         "pieType": "donut"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -437,6 +441,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -617,6 +625,10 @@
           ]
         },
         "sort": "desc"
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -665,6 +677,10 @@
         "justifyMode": "auto",
         "textMode": "auto",
         "wideLayout": true
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -713,6 +729,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -763,6 +783,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -777,12 +801,12 @@
       "targets": [
         {
           "expr": "(sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval])))",
-          "legendFormat": "{{model}} in",
+          "legendFormat": "{{profile}} in",
           "refId": "A"
         },
         {
           "expr": "(sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval])))",
-          "legendFormat": "{{model}} out",
+          "legendFormat": "{{profile}} out",
           "refId": "B"
         }
       ],
@@ -806,6 +830,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -859,6 +887,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -901,6 +933,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -944,6 +980,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     },
     {
@@ -956,45 +996,6 @@
         "y": 31
       },
       "collapsed": false
-    },
-    {
-      "title": "Profile Cost (USD)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 32
-      },
-      "targets": [
-        {
-          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
-          "legendFormat": "{{model}} $/hr",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "currencyUSD",
-          "decimals": 4,
-          "lineWidth": 2,
-          "custom": {
-            "lineWidth": 2,
-            "spanNulls": true,
-            "showPoints": "never",
-            "drawStyle": "line"
-          }
-        }
-      },
-      "showPoints": "never",
-      "spanNulls": true,
-      "lineWidth": 2,
-      "options": {
-        "legend": {
-          "sort": "sum",
-          "sortDesc": true
-        }
-      }
     },
     {
       "title": "Cost by Model",
@@ -1033,6 +1034,10 @@
           "sort": "sum",
           "sortDesc": true
         }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       }
     }
   ],

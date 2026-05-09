@@ -70,6 +70,43 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_pordee_injections_total":    {"level", "result"},
 	"api_gateway_pordee_output_ratio":        {},
 	"api_gateway_pordee_duration_seconds":    {},
+	// Bandit selection
+	"api_gateway_bandit_reward_total":                  {},
+	"api_gateway_bandit_selection_duration_seconds":    {},
+	// Cache eviction
+	"api_gateway_cache_eviction_keys_evicted_total":         {},
+	"api_gateway_cache_eviction_pass_duration_seconds":      {},
+	"api_gateway_cache_eviction_roi_score":                   {},
+	// Caveman compression
+	"api_gateway_caveman_compressions_total":            {},
+	"api_gateway_caveman_compression_ratio":             {},
+	// Chunker
+	"api_gateway_chunker_chunks_total":                  {},
+	"api_gateway_chunker_cache_hit_rate":                {},
+	// Delta
+	"api_gateway_delta_savings_pct":                    {},
+	// Disclosure
+	"api_gateway_disclosure_fts_hit_rate":              {},
+	// Image compression
+	"api_gateway_image_compressions_total":              {},
+	"api_gateway_image_bytes_original_total":            {},
+	"api_gateway_image_bytes_saved_total":               {},
+	// Packer
+	"api_gateway_packer_budget_utilization":             {},
+	"api_gateway_packer_tokens_saved_total":             {},
+	// Prefetcher
+	"api_gateway_prefetcher_order_used":                 {},
+	"api_gateway_prefetcher_prewarm_duration_seconds":   {},
+	// Sketch
+	"api_gateway_sketch_hamming_similarity":             {},
+	// Summarizer
+	"api_gateway_summarizer_llm_tokens_total":           {},
+	// Vision pre-analysis
+	"api_gateway_vision_preanalysis_total":              {},
+	"api_gateway_vision_preanalysis_duration_seconds":   {},
+	// Warmstart
+	"api_gateway_warmstart_similarity_score":            {},
+	"api_gateway_warmstart_warmup_duration_seconds":     {},
 }
 
 // skipMetricsFromCoverage are registered metrics excluded from the
@@ -400,6 +437,34 @@ func TestRegisteredMetricsComplete(t *testing.T) {
 		"api_gateway_delta_encodes_total",
 		"api_gateway_sketch_checks_total",
 		"api_gateway_waste_scan_duration_seconds",
+	// Sub-package metrics
+	"api_gateway_bandit_reward_total",
+	"api_gateway_bandit_selection_duration_seconds",
+	"api_gateway_cache_eviction_keys_evicted_total",
+	"api_gateway_cache_eviction_pass_duration_seconds",
+	"api_gateway_cache_eviction_roi_score",
+	"api_gateway_caveman_compressions_total",
+	"api_gateway_caveman_compression_ratio",
+	"api_gateway_chunker_chunks_total",
+	"api_gateway_chunker_cache_hit_rate",
+	"api_gateway_delta_savings_pct",
+	"api_gateway_disclosure_fts_hit_rate",
+	"api_gateway_image_compressions_total",
+	"api_gateway_image_bytes_original_total",
+	"api_gateway_image_bytes_saved_total",
+	"api_gateway_packer_budget_utilization",
+	"api_gateway_packer_tokens_saved_total",
+	"api_gateway_prefetcher_order_used",
+	"api_gateway_prefetcher_prewarm_duration_seconds",
+	"api_gateway_sketch_hamming_similarity",
+	"api_gateway_summarizer_llm_tokens_total",
+	"api_gateway_vision_preanalysis_total",
+	"api_gateway_vision_preanalysis_duration_seconds",
+	"api_gateway_warmstart_similarity_score",
+	"api_gateway_warmstart_warmup_duration_seconds",
+	"api_gateway_pordee_injections_total",
+	"api_gateway_pordee_output_ratio",
+	"api_gateway_pordee_duration_seconds",
 	}
 
 	for _, m := range canonical {
