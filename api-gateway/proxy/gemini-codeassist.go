@@ -576,6 +576,7 @@ func (p *GeminiCodeAssistProxy) nonStreamResponse(w http.ResponseWriter, resp *h
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	_, err = w.Write(respBody)
 	return err
 }
@@ -666,6 +667,7 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 						if unmasker != nil {
 							text = unmasker.ProcessChunk(text)
 						}
+						text = masking.SanitizeGarbledOutput(text)
 						if text == "" {
 							continue
 						}
@@ -683,11 +685,15 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 	// Flush remaining unmasker buffer.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			writeSSE(w, flusher, "content_block_delta", map[string]any{
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							writeSSE(w, flusher, "content_block_delta", map[string]any{
 				"type":  "content_block_delta",
 				"index": 0,
 				"delta": map[string]any{"type": "text_delta", "text": remaining},
 			})
+
+			}
 		}
 	}
 

@@ -455,6 +455,7 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
 	return nil

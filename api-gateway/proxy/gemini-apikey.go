@@ -184,8 +184,9 @@ func (p *GeminiAPIProxy) handleGeminiResponse(w http.ResponseWriter, resp *http.
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		body = []byte(masking.SanitizeGarbledOutput(string(body)))
 		w.Write(body)
-		return nil
+			return nil
 	}
 
 	if usage := gResp.UsageMeta; usage != nil {
@@ -202,6 +203,7 @@ func (p *GeminiAPIProxy) handleGeminiResponse(w http.ResponseWriter, resp *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.Write(respBody)
 	return nil
 }
@@ -281,6 +283,7 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 			}
 			if unmasker != nil {
 				text = unmasker.ProcessChunk(text)
+				text = masking.SanitizeGarbledOutput(text)
 				if text == "" {
 					continue
 				}
@@ -296,10 +299,14 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							escaped, _ := json.Marshal(remaining)
 			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 			if flusher != nil {
 				flusher.Flush()
+			}
+
 			}
 		}
 	}

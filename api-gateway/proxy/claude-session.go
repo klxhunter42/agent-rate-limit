@@ -336,6 +336,7 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 
 		if unmasker != nil {
 			completion = unmasker.ProcessChunk(completion)
+			completion = masking.SanitizeGarbledOutput(completion)
 		}
 
 		escaped, _ := json.Marshal(completion)
@@ -348,10 +349,14 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	// Flush remaining unmasker buffer.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							escaped, _ := json.Marshal(remaining)
 			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 			if flusher != nil {
 				flusher.Flush()
+			}
+
 			}
 		}
 	}

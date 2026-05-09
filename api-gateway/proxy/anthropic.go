@@ -761,6 +761,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
 	}
 
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
@@ -916,6 +917,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		// Unmask text chunk if privacy masking is active.
 		if unmasker != nil {
 			text = unmasker.ProcessChunk(text)
+			text = masking.SanitizeGarbledOutput(text)
 		}
 		// content_block_delta
 		escaped, _ := json.Marshal(text)
