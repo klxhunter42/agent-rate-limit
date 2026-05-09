@@ -66,6 +66,10 @@ var registeredMetrics = map[string][]string{
 	"api_gateway_delta_encodes_total":              {},
 	"api_gateway_sketch_checks_total":              {},
 	"api_gateway_waste_scan_duration_seconds":      {},
+	// Pordee Thai compression
+	"api_gateway_pordee_injections_total":    {"level", "result"},
+	"api_gateway_pordee_output_ratio":        {},
+	"api_gateway_pordee_duration_seconds":    {},
 }
 
 // skipMetricsFromCoverage are registered metrics excluded from the
