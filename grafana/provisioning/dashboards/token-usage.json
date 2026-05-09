@@ -43,6 +43,7 @@
     {
       "type": "row",
       "title": "Overview",
+      "description": "Key token usage metrics: total input/output units, request count, and estimated cost",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -58,6 +59,7 @@
     {
       "type": "stat",
       "title": "Total Input Units",
+      "description": "Total input token units consumed across all models and profiles in the selected time range",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -116,6 +118,7 @@
     {
       "type": "stat",
       "title": "Total Output Units",
+      "description": "Total output token units generated across all models and profiles in the selected time range",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -174,6 +177,7 @@
     {
       "type": "stat",
       "title": "Total Requests",
+      "description": "Total number of API requests processed by the gateway",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -212,6 +216,7 @@
     {
       "type": "stat",
       "title": "Total Cost (USD)",
+      "description": "Estimated total cost in USD based on token usage and per-model pricing",
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -250,6 +255,7 @@
     {
       "type": "row",
       "title": "Per-Model API Usage",
+      "description": "Token usage breakdown per model: input and output units",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -265,6 +271,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Model",
+      "description": "Input token units consumed per model over time. Use to identify which models consume the most input.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -323,6 +330,7 @@
     {
       "type": "timeseries",
       "title": "Output Units by Model",
+      "description": "Output token units generated per model over time",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -381,6 +389,7 @@
     {
       "type": "table",
       "title": "API Usage by Model (Accumulated)",
+      "description": "Cumulative token usage per model over the selected time range",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -451,6 +460,7 @@
     {
       "type": "row",
       "title": "Per-Profile API Usage",
+      "description": "Token usage breakdown per configuration profile",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -466,6 +476,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Profile",
+      "description": "Input token units consumed per profile over time",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -524,6 +535,7 @@
     {
       "type": "timeseries",
       "title": "Output Units by Profile",
+      "description": "Output token units generated per profile over time",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -582,6 +594,7 @@
     {
       "type": "table",
       "title": "API Usage by Profile + Model",
+      "description": "Token usage breakdown per profile and model combination",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -650,6 +663,7 @@
     {
       "type": "row",
       "title": "Per-Account/Key API Usage",
+      "description": "Token usage breakdown per API account or key",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -665,6 +679,7 @@
     {
       "type": "timeseries",
       "title": "Input Units by Account",
+      "description": "Input token units consumed per account/key over time",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -723,6 +738,7 @@
     {
       "type": "timeseries",
       "title": "Output Units by Account",
+      "description": "Output token units generated per account/key over time",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -781,6 +797,7 @@
     {
       "type": "table",
       "title": "API Usage by Account + Model",
+      "description": "Token usage breakdown per account and model combination",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -849,6 +866,7 @@
     {
       "type": "row",
       "title": "API Unit Rate (units/sec)",
+      "description": "Token throughput rate per second",
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -864,6 +882,7 @@
     {
       "type": "timeseries",
       "title": "Input Unit Rate by Model",
+      "description": "Input token throughput rate per second, grouped by model",
       "gridPos": {
         "h": 8,
         "w": 12,

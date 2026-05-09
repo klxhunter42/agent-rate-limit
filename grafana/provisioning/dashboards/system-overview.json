@@ -29,6 +29,7 @@
   "panels": [
     {
       "title": "System Architecture",
+      "description": "High-level system health overview across all gateway components",
       "type": "text",
       "gridPos": {
         "h": 3,
@@ -43,6 +44,7 @@
     },
     {
       "title": "Dragonfly Health",
+      "description": "Dragonfly (Redis-compatible) cache health: connections, memory, and queue depth",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -115,6 +117,7 @@
     },
     {
       "title": "Connections",
+      "description": "Active connections to the Dragonfly cache instance",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -162,6 +165,7 @@
     },
     {
       "title": "Queue Depth",
+      "description": "Number of jobs waiting in the AI worker queue",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -214,6 +218,7 @@
     },
     {
       "title": "Workers",
+      "description": "Number of active AI worker processes",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -257,6 +262,7 @@
     },
     {
       "title": "Rate Limit Hits",
+      "description": "Rate limit hits from upstream API providers",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -289,6 +295,7 @@
     },
     {
       "title": "Error Rate",
+      "description": "Error rate as percentage of total requests across all services",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -338,6 +345,7 @@
     },
     {
       "title": "Request Rate",
+      "description": "Total request rate per second across the API gateway",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -380,6 +388,7 @@
     },
     {
       "title": "Job Rate",
+      "description": "AI worker job processing rate per second",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -427,6 +436,7 @@
     },
     {
       "title": "Latency p95",
+      "description": "95th percentile request latency across the gateway",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -469,6 +479,7 @@
     },
     {
       "title": "429s & Retries",
+      "description": "HTTP 429 rate limit responses and retry attempts from upstream providers",
       "type": "timeseries",
       "gridPos": {
         "h": 8,

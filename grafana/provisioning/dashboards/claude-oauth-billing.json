@@ -35,6 +35,7 @@
   "panels": [
     {
       "title": "Claude OAuth Billing Path",
+      "description": "Request routing and billing path distribution across all provider backends",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -46,6 +47,7 @@
     },
     {
       "title": "Billing Path Distribution",
+      "description": "Breakdown of requests by billing path: go_direct (Claude native), sidecar, zai_proxy, openai_proxy, gemini_proxy, codeassist_proxy, anthropic_proxy. billing_rejected = requests blocked before reaching upstream.",
       "type": "piechart",
       "gridPos": {
         "h": 8,
@@ -245,7 +247,10 @@
           "sort": "sum",
           "sortDesc": true
         },
-        "pieType": "donut"
+        "pieType": "donut",
+        "tooltip": {
+          "sort": "desc"
+        }
       },
       "datasource": {
         "type": "prometheus",
@@ -254,6 +259,7 @@
     },
     {
       "title": "Request Rate by Billing Path",
+      "description": "Request rate per second grouped by billing path over time. Use this to spot traffic spikes or provider shifts.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -440,6 +446,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -449,6 +458,7 @@
     },
     {
       "title": "Billing Path Total (Last 1h)",
+      "description": "Total request count per billing path in the selected time range. Go Direct = optimal path, Sidecar = extra hop, Rejected = blocked before upstream.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -633,6 +643,7 @@
     },
     {
       "title": "Go Direct Success Rate",
+      "description": "Percentage of requests routed directly to Claude without sidecar hop or rejection. Higher = better cost efficiency.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -685,6 +696,7 @@
     },
     {
       "title": "Billing Path Latency",
+      "description": "Latency percentiles (p50/p95/p99) for each billing path. High latency on a path may indicate upstream issues.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -728,6 +740,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -737,6 +752,7 @@
     },
     {
       "title": "Per-Profile Usage",
+      "description": "Usage metrics per configuration profile and model",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -748,6 +764,7 @@
     },
     {
       "title": "Requests by Profile & Model",
+      "description": "Request rate for the go_direct billing path over time. Flat line = steady load, spikes = batch jobs or surges.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -782,6 +799,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -791,6 +811,7 @@
     },
     {
       "title": "API Usage by Profile (OAuth)",
+      "description": "Token throughput (input/output) per profile in characters per second. Compare profiles to see which ones consume the most bandwidth.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -829,6 +850,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -838,6 +862,7 @@
     },
     {
       "title": "Upstream Health",
+      "description": "Upstream provider health: rate limits, retries, and streaming latency",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -849,6 +874,7 @@
     },
     {
       "title": "429 Rate Limit Hits",
+      "description": "Rate of HTTP 429 responses from upstream providers. Sustained 429s mean the gateway is hitting provider rate limits and may need throttling or backoff tuning.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -886,6 +912,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -895,6 +924,7 @@
     },
     {
       "title": "Upstream Retries",
+      "description": "Rate of upstream retry attempts. High retries indicate intermittent upstream failures or timeouts.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -932,6 +962,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -941,6 +974,7 @@
     },
     {
       "title": "TTFB by Model (Streaming)",
+      "description": "Time to first byte percentiles (p50/p95) per model for streaming responses. High TTFB = slow model or overloaded upstream.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -979,6 +1013,9 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
@@ -988,6 +1025,7 @@
     },
     {
       "title": "Cost Overview",
+      "description": "Cost tracking and estimation based on token usage",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -999,11 +1037,12 @@
     },
     {
       "title": "Cost by Model",
+      "description": "Estimated hourly cost per model based on token usage pricing. Useful for identifying expensive models and budget planning.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 24,
+        "x": 0,
         "y": 32
       },
       "targets": [
@@ -1033,11 +1072,513 @@
         "legend": {
           "sort": "sum",
           "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
         }
       },
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Thai Compression (Pordee)",
+      "description": "Thai text compression system that reduces token usage for Thai language content",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Pordee Injections",
+      "description": "Total Thai compression injections in the selected time range",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 41
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(api_gateway_pordee_injections_total[$__range])) or on() vector(0)",
+          "legendFormat": "Injections",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#8b5cf6",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Avg Output Ratio",
+      "description": "Median and P95 output compression ratio. Lower = better compression.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 41
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(api_gateway_pordee_output_ratio_bucket[$__range])) by (le)) or on() vector(0)",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_pordee_output_ratio_bucket[$__range])) by (le)) or on() vector(0)",
+          "legendFormat": "P95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "fixedColor": "#10b981",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Avg Duration (ms)",
+      "description": "P50 and P95 Thai compression processing time in milliseconds",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 41
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(api_gateway_pordee_duration_seconds_bucket[$__range])) by (le)) * 1000 or on() vector(0)",
+          "legendFormat": "P50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_pordee_duration_seconds_bucket[$__range])) by (le)) * 1000 or on() vector(0)",
+          "legendFormat": "P95",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": {
+            "fixedColor": "#f59e0b",
+            "mode": "fixed"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Injections by Result",
+      "description": "Injection results over time grouped by outcome (e.g. compressed, skipped, error)",
+      "type": "barchart",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 45
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (increase(api_gateway_pordee_injections_total[$__range])) or on() vector(0)",
+          "legendFormat": "{{result}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "stacking": "normal",
+        "tooltip": {
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Injections by Level",
+      "description": "Distribution of injections by compression level. Higher levels = more aggressive compression.",
+      "type": "piechart",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 45
+      },
+      "targets": [
+        {
+          "expr": "sum by (level) (increase(api_gateway_pordee_injections_total[$__range])) or on() vector(0)",
+          "legendFormat": "{{level}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ],
+          "sort": "sum",
+          "sortDesc": true
+        },
+        "pieType": "donut",
+        "tooltip": {
+          "sort": "desc"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "Optimization by Technique",
+      "description": "Per-technique token optimization metrics: chars saved, run frequency, and overall savings breakdown",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "collapsed": false
+    },
+    {
+      "title": "Chars Saved by Technique",
+      "description": "Stacked characters saved over time per optimization technique (input direction). Techniques: chunker, delta, disclosure, sketch, summarizer, waste_detector.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
+          "legendFormat": "{{technique}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 30,
+            "gradientMode": "scheme",
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ],
+          "sort": "sum",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
+        }
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2
+    },
+    {
+      "title": "Savings by Technique",
+      "description": "Total characters saved per technique in the selected time range (bar chart). Excludes sketch_dedup which is tracked separately.",
+      "type": "barchart",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 52
+      },
+      "targets": [
+        {
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "groupWidth": 0.7,
+        "barWidth": 0.6,
+        "stacking": "none",
+        "tooltip": {
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Runs by Technique",
+      "description": "Stacked optimization run rate per technique. Shows how frequently each technique is invoked over time.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 52
+      },
+      "targets": [
+        {
+          "expr": "(sum by (technique) (rate(api_gateway_optimizer_runs_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{technique}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": true,
+            "drawStyle": "line"
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "lineWidth": 2
+        },
+        "overrides": []
+      },
+      "showPoints": "never",
+      "spanNulls": true,
+      "lineWidth": 2,
+      "options": {
+        "legend": {
+          "sort": "sum",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "title": "Technique Performance",
+      "description": "Summary table: chars saved and run count per technique. Sorted by chars saved descending. Footer shows totals.",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "targets": [
+        {
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_chars_saved_total{technique!=\"sketch_dedup\",direction=\"input\"}[$__range]))) or on() vector(0)",
+          "refId": "A",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
+          "refId": "B",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "expr": "(sum by (technique) (increase(api_gateway_optimizer_runs_total[$__range]))) or on() vector(0)",
+          "refId": "C",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "renameByName": {
+              "Value #A": "Chars Saved",
+              "Value #B": "Runs",
+              "Value #C": "Runs (total)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "cellHeight": "sm",
+            "sortBy": [
+              {
+                "desc": true
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ]
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Chars Saved"
+          }
+        ]
       }
     }
   ],
@@ -1057,5 +1598,5 @@
   },
   "title": "Claude OAuth Billing Path",
   "uid": "claude-oauth-billing",
-  "version": 1
+  "version": 2
 }

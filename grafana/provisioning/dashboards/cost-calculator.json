@@ -29,6 +29,7 @@
   "panels": [
     {
       "title": "AI API Cost Estimator",
+      "description": "Executive cost overview: actual spend, estimated cost, and budget utilization",
       "type": "text",
       "gridPos": {
         "h": 4,
@@ -43,6 +44,7 @@
     },
     {
       "title": "Actual Cost",
+      "description": "Actual cost calculated from real token usage and per-model pricing",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -93,6 +95,7 @@
     },
     {
       "title": "Est. Cost from API Usage",
+      "description": "Estimated cost based on API usage metrics and configured pricing",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -143,6 +146,7 @@
     },
     {
       "title": "Input Units",
+      "description": "Total input token units consumed in the selected time range",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -176,6 +180,7 @@
     },
     {
       "title": "Output Units",
+      "description": "Total output token units generated in the selected time range",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -209,6 +214,7 @@
     },
     {
       "title": "Cost Trend (Hourly)",
+      "description": "Hourly cost trend over time. Use to spot cost spikes and plan budgets.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -264,6 +270,7 @@
     },
     {
       "title": "Cost by Model",
+      "description": "Cost breakdown per model. Most expensive models appear first.",
       "type": "barchart",
       "gridPos": {
         "h": 8,
@@ -300,6 +307,7 @@
     },
     {
       "title": "API Usage by Model",
+      "description": "Token usage (input + output) per model over time",
       "type": "barchart",
       "gridPos": {
         "h": 8,
@@ -340,6 +348,7 @@
     },
     {
       "title": "Total Requests",
+      "description": "Total API requests processed in the selected time range",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -385,6 +394,7 @@
     },
     {
       "title": "Billing Path Distribution",
+      "description": "Request distribution by billing path: direct, sidecar, proxy, or rejected",
       "type": "barchart",
       "gridPos": {
         "h": 4,

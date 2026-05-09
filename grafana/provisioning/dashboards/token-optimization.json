@@ -30,6 +30,7 @@
   "panels": [
     {
       "title": "Optimization Summary",
+      "description": "Key metrics for the token optimization pipeline: total savings, efficiency rate, and processing overhead",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -41,6 +42,7 @@
     },
     {
       "title": "Input Tokens Optimized",
+      "description": "Total input tokens saved by the optimizer pipeline (all techniques). Optimizer only operates on the input/request side.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -76,13 +78,13 @@
         },
         "overrides": []
       },
-      "description": "Total input tokens saved by the optimizer pipeline (all techniques). Optimizer only operates on the input/request side.",
       "options": {
         "sort": "desc"
       }
     },
     {
       "title": "Output Tokens Optimized",
+      "description": "Output tokens saved by response trimming. Shows 0 until response optimization is triggered by actual AI traffic.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -122,13 +124,13 @@
         },
         "overrides": []
       },
-      "description": "Output tokens saved by response trimming. Shows 0 until response optimization is triggered by actual AI traffic.",
       "options": {
         "sort": "desc"
       }
     },
     {
       "title": "Cost Savings (USD)",
+      "description": "Estimated cost savings in USD from token optimization. Calculated from chars saved divided by 4 chars per token, multiplied by per-model pricing.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -183,6 +185,7 @@
     },
     {
       "title": "Optimization Runs",
+      "description": "Total number of optimization pipeline executions in the selected time range",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -224,6 +227,7 @@
     },
     {
       "title": "Optimization Efficiency",
+      "description": "Percentage of input tokens saved by the optimizer. Higher = more effective compression.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -285,6 +289,7 @@
     },
     {
       "title": "Avg Duration (ms)",
+      "description": "P50 and P95 optimizer pipeline duration in milliseconds. Measures total optimization overhead.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -326,6 +331,7 @@
     },
     {
       "title": "Savings Over Time",
+      "description": "Time series showing optimization savings and cost reduction over the selected period",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -337,6 +343,7 @@
     },
     {
       "title": "Units Saved Over Time",
+      "description": "Estimated tokens saved per second by the optimizer over time",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -403,6 +410,7 @@
     },
     {
       "title": "Cost Savings Over Time",
+      "description": "Hourly cost savings from optimization over time in USD",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -467,6 +475,7 @@
     },
     {
       "title": "Optimization by Technique",
+      "description": "Per-technique token optimization metrics: chars saved, run frequency, and savings breakdown",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -533,6 +542,7 @@
     },
     {
       "title": "Savings by Technique",
+      "description": "Total characters saved per technique in the selected time range (horizontal bar chart)",
       "type": "barchart",
       "datasource": {
         "type": "prometheus",
@@ -622,6 +632,7 @@
     },
     {
       "title": "Before vs After",
+      "description": "Comparison of token counts before and after optimization, plus optimization rate over time",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -633,6 +644,7 @@
     },
     {
       "title": "Before vs After Optimization",
+      "description": "Bargauge comparing raw input tokens vs optimized tokens. Difference = tokens saved by optimization.",
       "type": "bargauge",
       "datasource": {
         "type": "prometheus",
@@ -714,6 +726,7 @@
     },
     {
       "title": "Optimization Rate Over Time",
+      "description": "Percentage of input tokens saved by optimization over time",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -827,6 +840,7 @@
     },
     {
       "title": "Technique Detail Table",
+      "description": "Detailed per-technique performance table with chars saved, run counts, and averages",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -838,6 +852,7 @@
     },
     {
       "title": "Technique Performance",
+      "description": "Summary table: chars saved and run count per technique. Sorted by chars saved descending.",
       "type": "table",
       "datasource": {
         "type": "prometheus",
@@ -919,6 +934,7 @@
     },
     {
       "title": "Budget & Waste",
+      "description": "Budget utilization level and waste detection findings across all detectors",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -930,6 +946,7 @@
     },
     {
       "title": "Budget Level",
+      "description": "Average budget level across models. 0=green, 1=yellow, 2=red. Shows 0 until AI requests flow through.",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -976,13 +993,13 @@
         },
         "overrides": []
       },
-      "description": "Average budget level across models. 0=green, 1=yellow, 2=red. Shows 0 until AI requests flow through.",
       "options": {
         "sort": "desc"
       }
     },
     {
       "title": "Waste Detection",
+      "description": "Waste findings grouped by detector. Each finding represents detected wasteful tokens.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1032,6 +1049,7 @@
     },
     {
       "title": "Wasted Units by Detector",
+      "description": "Tokens wasted per detector type. Helps identify which waste patterns are most common.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1081,6 +1099,7 @@
     },
     {
       "title": "Thai Compression (Pordee)",
+      "description": "Thai text compression system that reduces token usage for Thai language content",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -1096,6 +1115,7 @@
     },
     {
       "title": "Pordee Injections",
+      "description": "Total Thai compression injections in the selected time range",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1138,6 +1158,7 @@
     },
     {
       "title": "Avg Output Ratio",
+      "description": "Median and P95 output compression ratio. Lower = better compression.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1185,6 +1206,7 @@
     },
     {
       "title": "Avg Duration (ms)",
+      "description": "P50 and P95 Thai compression processing time in milliseconds",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1354,6 +1376,7 @@
     },
     {
       "title": "Optimizer Duration",
+      "description": "P50 and P95 total optimizer pipeline duration. Includes all technique execution time.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1401,6 +1424,7 @@
     },
     {
       "title": "Optimizer Tokens Saved",
+      "description": "Total estimated tokens saved by the optimizer across input and output directions",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1443,6 +1467,7 @@
     },
     {
       "title": "Total Cost Savings",
+      "description": "Cumulative estimated cost savings from all optimization techniques",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1485,6 +1510,7 @@
     },
     {
       "title": "Optimizer Duration Over Time",
+      "description": "P95 optimizer execution duration over time. Spikes may indicate large or complex payloads.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1569,6 +1595,7 @@
     },
     {
       "title": "Total Chunks",
+      "description": "Total chunks created by the chunker for stable content reordering",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1611,6 +1638,7 @@
     },
     {
       "title": "Cache Hit Rate",
+      "description": "Percentage of chunks that matched a cached version, avoiding reprocessing",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -1663,6 +1691,7 @@
     },
     {
       "title": "Chunks Over Time",
+      "description": "Chunk creation rate over time, grouped by chunk type",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1727,6 +1756,7 @@
     },
     {
       "title": "Caveman Compression",
+      "description": "Caveman compression: simple text compression with output-style injection for shorter prompts",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -1742,6 +1772,7 @@
     },
     {
       "title": "Compressions",
+      "description": "Total Caveman compression operations performed",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1784,6 +1815,7 @@
     },
     {
       "title": "Avg Ratio",
+      "description": "Median and P95 Caveman compression ratio. Lower = better compression.",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -1826,6 +1858,7 @@
     },
     {
       "title": "Compression Ratio",
+      "description": "P50 and P95 Caveman compression ratio over time",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1895,6 +1928,7 @@
     },
     {
       "title": "Sketch & Delta",
+      "description": "Sketch-based deduplication and delta encoding: detect duplicate content and encode only differences",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -1910,6 +1944,7 @@
     },
     {
       "title": "Sketch Hamming Similarity",
+      "description": "Distribution of Hamming similarity scores between content sketches. High similarity = duplicate content detected.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -1979,6 +2014,7 @@
     },
     {
       "title": "Delta Savings %",
+      "description": "Percentage of characters saved by delta encoding. Shows how much content was reused vs resent.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -2048,6 +2084,7 @@
     },
     {
       "title": "Image Compression",
+      "description": "Image optimization: resize, convert to JPEG, and strip metadata to reduce base64 payload size",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -2063,6 +2100,7 @@
     },
     {
       "title": "Images Compressed",
+      "description": "Total images processed through the image compression pipeline",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -2105,6 +2143,7 @@
     },
     {
       "title": "Bytes Saved",
+      "description": "Total bytes saved by image compression (resize + format conversion)",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -2147,6 +2186,7 @@
     },
     {
       "title": "Bytes Original",
+      "description": "Total bytes of images before compression",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -2189,6 +2229,7 @@
     },
     {
       "title": "Savings Rate",
+      "description": "Percentage of image bytes saved by compression",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -2241,6 +2282,7 @@
     },
     {
       "title": "Packer",
+      "description": "Context packing: rearrange and compress conversation history to fit within token budget",
       "type": "row",
       "datasource": {
         "type": "prometheus",
@@ -2256,6 +2298,7 @@
     },
     {
       "title": "Tokens Saved",
+      "description": "Tokens saved by context packing (reordering + compression of conversation history)",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
@@ -2350,6 +2393,7 @@
     },
     {
       "title": "Budget Utilization Over Time",
+      "description": "Budget level over time: 0=minimal, 1=moderate, 2=aggressive",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -2429,6 +2473,7 @@
     },
     {
       "title": "FTS Hit Rate",
+      "description": "Full-text search layer hit rate. Measures how often the disclosure layer finds matching content in cached context.",
       "type": "gauge",
       "datasource": {
         "type": "prometheus",
@@ -2481,6 +2526,7 @@
     },
     {
       "title": "FTS Hit Rate Over Time",
+      "description": "Full-text search layer hit rate over time. High rate = progressive disclosure is effectively skipping unchanged context.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",

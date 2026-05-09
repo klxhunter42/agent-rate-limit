@@ -803,8 +803,12 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 				// Flush remaining unmasker buffer before closing events.
 				if unmasker != nil {
 					if remaining := unmasker.Flush(); remaining != "" {
-						escaped, _ := json.Marshal(remaining)
+						remaining = masking.SanitizeGarbledOutput(remaining)
+						if remaining != "" {
+													escaped, _ := json.Marshal(remaining)
 						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+
+						}
 					}
 				}
 				// content_block_stop
@@ -852,8 +856,12 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		// Flush any partial placeholder buffer before switching to tool_calls
 		if unmasker != nil && started {
 			if remaining := unmasker.Flush(); remaining != "" {
-				escaped, _ := json.Marshal(remaining)
+				remaining = masking.SanitizeGarbledOutput(remaining)
+				if remaining != "" {
+									escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+
+				}
 			}
 		}
 		// Handle tool_calls: forward arguments with unmasking.
@@ -920,12 +928,16 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	// Emit any remaining unmasker buffer after stream ended without [DONE]
 	if unmasker != nil && started {
 		if remaining := unmasker.Flush(); remaining != "" {
-			// Emit closing events for streams that ended without [DONE]
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							// Emit closing events for streams that ended without [DONE]
 			fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
 			fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 			fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 			if flusher != nil {
 				flusher.Flush()
+			}
+
 			}
 		}
 	}
@@ -1752,8 +1764,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							// Flush on block index change to prevent cross-block buffer contamination
 							if evt.Index != lastUnmaskBlockIdx && lastUnmaskBlockIdx >= 0 {
 								if remaining := unmasker.Flush(); remaining != "" {
-									escaped, _ := json.Marshal(remaining)
+									remaining = masking.SanitizeGarbledOutput(remaining)
+									if remaining != "" {
+																			escaped, _ := json.Marshal(remaining)
 									fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+
+									}
 								}
 							}
 							lastUnmaskBlockIdx = evt.Index
@@ -1762,10 +1778,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							if evt.Delta.Text != "" {
 								before := evt.Delta.Text
 								evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
+									evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
 								changed = evt.Delta.Text != before
 							} else if evt.Delta.Thinking != "" {
 								before := evt.Delta.Thinking
 								evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
+									evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
@@ -1789,8 +1807,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 						}
 
 						if remaining := unmasker.Flush(); remaining != "" {
-							escaped, _ := json.Marshal(remaining)
+							remaining = masking.SanitizeGarbledOutput(remaining)
+							if remaining != "" {
+															escaped, _ := json.Marshal(remaining)
 							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+
+							}
 						}
 					} else if strings.Contains(data, "[[") {
 						unmasked := unmasker.ReplaceDirectJSON(data)
@@ -1848,8 +1870,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 		if unmasker != nil {
 			if remaining := unmasker.Flush(); remaining != "" {
-				escaped, _ := json.Marshal(remaining)
+				remaining = masking.SanitizeGarbledOutput(remaining)
+				if remaining != "" {
+									escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+
+				}
 			}
 		}
 		return nil
@@ -2157,8 +2183,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		// cross-block contamination (e.g. text buffer leaking into thinking).
 		if unmasker != nil && strings.Contains(data, `"content_block_stop"`) {
 			if remaining := unmasker.Flush(); remaining != "" {
-				escaped, _ := json.Marshal(remaining)
+				remaining = masking.SanitizeGarbledOutput(remaining)
+				if remaining != "" {
+									escaped, _ := json.Marshal(remaining)
 				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+
+				}
 			}
 		}
 
@@ -2211,8 +2241,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			// Flush unmasker buffer before emitting closing events to prevent placeholder leaks
 			if unmasker != nil {
 				if remaining := unmasker.Flush(); remaining != "" {
-					escaped, _ := json.Marshal(remaining)
+					remaining = masking.SanitizeGarbledOutput(remaining)
+					if remaining != "" {
+											escaped, _ := json.Marshal(remaining)
 					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+
+					}
 				}
 			}
 			return nil
@@ -2231,16 +2265,24 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	// Flush GLM HTML/XML stripper before unmasker.
 	if stripper != nil {
 		if remaining := stripper.Flush(); remaining != "" {
-			slog.Info("stripper flushed remaining", "len", len(remaining))
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							slog.Info("stripper flushed remaining", "len", len(remaining))
+
+			}
 		}
 	}
 
 	// Emit any remaining unmasker buffer as a final content_block_delta.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			escaped, _ := json.Marshal(remaining)
+			remaining = masking.SanitizeGarbledOutput(remaining)
+			if remaining != "" {
+							escaped, _ := json.Marshal(remaining)
 			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 			slog.Warn("unmask buffer not empty at stream end, emitted as delta", "remaining_len", len(remaining))
+
+			}
 		}
 	}
 

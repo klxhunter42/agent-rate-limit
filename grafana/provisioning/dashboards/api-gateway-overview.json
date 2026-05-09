@@ -35,6 +35,7 @@
   "panels": [
     {
       "title": "Traffic & Latency",
+      "description": "Request throughput, latency distribution, and active connections",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -46,6 +47,7 @@
     },
     {
       "title": "Request Rate by Path",
+      "description": "Request rate per second grouped by API endpoint path. Use this to identify traffic patterns.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -89,6 +91,7 @@
     },
     {
       "title": "Latency Percentiles",
+      "description": "End-to-end request latency percentiles (p50/p95/p99). High p99 indicates tail latency issues.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -141,6 +144,7 @@
     },
     {
       "title": "Avg Latency by Path",
+      "description": "Average latency per API endpoint path. Compare paths to find slow endpoints.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -183,6 +187,7 @@
     },
     {
       "title": "Active Connections",
+      "description": "Current number of active HTTP connections to the gateway",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -225,6 +230,7 @@
     },
     {
       "title": "API Units & Fallback",
+      "description": "Token unit consumption, model fallback, and adaptive rate limiting",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -236,6 +242,7 @@
     },
     {
       "title": "Input Units by Model",
+      "description": "Input token units consumed per model over time. Each unit = 1 token.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -278,6 +285,7 @@
     },
     {
       "title": "Output Units by Model",
+      "description": "Output token units generated per model over time",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -374,6 +382,7 @@
     },
     {
       "title": "Concurrency Limit per Model",
+      "description": "Current concurrency limit set by the adaptive limiter per model",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -423,6 +432,7 @@
     },
     {
       "title": "In-Flight vs Limit per Model",
+      "description": "Active in-flight requests compared to the concurrency limit per model. Near limit = throttling.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -497,6 +507,7 @@
     },
     {
       "title": "Errors & Rate Limits",
+      "description": "Upstream errors, HTTP 429 rate limit hits, and error rate percentage",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -508,6 +519,7 @@
     },
     {
       "title": "Upstream 429s & Retries",
+      "description": "Rate of HTTP 429 responses and retry attempts from upstream providers",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -555,6 +567,7 @@
     },
     {
       "title": "Errors by Type",
+      "description": "Error count grouped by error type: timeout, connection refused, rate limit, etc.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -597,6 +610,7 @@
     },
     {
       "title": "Error Rate %",
+      "description": "Error rate as percentage of total requests. Sustained high rate needs investigation.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -639,6 +653,7 @@
     },
     {
       "title": "Rate Limit Hits by Key",
+      "description": "Rate limit hits grouped by limit key. Shows which clients/models are being throttled.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -728,6 +743,7 @@
     },
     {
       "title": "Time to First Byte (TTFB)",
+      "description": "Time to first byte for streaming responses. Measures upstream responsiveness.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -775,6 +791,7 @@
     },
     {
       "title": "Queue Depth",
+      "description": "Number of requests waiting in the gateway queue. Non-zero = gateway is overloaded.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -835,6 +852,7 @@
     },
     {
       "title": "Profile Usage",
+      "description": "Per-profile request metrics, token usage, and cost breakdown",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -846,6 +864,7 @@
     },
     {
       "title": "Requests by Status",
+      "description": "Request count grouped by HTTP status code. 200=success, 429=rate limited, 500=error",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
