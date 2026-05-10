@@ -2652,6 +2652,34 @@ func mapModelForTarget(model, targetProvider string) string {
 	return model
 }
 
+// estimateTokenCount returns a rough token estimate for an Anthropic request payload.
+// Uses ~4 chars/token for text content, counts all string values recursively.
+func estimateTokenCount(payload map[string]any) int {
+	totalChars := 0
+	var walk func(v any)
+	walk = func(v any) {
+		switch val := v.(type) {
+		case string:
+			totalChars += len(val)
+		case map[string]any:
+			for _, v2 := range val {
+				walk(v2)
+			}
+		case []any:
+			for _, v2 := range val {
+				walk(v2)
+			}
+		}
+	}
+	for _, v := range payload {
+		walk(v)
+	}
+	if totalChars == 0 {
+		return 0
+	}
+	return totalChars/4 + 1
+}
+
 func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, h.cfg.MaxRequestBody))
 	if err != nil {
@@ -2660,6 +2688,33 @@ func (h *Handler) CountTokens(w http.ResponseWriter, r *http.Request) {
 			Error: proxy.ErrorDetail{Type: "invalid_request_error", Message: "failed to read request body"},
 		})
 		return
+	}
+
+	// GLM mode: Z.AI does not support /v1/messages/count_tokens.
+	// If claude-oauth accounts exist, forward to Anthropic for accurate counts.
+	// Otherwise, return an estimate based on character count.
+	if h.cfg.GLMMode {
+		hasClaudeOAuth := false
+		if h.tokenStore != nil {
+			if tokens, err := h.tokenStore.ListByProvider("claude-oauth"); err == nil && len(tokens) > 0 {
+				hasClaudeOAuth = true
+			}
+		}
+		if !hasClaudeOAuth {
+			var payload map[string]any
+			if json.Unmarshal(body, &payload) == nil {
+				estimated := estimateTokenCount(payload)
+				writeJSON(w, http.StatusOK, map[string]any{
+					"input_tokens": estimated,
+				})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"input_tokens": len(body) / 4,
+			})
+			return
+		}
+		// claude-oauth exists: fall through to forward to Anthropic
 	}
 
 	apiKey, ok := h.keyPool.Acquire()
