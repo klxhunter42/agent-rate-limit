@@ -433,6 +433,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	requestedModel, _ := payload["model"].(string)
 	// Transparent passthrough for claude-oauth: preserve exact CLI payload.
 	transparent := false
+		// GLM mode without claude-oauth accounts: route claude models to Z.AI instead of transparent.
+		hasClaudeOAuth := false
+		if h.cfg.GLMMode && h.tokenStore != nil {
+			if tokens, err := h.tokenStore.ListByProvider("claude-oauth"); err == nil && len(tokens) > 0 {
+				hasClaudeOAuth = true
+			}
+		}
 	if h.resolver != nil {
 		d := h.resolver.Resolve(requestedModel)
 		slog.Info("resolver result", "model", requestedModel, "provider", func() string {
@@ -444,25 +451,32 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			_, ok := isClaudeOAuthToken(r)
 			return ok
 		}())
-		// No stored token but client has Bearer or x-api-key OAuth: use transparent resolve.
-		if d == nil && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
-			if _, ok := isClaudeOAuthToken(r); ok {
-				d = h.resolver.ResolveTransparent(requestedModel)
+		// Transparent passthrough for claude-oauth models.
+		// In GLM mode without stored claude-oauth accounts, skip transparent
+		// and let the model route to Z.AI instead (avoids 401 from expired client tokens).
+		if !h.cfg.GLMMode || hasClaudeOAuth {
+			// No stored token but client has Bearer or x-api-key OAuth: use transparent resolve.
+			if d == nil && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
+				if _, ok := isClaudeOAuthToken(r); ok {
+					d = h.resolver.ResolveTransparent(requestedModel)
+				}
 			}
-		}
-		if d != nil && d.ProviderID == "claude-oauth" {
-			if _, ok := isClaudeOAuthToken(r); ok {
-				transparent = true
+			if d != nil && d.ProviderID == "claude-oauth" {
+				if _, ok := isClaudeOAuthToken(r); ok {
+					transparent = true
+				}
 			}
-		}
-		// Override: client sends OAuth token for claude model - always transparent
-		// regardless of what the resolver returned (may have resolved to 'anthropic'
-		// via stored API key, but we want transparent for OAuth tokens).
-		if !transparent && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
-			if _, ok := isClaudeOAuthToken(r); ok {
-				transparent = true
-				slog.Info("forced transparent for claude-oauth", "model", requestedModel)
+			// Override: client sends OAuth token for claude model - always transparent
+			// regardless of what the resolver returned (may have resolved to 'anthropic'
+			// via stored API key, but we want transparent for OAuth tokens).
+			if !transparent && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
+				if _, ok := isClaudeOAuthToken(r); ok {
+					transparent = true
+					slog.Info("forced transparent for claude-oauth", "model", requestedModel)
+				}
 			}
+		} else if provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
+			slog.Info("glm mode: skipping transparent, routing to zai", "model", requestedModel)
 		}
 	}
 
@@ -1293,6 +1307,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				if h.refreshWorker.RefreshOne(pid, t.AccountID) == nil {
 					if refreshed, err := h.tokenStore.Get(pid, t.AccountID); err == nil && refreshed != nil {
 						slog.Info("token refreshed on 401", "provider", pid, "account", t.AccountID)
+						return refreshed.AccessToken, true
+					}
+				}
+			}
+		}
+		// Transparent mode fallback: client token not in store, try a gateway-stored token.
+		for _, t := range tokens {
+			if t.AccessToken != oldKey && !t.Paused && t.RefreshToken != "" {
+				if h.refreshWorker.RefreshOne(pid, t.AccountID) == nil {
+					if refreshed, err := h.tokenStore.Get(pid, t.AccountID); err == nil && refreshed != nil {
+						slog.Info("transparent fallback: used gateway-stored token", "provider", pid, "account", t.AccountID)
 						return refreshed.AccessToken, true
 					}
 				}
