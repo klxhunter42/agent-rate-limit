@@ -153,6 +153,27 @@ func TestOptimizeWhitespaceCodePreserved(t *testing.T) {
 	}
 }
 
+func TestOptimizeWhitespaceTabsPreserved(t *testing.T) {
+	// Tabs must survive whitespace optimization so Edit tool can match
+	// tab-indented code in message content.
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"tab indent in prose", "\tfunc main() {\n\t\tfmt.Println(\"hello\")\n\t}"},
+		{"mixed tab and space", "hello world\n\tindented line\n    space line"},
+		{"tabs only", "\t\t\tdeep indent"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, _ := OptimizeWhitespace(tt.input)
+			if strings.Contains(tt.input, "\t") && !strings.Contains(result, "\t") {
+				t.Errorf("tabs were lost\ngot:  %q\nwant tabs preserved", result)
+			}
+		})
+	}
+}
+
 func TestDeduplicateSentences(t *testing.T) {
 	tests := []struct {
 		name     string

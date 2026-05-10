@@ -214,12 +214,19 @@ func optimizeProseWhitespace(text string) string {
 	var b strings.Builder
 	prevSpace := false
 	for _, r := range text {
-		if r == ' ' || r == '\t' {
+		if r == ' ' {
 			if prevSpace {
 				continue
 			}
 			prevSpace = true
 			b.WriteByte(' ')
+			continue
+		}
+		if r == '\t' {
+			// Preserve tabs -- they carry semantic meaning in code indentation
+			// and converting them to spaces breaks Edit tool string matching
+			prevSpace = false
+			b.WriteByte('\t')
 			continue
 		}
 		prevSpace = false
@@ -239,10 +246,17 @@ func optimizeProseWhitespace(text string) string {
 			continue
 		}
 		blankCount = 0
-		out.WriteString(strings.TrimRight(line, " \t"))
+		// Only trim trailing spaces, not tabs -- tabs carry indentation meaning
+		out.WriteString(strings.TrimRight(line, " "))
 		out.WriteByte('\n')
 	}
-	return strings.TrimSpace(out.String())
+	// Trim leading/trailing blank lines but preserve leading tab indentation
+	result = out.String()
+	result = strings.Trim(result, "\n")
+	if len(result) > 0 && result[len(result)-1] != '\n' {
+		result += "\n"
+	}
+	return result
 }
 
 // DeduplicateSentences removes duplicate sentences from text.

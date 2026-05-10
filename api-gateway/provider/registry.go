@@ -33,6 +33,7 @@ type ProviderConfig struct {
 	ClientID      string   `json:"client_id,omitempty"`
 	ClientSecret  string   `json:"client_secret,omitempty"`
 	UpstreamBase  string   `json:"upstream_base"`
+	Format       string        `json:"format,omitempty"` // "openai" or "anthropic", used by custom providers
 }
 
 type Registry struct {
@@ -290,6 +291,7 @@ func (r *Registry) LoadCustomProviders(rdb *redis.Client) {
 			continue
 		}
 		r.providers[cfg.ID] = cfg
-		slog.Info("loaded custom provider", "id", cfg.ID, "name", cfg.Name, "upstream", cfg.UpstreamBase)
+		RegisterProviderRoute(cfg.ID, ProviderFormat(cfg.Format))
+		slog.Info("loaded custom provider", "id", cfg.ID, "name", cfg.Name, "upstream", cfg.UpstreamBase, "format", cfg.Format)
 	}
 }

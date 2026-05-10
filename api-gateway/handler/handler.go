@@ -1029,7 +1029,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
 	// Skip only for image requests (base64/URLs get corrupted).
-	if !hasImages {
+	if !hasImages && !transparent {
 		// Extract per-profile optimizer overrides
 		var optOverrides map[string]bool
 		if profileOverride != nil {

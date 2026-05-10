@@ -556,4 +556,54 @@ case <-r.Context().Done():
 
 ---
 
-*Known Issues v1.6 -- updated: proactive model distribution fix*
+### Prompt Cache Breaking by Optimizer (PENDING FIX)
+
+**Problem**: The optimizer pipeline converts `system` field from `[]any` (array with `cache_control` markers) to plain `string`, destroying Anthropic prompt caching for Claude OAuth transparent requests.
+
+**Root cause** (`handler/handler.go:1047-1083`):
+1. Claude Code sends system prompt as `[]any` array with `cache_control: {"type": "ephemeral"}` on each block
+2. Optimizer extracts text via `strings.Join(parts, "\n\n")` - strips `cache_control`
+3. Caveman/Pordee inject output-style rules (net token increase)
+4. Writes back as `payload["system"] = optimized` (plain string, no `cache_control`)
+5. Anthropic treats this as uncached input - charges full price every request
+
+**Before fix** (transparent Claude OAuth, ~20 requests/session):
+
+```
+System prompt per request: ~20,000 tokens
+Cache status: BROKEN (optimizer converts array → string)
+Cache hit tokens: 0
+Full price tokens: 20,000 × 20 = 400,000
+```
+
+**After fix** (skip optimizer for transparent mode):
+
+```
+System prompt per request: ~20,000 tokens
+Cache status: WORKING (array + cache_control preserved)
+Cache hit tokens: ~18,000 per request (90% discount)
+Full price tokens: ~2,000 per request
+Effective cost: 2,000 × 20 = 40,000 tokens (10x cheaper)
+```
+
+**Additional savings**: Caveman + Pordee no longer inject ~100-250 tokens/request into system prompt for transparent mode (these features are designed for GLM mode output compression, not needed for Claude).
+
+**Fix**: Add `&& !transparent` condition to optimizer pipeline entry point:
+
+```go
+// handler/handler.go:1040
+// Before:
+if h.optimizers != nil && !hasImages {
+// After:
+if h.optimizers != nil && !hasImages && !transparent {
+```
+
+`OptimizeMessages` still runs (line 1092-1097) - it doesn't touch system prompt.
+Privacy mask still runs (line 1154-1170) - `injectSystemPrompt` preserves array format by prepending new blocks.
+
+**Files**: `api-gateway/handler/handler.go`
+**Severity**: High (10x token cost increase on Claude OAuth)
+
+---
+
+*Known Issues v1.7 -- updated: prompt cache breaking fix pending*

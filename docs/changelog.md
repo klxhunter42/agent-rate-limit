@@ -2,6 +2,146 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-11] Fix: Tab-to-Space Conversion Breaking Edit Tool
+
+### แก้ไข: `OptimizeWhitespace` แปลง tab เป็น space ทำให้ Claude Code Edit tool match string ไม่เจอ (High)
+
+Claude Code ส่ง message content ที่มี tab-indented Go code ผ่าน gateway `OptimizeWhitespace`
+แปลง tab ทั้งหมดเป็น space ก่อนส่งต่อไป upstream model เห็น space-indented code
+จึง generate Edit response ด้วย space เวลา Edit tool ส่ง space string ไป match กับไฟล์จริง
+ที่เป็น tab --> match ไม่เจอ --> Edit failed
+
+**Before/After Diagram:**
+
+```
+=== BEFORE (tab ถูกแปลงเป็น space) ===
+
+  Claude Code sends:     Gateway OptimizeWhitespace:    Model sees:
+  ┌──────────────┐       ┌──────────────────────┐       ┌──────────────┐
+  │ \tfunc main(){│──────>│ optimizeProseWS()    │──────>│ func main(){ │
+  │ \t\tlog.Println│      │ tab → space (BUG)    │      │   log.Println│
+  │ \t}           │       │ TrimRight(line," \t")│       │ }            │
+  └──────────────┘       │ TrimSpace() strips   │       └──────────────┘
+                         │ leading tabs         │               │
+                         └──────────────────────┘               │
+                                                                v
+                                                         Model generates:
+                                                         ┌──────────────┐
+                                                         │ Edit: spaces │
+                                                         │ "  log.Print"│
+                                                         └──────┬───────┘
+                                                                │
+                                                                v
+                                                         File has tabs:
+                                                         ┌──────────────┐
+                                                         │ \tlog.Print  │
+                                                         └──────┬───────┘
+                                                                │
+                                                         String mismatch!
+                                                         >>> Edit failed <<<
+
+
+=== AFTER (tab ถูก preserved) ===
+
+  Claude Code sends:     Gateway OptimizeWhitespace:    Model sees:
+  ┌──────────────┐       ┌──────────────────────┐       ┌──────────────┐
+  │ \tfunc main(){│──────>│ optimizeProseWS()    │──────>│\tfunc main(){│
+  │ \t\tlog.Println│      │ tab preserved (FIX)  │      │\t\tlog.Println│
+  │ \t}           │       │ TrimRight(line," ")  │      │\t}           │
+  └──────────────┘       │ only trim trailing   │       └──────────────┘
+                         │ spaces, not tabs     │               │
+                         └──────────────────────┘               │
+                                                                v
+                                                         Model generates:
+                                                         ┌──────────────┐
+                                                         │ Edit: tabs   │
+                                                         │ "\tlog.Print"│
+                                                         └──────┬───────┘
+                                                                │
+                                                                v
+                                                         File has tabs:
+                                                         ┌──────────────┐
+                                                         │ \tlog.Print  │
+                                                         └──────┬───────┘
+                                                                │
+                                                         String match!
+                                                         >>> Edit succeeds <<<
+```
+
+**Root cause (3 จุดใน `optimizeProseWhitespace`):**
+
+| # | จุด | Before | After |
+|---|---|---|---|
+| 1 | Tab handling loop | `r == ' ' || r == '\t'` -> write space | Tab มี branch ต่างหาก, write `\t` |
+| 2 | Line trim | `TrimRight(line, " \t")` | `TrimRight(line, " ")` - trim เฉพาะ trailing space |
+| 3 | Final trim | `strings.TrimSpace(out.String())` | `strings.Trim(result, "\n")` - ไม่ strip leading tabs |
+
+**ไฟล์:** `api-gateway/tokenizer/optimizer.go`, `api-gateway/tokenizer/optimizer_test.go`
+
+---
+
+## [2026-05-11] Claude OAuth Account-Level Fallback Fix
+
+### แก้ไข: Profile ที่มี Claude OAuth ไม่ fallback ไป account อื่นเมื่อโดน 429 (Critical)
+
+เมื่อ account หนึ่งใน pool โดน 429 (usage เต็ม), ระบบ cooldown ทั้ง provider 2 นาที ทำให้ account อื่นที่ยังใช้งานได้ถูก skip ด้วย request ถูก reject ทั้งหมดจนกว่า cooldown จะหมด
+
+**Root causes (5 จุด):**
+
+1. **Feedback callback ใช้ provider-level cooldown** - `MarkCooldown(providerID, 2min)` block ทุก account ใน provider ไม่ใช่แค่ account ที่โดน 429
+2. **Initial account selection ไม่กรอง cooldown** - `GetFromPool` เลือก account จาก pool โดยไม่เช็คว่า account นั้นอยู่ใน cooldown อยู่หรือไม่
+3. **`rotateAccountFn` ไม่มี account-level cooldown check** - ตอน rotate ไม่ skip account ที่กำลัง cooldown
+4. **`rotateAccountFn` ไม่ track tried accounts** - ถ้า token ใน pool มีหลายตัว อาจ rotate กลับไปใช้ account เดิมซ้ำ
+5. **`tryResolveRoundRobin` ไม่ skip cooling account** - round-robin เลือก account โดยไม่กรอง cooldown
+
+**แก้ไข:**
+
+| จุด | แก้ | ไฟล์ |
+|---|---|---|
+| Feedback cooldown | เปลี่ยนเป็น `MarkAccountCooldown(providerID, accountID, 5min)` เฉพาะ account ที่โดน 429, fallback ไป provider-level สำหรับ provider ที่ไม่มี account info | handler.go |
+| Initial selection | เพิ่ม cooldown filter ก่อน `GetFromPool` - ถ้าทุก account cooldown ให้ใช้ pool เดิม (fail-open) | handler.go |
+| Rotate function | Rewrite `rotateAccountFn` - track tried accounts ด้วย `rotateTriedKeys map`, skip cooling accounts, ลอง profile Targets[] ก่อน fallback ไป model rules | handler.go |
+| Round-robin resolver | เพิ่ม `IsAccountCoolingDown` check ใน `tryResolveRoundRobin` ตอน build active token list | resolver.go |
+
+**กลไกใหม่ใน resolver.go:**
+
+```go
+func (r *Resolver) MarkAccountCooldown(providerID, accountID string, d time.Duration)
+func (r *Resolver) IsAccountCoolingDown(providerID, accountID string) bool
+```
+
+Cooldown key: `providerID:account:accountID` (per-account, ไม่ใช่ per-provider)
+
+**ไฟล์:** `api-gateway/provider/resolver.go`, `api-gateway/handler/handler.go`
+
+---
+
+## [2026-05-11] Enable caveman + pordee optimizer for GLM=false (Claude OAuth transparent mode)
+
+### Root Cause
+
+`!transparent` guard ใน `OptimizeSystemPrompt` ครอบทั้ง caveman และ pordee ไว้ใน block เดียวกัน ทำให้ GLM=false (Claude OAuth) ไม่มี output optimization เลย:
+
+- `caveman_output` (direction="output") ถูก skip
+- `pordee` (direction="output") ถูก skip
+- `response_trim` ทำงานแค่ non-stream path ซึ่งแทบไม่มี traffic
+
+ผล: panel "Output Tokens Optimized" และ "Pordee Injections" เป็น 0 สำหรับทุก profile ที่ใช้ GLM=false
+
+### แก้ไข
+
+1. ย้าย pordee ออกจาก `!transparent` block -- ทำงานทุก mode เพราะเป็น Thai output injection ไม่ขึ้นกับ proxy path
+2. เอา `!transparent` guard ออกจาก caveman -- input compression + output style injection ทำงานทุก mode
+
+**File:** `api-gateway/handler/optimizers.go`
+
+### ผลกระทบ
+
+- GLM=false จะได้ `caveman_output` + `pordee` + `response_trim` เหมือน GLM=true
+- System prompt จะถูก modify ด้วย regex compression (pleasantries/filler removal) + output style injection
+- Code block / URL / filepath ยังปลอดภัย -- `maskProtected` ป้องกันอยู่
+- MinSize=500 chars -- prompt สั้นกว่านี้จะไม่ถูกแตะ
+
 ## [2026-05-10] Comprehensive SanitizeGarbledOutput Coverage (undefined Recurrence Fix)
 
 ### Root Cause
