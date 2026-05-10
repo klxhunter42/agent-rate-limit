@@ -176,51 +176,50 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	}
 
 	// Caveman compression (F16) - LLM + regex input compression + output-style injection
-	if !transparent {
-		if optimizerAllowed(overrides, "caveman", o.Caveman) {
-			shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
-			if shouldCompress {
-				start := time.Now()
+	if optimizerAllowed(overrides, "caveman", o.Caveman) {
+		shouldCompress, tier := o.Caveman.ShouldCompress(text, budgetLevel)
+		if shouldCompress {
+			start := time.Now()
 
-				// Phase 2: Regex-based compression (filler, articles, pleasantries)
-				inputCompressed, inputSaved := o.Caveman.CompressInput(text, tier)
-				if inputSaved > 0 {
-					beforeInput := len(text)
-					text = inputCompressed
-					slog.Info("optimizer_step", "stage", "caveman_input", "before", beforeInput, "after", len(text), "saved", inputSaved)
-					m.RecordOptimization("caveman_input", inputSaved, "input")
-					totalSaved += inputSaved
-				}
-
-				// Phase 2: Append output-style injection
-				compressed, ratio := o.Caveman.Compress(text, tier)
-				if compressed != text {
-					beforeCav := len(text)
-					text = compressed
-					addedChars := len(text) - beforeCav
-					slog.Info("optimizer_step", "stage", "caveman_output", "before", beforeCav, "after", len(text), "added_input_chars", addedChars, "expected_output_ratio", ratio)
-					m.RecordOptimization("caveman_output", addedChars, "output")
-				}
-
-				m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
+			// Phase 2: Regex-based compression (filler, articles, pleasantries)
+			inputCompressed, inputSaved := o.Caveman.CompressInput(text, tier)
+			if inputSaved > 0 {
+				beforeInput := len(text)
+				text = inputCompressed
+				slog.Info("optimizer_step", "stage", "caveman_input", "before", beforeInput, "after", len(text), "saved", inputSaved)
+				m.RecordOptimization("caveman_input", inputSaved, "input")
+				totalSaved += inputSaved
 			}
-		}
 
-		// Pordee Thai compression (F17) - inject Thai terse output rules when Thai detected.
-		// Uses system prompt injection (same mechanism as caveman) so model generates terse Thai from the start.
-		if optimizerAllowed(overrides, "pordee", o.Pordee) {
-			shouldInject, level := o.Pordee.ShouldInject(text, budgetLevel)
-			if shouldInject {
-				start := time.Now()
-				beforePordee := len(text)
-				text, ratio := o.Pordee.Inject(text, level)
-				addedChars := len(text) - beforePordee
-				slog.Info("optimizer_step", "stage", "pordee", "before", beforePordee, "after", len(text), "added_input_chars", addedChars, "level", level.String(), "expected_output_ratio", ratio)
-				m.RecordOptimization("pordee", addedChars, "output")
-				m.RecordOptimizationDuration("pordee", time.Since(start).Seconds())
+			// Phase 2: Append output-style injection
+			compressed, ratio := o.Caveman.Compress(text, tier)
+			if compressed != text {
+				beforeCav := len(text)
+				text = compressed
+				addedChars := len(text) - beforeCav
+				slog.Info("optimizer_step", "stage", "caveman_output", "before", beforeCav, "after", len(text), "added_input_chars", addedChars, "expected_output_ratio", ratio)
+				m.RecordOptimization("caveman_output", addedChars, "output")
 			}
+
+			m.RecordOptimizationDuration("caveman", time.Since(start).Seconds())
 		}
 	}
+
+	// Pordee Thai compression (F17) - inject Thai terse output rules when Thai detected.
+	// Runs regardless of transparent mode - output reduction benefits all paths.
+	if optimizerAllowed(overrides, "pordee", o.Pordee) {
+		shouldInject, level := o.Pordee.ShouldInject(text, budgetLevel)
+		if shouldInject {
+			start := time.Now()
+			beforePordee := len(text)
+			text, ratio := o.Pordee.Inject(text, level)
+			addedChars := len(text) - beforePordee
+			slog.Info("optimizer_step", "stage", "pordee", "before", beforePordee, "after", len(text), "added_input_chars", addedChars, "level", level.String(), "expected_output_ratio", ratio)
+			m.RecordOptimization("pordee", addedChars, "output")
+			m.RecordOptimizationDuration("pordee", time.Since(start).Seconds())
+		}
+	}
+
 
 	if totalSaved > 0 {
 		tokensSaved := float64(totalSaved) / 4.0

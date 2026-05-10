@@ -63,6 +63,21 @@ func (r *Resolver) IsCoolingDown(providerID string, model ...string) bool {
 	return false
 }
 
+// MarkAccountCooldown marks a specific account within a provider as rate-limited.
+func (r *Resolver) MarkAccountCooldown(providerID, accountID string, d time.Duration) {
+	key := providerID + ":account:" + accountID
+	r.cooldowns.Store(key, time.Now().Add(d))
+}
+
+// IsAccountCoolingDown checks if a specific account within a provider is cooling down.
+func (r *Resolver) IsAccountCoolingDown(providerID, accountID string) bool {
+	key := providerID + ":account:" + accountID
+	if v, ok := r.cooldowns.Load(key); ok {
+		return time.Now().Before(v.(time.Time))
+	}
+	return false
+}
+
 type providerRoute struct {
 	format        ProviderFormat
 	authMode      string
@@ -318,6 +333,9 @@ func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecisi
 		if !t.Paused {
 			// Skip expired tokens so fallback to next provider can trigger
 			if !t.ExpiryDate.IsZero() && t.ExpiryDate.Before(time.Now()) {
+				continue
+			}
+			if r.IsAccountCoolingDown(providerID, t.AccountID) {
 				continue
 			}
 			active = append(active, t)

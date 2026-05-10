@@ -625,7 +625,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			providerID = decision.ProviderID
 		}
 		if providerID != "" {
-			if tok, err := h.tokenStore.GetFromPool(providerID, effectiveAccountIDs); err == nil && tok != nil {
+			poolAccountIDs := effectiveAccountIDs
+			if h.resolver != nil {
+				var available []string
+				for _, aid := range effectiveAccountIDs {
+					if !h.resolver.IsAccountCoolingDown(providerID, aid) {
+						available = append(available, aid)
+					}
+				}
+				if len(available) > 0 {
+					poolAccountIDs = available
+				}
+			}
+			if tok, err := h.tokenStore.GetFromPool(providerID, poolAccountIDs); err == nil && tok != nil {
 				apiKey = tok.AccessToken
 				selectedTokenInfo = tok
 				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
@@ -1252,12 +1264,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	profileOpts.OnAuthError = oauthRefreshFn
 
-	// Account rotation callback: on 429, pick a different account from the pool.
-	// Skip for passthrough auth - client manages their own token lifecycle.
+	var rotateTriedKeys map[string]bool
 	rotateAccountFn := func(oldKey string) (proxy.FallbackResult, bool) {
-		if profileOverride != nil && profileOverride.PassthroughAuth {
-			return proxy.FallbackResult{}, false
+		if rotateTriedKeys == nil {
+			rotateTriedKeys = make(map[string]bool)
 		}
+		rotateTriedKeys[oldKey] = true
+
 		pid := effectiveProviderID
 		if pid == "" {
 			if profileOverride != nil {
@@ -1273,38 +1286,87 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			return proxy.FallbackResult{}, false
 		}
 
-		// Try rotating accounts within same provider first.
-		accountIDs := effectiveAccountIDs
-		if len(accountIDs) == 0 && profileOverride != nil {
-			accountIDs = profileOverride.AccountIDs
-		}
-		if len(accountIDs) > 1 {
-			tok, err := h.tokenStore.GetFromPool(pid, accountIDs)
-			if err == nil && tok != nil && tok.AccessToken != oldKey {
-				slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID)
+		// Skip account rotation for passthrough auth (client manages token)
+		// but still allow profile target fallback below
+		if profileOverride == nil || !profileOverride.PassthroughAuth {
+			accountIDs := effectiveAccountIDs
+			if len(accountIDs) == 0 && profileOverride != nil {
+				accountIDs = profileOverride.AccountIDs
+			}
+			for _, aid := range accountIDs {
+				tok, err := h.tokenStore.Get(pid, aid)
+				if err != nil || tok == nil || tok.Paused {
+					continue
+			}
+				if rotateTriedKeys[tok.AccessToken] {
+					continue
+			}
+				if h.resolver != nil && h.resolver.IsAccountCoolingDown(pid, aid) {
+					continue
+			}
+				rotateTriedKeys[tok.AccessToken] = true
+				selectedTokenInfo = tok
+				slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID, "tried", len(rotateTriedKeys))
 				return proxy.FallbackResult{APIKey: tok.AccessToken}, true
 			}
-		}
-		if len(accountIDs) == 0 {
-			tokens, err := h.tokenStore.ListByProvider(pid)
-			if err == nil && len(tokens) > 1 {
-				for _, t := range tokens {
-					if !t.Paused && t.AccessToken != oldKey {
-						slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
-						return proxy.FallbackResult{APIKey: t.AccessToken}, true
+			if len(accountIDs) == 0 {
+				tokens, err := h.tokenStore.ListByProvider(pid)
+				if err == nil && len(tokens) > 1 {
+					for _, t := range tokens {
+						if !t.Paused && !rotateTriedKeys[t.AccessToken] {
+							rotateTriedKeys[t.AccessToken] = true
+							slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
+							return proxy.FallbackResult{APIKey: t.AccessToken}, true
+						}
 					}
 				}
 			}
 		}
 
-		// No more accounts in current provider: try next provider from model rules.
+		// All accounts exhausted: try next target in profile's multi-target list
+		if profileOverride != nil && len(profileOverride.Targets) > 1 {
+			currentIdx := -1
+			for i, t := range profileOverride.Targets {
+				if t.Target == pid {
+					currentIdx = i
+					break
+				}
+			}
+			for offset := 1; offset < len(profileOverride.Targets); offset++ {
+				idx := (currentIdx + offset) % len(profileOverride.Targets)
+				t := profileOverride.Targets[idx]
+				targetPID := t.Target
+				targetAccounts := t.AccountIDs
+				if len(targetAccounts) == 0 {
+					continue
+				}
+				if d, ok := h.resolver.ResolveByProvider(targetPID); ok && d != nil {
+					var newKey string
+					if h.tokenStore != nil {
+						if tok, err := h.tokenStore.GetFromPool(targetPID, targetAccounts); err == nil && tok != nil {
+							newKey = tok.AccessToken
+							selectedTokenInfo = tok
+						}
+					}
+					if newKey == "" && d.APIKey != "" {
+						newKey = d.APIKey
+					}
+					if newKey == "" {
+						continue
+					}
+					slog.Info("429: profile target fallback", "from", pid, "to", targetPID, "profile", profileOverride.Name)
+					return proxy.FallbackResult{APIKey: newKey, UpstreamURL: d.UpstreamURL, AuthMode: d.AuthMode}, true
+				}
+			}
+		}
+
+		// Last resort: model rules fallback
 		if fb := h.tryProviderFallback(requestedModel, pid); fb != nil {
 			slog.Info("429: fallback to alternate provider", "from", pid, "to", fb.ProviderID)
 			return proxy.FallbackResult{APIKey: fb.APIKey, UpstreamURL: fb.UpstreamURL, AuthMode: string(fb.AuthMode)}, true
 		}
 		return proxy.FallbackResult{}, false
 	}
-	profileOpts.OnRateLimitError = rotateAccountFn
 
 	// 403 fallback: try next target in profile's multi-target list.
 	forbiddenFn := func(oldKey string) (proxy.FallbackResult, bool) {
@@ -1392,8 +1454,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if statusCode == 429 || statusCode == 503 {
 			h.keyPool.Report429(apiKey)
 			if decision != nil && h.resolver != nil {
-				h.resolver.MarkCooldown(decision.ProviderID, 2*time.Minute, selectedModel)
-				slog.Info("provider cooldown activated", "provider", decision.ProviderID, "model", selectedModel, "duration", "2m")
+				if decision.AccountID != "" {
+					h.resolver.MarkAccountCooldown(decision.ProviderID, decision.AccountID, 5*time.Minute)
+					slog.Info("account cooldown activated", "provider", decision.ProviderID, "account", decision.AccountID, "model", selectedModel, "duration", "5m")
+				} else {
+					h.resolver.MarkCooldown(decision.ProviderID, 2*time.Minute, selectedModel)
+					slog.Info("provider cooldown activated", "provider", decision.ProviderID, "model", selectedModel, "duration", "2m")
+				}
 			}
 		} else if statusCode >= 200 && statusCode < 300 {
 			h.keyPool.ReportSuccess(apiKey)
