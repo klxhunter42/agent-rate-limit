@@ -895,9 +895,21 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}(),
 			"headers", map[string][]string(r.Header),
 		)
+		// Async debug dump - don't block request processing on expensive JSON marshal.
 		if rawDump, err := json.Marshal(payload); err == nil {
-			slog.Info("debug RAW PAYLOAD before strip", "payload_json", string(rawDump))
+			const maxDumpLen = 10240
+			dumpStr := string(rawDump)
+			if len(dumpStr) > maxDumpLen {
+				dumpStr = dumpStr[:maxDumpLen] + "... [truncated]"
+			}
+			go slog.Info("debug RAW PAYLOAD before strip", "payload_len", len(rawDump), "payload_json", dumpStr)
 		}
+	}
+
+	// Early exit if client already disconnected (e.g. old CLI with short timeout).
+	if err := r.Context().Err(); err != nil {
+		slog.Info("client disconnected before strip", "error", err)
+		return
 	}
 
 	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
@@ -908,26 +920,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		filterUnsupportedContent(payload)
 	}
 
-	// --- DEBUG: post-strip diagnostic (DEBUG=true) ---
+	// Async: post-strip diagnostic - capture data synchronously, log in background.
 	if h.cfg.DebugMode {
 		var topKeys []string
 		for k := range payload {
 			topKeys = append(topKeys, k)
 		}
-		slog.Info("debug strip result",
-			"model", selectedModel,
-			"top_keys", topKeys,
-			"has_tools", payload["tools"] != nil,
-			"has_tool_choice", payload["tool_choice"] != nil,
-			"has_thinking", payload["thinking"] != nil,
-			"has_output_config", payload["output_config"] != nil,
-			"has_stream_options", payload["stream_options"] != nil,
-			"has_metadata", payload["metadata"] != nil,
-			"has_service_tier", payload["service_tier"] != nil,
-			"has_context_mgmt", payload["context_management"] != nil,
-			"has_effort", payload["effort"] != nil,
-			"has_budget_tokens", payload["budget_tokens"] != nil,
-		)
+		hasTools := payload["tools"] != nil
+		hasToolChoice := payload["tool_choice"] != nil
+		hasThinking := payload["thinking"] != nil
+		hasOutputConfig := payload["output_config"] != nil
+		hasStreamOpts := payload["stream_options"] != nil
+		hasMetadata := payload["metadata"] != nil
+		hasServiceTier := payload["service_tier"] != nil
+		hasContextMgmt := payload["context_management"] != nil
+		hasEffort := payload["effort"] != nil
+		hasBudgetTokens := payload["budget_tokens"] != nil
 
 		var msgTypes []string
 		if msgs, ok := payload["messages"].([]any); ok {
@@ -975,7 +983,25 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		slog.Info("debug content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
+
+		// All data captured - safe to log in background goroutine.
+		go func() {
+			slog.Info("debug strip result",
+				"model", selectedModel,
+				"top_keys", topKeys,
+				"has_tools", hasTools,
+				"has_tool_choice", hasToolChoice,
+				"has_thinking", hasThinking,
+				"has_output_config", hasOutputConfig,
+				"has_stream_options", hasStreamOpts,
+				"has_metadata", hasMetadata,
+				"has_service_tier", hasServiceTier,
+				"has_context_mgmt", hasContextMgmt,
+				"has_effort", hasEffort,
+				"has_budget_tokens", hasBudgetTokens,
+			)
+			slog.Info("debug content analysis", "msg_blocks", msgTypes, "sys_blocks", sysTypes)
+		}()
 	}
 
 	// --- Image detection runs first; optimizer and privacy skip image requests ---
@@ -1025,6 +1051,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
 			return
 		}
+	}
+
+	// Early exit if client disconnected before optimizer.
+	if err := r.Context().Err(); err != nil {
+		slog.Info("client disconnected before optimizer", "error", err)
+		return
 	}
 
 	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
@@ -1194,6 +1226,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isStream, _ := payload["stream"].(bool)
+
+	// Early exit if client disconnected before upstream call.
+	if err := r.Context().Err(); err != nil {
+		slog.Info("client disconnected before upstream", "error", err)
+		return
+	}
 
 	// Build profile proxy options if profile override is active.
 	profileOpts := &proxy.ProxyOptions{}
