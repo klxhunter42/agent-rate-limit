@@ -151,13 +151,17 @@ var providerRouteTable = map[string]providerRoute{
 }
 
 // RegisterProviderRoute adds a dynamic route entry for custom providers.
-func RegisterProviderRoute(providerID string, format ProviderFormat) {
+func RegisterProviderRoute(providerID string, format ProviderFormat, models []string) {
 	var route providerRoute
+	modelOverride := ""
+	if len(models) > 0 {
+		modelOverride = models[0]
+	}
 	switch format {
 	case FormatOpenAI:
-		route = providerRoute{FormatOpenAI, "bearer", "/v1/chat/completions", nil, "", 0}
+		route = providerRoute{FormatOpenAI, "bearer", "/v1/chat/completions", nil, modelOverride, 0}
 	default:
-		route = providerRoute{FormatAnthropic, "api_key", "/v1/messages", nil, "", 0}
+		route = providerRoute{FormatAnthropic, "api_key", "/v1/messages", nil, modelOverride, 0}
 	}
 	providerRouteTable[providerID] = route
 }

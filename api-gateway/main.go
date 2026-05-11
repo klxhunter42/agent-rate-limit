@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -113,6 +114,7 @@ func main() {
 	providerRegistry := provider.NewRegistry()
 	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
 	tokenStore.MigrateProviderRenames()
+	seedProviderKeys(tokenStore, "lotuss", cfg.LotussAPIKeys)
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
 	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
 	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
@@ -458,6 +460,32 @@ func syncZAIKeys(kp *proxy.KeyPool, ts *provider.TokenStore) {
 		}
 	}
 	kp.SyncFromStore(keys)
+}
+
+func seedProviderKeys(ts *provider.TokenStore, providerID string, apiKeys []string) {
+	if len(apiKeys) == 0 {
+		return
+	}
+	existing, _ := ts.ListByProvider(providerID)
+	if len(existing) > 0 {
+		slog.Info("provider keys already seeded, skipping", "provider", providerID, "existing", len(existing))
+		return
+	}
+	for i, key := range apiKeys {
+		accountID := fmt.Sprintf("%s-env-%d", providerID, i)
+		token := provider.TokenInfo{
+			AccessToken: key,
+			AccountID:   accountID,
+			Provider:    providerID,
+			CreatedAt:   time.Now(),
+		}
+		if err := ts.Store(token); err != nil {
+			slog.Error("failed to seed provider key", "provider", providerID, "error", err)
+			continue
+		}
+	}
+	ts.SetDefault(providerID, fmt.Sprintf("%s-env-0", providerID))
+	slog.Info("seeded provider keys from env", "provider", providerID, "count", len(apiKeys))
 }
 
 func initTracer(endpoint string) func() {

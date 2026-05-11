@@ -240,3 +240,63 @@ Scanner buffer: 64KB initial, 10MB max (handles large webReader responses).
 | Key rotation callback  | [handler/handler.go](../api-gateway/handler/handler.go)         | `OnRateLimitError` callback                                           |
 | Retry metrics          | [metrics/metrics.go](../api-gateway/metrics/metrics.go)         | `upstream_retries_total`, `upstream_429_total`                        |
 | Spec: Error Recovery   | [docs/spec/01-proxy-layer.md](spec/01-proxy-layer.md)           | Section 11, Appendix B                                                |
+
+
+---
+
+## 6. 429/403 Fallback Chain
+
+When a request gets 429 (rate limited) or 403 (forbidden), the gateway follows a 3-stage fallback chain before giving up. Each stage can switch providers, requiring body format conversion, model override, and auth change.
+
+### 6.1 Fallback Order
+
+```
+Stage 1: Same-provider account rotation
+  Request --> Provider A (account_1) --> 429
+          --> Provider A (account_2) --> 429
+          --> Provider A (account_N) --> 429
+
+Stage 2: Cross-provider target fallback (profile multi-target)
+          --> Provider B
+              auth: provider_b_key
+              model: overridden per providerRouteTable
+              format: converted (e.g., Anthropic -> OpenAI)
+              max_tokens: clamped per providerRouteTable
+
+Stage 3: Model rules fallback (last resort)
+          --> Provider C (from model fallback rules)
+              same body conversion as Stage 2
+```
+
+### 6.2 Body Conversion on Cross-Provider Fallback
+
+When fallback switches to a different provider, the gateway:
+1. **Format conversion** - Anthropic body -> OpenAI body (reuses `AnthropicToOpenAI()`)
+2. **Model override** - swaps `"model"` in JSON body (e.g., `"claude-sonnet-4-6"` -> `"default"`)
+3. **Max tokens clamp** - caps `"max_tokens"` per provider config
+4. **Extra headers** - applies provider-specific headers
+5. **Transparent mode off** - disables passthrough to apply all conversions
+
+All conversions happen in the retry loop in `proxy/anthropic.go` using `FallbackResult` fields populated from `provider.RoutingDecision`.
+
+### 6.3 Provider Route Table
+
+Each provider defines its format, auth mode, URL suffix, model override, and max tokens in `provider/resolver.go`:
+
+| Provider | Format | Model Override | Max Tokens |
+|----------|--------|---------------|------------|
+| anthropic | Anthropic | - | - |
+| openai | OpenAI | - | - |
+| gemini | Gemini | - | - |
+
+### 6.4 Code References
+
+| Component | File | Description |
+|-----------|------|-------------|
+| FallbackResult struct | [proxy/anthropic.go](../api-gateway/proxy/anthropic.go) | Extended with Format, ModelOverride, MaxTokens, ExtraHeaders, ToolMode |
+| Body helpers | [proxy/anthropic.go](../api-gateway/proxy/anthropic.go) | `patchModelInBody()`, `clampMaxTokensInBody()`, `convertBody()` |
+| 429 retry with conversion | [proxy/anthropic.go](../api-gateway/proxy/anthropic.go) | 429 block applies body conversion |
+| 403 retry with conversion | [proxy/anthropic.go](../api-gateway/proxy/anthropic.go) | 403 block applies body conversion |
+| Account rotation | [handler/handler.go](../api-gateway/handler/handler.go) | `rotateAccountFn` - tries all accounts before cross-provider |
+| FallbackResult population | [handler/handler.go](../api-gateway/handler/handler.go) | Copies RoutingDecision fields into FallbackResult |
+| Provider route table | [provider/resolver.go](../api-gateway/provider/resolver.go) | `providerRouteTable` defines per-provider format/model/limits |

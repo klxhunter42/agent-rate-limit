@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -181,20 +182,73 @@ var providerModels = map[string][]map[string]string{
 // RecommendedModels returns available models for a target provider.
 func (h *ProfileHandler) RecommendedModels(w http.ResponseWriter, r *http.Request) {
 	target := r.URL.Query().Get("target")
+	customModels := h.loadCustomProviderModels()
+
 	if target == "" {
 		all := make(map[string][]map[string]string)
 		for k, v := range providerModels {
 			all[k] = v
 		}
+		for k, v := range customModels {
+			all[k] = v
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"models": all})
 		return
 	}
-	models, ok := providerModels[target]
-	if !ok {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no models for provider: " + target})
+	if models, ok := providerModels[target]; ok {
+		writeJSON(w, http.StatusOK, map[string]any{"target": target, "models": models})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"target": target, "models": models})
+	if models, ok := customModels[target]; ok {
+		writeJSON(w, http.StatusOK, map[string]any{"target": target, "models": models})
+		return
+	}
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": "no models for provider: " + target})
+}
+
+// loadCustomProviderModels reads custom provider configs from Redis and returns
+// a map of provider ID -> model entries compatible with the recommended-models response.
+func (h *ProfileHandler) loadCustomProviderModels() map[string][]map[string]string {
+	result := make(map[string][]map[string]string)
+	if h.redis == nil {
+		return result
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	keys, err := h.redis.Keys(ctx, "arl:providers:custom:*").Result()
+	if err != nil {
+		return result
+	}
+	for _, key := range keys {
+		data, err := h.redis.Get(ctx, key).Bytes()
+		if err != nil {
+			continue
+		}
+		var cfg provider.ProviderConfig
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			continue
+		}
+		if len(cfg.Models) == 0 {
+			result[cfg.ID] = []map[string]string{
+				{"name": "default", "tier": "standard", "description": cfg.Name},
+			}
+			continue
+		}
+		models := make([]map[string]string, 0, len(cfg.Models))
+		for i, m := range cfg.Models {
+			tier := "standard"
+			if i == 0 {
+				tier = "flagship"
+			}
+			models = append(models, map[string]string{
+				"name":        m,
+				"tier":        tier,
+				"description": cfg.Name,
+			})
+		}
+		result[cfg.ID] = models
+	}
+	return result
 }
 
 // --- handlers ---

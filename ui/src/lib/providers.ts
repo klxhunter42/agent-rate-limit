@@ -115,6 +115,7 @@ export async function registerCustomProvider(data: {
   format: string;
   upstream: string;
   apiKey?: string;
+ models?: string[];
 }): Promise<CustomProviderResult> {
   const res = await fetch('/v1/providers/custom', {
     method: 'POST',

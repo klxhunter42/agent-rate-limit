@@ -183,6 +183,7 @@ export default function ProvidersPage() {
   const [customUpstream, setCustomUpstream] = useState('');
   const [customFormat, setCustomFormat] = useState('openai');
   const [customApiKey, setCustomApiKey] = useState('');
+ const [customModels, setCustomModels] = useState('');
   const [customLoading, setCustomLoading] = useState(false);
   const [customProviders, setCustomProviders] = useState<ProviderInfo[]>([]);
 
@@ -330,6 +331,10 @@ export default function ProvidersPage() {
               <label className="text-xs text-muted-foreground">API Key</label>
               <Input type="password" value={customApiKey} onChange={(e) => setCustomApiKey(e.target.value)} placeholder="sk-..." />
             </div>
+       <div>
+        <label className="text-xs text-muted-foreground">Models (comma-separated)</label>
+        <Input value={customModels} onChange={(e) => setCustomModels(e.target.value)} placeholder="llama3, mistral, ..." className="h-7 text-xs" />
+       </div>
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="ghost" onClick={() => setShowCustomDialog(false)}>
                 <X className="h-4 w-4 mr-1" /> Cancel

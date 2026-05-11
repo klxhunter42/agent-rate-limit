@@ -433,13 +433,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	requestedModel, _ := payload["model"].(string)
 	// Transparent passthrough for claude-oauth: preserve exact CLI payload.
 	transparent := false
-		// GLM mode without claude-oauth accounts: route claude models to Z.AI instead of transparent.
-		hasClaudeOAuth := false
-		if h.cfg.GLMMode && h.tokenStore != nil {
-			if tokens, err := h.tokenStore.ListByProvider("claude-oauth"); err == nil && len(tokens) > 0 {
-				hasClaudeOAuth = true
-			}
+	// GLM mode without claude-oauth accounts: route claude models to Z.AI instead of transparent.
+	hasClaudeOAuth := false
+	if h.cfg.GLMMode && h.tokenStore != nil {
+		if tokens, err := h.tokenStore.ListByProvider("claude-oauth"); err == nil && len(tokens) > 0 {
+			hasClaudeOAuth = true
 		}
+	}
 	if h.resolver != nil {
 		d := h.resolver.Resolve(requestedModel)
 		slog.Info("resolver result", "model", requestedModel, "provider", func() string {
@@ -736,7 +736,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 
 	// GLM guard: never send Anthropic OAuth token to Z.AI upstream.
 	// When GLM_MODE=true, model=glm-*, and key pool is empty, the fallback
@@ -1349,38 +1348,35 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			return proxy.FallbackResult{}, false
 		}
 
-		// Skip account rotation for passthrough auth (client manages token)
-		// but still allow profile target fallback below
-		if profileOverride == nil || !profileOverride.PassthroughAuth {
-			accountIDs := effectiveAccountIDs
-			if len(accountIDs) == 0 && profileOverride != nil {
-				accountIDs = profileOverride.AccountIDs
+		// Account rotation: try other accounts in same provider
+		accountIDs := effectiveAccountIDs
+		if len(accountIDs) == 0 && profileOverride != nil {
+			accountIDs = profileOverride.AccountIDs
+		}
+		for _, aid := range accountIDs {
+			tok, err := h.tokenStore.Get(pid, aid)
+			if err != nil || tok == nil || tok.Paused {
+				continue
 			}
-			for _, aid := range accountIDs {
-				tok, err := h.tokenStore.Get(pid, aid)
-				if err != nil || tok == nil || tok.Paused {
-					continue
+			if rotateTriedKeys[tok.AccessToken] {
+				continue
 			}
-				if rotateTriedKeys[tok.AccessToken] {
-					continue
+			if h.resolver != nil && h.resolver.IsAccountCoolingDown(pid, aid) {
+				continue
 			}
-				if h.resolver != nil && h.resolver.IsAccountCoolingDown(pid, aid) {
-					continue
-			}
-				rotateTriedKeys[tok.AccessToken] = true
-				selectedTokenInfo = tok
-				slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID, "tried", len(rotateTriedKeys))
-				return proxy.FallbackResult{APIKey: tok.AccessToken}, true
-			}
-			if len(accountIDs) == 0 {
-				tokens, err := h.tokenStore.ListByProvider(pid)
-				if err == nil && len(tokens) > 1 {
-					for _, t := range tokens {
-						if !t.Paused && !rotateTriedKeys[t.AccessToken] {
-							rotateTriedKeys[t.AccessToken] = true
-							slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
-							return proxy.FallbackResult{APIKey: t.AccessToken}, true
-						}
+			rotateTriedKeys[tok.AccessToken] = true
+			selectedTokenInfo = tok
+			slog.Info("429: rotated profile account", "provider", pid, "account", tok.AccountID, "tried", len(rotateTriedKeys))
+			return proxy.FallbackResult{APIKey: tok.AccessToken}, true
+		}
+		if len(accountIDs) == 0 {
+			tokens, err := h.tokenStore.ListByProvider(pid)
+			if err == nil && len(tokens) > 1 {
+				for _, t := range tokens {
+					if !t.Paused && !rotateTriedKeys[t.AccessToken] {
+						rotateTriedKeys[t.AccessToken] = true
+						slog.Info("429: rotated account", "provider", pid, "account", t.AccountID)
+						return proxy.FallbackResult{APIKey: t.AccessToken}, true
 					}
 				}
 			}
@@ -1418,7 +1414,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 						continue
 					}
 					slog.Info("429: profile target fallback", "from", pid, "to", targetPID, "profile", profileOverride.Name)
-					return proxy.FallbackResult{APIKey: newKey, UpstreamURL: d.UpstreamURL, AuthMode: d.AuthMode}, true
+					return proxy.FallbackResult{
+						APIKey:        newKey,
+						UpstreamURL:   d.UpstreamURL,
+						AuthMode:      d.AuthMode,
+						Format:        string(d.Format),
+						ModelOverride: d.ModelOverride,
+						MaxTokens:     d.MaxTokens,
+						ExtraHeaders:  d.ExtraHeaders,
+						ToolMode:      d.ToolMode,
+					}, true
 				}
 			}
 		}
@@ -1426,7 +1431,16 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Last resort: model rules fallback
 		if fb := h.tryProviderFallback(requestedModel, pid); fb != nil {
 			slog.Info("429: fallback to alternate provider", "from", pid, "to", fb.ProviderID)
-			return proxy.FallbackResult{APIKey: fb.APIKey, UpstreamURL: fb.UpstreamURL, AuthMode: string(fb.AuthMode)}, true
+			return proxy.FallbackResult{
+				APIKey:        fb.APIKey,
+				UpstreamURL:   fb.UpstreamURL,
+				AuthMode:      string(fb.AuthMode),
+				Format:        string(fb.Format),
+				ModelOverride: fb.ModelOverride,
+				MaxTokens:     fb.MaxTokens,
+				ExtraHeaders:  fb.ExtraHeaders,
+				ToolMode:      fb.ToolMode,
+			}, true
 		}
 		return proxy.FallbackResult{}, false
 	}
@@ -1467,10 +1481,15 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 				slog.Warn("403 fallback to alternate target", "from", currentProvider, "to", pid, "profile", profileOverride.Name)
 				return proxy.FallbackResult{
-					APIKey:      newKey,
-					UpstreamURL: d.UpstreamURL,
-					AuthMode:    d.AuthMode,
-				}, true
+						APIKey:        newKey,
+						UpstreamURL:   d.UpstreamURL,
+						AuthMode:      d.AuthMode,
+						Format:        string(d.Format),
+						ModelOverride: d.ModelOverride,
+						MaxTokens:     d.MaxTokens,
+						ExtraHeaders:  d.ExtraHeaders,
+						ToolMode:      d.ToolMode,
+					}, true
 			}
 		}
 		return proxy.FallbackResult{}, false

@@ -890,6 +890,7 @@ func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Reques
 		Format   string `json:"format"` // "openai" or "anthropic"
 		Upstream string `json:"upstream"`
 		APIKey   string `json:"apiKey"`
+		Models   []string `json:"models"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -915,10 +916,12 @@ func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Reques
 		Name:         body.Name,
 		AuthType:     AuthTypeAPIKey,
 		UpstreamBase: body.Upstream,
+		Format: string(format),
+		Models: body.Models,
 	}
 
 	h.registry.Register(cfg)
-	RegisterProviderRoute(providerID, format)
+	RegisterProviderRoute(providerID, format, body.Models)
 
 	// Persist to Redis
 	if h.profileRedis != nil {
@@ -1011,6 +1014,7 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 		Name         string `json:"name"`
 		AuthType     string `json:"authType"`
 		UpstreamBase string `json:"upstreamBase"`
+		Models []string `json:"models,omitempty"`
 	}
 	result := make([]providerInfo, 0, len(providers))
 	for _, p := range providers {
@@ -1019,6 +1023,7 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 			Name:         p.Name,
 			AuthType:     string(p.AuthType),
 			UpstreamBase: p.UpstreamBase,
+			Models: p.Models,
 		})
 	}
 	writeJSON(w, http.StatusOK, result)

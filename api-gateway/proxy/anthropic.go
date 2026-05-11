@@ -806,8 +806,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 					if remaining := unmasker.Flush(); remaining != "" {
 						remaining = masking.SanitizeGarbledOutput(remaining)
 						if remaining != "" {
-													escaped, _ := json.Marshal(remaining)
-						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+							escaped, _ := json.Marshal(remaining)
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 
 						}
 					}
@@ -859,8 +859,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 			if remaining := unmasker.Flush(); remaining != "" {
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 
 				}
 			}
@@ -932,13 +932,13 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		if remaining := unmasker.Flush(); remaining != "" {
 			remaining = masking.SanitizeGarbledOutput(remaining)
 			if remaining != "" {
-							// Emit closing events for streams that ended without [DONE]
-			fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
-			fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
-			fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
-			if flusher != nil {
-				flusher.Flush()
-			}
+				// Emit closing events for streams that ended without [DONE]
+				fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
+				fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
+				fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+				if flusher != nil {
+					flusher.Flush()
+				}
 
 			}
 		}
@@ -1029,6 +1029,11 @@ type FallbackResult struct {
 	APIKey      string
 	UpstreamURL string
 	AuthMode    string
+	Format        string            // target provider format: "anthropic", "openai", "gemini"
+	ModelOverride string            // e.g., "default" for lotuss
+	MaxTokens     int               // cap max_tokens in body
+	ExtraHeaders  map[string]string // additional headers from provider route
+	ToolMode      string            // "native" for OpenAI function calling
 }
 
 type ProxyOptions struct {
@@ -1066,6 +1071,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	var lastResp *http.Response
 	var lastErrBody []byte
 	var lastErrStatus int
+	currentFormat := "anthropic"
+	skipBackoff := false
 	truncationAttempts := 0
 	transientAttempts := 0
 	maxTransient := p.cfg.TransientRetryMax
@@ -1075,7 +1082,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	maxAttempts := p.cfg.UpstreamMaxRetries + 1 + maxTransient
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 {
+		if attempt > 0 && !skipBackoff {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
 			// Cap backoff at 5 minutes to prevent excessive waits
 			if backoff > 5*time.Minute {
@@ -1094,6 +1101,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			case <-r.Context().Done():
 				return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
 			}
+		} else if attempt > 0 {
+			skipBackoff = false
 		}
 
 		httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstreamURL, bytes.NewReader(body))
@@ -1187,11 +1196,27 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 					apiKey = fb.APIKey
 					if fb.UpstreamURL != "" {
 						upstreamURL = fb.UpstreamURL
+						opts.Transparent = false
 					}
 					if fb.AuthMode != "" {
 						opts.AuthMode = fb.AuthMode
 					}
-					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL)
+					if fb.Format != "" && fb.Format != currentFormat {
+						body = convertBody(body, model, fb.Format, fb.ToolMode, p.metrics)
+						currentFormat = fb.Format
+					}
+					if fb.ModelOverride != "" {
+						body = patchModelInBody(body, fb.ModelOverride)
+						model = fb.ModelOverride
+					}
+					if fb.MaxTokens > 0 {
+						body = clampMaxTokensInBody(body, fb.MaxTokens)
+					}
+					if fb.ExtraHeaders != nil {
+						opts.ExtraHeaders = fb.ExtraHeaders
+					}
+					skipBackoff = true
+					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat)
 				}
 			}
 			continue
@@ -1205,10 +1230,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				apiKey = fb.APIKey
 				if fb.UpstreamURL != "" {
 					upstreamURL = fb.UpstreamURL
+					opts.Transparent = false
 				}
 				if fb.AuthMode != "" {
 					opts.AuthMode = fb.AuthMode
 				}
+				skipBackoff = true
 				continue
 			}
 		}
@@ -1768,8 +1795,8 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								if remaining := unmasker.Flush(); remaining != "" {
 									remaining = masking.SanitizeGarbledOutput(remaining)
 									if remaining != "" {
-																			escaped, _ := json.Marshal(remaining)
-									fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+										escaped, _ := json.Marshal(remaining)
+										fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
 
 									}
 								}
@@ -1780,12 +1807,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							if evt.Delta.Text != "" {
 								before := evt.Delta.Text
 								evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
-									evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
+								evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
 								changed = evt.Delta.Text != before
 							} else if evt.Delta.Thinking != "" {
 								before := evt.Delta.Thinking
 								evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
-									evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+								evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
@@ -1811,8 +1838,8 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 						if remaining := unmasker.Flush(); remaining != "" {
 							remaining = masking.SanitizeGarbledOutput(remaining)
 							if remaining != "" {
-															escaped, _ := json.Marshal(remaining)
-							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+								escaped, _ := json.Marshal(remaining)
+								fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
 
 							}
 						}
@@ -1874,8 +1901,8 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 			if remaining := unmasker.Flush(); remaining != "" {
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastUnmaskBlockIdx, string(escaped))
 
 				}
 			}
@@ -2187,8 +2214,8 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			if remaining := unmasker.Flush(); remaining != "" {
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 
 				}
 			}
@@ -2245,8 +2272,8 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				if remaining := unmasker.Flush(); remaining != "" {
 					remaining = masking.SanitizeGarbledOutput(remaining)
 					if remaining != "" {
-											escaped, _ := json.Marshal(remaining)
-					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+						escaped, _ := json.Marshal(remaining)
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 
 					}
 				}
@@ -2269,7 +2296,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		if remaining := stripper.Flush(); remaining != "" {
 			remaining = masking.SanitizeGarbledOutput(remaining)
 			if remaining != "" {
-							slog.Info("stripper flushed remaining", "len", len(remaining))
+				slog.Info("stripper flushed remaining", "len", len(remaining))
 
 			}
 		}
@@ -2280,9 +2307,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		if remaining := unmasker.Flush(); remaining != "" {
 			remaining = masking.SanitizeGarbledOutput(remaining)
 			if remaining != "" {
-							escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			slog.Warn("unmask buffer not empty at stream end, emitted as delta", "remaining_len", len(remaining))
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				slog.Warn("unmask buffer not empty at stream end, emitted as delta", "remaining_len", len(remaining))
 
 			}
 		}
@@ -2486,6 +2513,58 @@ func OverloadedError(msg string) ErrorResponse {
 			Message: msg,
 		},
 	}
+}
+func patchModelInBody(body []byte, newModel string) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		return body
+	}
+	m["model"] = newModel
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+func clampMaxTokensInBody(body []byte, max int) []byte {
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		return body
+	}
+	if v, ok := m["max_tokens"]; ok {
+		switch val := v.(type) {
+		case float64:
+			if int(val) > max {
+				m["max_tokens"] = max
+			}
+		case int:
+			if val > max {
+				m["max_tokens"] = max
+			}
+		}
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+func convertBody(body []byte, model, targetFormat, toolMode string, m *metrics.Metrics) []byte {
+	if targetFormat == "openai" {
+		converted, err := AnthropicToOpenAI(body, model, m, toolMode)
+		if err != nil {
+			slog.Warn("body format conversion failed", "target", targetFormat, "error", err)
+			return body
+		}
+		out, err := json.Marshal(converted)
+		if err != nil {
+			return body
+		}
+		return out
+	}
+	return body
 }
 
 func truncate(s string, n int) string {
