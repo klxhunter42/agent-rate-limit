@@ -16,7 +16,7 @@ import { Bot, Sparkles, Zap, Github, Plus, ChevronDown, ChevronUp, Loader2, Glob
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
-import { fetchProviders, updateProviderUpstream, registerCustomProvider, deleteCustomProvider } from '@/lib/providers';
+import { fetchProviders, updateProviderUpstream, registerCustomProvider, deleteCustomProvider, updateCustomProvider } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
 
 interface ProviderDef {
@@ -186,6 +186,10 @@ export default function ProvidersPage() {
  const [customModels, setCustomModels] = useState('');
   const [customLoading, setCustomLoading] = useState(false);
   const [customProviders, setCustomProviders] = useState<ProviderInfo[]>([]);
+  const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editUpstream, setEditUpstream] = useState('');
+  const [editModels, setEditModels] = useState('');
 
   const authFlow = useAuthFlow();
 
@@ -273,12 +277,14 @@ export default function ProvidersPage() {
         format: customFormat,
         upstream: customUpstream.trim(),
         apiKey: customApiKey || undefined,
+        models: customModels.split(",").map((s: string) => s.trim()).filter(Boolean) || undefined,
       });
       setShowCustomDialog(false);
       setCustomName('');
       setCustomUpstream('');
       setCustomFormat('openai');
       setCustomApiKey('');
+      setCustomModels('');
       await loadAccounts();
     } finally {
       setCustomLoading(false);
@@ -287,6 +293,24 @@ export default function ProvidersPage() {
 
   const handleDeleteCustom = async (id: string) => {
     await deleteCustomProvider(id);
+    await loadAccounts();
+  };
+
+  const handleEditCustom = (cp: ProviderInfo) => {
+    setEditingCustomId(cp.id);
+    setEditName(cp.name);
+    setEditUpstream(cp.upstreamBase || '');
+    setEditModels((cp as any).models?.join(', ') || '');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCustomId) return;
+    await updateCustomProvider(editingCustomId, {
+      name: editName.trim() || undefined,
+      upstream: editUpstream.trim() || undefined,
+      models: editModels.split(',').map((s: string) => s.trim()).filter(Boolean) || undefined,
+    });
+    setEditingCustomId(null);
     await loadAccounts();
   };
 
@@ -514,26 +538,55 @@ export default function ProvidersPage() {
                         <Globe className="h-4.5 w-4.5 text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-sm font-medium">{cp.name}</CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className="text-[10px] px-1.5 bg-cyan-500/10 text-cyan-500">Custom</Badge>
-                          {accounts.length > 0 && (
-                            <span className="text-xs text-muted-foreground">{accounts.filter((a) => !a.paused).length}/{accounts.length} active</span>
-                          )}
-                        </div>
+                        {editingCustomId === cp.id ? (
+                          <div className="space-y-1.5">
+                            <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" className="h-7 text-xs" />
+                            <Input value={editUpstream} onChange={(e) => setEditUpstream(e.target.value)} placeholder="Upstream URL" className="h-7 text-xs" />
+                            <Input value={editModels} onChange={(e) => setEditModels(e.target.value)} placeholder="Models (comma separated)" className="h-7 text-xs" />
+                          </div>
+                        ) : (
+                          <>
+                            <CardTitle className="text-sm font-medium">{cp.name}</CardTitle>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge className="text-[10px] px-1.5 bg-cyan-500/10 text-cyan-500">Custom</Badge>
+                              {(cp as any).models?.length > 0 && (
+                                <span className="text-[10px] text-muted-foreground">{(cp as any).models.join(', ')}</span>
+                              )}
+                              {accounts.length > 0 && (
+                                <span className="text-xs text-muted-foreground">{accounts.filter((a) => !a.paused).length}/{accounts.length} active</span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button size="sm" variant="outline" onClick={() => { setApiKeyDialogProvider({ id: cp.id, name: cp.name, icon: Globe, authType: 'API Key', setup: [] }); }}>
-                          <Plus className="h-3.5 w-3.5" /> {accounts.length === 0 ? 'Connect' : 'Add'}
-                        </Button>
-                        {accounts.length > 0 && (
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setExpanded(isExpanded ? null : cp.id)}>
-                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                          </Button>
+                        {editingCustomId === cp.id ? (
+                          <>
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-600" onClick={handleSaveEdit} title="Save">
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingCustomId(null)} title="Cancel">
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => { setApiKeyDialogProvider({ id: cp.id, name: cp.name, icon: Globe, authType: 'API Key', setup: [] }); }}>
+                              <Plus className="h-3.5 w-3.5" /> {accounts.length === 0 ? 'Connect' : 'Add'}
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEditCustom(cp)} title="Edit provider">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            {accounts.length > 0 && (
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setExpanded(isExpanded ? null : cp.id)}>
+                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCustom(cp.id)} title="Delete provider">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCustom(cp.id)} title="Delete provider">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>

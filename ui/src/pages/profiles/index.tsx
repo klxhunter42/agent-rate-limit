@@ -690,7 +690,7 @@ function CreateProfileForm({
                 >
                   {providers.length === 0 && <option value="">Loading...</option>}
                   {providers.map((p) => (
-                    <option key={p.id} value={p.id}>{providerName(p.id)}</option>
+                    <option key={p.id} value={p.id}>{p.name || providerName(p.id)}</option>
                   ))}
                 </select>
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, -1)} disabled={idx === 0} title="Move up">
@@ -887,7 +887,7 @@ function ProfileCard({
                       onChange={(e) => updateTarget(t.id, 'target', e.target.value)}
                     >
                       {providers.map((p) => (
-                        <option key={p.id} value={p.id}>{providerName(p.id)}</option>
+                        <option key={p.id} value={p.id}>{p.name || providerName(p.id)}</option>
                       ))}
                     </select>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveTarget(t.id, -1)} disabled={idx === 0}>

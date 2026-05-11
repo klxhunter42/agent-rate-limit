@@ -881,6 +881,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Put("/providers/{provider}/upstream", h.UpdateProviderUpstream)
 		r.Post("/providers/custom", h.CreateCustomProvider)
 		r.Delete("/providers/custom/{provider}", h.DeleteCustomProvider)
+		r.Put("/providers/custom/{provider}", h.UpdateCustomProvider)
 	}
 }
 
@@ -988,6 +989,61 @@ func (h *AuthHandler) DeleteCustomProvider(w http.ResponseWriter, r *http.Reques
 
 	slog.Info("custom provider deleted", "id", providerID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (h *AuthHandler) UpdateCustomProvider(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "provider")
+	if !h.registry.IsCustom(providerID) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only custom providers can be updated"})
+		return
+	}
+
+	var body struct {
+		Name     string   `json:"name"`
+		Format   string   `json:"format"`
+		Upstream string   `json:"upstream"`
+		Models   []string `json:"models"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	cfg, ok := h.registry.Get(providerID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found"})
+		return
+	}
+
+	if body.Name != "" {
+		cfg.Name = body.Name
+	}
+	if body.Upstream != "" {
+		cfg.UpstreamBase = body.Upstream
+	}
+	if body.Format != "" {
+		cfg.Format = body.Format
+	}
+	if body.Models != nil {
+		cfg.Models = body.Models
+	}
+
+	h.registry.Register(cfg)
+
+	format := ProviderFormat(cfg.Format)
+	if format != FormatOpenAI {
+		format = FormatAnthropic
+	}
+	RegisterProviderRoute(providerID, format, cfg.Models)
+
+	if h.profileRedis != nil {
+		if err := h.registry.PersistCustom(h.profileRedis, cfg); err != nil {
+			slog.Warn("failed to persist updated custom provider", "id", providerID, "error", err)
+		}
+	}
+
+	slog.Info("custom provider updated", "id", providerID, "name", cfg.Name)
+	writeJSON(w, http.StatusOK, map[string]string{"id": providerID, "name": cfg.Name, "status": "updated"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

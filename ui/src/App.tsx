@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DashboardProvider } from '@/contexts/dashboard-context';
 import { PrivacyProvider } from '@/contexts/privacy-context';
@@ -6,6 +7,7 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { NotificationProvider, ToastContainer } from '@/components/shared/notifications';
 import { CommandPalette, useCommandPalette } from '@/components/shared/command-palette';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { fetchProviders } from '@/lib/providers';
 import { Layout } from '@/components/layout/layout';
 import { OverviewPage } from '@/pages/overview';
 import { ModelLimitsPage } from '@/pages/model-limits';
@@ -26,6 +28,7 @@ import { QuotaPage } from '@/pages/quota';
 function AppShell({ children }: { children: React.ReactNode }) {
   const { open, close } = useCommandPalette();
   useKeyboardShortcuts();
+  useEffect(() => { fetchProviders(); }, []);
   return (
     <>
       {children}

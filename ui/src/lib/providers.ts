@@ -35,10 +35,16 @@ const FALLBACK_NAMES: Record<string, string> = {
   codebuddy: 'CodeBuddy',
   kilo: 'Kilo',
   qwen: 'Qwen',
+  lotuss: 'Lotuss',
 };
 
 export function providerName(id: string): string {
-  return FALLBACK_NAMES[id] ?? id;
+  if (FALLBACK_NAMES[id]) return FALLBACK_NAMES[id];
+  if (cachedProviders) {
+    const p = cachedProviders.find(x => x.id === id);
+    if (p) return p.name;
+  }
+  return id;
 }
 
 const PROVIDER_ACCENT: Record<string, string> = {
@@ -139,4 +145,23 @@ export async function deleteCustomProvider(providerId: string): Promise<void> {
     throw new Error(err.error || 'delete failed');
   }
   clearProviderCache();
+}
+
+export async function updateCustomProvider(providerId: string, data: {
+  name?: string;
+  format?: string;
+  upstream?: string;
+  models?: string[];
+}): Promise<CustomProviderResult> {
+  const res = await fetch(`/v1/providers/custom/${providerId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'update failed' }));
+    throw new Error(err.error || 'update failed');
+  }
+  clearProviderCache();
+  return res.json();
 }
