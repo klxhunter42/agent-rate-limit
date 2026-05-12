@@ -38,6 +38,15 @@ const FALLBACK_NAMES: Record<string, string> = {
   lotuss: 'Lotuss',
 };
 
+export const UNAVAILABLE_PROVIDER_IDS = new Set([
+ 'anthropic', 'openai', 'gemini', 'openrouter', 'copilot',
+ 'deepseek', 'huggingface', 'ollama', 'agy', 'cursor', 'codebuddy', 'kilo',
+]);
+
+export function isProviderAvailable(id: string): boolean {
+ return !UNAVAILABLE_PROVIDER_IDS.has(id);
+}
+
 export function providerName(id: string): string {
   if (FALLBACK_NAMES[id]) return FALLBACK_NAMES[id];
   if (cachedProviders) {

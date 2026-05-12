@@ -510,7 +510,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if profileName == "" {
 			if xProfile := r.Header.Get("X-Profile"); xProfile != "" {
 				if p, perr := getProfile(r.Context(), h.profileRedis, xProfile); perr == nil && p != nil {
-					if p.APIKey != "" && hmac.Equal([]byte(authKey), []byte(p.APIKey)) {
+					if p.PassthroughAuth || p.APIKey == "" || hmac.Equal([]byte(authKey), []byte(p.APIKey)) {
 						profileName = xProfile
 						profileOverride = p
 					} else {
@@ -2801,9 +2801,6 @@ func (h *Handler) GetModels(w http.ResponseWriter, r *http.Request) {
 
 	models := make([]modelEntry, 0, len(knownModels))
 	for _, km := range knownModels {
-		if !h.cfg.GLMMode && km.Provider == "zai" {
-			continue
-		}
 		limit := h.cfg.DefaultLimit
 		if l, ok := h.cfg.ModelLimits[km.Name]; ok {
 			limit = l
@@ -2861,9 +2858,6 @@ func (h *Handler) GetModelsAnthropic(w http.ResponseWriter, r *http.Request) {
 
 	entries := make([]modelEntry, 0, len(knownModels))
 	for _, km := range knownModels {
-		if !h.cfg.GLMMode && km.Provider == "zai" {
-			continue
-		}
 		if km.Deprecated {
 			continue
 		}
@@ -3063,5 +3057,31 @@ func (h *Handler) MCPListServers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"servers": h.mcpProxy.ListServers(),
+	})
+}
+
+// MITMRequest is the payload for toggling mitmproxy.
+type MITMRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+func (h *Handler) GetMITMConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled":   proxy.GetMITM(),
+		"proxy_url": proxy.GetMITMProxyURL(),
+	})
+}
+
+func (h *Handler) SetMITMConfig(w http.ResponseWriter, r *http.Request) {
+	var req MITMRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	proxy.SetMITM(req.Enabled)
+	slog.Info("mitmproxy toggled", "enabled", req.Enabled)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enabled":   proxy.GetMITM(),
+		"proxy_url": proxy.GetMITMProxyURL(),
 	})
 }

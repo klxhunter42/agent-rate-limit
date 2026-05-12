@@ -4,6 +4,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+	SheetDescription,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,12 +41,13 @@ export function SessionCookieDialog({ open, onClose, providerName, onSubmit }: S
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent>
+      <SheetContent aria-describedby="session-cookie-desc">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Globe className="h-4 w-4" />
             Add {providerName} Session
           </SheetTitle>
+			<SheetDescription id="session-cookie-desc" className="sr-only">Enter session cookie for authentication</SheetDescription>
         </SheetHeader>
 
         <div className="space-y-4 mt-6">

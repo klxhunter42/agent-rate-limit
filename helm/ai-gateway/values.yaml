@@ -68,6 +68,7 @@ gateway:
     PROMPT_INJECTION_TEXT: ""
     DEBUG: "false"
     HTTPS_PROXY: ""
+  # MITM_PROXY_URL: auto-injected when mitmweb.enabled=true; set manually to override
   hpa:
     enabled: false
     minReplicas: 2
@@ -235,6 +236,24 @@ otelCollector:
     requests:
       memory: "128Mi"
       cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "1"
+
+mitmweb:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: mitmproxy/mitmproxy
+    tag: "12.2"
+    pullPolicy: IfNotPresent
+  service:
+    webPort: 8081
+    proxyPort: 8083
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
     limits:
       memory: "512Mi"
       cpu: "1"

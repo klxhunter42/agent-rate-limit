@@ -1,0 +1,20 @@
+{{- if .Values.mitmweb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "mitmweb") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "mitmweb") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: {{ .Values.mitmweb.service.webPort }}
+      targetPort: web
+    - name: proxy
+      port: {{ .Values.mitmweb.service.proxyPort }}
+      targetPort: proxy
+  selector:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "mitmweb") | nindent 4 }}
+{{- end }}

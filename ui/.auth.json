@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "arl_session",
+      "value": "klxhunter",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1781206003.383,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

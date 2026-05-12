@@ -8,7 +8,7 @@ test('profiles page - wait for load and screenshot', async ({ page }) => {
 });
 
 test('API - check profiles directly', async ({ request }) => {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:9000';
   const resp = await request.get(`${baseURL}/v1/profiles`);
   console.log('Profiles API status:', resp.status());
   if (resp.status() !== 200) {
@@ -21,7 +21,7 @@ test('API - check profiles directly', async ({ request }) => {
 });
 
 test('API - check account usage endpoint', async ({ request }) => {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:9000';
   const resp = await request.get(`${baseURL}/v1/usage/accounts`);
   console.log('Account usage status:', resp.status());
   if (resp.status() !== 200) {

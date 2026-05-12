@@ -67,6 +67,7 @@ services:
       TEXTCOMP_MODE: ${TEXTCOMP_MODE:-balanced}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
+      MITM_PROXY_URL: ${MITM_PROXY_URL:-http://arl-mitmweb:8083}
       DEBUG: ${DEBUG:-false}
       SSL_CERT_FILE: /tmp/mitmproxy-ca-cert.pem
     depends_on:
@@ -375,14 +376,10 @@ services:
     networks:
       - arl-network
 
-  # --- mitmproxy debug (start with: docker compose --profile debug up) ---
+  # --- mitmproxy (always-on, default pass-through) ---
   arl-mitmweb:
     image: mitmproxy/mitmproxy:12.2
     container_name: arl-mitmweb
-    profiles: ["debug"]
-    ports:
-      - "8081:8081"
-      - "8083:8083"
     command: mitmweb --set web_password=test --web-port 8081 --listen-host 0.0.0.0 --listen-port 8083 --ssl-insecure --web-host 0.0.0.0
     networks:
       - arl-network

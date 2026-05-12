@@ -1,0 +1,48 @@
+{{- if .Values.mitmweb.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "mitmweb") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "mitmweb") | nindent 4 }}
+spec:
+  replicas: {{ .Values.mitmweb.replicaCount }}
+  selector:
+    matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "mitmweb") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "mitmweb") | nindent 8 }}
+    spec:
+{{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+{{- end }}
+      securityContext:
+{{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: mitmweb
+          image: "{{ .Values.mitmweb.image.repository }}:{{ .Values.mitmweb.image.tag }}"
+          imagePullPolicy: {{ .Values.mitmweb.image.pullPolicy }}
+          args:
+            - mitmweb
+            - --set
+            - web_port={{ .Values.mitmweb.service.webPort }}
+            - --listen-host
+            - "0.0.0.0"
+            - --listen-port
+            - "{{ .Values.mitmweb.service.proxyPort }}"
+            - --ssl-insecure
+            - --web-host
+            - "0.0.0.0"
+          ports:
+            - name: web
+              containerPort: {{ .Values.mitmweb.service.webPort }}
+            - name: proxy
+              containerPort: {{ .Values.mitmweb.service.proxyPort }}
+          securityContext:
+{{- include "ai-gateway.securityContext" . | nindent 12 }}
+          resources:
+{{- toYaml .Values.mitmweb.resources | nindent 12 }}
+{{- end }}

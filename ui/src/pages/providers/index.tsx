@@ -25,24 +25,18 @@ interface ProviderDef {
   icon: LucideIcon;
   authType: 'API Key' | 'Device Code' | 'OAuth' | 'Session Cookie';
   setup: string[];
+	unavailable?: boolean;
 }
 
 const PROVIDERS: ProviderDef[] = [
-  { id: 'zai', name: 'Z.AI', icon: Sparkles, authType: 'API Key',
+ { id: 'zai', name: 'Z.AI', icon: Sparkles, authType: 'API Key',
     setup: [
       'Go to open.bigmodel.cn and sign up',
       'Navigate to API Keys in your dashboard',
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
-  { id: 'anthropic', name: 'Anthropic', icon: Bot, authType: 'API Key',
-    setup: [
-      'Go to console.anthropic.com and sign up',
-      'Navigate to API Keys section',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'claude-oauth', name: 'Claude (OAuth)', icon: Bot, authType: 'OAuth',
+ { id: 'claude-oauth', name: 'Claude (OAuth)', icon: Bot, authType: 'OAuth',
     setup: [
       'Zero-config - uses Claude Code CLI Client ID',
       'Click Connect - browser opens Claude login',
@@ -50,22 +44,7 @@ const PROVIDERS: ProviderDef[] = [
       'Token works with api.anthropic.com/v1/messages',
       'Ref: github.com/anthropics/claude-code',
     ] },
-  { id: 'openai', name: 'OpenAI', icon: Zap, authType: 'API Key',
-    setup: [
-      'Go to platform.openai.com and sign up',
-      'Navigate to API Keys in settings',
-      'Create a new secret key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'gemini', name: 'Gemini', icon: Sparkles, authType: 'API Key',
-    setup: [
-      'Go to aistudio.google.com/apikey',
-      'Sign in with your Google account',
-      'Click "Create API Key"',
-      'Copy the API key and paste it in the connect dialog',
-      'Free tier: 15 RPM, 1M tokens/min',
-    ] },
-  { id: 'gemini-oauth', name: 'Gemini (OAuth)', icon: Sparkles, authType: 'OAuth',
+ { id: 'gemini-oauth', name: 'Gemini (OAuth)', icon: Sparkles, authType: 'OAuth',
     setup: [
       'Zero-config - uses bundled Google OAuth Client ID',
       'Click Connect - browser opens Google login',
@@ -74,76 +53,10 @@ const PROVIDERS: ProviderDef[] = [
       'Token auto-refreshes every 30 minutes',
       'Ref: github.com/google-gemini/gemini-cli',
     ] },
-  { id: 'openrouter', name: 'OpenRouter', icon: Globe, authType: 'API Key',
-    setup: [
-      'Go to openrouter.ai and sign up',
-      'Navigate to API Keys in your dashboard',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-      'Supports 200+ models: Claude, GPT, Gemini, Llama, and more',
-      'Free tier models available',
-    ] },
-  { id: 'copilot', name: 'GitHub Copilot', icon: Github, authType: 'Device Code',
-    setup: [
-      'Click Connect to start the device code flow',
-      'A user code will be displayed - copy it',
-      'Open github.com/login/device in your browser',
-      'Paste the code and authorize the application',
-      'The token will be automatically obtained',
-      'Requires an active GitHub Copilot subscription',
-    ] },
-  { id: 'deepseek', name: 'DeepSeek', icon: Brain, authType: 'API Key',
-    setup: [
-      'Go to platform.deepseek.com and sign up',
-      'Navigate to API Keys in your dashboard',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'kimi', name: 'Kimi', icon: Sparkles, authType: 'API Key',
+ { id: 'kimi', name: 'Kimi', icon: Sparkles, authType: 'API Key',
     setup: [
       'Go to platform.moonshot.cn and sign up',
       'Navigate to API Keys in your dashboard',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'huggingface', name: 'HuggingFace', icon: Cpu, authType: 'API Key',
-    setup: [
-      'Go to huggingface.co and sign up',
-      'Navigate to Settings > Access Tokens',
-      'Create a new token with read/write access',
-      'Paste the token in the connect dialog',
-    ] },
-  { id: 'ollama', name: 'Ollama', icon: Server, authType: 'API Key',
-    setup: [
-      'Ensure Ollama is running locally (ollama serve)',
-      'Default endpoint: http://localhost:11434',
-      'No API key required for local usage',
-      'Paste any value or leave blank for local setups',
-    ] },
-  { id: 'agy', name: 'AGY', icon: Blocks, authType: 'API Key',
-    setup: [
-      'Go to your AGY provider dashboard',
-      'Generate an API key',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'cursor', name: 'Cursor', icon: Code, authType: 'API Key',
-    setup: [
-      'Go to cursor.sh and sign up',
-      'Navigate to Settings > API Keys',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'codebuddy', name: 'CodeBuddy', icon: Terminal, authType: 'API Key',
-    setup: [
-      'Go to your CodeBuddy provider dashboard',
-      'Navigate to API Keys section',
-      'Create a new API key and copy it',
-      'Paste the key in the connect dialog',
-    ] },
-  { id: 'kilo', name: 'Kilo', icon: Coffee, authType: 'API Key',
-    setup: [
-      'Go to your Kilo provider dashboard',
-      'Navigate to API Keys section',
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
@@ -155,6 +68,94 @@ const PROVIDERS: ProviderDef[] = [
  'Model is overridden to "default" automatically',
  'max_tokens is clamped to 14000',
  ] },
+ { id: 'anthropic', name: 'Anthropic', icon: Bot, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to console.anthropic.com and sign up',
+      'Navigate to API Keys section',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'openai', name: 'OpenAI', icon: Zap, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to platform.openai.com and sign up',
+      'Navigate to API Keys in settings',
+      'Create a new secret key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'gemini', name: 'Gemini', icon: Sparkles, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to aistudio.google.com/apikey',
+      'Sign in with your Google account',
+      'Click "Create API Key"',
+      'Copy the API key and paste it in the connect dialog',
+      'Free tier: 15 RPM, 1M tokens/min',
+    ] },
+ { id: 'openrouter', name: 'OpenRouter', icon: Globe, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to openrouter.ai and sign up',
+      'Navigate to API Keys in your dashboard',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+      'Supports 200+ models: Claude, GPT, Gemini, Llama, and more',
+      'Free tier models available',
+    ] },
+ { id: 'copilot', name: 'GitHub Copilot', icon: Github, authType: 'Device Code', unavailable: true,
+    setup: [
+      'Click Connect to start the device code flow',
+      'A user code will be displayed - copy it',
+      'Open github.com/login/device in your browser',
+      'Paste the code and authorize the application',
+      'The token will be automatically obtained',
+      'Requires an active GitHub Copilot subscription',
+    ] },
+ { id: 'deepseek', name: 'DeepSeek', icon: Brain, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to platform.deepseek.com and sign up',
+      'Navigate to API Keys in your dashboard',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'huggingface', name: 'HuggingFace', icon: Cpu, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to huggingface.co and sign up',
+      'Navigate to Settings > Access Tokens',
+      'Create a new token with read/write access',
+      'Paste the token in the connect dialog',
+    ] },
+ { id: 'ollama', name: 'Ollama', icon: Server, authType: 'API Key', unavailable: true,
+    setup: [
+      'Ensure Ollama is running locally (ollama serve)',
+      'Default endpoint: http://localhost:11434',
+      'No API key required for local usage',
+      'Paste any value or leave blank for local setups',
+    ] },
+ { id: 'agy', name: 'AGY', icon: Blocks, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to your AGY provider dashboard',
+      'Generate an API key',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'cursor', name: 'Cursor', icon: Code, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to cursor.sh and sign up',
+      'Navigate to Settings > API Keys',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'codebuddy', name: 'CodeBuddy', icon: Terminal, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to your CodeBuddy provider dashboard',
+      'Navigate to API Keys section',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'kilo', name: 'Kilo', icon: Coffee, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to your Kilo provider dashboard',
+      'Navigate to API Keys section',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
 ];
 
 const AUTH_TYPE_STYLES: Record<string, string> = {
@@ -384,141 +385,147 @@ export default function ProvidersPage() {
             const isExpanded = expanded === provider.id;
             const Icon = provider.icon;
 
-            return (
-              <Card
-                key={provider.id}
-                className={cn(
-                  'transition-all duration-200 border-transparent',
-                  isExpanded ? 'border-border' : 'hover:border-border hover:shadow-md',
-                )}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center h-9 w-9 rounded-full bg-muted shrink-0">
-                      <Icon className="h-4.5 w-4.5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-medium">{provider.name}</CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="max-w-[260px]">
-                              <p className="font-medium mb-1.5">Setup Instructions</p>
-                              <ol className="list-decimal list-inside space-y-0.5">
-                                {provider.setup.map((step, i) => (
-                                  <li key={i}>{step}</li>
-                                ))}
-                              </ol>
-                            </TooltipContent>
-                          </Tooltip>
-                          <Badge className={cn('text-[10px] px-1.5', AUTH_TYPE_STYLES[provider.authType])}>
-                            {provider.authType}
-                          </Badge>
-                        {accounts.length > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {accounts.filter((a) => !a.paused).length}/{accounts.length} active
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button size="sm" variant="outline" onClick={() => handleConnect(provider)}>
-                        <Plus className="h-3.5 w-3.5" />
-                        {accounts.length === 0 ? 'Connect' : 'Add'}
-                      </Button>
-                      {accounts.length > 0 && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => setExpanded(isExpanded ? null : provider.id)}
-                        >
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
+ return (
+ <Card
+ key={provider.id}
+ className={cn(
+ 'transition-all duration-200 border-transparent',
+ provider.unavailable && 'opacity-50 cursor-not-allowed',
+ !provider.unavailable && (isExpanded ? 'border-border' : 'hover:border-border hover:shadow-md'),
+ )}
+ >
+ <CardHeader className="pb-3">
+ <div className="flex items-center gap-3">
+ <div className={cn(
+ "flex items-center justify-center h-9 w-9 rounded-full shrink-0",
+ provider.unavailable ? "bg-muted/50" : "bg-muted",
+ )}>
+ <Icon className="h-4.5 w-4.5 text-muted-foreground" />
+ </div>
+ <div className="flex-1 min-w-0">
+ <CardTitle className="text-sm font-medium">{provider.name}</CardTitle>
+ <div className="flex items-center gap-2 mt-1">
+ {provider.unavailable ? (
+ <Badge className="text-[10px] px-1.5 bg-gray-500/10 text-gray-400">Unavailable</Badge>
+ ) : (
+ <>
+ <Tooltip>
+ <TooltipTrigger asChild>
+ <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help" />
+ </TooltipTrigger>
+ <TooltipContent side="bottom" className="max-w-[260px]">
+ <p className="font-medium mb-1.5">Setup Instructions</p>
+ <ol className="list-decimal list-inside space-y-0.5">
+ {provider.setup.map((step, i) => (
+ <li key={i}>{step}</li>
+ ))}
+ </ol>
+ </TooltipContent>
+ </Tooltip>
+ <Badge className={cn('text-[10px] px-1.5', AUTH_TYPE_STYLES[provider.authType])}>
+ {provider.authType}
+ </Badge>
+ {accounts.length > 0 && (
+ <span className="text-xs text-muted-foreground">
+ {accounts.filter((a) => !a.paused).length}/{accounts.length} active
+ </span>
+ )}
+ </>
+ )}
+ </div>
+ </div>
+ {!provider.unavailable && (
+ <div className="flex items-center gap-2 shrink-0">
+ <Button size="sm" variant="outline" onClick={() => handleConnect(provider)}>
+ <Plus className="h-3.5 w-3.5" />
+ {accounts.length === 0 ? 'Connect' : 'Add'}
+ </Button>
+ {accounts.length > 0 && (
+ <Button
+ size="icon"
+ variant="ghost"
+ className="h-7 w-7"
+ onClick={() => setExpanded(isExpanded ? null : provider.id)}
+ >
+ {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+ </Button>
+ )}
+ </div>
+ )}
+ </div>
+ </CardHeader>
 
-                {isExpanded && accounts.length > 0 && (
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium text-muted-foreground">Accounts</span>
-                      <Button size="sm" variant="outline" onClick={() => handleConnect(provider)}>
-                        <Plus className="h-3 w-3" />
-                        Add
-                      </Button>
-                    </div>
-                    <AccountList
-                      provider={provider.id}
-                      accounts={accounts}
-                      ratelimits={ratelimits.filter((r) => r.provider === provider.id)}
-                      disabled={!!actionLoading}
-                      onRemove={(id) => handleAction(id, () => authApi.removeAccount(provider.id, id))}
-                      onPause={(id) => handleAction(id, () => authApi.pauseAccount(provider.id, id))}
-                      onResume={(id) => handleAction(id, () => authApi.resumeAccount(provider.id, id))}
-                      onSetDefault={(id) => handleAction(id, () => authApi.setDefaultAccount(provider.id, id))}
-                      onUpdate={loadAccounts}
-                    />
-                    {actionLoading && (
-                      <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Updating...
-                      </div>
-                    )}
-                    {upstreamMap[provider.id] && (
-                      <div className="mt-3 pt-3 border-t">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground shrink-0">Upstream</span>
-                          {editingUpstream === provider.id ? (
-                            <div className="flex gap-1.5 flex-1">
-                              <Input
-                                value={editUpstreamVal}
-                                onChange={(e) => setEditUpstreamVal(e.target.value)}
-                                onKeyDown={async (e) => {
-                                  if (e.key === 'Enter' && editUpstreamVal.trim()) {
-                                    await updateProviderUpstream(provider.id, editUpstreamVal.trim());
-                                    setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
-                                    setEditingUpstream(null);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingUpstream(null);
-                                  }
-                                }}
-                                className="h-6 text-xs flex-1"
-                                autoFocus
-                              />
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
-                                onClick={async () => {
-                                  await updateProviderUpstream(provider.id, editUpstreamVal.trim());
-                                  setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
-                                  setEditingUpstream(null);
-                                }}>
-                                Save
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <span className="text-xs font-mono text-muted-foreground truncate flex-1">
-                                {upstreamMap[provider.id]}
-                              </span>
-                              <button
-                                onClick={() => { setEditingUpstream(provider.id); setEditUpstreamVal(upstreamMap[provider.id] ?? ''); }}
-                                className="shrink-0 p-1 rounded hover:bg-muted transition-colors text-muted-foreground/30 hover:text-muted-foreground"
-                                title="Edit upstream URL"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                )}
-              </Card>
-            );
+ {isExpanded && accounts.length > 0 && (
+ <CardContent>
+ <span className="text-xs font-medium text-muted-foreground">Accounts</span>
+ <AccountList
+ provider={provider.id}
+ accounts={accounts}
+ ratelimits={ratelimits.filter((r) => r.provider === provider.id)}
+ disabled={!!actionLoading}
+ onRemove={(id) => handleAction(id, () => authApi.removeAccount(provider.id, id))}
+ onPause={(id) => handleAction(id, () => authApi.pauseAccount(provider.id, id))}
+ onResume={(id) => handleAction(id, () => authApi.resumeAccount(provider.id, id))}
+ onSetDefault={(id) => handleAction(id, () => authApi.setDefaultAccount(provider.id, id))}
+ onUpdate={loadAccounts}
+ />
+ {actionLoading && (
+ <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+ <Loader2 className="h-3 w-3 animate-spin" />
+ Updating...
+ </div>
+ )}
+ {upstreamMap[provider.id] && (
+ <div className="mt-3 pt-3 border-t">
+ <div className="flex items-center gap-2">
+ <span className="text-[10px] text-muted-foreground shrink-0">Upstream</span>
+ {editingUpstream === provider.id ? (
+ <div className="flex gap-1.5 flex-1">
+ <Input
+ value={editUpstreamVal}
+ onChange={(e) => setEditUpstreamVal(e.target.value)}
+ onKeyDown={async (e) => {
+ if (e.key === 'Enter' && editUpstreamVal.trim()) {
+ await updateProviderUpstream(provider.id, editUpstreamVal.trim());
+ setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
+ setEditingUpstream(null);
+ } else if (e.key === 'Escape') {
+ setEditingUpstream(null);
+ }
+ }}
+ className="h-6 text-xs flex-1"
+ autoFocus
+ />
+ <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+ onClick={async () => {
+ await updateProviderUpstream(provider.id, editUpstreamVal.trim());
+ setUpstreamMap((prev) => ({ ...prev, [provider.id]: editUpstreamVal.trim() }));
+ setEditingUpstream(null);
+ }}>
+ Save
+ </Button>
+ </div>
+ ) : (
+ <>
+ <span className="text-xs font-mono text-muted-foreground truncate flex-1">
+ {upstreamMap[provider.id]}
+ </span>
+ <button
+ onClick={() => { setEditingUpstream(provider.id); setEditUpstreamVal(upstreamMap[provider.id] ?? ''); }}
+ className="shrink-0 p-1 rounded hover:bg-muted transition-colors text-muted-foreground/30 hover:text-muted-foreground"
+ title="Edit upstream URL"
+ >
+ <Pencil className="h-3 w-3" />
+ </button>
+ </>
+ )}
+ </div>
+ </div>
+ )}
+ </CardContent>
+ )}
+ </Card>
+ );
           })}
         </div>
       )}

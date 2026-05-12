@@ -44,6 +44,11 @@
 	handle_path /rl/* {
 		reverse_proxy arl-rl-dashboard:8080
 	}
+	@mitmweb path /mitmweb /mitmweb/*
+	handle @mitmweb {
+		uri strip_prefix /mitmweb
+		reverse_proxy arl-mitmweb:8081
+	}
 	handle {
 		reverse_proxy arl-gateway:8080
 	}

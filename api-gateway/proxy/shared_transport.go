@@ -3,10 +3,13 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -58,22 +61,76 @@ var (
 	sharedTransport     *http.Transport
 	sharedTransportOnce sync.Once
 	dnsResolver         *dnsCache
+
+	mitmEnabled  atomic.Bool
+	mitmProxyURL *url.URL
 )
 
 func init() {
 	dnsResolver = newDNSCache(30 * time.Second)
+	proxyStr := os.Getenv("MITM_PROXY_URL")
+	if proxyStr == "" {
+		proxyStr = os.Getenv("HTTPS_PROXY")
+	}
+	if proxyStr != "" {
+		if u, err := url.Parse(proxyStr); err == nil {
+			mitmProxyURL = u
+		}
+	}
+}
+
+// SetMITM enables or disables mitmproxy routing at runtime.
+func SetMITM(enabled bool) { mitmEnabled.Store(enabled) }
+
+// GetMITM returns whether mitmproxy is currently enabled.
+func GetMITM() bool { return mitmEnabled.Load() }
+
+// GetMITMProxyURL returns the configured proxy URL.
+func GetMITMProxyURL() string {
+	if mitmProxyURL == nil {
+		return ""
+	}
+	return mitmProxyURL.String()
+}
+
+// mitmProxyFunc returns the proxy URL when mitm is enabled, nil otherwise.
+func mitmProxyFunc(req *http.Request) (*url.URL, error) {
+	if mitmEnabled.Load() && mitmProxyURL != nil {
+		return mitmProxyURL, nil
+	}
+	return nil, nil
+}
+
+// ensureProxyURL reads env vars if mitmProxyURL is nil (handles init ordering).
+func ensureProxyURL() {
+	if mitmProxyURL != nil {
+		return
+	}
+	proxyStr := os.Getenv("MITM_PROXY_URL")
+	if proxyStr == "" {
+		proxyStr = os.Getenv("HTTPS_PROXY")
+	}
+	if proxyStr != "" {
+		if u, err := url.Parse(proxyStr); err == nil {
+			mitmProxyURL = u
+		}
+	}
 }
 
 // SharedTransport returns a singleton Transport with DNS caching, connection
 // pooling, and explicit timeouts. All proxies should use this.
 func SharedTransport() *http.Transport {
 	sharedTransportOnce.Do(func() {
+		ensureProxyURL()
+
+		slog.Info("shared transport creating", "skipTLS", mitmProxyURL != nil, "proxy_url", GetMITMProxyURL())
+
 		dialer := &net.Dialer{
 			Timeout:   10 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}
 		sharedTransport = &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
+			Proxy: mitmProxyFunc,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				host, _, err := net.SplitHostPort(addr)
 				if err != nil {
@@ -92,12 +149,7 @@ func SharedTransport() *http.Transport {
 			IdleConnTimeout:       120 * time.Second,
 			MaxConnsPerHost:       0,
 			ForceAttemptHTTP2:     true,
-			TLSClientConfig: func() *tls.Config {
-				if os.Getenv("HTTPS_PROXY") != "" {
-					return &tls.Config{InsecureSkipVerify: true}
-				}
-				return nil
-			}(),
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: mitmProxyURL != nil},
 		}
 	})
 	return sharedTransport

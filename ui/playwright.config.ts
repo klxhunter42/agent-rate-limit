@@ -11,7 +11,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: 'list',
   projects: [
-    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    { name: 'setup', testMatch: /auth\.setup\.ts/, use: { baseURL } },
     {
       name: 'tests',
       testMatch: /.*\.spec\.ts/,

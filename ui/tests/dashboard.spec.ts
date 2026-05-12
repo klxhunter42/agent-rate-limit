@@ -33,7 +33,8 @@ test.describe('Navigation', () => {
     await expect(sidebar.getByRole('link', { name: 'Controls' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Providers' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Models' })).toBeVisible();
-    await expect(sidebar.getByRole('link', { name: 'Logs' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Wiretap' })).toBeVisible();
+ await expect(sidebar.getByRole('link', { name: 'Logs' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Profiles' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Quota' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Settings' })).toBeVisible();

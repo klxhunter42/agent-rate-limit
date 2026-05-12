@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Copy, Download, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp, Key, Eye, EyeOff, Activity, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Plus, Copy, Upload, Trash2, Edit2, Check, X, Info, Terminal, ChevronDown, ChevronUp, Key, Eye, EyeOff, Activity, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { fetchProviders, providerName } from '@/lib/providers';
+import { fetchProviders, providerName, isProviderAvailable } from '@/lib/providers';
 import type { ProviderInfo } from '@/lib/providers';
 import { listAccounts } from '@/lib/auth-api';
 import type { AccountInfo } from '@/lib/auth-api';
@@ -96,17 +97,27 @@ export function ProfilesPage() {
   }) {
     const primary = data.targets[0];
     const provider = primary?.target ?? '';
-    const res = await fetch('/v1/profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, target: provider, provider, accountIds: primary?.accountIds ?? [] }),
-    });
-    if (res.ok) {
-      setShowCreate(false);
-      fetchProfiles();
-    }
-  }
-
+ try {
+ const res = await fetch('/v1/profiles', {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ ...data, target: provider, provider, accountIds: primary?.accountIds ??[] }),
+ });
+ if (res.ok) {
+ setShowCreate(false);
+ fetchProfiles();
+ } else {
+ const text = await res.text().catch(() => '');
+ if (res.status === 409) {
+ toast.error(`Profile "${data.name}" already exists.`);
+ } else {
+				toast.error(`Failed to create profile: ${res.status} ${res.statusText}${text ? '\n' + text : ''}`);
+ }
+ }
+ } catch (e) {
+		toast.error(`Failed to create profile: ${e instanceof Error ? e.message : 'network error'}`);
+ }
+	}
   async function deleteProfile(name: string) {
     setDeleting(true);
     try {
@@ -119,40 +130,16 @@ export function ProfilesPage() {
         fetchProfiles();
       } else {
         const text = await res.text().catch(() => '');
-        alert(`Failed to delete profile "${name}": ${res.status} ${res.statusText}${text ? '\n' + text : ''}`);
+        toast.error(`Failed to delete profile "${name}": ${res.status} ${res.statusText}${text ? '\n' + text : ''}`);
       }
     } catch (e) {
-      alert(`Failed to delete profile "${name}": ${e instanceof Error ? e.message : 'network error'}`);
+      toast.error(`Failed to delete profile "${name}": ${e instanceof Error ? e.message : 'network error'}`);
     } finally {
       setDeleting(false);
       setDeleteConfirm(null);
     }
   }
 
-  async function copyProfile(name: string) {
-    const dest = prompt(`Copy "${name}" to:`);
-    if (!dest) return;
-    const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}/copy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ destination: dest }),
-    });
-    if (res.ok) fetchProfiles();
-  }
-
-  async function exportProfile(name: string) {
-    const res = await fetch(`/v1/profiles/${encodeURIComponent(name)}/export`);
-    if (res.ok) {
-      const blob = await res.json();
-      const json = JSON.stringify(blob, null, 2);
-      const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `profile-${name}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-  }
 
   async function importProfiles() {
     if (!importText.trim()) return;
@@ -261,8 +248,6 @@ export function ProfilesPage() {
                 }
               }}
               onDelete={() => setDeleteConfirm(p.name)}
-              onCopy={() => copyProfile(p.name)}
-              onExport={() => exportProfile(p.name)}
             />
           ))}
         </div>
@@ -290,6 +275,7 @@ export function ProfilesPage() {
 
 function SetupGuideCard() {
   const [open, setOpen] = useState<string | null>('usage');
+	const baseUrl = window.location.origin;
 
   function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
     const isOpen = open === id;
@@ -319,7 +305,7 @@ function SetupGuideCard() {
           <p>Profiles let you route requests through specific provider configurations. Send the <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header with your request:</p>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
 {`# With curl
-curl http://localhost:9000/v1/messages \
+curl ${baseUrl}/v1/messages \
   -H "X-Profile: my-profile" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
@@ -356,10 +342,9 @@ curl http://localhost:9000/v1/messages \
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`// ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_API_KEY": "arl_your-generated-token"
+    "ANTHROPIC_BASE_URL": ${baseUrl},
+    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
           </pre>
@@ -387,10 +372,9 @@ curl http://localhost:9000/v1/messages \
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`// ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_API_KEY": "arl_your-generated-token"
+    "ANTHROPIC_BASE_URL": ${baseUrl},
+    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
           </pre>
@@ -409,10 +393,9 @@ curl http://localhost:9000/v1/messages \
 {`// GLM_MODE=true: no profile needed
 // ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_API_KEY": "any-zai-api-key"
+    "ANTHROPIC_BASE_URL": ${baseUrl},
+    "ANTHROPIC_AUTH_TOKEN": "any-zai-api-key"
   }
 }`}
           </pre>
@@ -451,21 +434,20 @@ curl http://localhost:9000/v1/messages \
           </ul>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`# Generate token
-curl -X POST http://localhost:9000/v1/profiles/meow/tokens
+curl -X POST ${baseUrl}/v1/profiles/meow/tokens
 # => {"token":"arl_abc123...","profile":"meow"}
 
 # Option A: Environment variables
-export ANTHROPIC_BASE_URL=http://localhost:9000
+export ANTHROPIC_BASE_URL=${baseUrl}
 export ANTHROPIC_API_KEY=arl_abc123...
 claude
 
 # Option B: settings.json
 # ~/.claude/settings.json
 {
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:9000",
-    "ANTHROPIC_API_KEY": "arl_abc123..."
+    "ANTHROPIC_BASE_URL": ${baseUrl},
+    "ANTHROPIC_AUTH_TOKEN": "arl_abc123..."
   }
 }`}
           </pre>
@@ -481,10 +463,9 @@ claude
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`{
-  "apiKeyHelper": "echo $ANTHROPIC_API_KEY",
   "env": {
-    "ANTHROPIC_BASE_URL": "http://arl-gateway:8080",
-    "ANTHROPIC_API_KEY": "arl_your-generated-token"
+    "ANTHROPIC_BASE_URL": ${baseUrl},
+    "ANTHROPIC_AUTH_TOKEN": "arl_your-generated-token"
   }
 }`}
           </pre>
@@ -525,7 +506,7 @@ docker exec -it meow claude`}
           </ol>
           <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto mt-2">
 {`# Via API: create hybrid failover profile
-curl -X POST http://localhost:9000/v1/profiles \
+curl -X POST ${baseUrl}/v1/profiles \
   -H "Content-Type: application/json" \
   -d '{
     "name": "hybrid",
@@ -689,7 +670,7 @@ function CreateProfileForm({
                   onChange={(e) => updateTarget(t.id, 'target', e.target.value)}
                 >
                   {providers.length === 0 && <option value="">Loading...</option>}
-                  {providers.map((p) => (
+                  {providers.filter((p) => isProviderAvailable(p.id)).map((p) => (
                     <option key={p.id} value={p.id}>{p.name || providerName(p.id)}</option>
                   ))}
                 </select>
@@ -752,8 +733,6 @@ function ProfileCard({
   onCancelEdit,
   onSave,
   onDelete,
-  onCopy,
-  onExport,
 }: {
   profile: Profile;
   editing: boolean;
@@ -761,8 +740,6 @@ function ProfileCard({
   onCancelEdit: () => void;
   onSave: (name: string, data: Record<string, unknown>) => void;
   onDelete: () => void;
-  onCopy: () => void;
-  onExport: () => void;
 }) {
   const [editName, setEditName] = useState(profile.name);
   const [editTargets, setEditTargets] = useState<ProfileTarget[]>([]);
@@ -886,7 +863,7 @@ function ProfileCard({
                       value={t.target}
                       onChange={(e) => updateTarget(t.id, 'target', e.target.value)}
                     >
-                      {providers.map((p) => (
+                      {providers.filter((p) => isProviderAvailable(p.id)).map((p) => (
                         <option key={p.id} value={p.id}>{p.name || providerName(p.id)}</option>
                       ))}
                     </select>
@@ -1031,7 +1008,9 @@ function ProfileCard({
     );
   }
 
-  return <ProfileCardView profile={profile} onEdit={onEdit} onDelete={onDelete} onCopy={onCopy} onExport={onExport} />;
+	return (
+		<_ProfileCardView profile={profile} onEdit={onEdit} onDelete={onDelete} />
+	);
 }
 
 interface TokenInfo {
@@ -1042,18 +1021,14 @@ interface TokenInfo {
   createdAt: string;
 }
 
-function ProfileCardView({
+function _ProfileCardView({
   profile,
   onEdit,
   onDelete,
-  onCopy,
-  onExport,
 }: {
   profile: Profile;
   onEdit: () => void;
   onDelete: () => void;
-  onCopy: () => void;
-  onExport: () => void;
 }) {
   const resolvedProvider = profile.provider || profile.target || '';
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
@@ -1150,10 +1125,10 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
       if (res.ok) {
         fetchTokens();
       } else {
-        alert(`Failed to revoke: ${res.status} ${res.statusText}`);
+        toast.error(`Failed to revoke: ${res.status} ${res.statusText}`);
       }
     } catch (e) {
-      alert(`Failed to revoke: ${e instanceof Error ? e.message : 'network error'}`);
+      toast.error(`Failed to revoke: ${e instanceof Error ? e.message : 'network error'}`);
     } finally {
       setRevoking(null);
       setRevokeConfirm(null);
@@ -1195,12 +1170,6 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
           <div className="flex gap-1">
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit} title="Edit">
               <Edit2 className="h-3.5 w-3.5" />
-            </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onCopy} title="Copy">
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onExport} title="Export">
-              <Download className="h-3.5 w-3.5" />
             </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={onDelete} title="Delete">
               <Trash2 className="h-3.5 w-3.5" />

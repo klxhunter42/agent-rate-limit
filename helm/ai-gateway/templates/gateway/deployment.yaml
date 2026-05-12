@@ -24,75 +24,79 @@ spec:
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
       initContainers:
-      - name: wait-for-dragonfly
-        image: busybox:1.36
-        command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-dragonfly.{{ .Values.global.namespace }}.svc.cluster.local 6379; do echo waiting for dragonfly; sleep 2; done;']
+        - name: wait-for-dragonfly
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-dragonfly.{{ .Values.global.namespace }}.svc.cluster.local 6379; do echo waiting for dragonfly; sleep 2; done;']
       containers:
-      - name: gateway
-        image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Chart.AppVersion }}"
-        imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
-        ports:
-        - containerPort: 8080
-          name: http
-        securityContext:
+        - name: gateway
+          image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+              name: http
+          securityContext:
 {{- include "ai-gateway.securityContext" . | nindent 12 }}
-        env:
-        - name: REDIS_ADDR
-          value: "{{ .Release.Name }}-dragonfly.{{ .Values.global.namespace }}.svc.cluster.local:6379"
-        - name: RATE_LIMITER_ADDR
-          value: "http://{{ .Release.Name }}-rate-limiter.{{ .Values.global.namespace }}.svc.cluster.local:8080"
-        - name: QUEUE_NAME
-          value: "ai_jobs"
-        - name: OTLP_ENDPOINT
-          value: "{{ .Release.Name }}-otel-collector.{{ .Values.global.namespace }}.svc.cluster.local:4317"
-        - name: ZAI_API_KEYS
-          valueFrom:
-            secretKeyRef:
+          env:
+            - name: REDIS_ADDR
+              value: "{{ .Release.Name }}-dragonfly.{{ .Values.global.namespace }}.svc.cluster.local:6379"
+            - name: RATE_LIMITER_ADDR
+              value: "http://{{ .Release.Name }}-rate-limiter.{{ .Values.global.namespace }}.svc.cluster.local:8080"
+            - name: QUEUE_NAME
+              value: "ai_jobs"
+            - name: OTLP_ENDPOINT
+              value: "{{ .Release.Name }}-otel-collector.{{ .Values.global.namespace }}.svc.cluster.local:4317"
+            - name: ZAI_API_KEYS
+              valueFrom:
+                secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
-        - name: GEMINI_OAUTH_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
+            - name: GEMINI_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-id" "value" .Values.secrets.geminiOAuthClientId) | nindent 14 }}
-        - name: GEMINI_OAUTH_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
+            - name: GEMINI_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 14 }}
-        - name: DASHBOARD_PASSWORD
-          valueFrom:
-            secretKeyRef:
+            - name: DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 14 }}
-      {{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 8 }}
-        resources:
+{{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 12 }}
+            {{- if and .Values.mitmweb.enabled (not .Values.gateway.env.MITM_PROXY_URL) }}
+            - name: MITM_PROXY_URL
+              value: "http://{{ .Release.Name }}-mitmweb.{{ .Values.global.namespace }}.svc.cluster.local:8083"
+            {{- end }}
+          resources:
 {{- toYaml .Values.gateway.resources | nindent 12 }}
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        volumeMounts:
-        - name: tmp
-          mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
       volumes:
-      - name: tmp
-        emptyDir: {}
+        - name: tmp
+          emptyDir: {}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
 {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "gateway") | nindent 20 }}
-              topologyKey: kubernetes.io/hostname
+                topologyKey: kubernetes.io/hostname
 {{- end }}

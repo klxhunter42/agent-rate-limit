@@ -318,6 +318,8 @@ func main() {
 	r.Post("/v1/limiter-override", h.LimiterOverride)
 	r.Get("/v1/routing/strategy", h.GetRoutingStrategy)
 	r.Put("/v1/routing/strategy", h.SetRoutingStrategy)
+	r.Get("/v1/config/mitm", h.GetMITMConfig)
+	r.Put("/v1/config/mitm", h.SetMITMConfig)
 	r.Get("/v1/logs/errors", h.GetErrorLogs)
 	r.Get("/v1/logs/errors/count", h.GetErrorLogCount)
 	r.Get("/v1/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
