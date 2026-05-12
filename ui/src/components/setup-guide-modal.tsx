@@ -114,7 +114,7 @@ export function SetupGuideModal() {
  <span className="text-sm font-semibold tracking-wide">Setup</span>
  </button>
  </DialogTrigger>
- <DialogContent aria-describedby="setup-guide-desc" className="max-w-[40rem] p-0 overflow-hidden border-border/50 setup-guide-scroll">
+ <DialogContent aria-describedby="setup-guide-desc" className="max-w-[40rem] p-0 overflow-y-auto max-h-[85vh] border-border/50 setup-guide-scroll">
  <div className="bg-gradient-to-b from-background to-muted/30 px-6 pt-6 pb-4">
  <DialogHeader>
  <DialogTitle className="text-2xl flex items-center gap-2">
@@ -127,7 +127,7 @@ export function SetupGuideModal() {
  </p>
  </div>
 
- <div className="px-6 pb-6 max-h-[80vh] setup-guide-scroll-area">
+ <div className="px-6 pb-6 setup-guide-scroll-area">
  <div className="relative pt-2">
  {STEPS.map((step, i) => {
  const c = colorMap[step.color] ?? colorMap.violet!;

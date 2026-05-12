@@ -21,12 +21,13 @@ spec:
 {{- end }}
       securityContext:
 {{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+        runAsUser: 0
       containers:
         - name: mitmweb
           image: "{{ .Values.mitmweb.image.repository }}:{{ .Values.mitmweb.image.tag }}"
           imagePullPolicy: {{ .Values.mitmweb.image.pullPolicy }}
+          command: ["mitmweb"]
           args:
-            - mitmweb
             - --set
             - web_port={{ .Values.mitmweb.service.webPort }}
             - --listen-host
@@ -42,7 +43,14 @@ spec:
             - name: proxy
               containerPort: {{ .Values.mitmweb.service.proxyPort }}
           securityContext:
-{{- include "ai-gateway.securityContext" . | nindent 12 }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CAP_SETUID
+                - CAP_SETGID
+                - CAP_CHOWN
           resources:
 {{- toYaml .Values.mitmweb.resources | nindent 12 }}
 {{- end }}

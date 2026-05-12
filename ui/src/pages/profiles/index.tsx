@@ -1307,7 +1307,7 @@ if (expirySeconds > 0) body.expiresIn = expirySeconds;
                     </span>
                   )}
                   <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => setRevealedKeys((s) => { const n = new Set(s); isRevealed ? n.delete(t.keyName) : n.add(t.keyName); return n; })} title={isRevealed ? 'Hide' : 'Reveal'}>
-                    {isRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    {isRevealed ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                   </Button>
                   <Button size="icon" variant="ghost" className="h-5 w-5 shrink-0" onClick={() => copyToken(t.token, t.keyName)} title="Copy">
                     {copiedKey === t.keyName ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
