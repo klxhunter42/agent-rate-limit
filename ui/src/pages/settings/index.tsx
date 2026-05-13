@@ -233,7 +233,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-muted-foreground">
-            ARL Dashboard v1.0.0
+            AI Dashboard v1.0.0
           </div>
           <Separator />
           <Button variant="destructive" size="sm" onClick={resetAll} className="flex items-center gap-2">

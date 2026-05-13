@@ -9,13 +9,13 @@
   "links": [
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     },
     {
       "title": "System Overview",
-      "url": "/d/arl-overview",
+      "url": "/d/ai-overview",
       "type": "link",
       "icon": "dashboard"
     }
@@ -327,6 +327,6 @@
   },
   "refresh": "60s",
   "title": "Gateway - Runtime & Health",
-  "uid": "arl-gw-runtime",
+  "uid": "ai-gw-runtime",
   "version": 1
 }

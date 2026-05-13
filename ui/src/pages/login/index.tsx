@@ -47,7 +47,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mb-4">
             <ShieldCheck className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">ARL Gateway</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">AI Gateway</h1>
           <p className="text-sm text-muted-foreground mt-1">Enter your password to continue</p>
         </div>
 

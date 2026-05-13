@@ -6,7 +6,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "uid": "arl-token-usage",
+  "uid": "ai-token-usage",
   "title": "API Usage Monitor",
   "tags": [
     "api-gateway",
@@ -22,19 +22,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Optimization",
-      "url": "/d/arl-token-optimization",
+      "url": "/d/ai-token-optimization",
       "type": "link",
       "icon": "bolt"
     },
     {
       "title": "Cost Calculator",
-      "url": "/d/arl-cost",
+      "url": "/d/ai-cost",
       "type": "link",
       "icon": "calculator"
     }

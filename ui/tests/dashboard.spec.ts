@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 test.describe('Login', () => {
   test('login page renders with dark theme', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByText('ARL Gateway')).toBeVisible();
+    await expect(page.getByText('AI Gateway')).toBeVisible();
     await expect(page.getByPlaceholder('Enter dashboard password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
     const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));

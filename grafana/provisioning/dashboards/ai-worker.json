@@ -9,19 +9,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "System Overview",
-      "url": "/d/arl-overview",
+      "url": "/d/ai-overview",
       "type": "link",
       "icon": "server"
     },
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "cog"
     }
@@ -764,6 +764,6 @@
   },
   "refresh": "30s",
   "title": "AI Worker - Detailed",
-  "uid": "arl-worker",
+  "uid": "ai-worker",
   "version": 3
 }

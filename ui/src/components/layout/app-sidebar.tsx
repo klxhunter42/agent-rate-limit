@@ -86,7 +86,7 @@ export function AppSidebar() {
 				<Link to="/" className="flex items-center gap-2 px-2">
 					<Activity className="h-5 w-5 text-sidebar-primary shrink-0" />
 					<span className="font-semibold text-sm group-data-[collapsible=icon]:hidden">
-						ARL Dashboard
+						AI Dashboard
 					</span>
 				</Link>
 			</SidebarHeader>

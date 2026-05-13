@@ -6,7 +6,7 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
-  "uid": "arl-service-dashboard",
+  "uid": "ai-service-dashboard",
   "title": "AI Platform - Executive Overview",
   "tags": [
     "api-gateway",
@@ -23,25 +23,25 @@
   "links": [
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     },
     {
       "title": "Privacy",
-      "url": "/d/arl-pasteguard",
+      "url": "/d/ai-pasteguard",
       "type": "link",
       "icon": "shield"
     },
     {
       "title": "Cost",
-      "url": "/d/arl-cost",
+      "url": "/d/ai-cost",
       "type": "link",
       "icon": "calculator"
     },
     {
       "title": "Usage",
-      "url": "/d/arl-token-usage",
+      "url": "/d/ai-token-usage",
       "type": "link",
       "icon": "bar-chart"
     }
@@ -686,7 +686,7 @@
           "links": [
             {
               "title": "View usage details",
-              "url": "/d/arl-token-usage?var-model=${__field.labels.model}"
+              "url": "/d/ai-token-usage?var-model=${__field.labels.model}"
             }
           ]
         }

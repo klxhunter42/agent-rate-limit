@@ -9,19 +9,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Optimization",
-      "url": "/d/arl-token-optimization",
+      "url": "/d/ai-token-optimization",
       "type": "link",
       "icon": "bolt"
     },
     {
       "title": "Privacy",
-      "url": "/d/arl-pasteguard",
+      "url": "/d/ai-pasteguard",
       "type": "link",
       "icon": "shield"
     },
@@ -2338,6 +2338,6 @@
   },
   "refresh": "30s",
   "title": "Gateway - Overview",
-  "uid": "arl-gw-overview",
+  "uid": "ai-gw-overview",
   "version": 1
 }

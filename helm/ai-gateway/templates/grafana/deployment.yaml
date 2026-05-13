@@ -75,19 +75,9 @@ spec:
       - name: dashboards-a
         configMap:
           name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-a
-          items:
-          {{- range $path, $_ := .Files.Glob "files/dashboards/group-a/*.json" }}
-          - key: {{ base $path }}
-            path: group-a/{{ base $path }}
-          {{- end }}
       - name: dashboards-b
         configMap:
           name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-b
-          items:
-          {{- range $path, $_ := .Files.Glob "files/dashboards/group-b/*.json" }}
-          - key: {{ base $path }}
-            path: group-b/{{ base $path }}
-          {{- end }}
       {{- if .Values.grafana.persistence.enabled }}
       - name: data
         persistentVolumeClaim:

@@ -10,19 +10,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Optimization",
-      "url": "/d/arl-token-optimization",
+      "url": "/d/ai-token-optimization",
       "type": "link",
       "icon": "bolt"
     },
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     }
@@ -1236,6 +1236,6 @@
   },
   "timezone": "browser",
   "title": "AI Platform - Data Privacy & Compliance",
-  "uid": "arl-pasteguard",
+  "uid": "ai-pasteguard",
   "version": 1
 }

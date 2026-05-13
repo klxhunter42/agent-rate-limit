@@ -9,19 +9,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     },
     {
       "title": "Worker Details",
-      "url": "/d/arl-worker",
+      "url": "/d/ai-worker",
       "type": "link",
       "icon": "cog"
     }
@@ -529,6 +529,6 @@
   },
   "refresh": "30s",
   "title": "Agent Rate Limit - System Overview",
-  "uid": "arl-overview",
+  "uid": "ai-overview",
   "version": 3
 }

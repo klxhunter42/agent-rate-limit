@@ -10,19 +10,19 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     },
     {
       "title": "Privacy",
-      "url": "/d/arl-pasteguard",
+      "url": "/d/ai-pasteguard",
       "type": "link",
       "icon": "shield"
     }
@@ -2561,5 +2561,5 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "AI Platform - Text Optimization",
-  "uid": "arl-token-optimization"
+  "uid": "ai-token-optimization"
 }

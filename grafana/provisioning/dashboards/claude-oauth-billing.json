@@ -9,25 +9,25 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
     {
       "title": "Cost Calculator",
-      "url": "/d/arl-cost",
+      "url": "/d/ai-cost",
       "type": "link",
       "icon": "calculator"
     },
     {
       "title": "Usage Monitor",
-      "url": "/d/arl-token-usage",
+      "url": "/d/ai-token-usage",
       "type": "link",
       "icon": "bar-chart"
     },
     {
       "title": "Operations",
-      "url": "/d/arl-gw-overview",
+      "url": "/d/ai-gw-overview",
       "type": "link",
       "icon": "server"
     }

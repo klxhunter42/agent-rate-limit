@@ -9,7 +9,7 @@
   "links": [
     {
       "title": "Executive Overview",
-      "url": "/d/arl-service-dashboard",
+      "url": "/d/ai-service-dashboard",
       "type": "link",
       "icon": "dashboard"
     },
@@ -21,7 +21,7 @@
     },
     {
       "title": "Usage Monitor",
-      "url": "/d/arl-token-usage",
+      "url": "/d/ai-token-usage",
       "type": "link",
       "icon": "bar-chart"
     }
@@ -433,7 +433,7 @@
   },
   "refresh": "60s",
   "title": "Cost Calculator & Savings",
-  "uid": "arl-cost",
+  "uid": "ai-cost",
   "version": 5,
   "timezone": "browser",
   "description": "AI API cost estimation, pricing reference, and spend analysis."
