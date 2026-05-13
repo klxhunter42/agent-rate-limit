@@ -60,11 +60,11 @@ spec:
           mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
           subPath: dashboards.yml
           readOnly: true
-        - name: dashboards-a
-          mountPath: /etc/grafana/provisioning/dashboards/group-a
+        - name: dashboards-overview
+          mountPath: /etc/grafana/provisioning/dashboards/overview
           readOnly: true
-        - name: dashboards-b
-          mountPath: /etc/grafana/provisioning/dashboards/group-b
+        - name: dashboards-operations
+          mountPath: /etc/grafana/provisioning/dashboards/operations
           readOnly: true
         - name: data
           mountPath: /var/lib/grafana
@@ -72,12 +72,12 @@ spec:
       - name: provisioning
         configMap:
           name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-provisioning
-      - name: dashboards-a
+      - name: dashboards-overview
         configMap:
-          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-a
-      - name: dashboards-b
+          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-overview
+      - name: dashboards-operations
         configMap:
-          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-b
+          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-operations
       {{- if .Values.grafana.persistence.enabled }}
       - name: data
         persistentVolumeClaim:
