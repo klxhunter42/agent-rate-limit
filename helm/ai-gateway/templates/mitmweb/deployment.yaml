@@ -36,7 +36,7 @@ spec:
             - |
               ARGS="--set web_port={{ .Values.mitmweb.service.webPort }} --listen-host 0.0.0.0 --listen-port {{ .Values.mitmweb.service.proxyPort }} --ssl-insecure --web-host 0.0.0.0"
               if [ -n "$MITMWEB_PASS" ]; then
-                ARGS="$ARGS --set web_pass=$MITMWEB_PASS"
+                ARGS="$ARGS --set web_password=$MITMWEB_PASS"
               fi
               exec mitmweb $ARGS
           ports:
