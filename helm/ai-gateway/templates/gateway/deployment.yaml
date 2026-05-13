@@ -49,25 +49,25 @@ spec:
             - name: ZAI_API_KEYS
               valueFrom:
                 secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 14 }}
+{{- include "ai-gateway.secretKeyRef" (dict "key" "upstream-api-keys" "value" .Values.secrets.upstreamApiKeys) | nindent 18 }}
 {{- end }}
 {{- if .Values.secrets.geminiOAuthClientId }}
             - name: GEMINI_OAUTH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-id" "value" .Values.secrets.geminiOAuthClientId) | nindent 14 }}
+{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-id" "value" .Values.secrets.geminiOAuthClientId) | nindent 18 }}
 {{- end }}
 {{- if .Values.secrets.geminiOAuthClientSecret }}
             - name: GEMINI_OAUTH_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 14 }}
+{{- include "ai-gateway.secretKeyRef" (dict "key" "gemini-oauth-client-secret" "value" .Values.secrets.geminiOAuthClientSecret) | nindent 18 }}
 {{- end }}
 {{- if .Values.secrets.dashboardPassword }}
             - name: DASHBOARD_PASSWORD
               valueFrom:
                 secretKeyRef:
-{{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 14 }}
+{{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 18 }}
 {{- end }}
 {{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 12 }}
             {{- if and .Values.mitmweb.enabled (not .Values.gateway.env.MITM_PROXY_URL) }}
