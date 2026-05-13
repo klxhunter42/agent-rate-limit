@@ -380,7 +380,21 @@ services:
   arl-mitmweb:
     image: mitmproxy/mitmproxy:12.2
     container_name: arl-mitmweb
-    command: mitmweb --set web_password=test --web-port 8081 --listen-host 0.0.0.0 --listen-port 8083 --ssl-insecure --web-host 0.0.0.0
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        exec python3 -c "
+        import re, mitmproxy.tools.web.app as _app, tornado.web
+        _orig_init = _app.Application.__init__
+        def _patched_init(self, master, debug):
+            _app.handlers[:] = [(re.sub(r'^(/)', r'/mitmweb\1', p), h) for p, h in _app.handlers] + [(r'/mitmweb', _app.handlers[0][1])]
+            _orig_init(self, master, debug)
+            self.settings['static_url_prefix'] = '/mitmweb/static/'
+            self.add_handlers('.*$', [(r'/mitmweb/static/(.*)', tornado.web.StaticFileHandler, {'path': self.settings['static_path']})])
+        _app.Application.__init__ = _patched_init
+        from mitmproxy.tools.main import mitmweb
+        mitmweb(['--set', 'web_password=test', '--web-port', '8081', '--listen-host', '0.0.0.0', '--listen-port', '8083', '--ssl-insecure', '--web-host', '0.0.0.0', '--set', 'web_open_browser=false'])
+        "
     networks:
       - arl-network
 

@@ -43,9 +43,9 @@ data:
         reverse_proxy {{ .Release.Name }}-grafana.{{ .Values.global.namespace }}.svc.cluster.local:3000
       }
 {{- if .Values.mitmweb.enabled }}
+      redir /mitmweb /mitmweb/ permanent
       @mitmweb path /mitmweb /mitmweb/*
       handle @mitmweb {
-        uri strip_prefix /mitmweb
         reverse_proxy {{ .Release.Name }}-mitmweb.{{ .Values.global.namespace }}.svc.cluster.local:8081
       }
 {{- end }}

@@ -44,9 +44,9 @@
 	handle_path /rl/* {
 		reverse_proxy arl-rl-dashboard:8080
 	}
+	redir /mitmweb /mitmweb/ permanent
 	@mitmweb path /mitmweb /mitmweb/*
 	handle @mitmweb {
-		uri strip_prefix /mitmweb
 		reverse_proxy arl-mitmweb:8081
 	}
 	handle {

@@ -34,11 +34,21 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              ARGS="--set web_port={{ .Values.mitmweb.service.webPort }} --set web_assets_url_prefix=/mitmweb --listen-host 0.0.0.0 --listen-port {{ .Values.mitmweb.service.proxyPort }} --ssl-insecure --web-host 0.0.0.0"
-              if [ -n "$MITMWEB_PASS" ]; then
-                ARGS="$ARGS --set web_password=$MITMWEB_PASS"
-              fi
-              exec mitmweb $ARGS
+              exec python3 -c "
+              import re, mitmproxy.tools.web.app as _app, tornado.web
+              _orig_init = _app.Application.__init__
+              def _patched_init(self, master, debug):
+                  _app.handlers[:] = [(re.sub(r'^(/)', r'/mitmweb\1', p), h) for p, h in _app.handlers] + [(r'/mitmweb', _app.handlers[0][1])]
+                  _orig_init(self, master, debug)
+                  self.settings['static_url_prefix'] = '/mitmweb/static/'
+                  self.add_handlers('.*$', [(r'/mitmweb/static/(.*)', tornado.web.StaticFileHandler, {'path': self.settings['static_path']})])
+              _app.Application.__init__ = _patched_init
+              from mitmproxy.tools.main import mitmweb
+              args = ['--set', 'web_open_browser=false', '--web-port', '{{ .Values.mitmweb.service.webPort }}', '--listen-host', '0.0.0.0', '--listen-port', '{{ .Values.mitmweb.service.proxyPort }}', '--ssl-insecure', '--web-host', '0.0.0.0']
+              if '$MITMWEB_PASS':
+                args += ['--set', 'web_password=$MITMWEB_PASS']
+              mitmweb(args)
+              "
           ports:
             - name: web
               containerPort: {{ .Values.mitmweb.service.webPort }}
