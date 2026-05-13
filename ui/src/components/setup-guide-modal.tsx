@@ -114,7 +114,7 @@ export function SetupGuideModal() {
  <span className="text-sm font-semibold tracking-wide">Setup</span>
  </button>
  </DialogTrigger>
- <DialogContent aria-describedby="setup-guide-desc" className="max-w-[40rem] p-0 overflow-y-auto max-h-[85vh] border-border/50 setup-guide-scroll">
+ <DialogContent aria-describedby="setup-guide-desc" className="max-w-[45rem] p-0 overflow-y-auto max-h-[85vh] border-border/50 setup-guide-scroll">
  <div className="bg-gradient-to-b from-background to-muted/30 px-6 pt-6 pb-4">
  <DialogHeader>
  <DialogTitle className="text-2xl flex items-center gap-2">
@@ -177,9 +177,9 @@ export function SetupGuideModal() {
  <ArrowRight className="h-3 w-3" />
  </a>
  <p className="text-sm text-muted-foreground">
- Config file: <code className="px-1.5 py-0.5 rounded bg-black/40 border border-border/50 text-sm">~/.claude/settings.json</code>
+ Config file: <code className="px-1.5 py-0.5 rounded bg-muted border border-border/50 text-sm">~/.claude/settings.json</code>
  </p>
- <pre className="rounded-lg bg-black/40 border border-border/50 p-3 text-sm font-mono text-muted-foreground overflow-x-auto">
+ <pre className="rounded-lg bg-muted border border-border/50 p-3 text-sm font-mono text-foreground/80 overflow-x-auto">
 {JSON.stringify({
  "env": {
  "ANTHROPIC_BASE_URL": baseUrl,
