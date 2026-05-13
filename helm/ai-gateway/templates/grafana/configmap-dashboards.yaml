@@ -2,10 +2,20 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-a
   namespace: {{ .Values.global.namespace }}
   labels:
 {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
 data:
-{{- (.Files.Glob "files/dashboards/*.json").AsConfig | nindent 2 }}
+{{- (.Files.Glob "files/dashboards/group-a/*.json").AsConfig | nindent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-b
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+data:
+{{- (.Files.Glob "files/dashboards/group-b/*.json").AsConfig | nindent 2 }}
 {{- end }}

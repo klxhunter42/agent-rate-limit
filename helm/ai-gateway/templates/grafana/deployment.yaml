@@ -55,8 +55,11 @@ spec:
         - name: provisioning
           mountPath: /etc/grafana/provisioning
           readOnly: true
-        - name: dashboards
-          mountPath: /etc/grafana/provisioning/dashboards
+        - name: dashboards-a
+          mountPath: /etc/grafana/provisioning/dashboards/group-a
+          readOnly: true
+        - name: dashboards-b
+          mountPath: /etc/grafana/provisioning/dashboards/group-b
           readOnly: true
         - name: data
           mountPath: /var/lib/grafana
@@ -69,13 +72,21 @@ spec:
             path: datasources/datasources.yml
           - key: dashboards.yml
             path: dashboards/dashboards.yml
-      - name: dashboards
+      - name: dashboards-a
         configMap:
-          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards
+          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-a
           items:
-          {{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
+          {{- range $path, $_ := .Files.Glob "files/dashboards/group-a/*.json" }}
           - key: {{ base $path }}
-            path: dashboards/{{ base $path }}
+            path: group-a/{{ base $path }}
+          {{- end }}
+      - name: dashboards-b
+        configMap:
+          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards-b
+          items:
+          {{- range $path, $_ := .Files.Glob "files/dashboards/group-b/*.json" }}
+          - key: {{ base $path }}
+            path: group-b/{{ base $path }}
           {{- end }}
       {{- if .Values.grafana.persistence.enabled }}
       - name: data
