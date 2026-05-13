@@ -29,5 +29,4 @@ data:
         options:
           path: /etc/grafana/provisioning/dashboards
           foldersFromFilesStructure: false
-{{- (.Files.Glob "files/dashboards/*.json").AsConfig | nindent 2 }}
 {{- end }}

@@ -1,0 +1,11 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "grafana") | nindent 4 }}
+data:
+{{- (.Files.Glob "files/dashboards/*.json").AsConfig | nindent 2 }}
+{{- end }}

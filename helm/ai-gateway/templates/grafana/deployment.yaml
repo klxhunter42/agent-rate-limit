@@ -55,6 +55,9 @@ spec:
         - name: provisioning
           mountPath: /etc/grafana/provisioning
           readOnly: true
+        - name: dashboards
+          mountPath: /etc/grafana/provisioning/dashboards
+          readOnly: true
         - name: data
           mountPath: /var/lib/grafana
       volumes:
@@ -66,6 +69,10 @@ spec:
             path: datasources/datasources.yml
           - key: dashboards.yml
             path: dashboards/dashboards.yml
+      - name: dashboards
+        configMap:
+          name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "grafana") }}-dashboards
+          items:
           {{- range $path, $_ := .Files.Glob "files/dashboards/*.json" }}
           - key: {{ base $path }}
             path: dashboards/{{ base $path }}
