@@ -26,17 +26,19 @@ spec:
         - name: mitmweb
           image: "{{ .Values.mitmweb.image.repository }}:{{ .Values.mitmweb.image.tag }}"
           imagePullPolicy: {{ .Values.mitmweb.image.pullPolicy }}
-          command: ["mitmweb"]
+          env:
+            - name: MITMWEB_PASS
+              valueFrom:
+                secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "mitmweb-password" "value" .Values.secrets.mitmwebPassword) | nindent 18 }}
+          command: ["/bin/sh", "-c"]
           args:
-            - --set
-            - web_port={{ .Values.mitmweb.service.webPort }}
-            - --listen-host
-            - "0.0.0.0"
-            - --listen-port
-            - "{{ .Values.mitmweb.service.proxyPort }}"
-            - --ssl-insecure
-            - --web-host
-            - "0.0.0.0"
+            - |
+              ARGS="--set web_port={{ .Values.mitmweb.service.webPort }} --listen-host 0.0.0.0 --listen-port {{ .Values.mitmweb.service.proxyPort }} --ssl-insecure --web-host 0.0.0.0"
+              if [ -n "$MITMWEB_PASS" ]; then
+                ARGS="$ARGS --set web_pass=$MITMWEB_PASS"
+              fi
+              exec mitmweb $ARGS
           ports:
             - name: web
               containerPort: {{ .Values.mitmweb.service.webPort }}

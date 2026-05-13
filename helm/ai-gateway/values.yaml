@@ -291,6 +291,7 @@ secrets:
   geminiOAuthClientSecret: ""
   grafanaAdminPassword: "devopscore"
   dashboardPassword: "devopscore"
+  mitmwebPassword: "devopscore"
 
 sidecar:
   enabled: true
