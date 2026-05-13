@@ -80,7 +80,12 @@ func init() {
 }
 
 // SetMITM enables or disables mitmproxy routing at runtime.
-func SetMITM(enabled bool) { mitmEnabled.Store(enabled) }
+func SetMITM(enabled bool) {
+	mitmEnabled.Store(enabled)
+	if sharedTransport != nil {
+		sharedTransport.CloseIdleConnections()
+	}
+}
 
 // GetMITM returns whether mitmproxy is currently enabled.
 func GetMITM() bool { return mitmEnabled.Load() }

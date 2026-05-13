@@ -425,10 +425,10 @@ curl ${baseUrl}/v1/messages \
         </Section>
 
         <Section id="api-key" title="API Key (Profile Token)">
-          <p>Each profile can generate a unique <code className="bg-muted px-1 rounded text-xs">arl_</code> token. Use this as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> or <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> in Claude Code or any client. The gateway resolves the token to its profile automatically.</p>
+          <p>Each profile can generate a unique <code className="bg-muted px-1 rounded text-xs">arl_</code> token. Use this as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> or <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> in Claude Code or any client. The gateway resolves the token to its profile automatically.</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Click <strong>Generate</strong> on any profile card</li>
-            <li>Copy the token and set it as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code></li>
+            <li>Copy the token and set it as <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code></li>
             <li>No <code className="bg-muted px-1 rounded text-xs">X-Profile</code> header needed - the token identifies the profile</li>
             <li>Click <strong>Revoke</strong> to invalidate a token at any time</li>
           </ul>
@@ -439,7 +439,7 @@ curl -X POST ${baseUrl}/v1/profiles/meow/tokens
 
 # Option A: Environment variables
 export ANTHROPIC_BASE_URL=${baseUrl}
-export ANTHROPIC_API_KEY=arl_abc123...
+export ANTHROPIC_AUTH_TOKEN=arl_abc123...
 claude
 
 # Option B: settings.json
@@ -470,7 +470,7 @@ claude
 }`}
           </pre>
           <p className="text-xs text-muted-foreground mt-1">
-            Works with both <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> (x-api-key header) and <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> (Authorization: Bearer header). The gateway reads profile tokens from either.
+            Works with both <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_AUTH_TOKEN</code> (Authorization: Bearer header) and <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> (x-api-key header). The gateway reads profile tokens from either.
           </p>
           <ol className="list-decimal list-inside space-y-1 ml-2" start={4}>
             <li>Start the container:</li>

@@ -183,7 +183,7 @@ export function SetupGuideModal() {
 {JSON.stringify({
  "env": {
  "ANTHROPIC_BASE_URL": baseUrl,
- "ANTHROPIC_API_KEY": "<your-arl-key>"
+ "ANTHROPIC_AUTH_TOKEN": "<your-arl-key>"
  }
 }, null, 2)}
  </pre>
