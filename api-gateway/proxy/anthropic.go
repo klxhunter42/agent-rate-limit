@@ -1026,9 +1026,9 @@ func OpenAIToAnthropic(zhipu map[string]any, model string, toolMode ...string) m
 
 // ProxyOptions configures proxy behavior for non-default upstream/auth scenarios.
 type FallbackResult struct {
-	APIKey      string
-	UpstreamURL string
-	AuthMode    string
+	APIKey        string
+	UpstreamURL   string
+	AuthMode      string
 	Format        string            // target provider format: "anthropic", "openai", "gemini"
 	ModelOverride string            // e.g., "default" for lotuss
 	MaxTokens     int               // cap max_tokens in body
@@ -1783,10 +1783,11 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							Type  string `json:"type"`
 							Index int    `json:"index"`
 							Delta struct {
-								Type        string `json:"type"`
-								Text        string `json:"text,omitempty"`
-								Thinking    string `json:"thinking,omitempty"`
-								PartialJSON string `json:"partial_json,omitempty"`
+								Type           string `json:"type"`
+								Text           string `json:"text,omitempty"`
+								Thinking       string `json:"thinking,omitempty"`
+								PartialJSON    string `json:"partial_json,omitempty"`
+								InputJSONDelta string `json:"input_json_delta,omitempty"`
 							} `json:"delta"`
 						}
 						if json.Unmarshal([]byte(data), &evt) == nil {
@@ -1818,6 +1819,10 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 								before := evt.Delta.PartialJSON
 								evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
+							} else if evt.Delta.InputJSONDelta != "" {
+								before := evt.Delta.InputJSONDelta
+								evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
+								changed = evt.Delta.InputJSONDelta != before
 							}
 							if changed {
 								if newData, err := json.Marshal(evt); err == nil {
@@ -2163,10 +2168,11 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				Type  string `json:"type"`
 				Index int    `json:"index"`
 				Delta struct {
-					Type        string `json:"type"`
-					Text        string `json:"text,omitempty"`
-					Thinking    string `json:"thinking,omitempty"`
-					PartialJSON string `json:"partial_json,omitempty"`
+					Type           string `json:"type"`
+					Text           string `json:"text,omitempty"`
+					Thinking       string `json:"thinking,omitempty"`
+					PartialJSON    string `json:"partial_json,omitempty"`
+					InputJSONDelta string `json:"input_json_delta,omitempty"`
 				} `json:"delta"`
 			}
 			if json.Unmarshal([]byte(data), &evt) == nil {
@@ -2192,6 +2198,10 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					before := evt.Delta.PartialJSON
 					evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
 					changed = evt.Delta.PartialJSON != before
+				} else if evt.Delta.InputJSONDelta != "" && unmasker != nil {
+					before := evt.Delta.InputJSONDelta
+					evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
+					changed = evt.Delta.InputJSONDelta != before
 				}
 				if changed {
 					unmaskHits++
