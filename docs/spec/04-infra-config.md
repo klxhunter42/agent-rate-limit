@@ -502,8 +502,8 @@ All metrics use namespace `api_gateway`. Exposed at `/metrics` and `/api/metrics
 
 ```yaml
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 30s
+  evaluation_interval: 30s
   external_labels:
     cluster: agent-rate-limit
     replica: '1'

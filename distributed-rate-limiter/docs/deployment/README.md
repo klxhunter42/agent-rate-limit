@@ -438,7 +438,7 @@ scrape_configs:
     static_configs:
       - targets: ['rate-limiter:8080']
     metrics_path: '/actuator/prometheus'
-    scrape_interval: 15s
+    scrape_interval: 30s
 ```
 
 ### Grafana Dashboard
