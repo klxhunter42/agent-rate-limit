@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/desctrim"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/middleware"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
@@ -433,6 +434,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	requestedModel, _ := payload["model"].(string)
 	// Transparent passthrough for claude-oauth: preserve exact CLI payload.
 	transparent := false
+	resolverHasProviderKey := false
 	// GLM mode without claude-oauth accounts: route claude models to Z.AI instead of transparent.
 	hasClaudeOAuth := false
 	if h.cfg.GLMMode && h.tokenStore != nil {
@@ -442,6 +444,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.resolver != nil {
 		d := h.resolver.Resolve(requestedModel)
+		if d != nil {
+			resolverHasProviderKey = true
+		}
 		slog.Info("resolver result", "model", requestedModel, "provider", func() string {
 			if d != nil {
 				return d.ProviderID
@@ -455,24 +460,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// In GLM mode without stored claude-oauth accounts, skip transparent
 		// and let the model route to Z.AI instead (avoids 401 from expired client tokens).
 		if !h.cfg.GLMMode || hasClaudeOAuth {
-			// No stored token but client has Bearer or x-api-key OAuth: use transparent resolve.
+			// Only go transparent when resolver has NO stored key for this model.
+			// If resolver found a provider with an API key, use it (gateway-managed
+			// routing with rotation, fallback, rate-limit handling).
 			if d == nil && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
 				if _, ok := isClaudeOAuthToken(r); ok {
 					d = h.resolver.ResolveTransparent(requestedModel)
-				}
-			}
-			if d != nil && d.ProviderID == "claude-oauth" {
-				if _, ok := isClaudeOAuthToken(r); ok {
 					transparent = true
-				}
-			}
-			// Override: client sends OAuth token for claude model - always transparent
-			// regardless of what the resolver returned (may have resolved to 'anthropic'
-			// via stored API key, but we want transparent for OAuth tokens).
-			if !transparent && provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
-				if _, ok := isClaudeOAuthToken(r); ok {
-					transparent = true
-					slog.Info("forced transparent for claude-oauth", "model", requestedModel)
+					slog.Info("claude-oauth transparent fallback (no stored key)", "model", requestedModel)
 				}
 			}
 		} else if provider.ModelBelongsToProvider(requestedModel, "claude-oauth") {
@@ -529,14 +524,22 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				payload["model"] = p.Model
 				requestedModel = p.Model
 			} else if p.Target != "" && !provider.ModelBelongsToProvider(requestedModel, p.Target) {
-				mapped := mapModelForTarget(requestedModel, p.Target)
-				if mapped != requestedModel {
-					slog.Info("profile model mapped", "profile", profileName, "original", requestedModel, "mapped", mapped, "target", p.Target)
-					payload["model"] = mapped
-					requestedModel = mapped
+				// For multi-target profiles, skip model override: the resolver
+				// picks the right provider by model rules and accounts come from
+				// whichever profile target matches that provider.
+				if len(p.Targets) <= 1 {
+					mapped := mapModelForTarget(requestedModel, p.Target)
+					if mapped != requestedModel {
+						slog.Info("profile model mapped", "profile", profileName, "original", requestedModel, "mapped", mapped, "target", p.Target)
+						payload["model"] = mapped
+						requestedModel = mapped
+					}
+				} else {
+					slog.Info("multi-target profile, skipping model override", "profile", profileName, "model", requestedModel, "primary_target", p.Target)
 				}
 			}
 			slog.Info("profile routing", "profile", profileName, "model", requestedModel, "baseUrl", p.BaseURL)
+			clampMaxTokens(payload, requestedModel)
 		} else {
 			slog.Warn("profile not found, rejecting request", "profile", profileName, "error", perr)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "profile not found: " + profileName})
@@ -546,7 +549,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// Require valid profile when not in GLM mode.
 	// GLM mode uses ZAI_API_KEYS from env, no profile needed.
-	if profileName == "" && !h.cfg.GLMMode {
+	// OAuth tokens with a resolver-stored key also skip this check:
+	// the resolver already knows which provider/account to use.
+	_, isOAuth := isClaudeOAuthToken(r)
+	if profileName == "" && !h.cfg.GLMMode && !(isOAuth && resolverHasProviderKey) {
 		slog.Warn("no valid profile, rejecting request", "path", r.URL.Path, "remote", r.RemoteAddr)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "valid profile required"})
 		return
@@ -560,10 +566,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	var decision *provider.RoutingDecision
 	var selectedTokenInfo *provider.TokenInfo
 	if h.resolver != nil {
-		// Profile with explicit target: resolve by provider, not by model name.
-		// This lets any model name (e.g. claude-sonnet-4-6) route through the
-		// profile's target provider (e.g. lotuss).
-		if profileOverride != nil && profileOverride.Target != "" {
+		if profileOverride != nil && len(profileOverride.Targets) > 1 {
+			// Multi-target profile: resolve by model first, then find
+			// matching profile target for accounts. This preserves the
+			// requested model and picks the right provider for it.
+			decision = h.resolver.Resolve(requestedModel)
+			if decision != nil {
+				slog.Info("multi-target resolved by model", "model", requestedModel, "provider", decision.ProviderID, "profile", profileName)
+			}
+		} else if profileOverride != nil && profileOverride.Target != "" {
+			// Single-target profile: resolve by provider so any model
+			// routes through the profile's target (e.g. lotuss).
 			if d, ok := h.resolver.ResolveByProvider(profileOverride.Target); ok && d != nil {
 				decision = d
 			}
@@ -590,9 +603,15 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	var effectiveAccountIDs []string
 	var effectiveProviderID string
 	if profileOverride != nil {
-		effectiveProviderID = profileOverride.Provider
-		if effectiveProviderID == "" {
-			effectiveProviderID = profileOverride.Target
+		// For multi-target profiles, use the provider that the resolver picked
+		// based on the model, so accounts come from the matching target.
+		if len(profileOverride.Targets) > 1 && decision != nil {
+			effectiveProviderID = decision.ProviderID
+		} else {
+			effectiveProviderID = profileOverride.Provider
+			if effectiveProviderID == "" {
+				effectiveProviderID = profileOverride.Target
+			}
 		}
 		for _, t := range profileOverride.Targets {
 			if t.Target == effectiveProviderID && len(t.AccountIDs) > 0 {
@@ -655,6 +674,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				apiKey = tok.AccessToken
 				selectedTokenInfo = tok
 				slog.Info("profile account pool selected", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
+			} else if h.refreshWorker != nil {
+				// All pool tokens expired: refresh proactively before falling back.
+				for _, aid := range poolAccountIDs {
+					if err := h.refreshWorker.RefreshOne(providerID, aid); err == nil {
+						if tok, err := h.tokenStore.Get(providerID, aid); err == nil && tok != nil && !tok.IsExpired() {
+							apiKey = tok.AccessToken
+							selectedTokenInfo = tok
+							slog.Info("profile pool token proactively refreshed", "profile", profileOverride.Name, "provider", providerID, "account", tok.AccountID)
+							break
+						}
+					}
+				}
 			}
 		}
 	} else if profileOverride != nil {
@@ -925,8 +956,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isNativeAnthropic := decision != nil && decision.AuthMode == "bearer" && decision.Format == provider.FormatAnthropic
+	isNativeAnthropic := decision != nil && decision.Format == provider.FormatAnthropic && decision.ProviderID != "zai"
 	stripUnsupportedFields(payload, isNativeAnthropic, selectedModel)
+
+	// Clamp thinking budget to profile max (cost guard).
+	if profileOverride != nil && profileOverride.MaxThinkingTokens > 0 {
+		clampThinkingBudget(payload, profileOverride.MaxThinkingTokens, selectedModel, profileName)
+	}
 
 	// GLM models pass through content blocks as-is for full tool support.
 	if decision != nil && decision.ProviderID == "zai" && !strings.HasPrefix(selectedModel, "glm-") {
@@ -1057,6 +1093,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-encode payload after modifications.
+	// json.Marshal preserves system array structure including cache_control markers.
 	// Skip for image requests unless compression re-marshaled above.
 	if !hasImages {
 		body, err = json.Marshal(payload)
@@ -1072,20 +1109,26 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optimizer + privacy masking for all modes (including transparent claude-oauth).
-	// Skip only for image requests (base64/URLs get corrupted).
-	if !hasImages {
+	// Optimizer pipeline: skip for images (corruption) and Z.AI provider (priority = SSE throughput).
+	// Z.AI has no prompt caching, optimizer adds latency with ~0% token savings on glm models.
+	// For transparent OAuth: toolcomp+toolfilter run, system prompt optimization is skipped.
+	isZAIProvider := decision != nil && decision.ProviderID == "zai"
+	isClaudeCLIReq := isClaudeCLI(r.UserAgent())
+	if !hasImages && !isZAIProvider {
 		// Extract per-profile optimizer overrides
 		var optOverrides map[string]bool
 		if profileOverride != nil {
 			optOverrides = profileOverride.OptimizerOverrides
 		}
 
-		// Run token optimization pipeline on system prompt
+		// Run token optimization pipeline on system prompt.
+		// Array-aware: optimizes each element's text individually,
+		// preserving cache_control markers and other metadata.
 		if h.optimizers != nil {
 			budgetLevel := 0
 			if sys, ok := payload["system"]; ok {
 				var sysText string
+				var sysElements []map[string]any
 				switch v := sys.(type) {
 				case string:
 					sysText = v
@@ -1095,6 +1138,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 						if m, ok := item.(map[string]any); ok {
 							if t, ok := m["text"].(string); ok {
 								parts = append(parts, t)
+								sysElements = append(sysElements, m)
 							}
 						}
 					}
@@ -1123,25 +1167,81 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					} else {
 						h.metrics.SetBudgetLevel(selectedModel, 0)
 					}
-					optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
-					if optimized != sysText {
-						payload["system"] = optimized
-						if saved := len(sysText) - len(optimized); saved > 0 {
-							h.metrics.RecordProfileOptimization(profileName, "system_prompt", saved)
+					// System prompt optimization - skips blocks with cache_control.
+					if len(sysElements) > 0 {
+						// Array format: optimize each element's text individually.
+						for _, elem := range sysElements {
+							orig := elem["text"].(string)
+							if len(orig) < 50 {
+								continue
+							}
+							if _, hasCC := elem["cache_control"]; hasCC {
+								continue
+							}
+							optimized := h.optimizers.OptimizeSystemPrompt(orig, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
+							if optimized != orig {
+								elem["text"] = optimized
+								if saved := len(orig) - len(optimized); saved > 0 {
+									h.metrics.RecordProfileOptimization(profileName, "system_prompt", saved)
+								}
+							}
+						}
+					} else {
+						// String format: optimize the whole string.
+						optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
+						if optimized != sysText {
+							payload["system"] = optimized
+							if saved := len(sysText) - len(optimized); saved > 0 {
+								h.metrics.RecordProfileOptimization(profileName, "system_prompt", saved)
+							}
 						}
 					}
 				}
 			}
 		}
 
-		// Run token optimization on message content
+		// Message optimization: whitespace/dedup/TextComp - safe for Claude CLI.
 		if h.optimizers != nil {
 			if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
 				h.optimizers.OptimizeMessages(msgs, h.metrics, optOverrides)
 			}
 		}
 
-		// Tool manifest filtering - reduce tool count when > MaxTools
+		// Description trim - trim verbose tool descriptions to first paragraph/sentence.
+		if h.optimizers != nil && optimizerAllowed(optOverrides, "desctrim", h.optimizers.DescTrim) {
+			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
+				parsed := make([]desctrim.ToolDesc, 0, len(tools))
+				for _, t := range tools {
+					tm, ok := t.(map[string]any)
+					if !ok {
+						continue
+					}
+					name, _ := tm["name"].(string)
+					desc, _ := tm["description"].(string)
+					parsed = append(parsed, desctrim.ToolDesc{Name: name, Description: desc})
+				}
+				trimmed, saved := h.optimizers.DescTrim.TrimDescriptions(parsed)
+				if saved > 0 {
+					trimmedMap := make(map[string]string, len(trimmed))
+					for _, t := range trimmed {
+						trimmedMap[t.Name] = t.Description
+					}
+					for _, t := range tools {
+						tm, ok := t.(map[string]any)
+						if !ok {
+							continue
+						}
+						name, _ := tm["name"].(string)
+						if newDesc, ok := trimmedMap[name]; ok {
+							tm["description"] = newDesc
+						}
+					}
+					h.metrics.RecordOptimization("desctrim", saved, "input")
+				}
+			}
+		}
+
+		// Tool filter - safe for Claude CLI (only removes unused tools).
 		if h.optimizers != nil && optimizerAllowed(optOverrides, "toolfilter", h.optimizers.ToolFilter) {
 			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
 				parsedTools := make([]toolfilter.Tool, 0, len(tools))
@@ -1188,6 +1288,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// Cache breakpoint guard: inject cache_control markers to keep
+		// system prompt cache alive in long conversations (>20 blocks).
+		if !isZAIProvider {
+
+			if n := injectCacheBreakpoints(payload); n > 0 {
+				slog.Info("cache breakpoints injected", "count", n, "model", selectedModel)
+			}
+		}
 
 		// Re-encode after optimization
 		body, err = json.Marshal(payload)
@@ -1197,7 +1305,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Privacy masking: detect and mask secrets/PII before proxying
-		if h.privacy != nil {
+		// Skip for Claude CLI - agentic tools handle their own content,
+		// and masking invalidates Anthropic cache_control markers causing 429.
+		if !isClaudeCLIReq && h.privacy != nil {
 			maskResult, _ = h.privacy.MaskRequest(body)
 			if maskResult != nil {
 				body = maskResult.MaskedBody
@@ -1235,7 +1345,11 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		slog.Info("optimizer and privacy skipped", "reason", "image_request")
+		reason := "image_request"
+		if isZAIProvider {
+			reason = "zai_provider_skip"
+		}
+		slog.Info("optimizer and privacy skipped", "reason", reason)
 	}
 
 	isStream, _ := payload["stream"].(bool)
@@ -1444,6 +1558,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 		return proxy.FallbackResult{}, false
 	}
+	profileOpts.OnRateLimitError = rotateAccountFn
 
 	// 403 fallback: try next target in profile's multi-target list.
 	forbiddenFn := func(oldKey string) (proxy.FallbackResult, bool) {
@@ -1481,20 +1596,52 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 				slog.Warn("403 fallback to alternate target", "from", currentProvider, "to", pid, "profile", profileOverride.Name)
 				return proxy.FallbackResult{
-						APIKey:        newKey,
-						UpstreamURL:   d.UpstreamURL,
-						AuthMode:      d.AuthMode,
-						Format:        string(d.Format),
-						ModelOverride: d.ModelOverride,
-						MaxTokens:     d.MaxTokens,
-						ExtraHeaders:  d.ExtraHeaders,
-						ToolMode:      d.ToolMode,
-					}, true
+					APIKey:        newKey,
+					UpstreamURL:   d.UpstreamURL,
+					AuthMode:      d.AuthMode,
+					Format:        string(d.Format),
+					ModelOverride: d.ModelOverride,
+					MaxTokens:     d.MaxTokens,
+					ExtraHeaders:  d.ExtraHeaders,
+					ToolMode:      d.ToolMode,
+				}, true
 			}
 		}
 		return proxy.FallbackResult{}, false
 	}
 	profileOpts.OnForbidden = forbiddenFn
+
+	// GetRateLimitBackoff: look up stored rate limit reset from Redis on 429.
+	// Anthropic 429 responses often have empty headers, so we use the last known reset timestamp.
+	profileOpts.GetRateLimitBackoff = func() time.Duration {
+		if selectedTokenInfo == nil || h.tokenStore == nil {
+			return 0
+		}
+		key := rateLimitKeyPrefix + selectedTokenInfo.Provider + ":" + selectedTokenInfo.AccountID
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		data, err := h.tokenStore.Client().Get(ctx, key).Bytes()
+		if err != nil {
+			return 0
+		}
+		var rl RateLimitStatus
+		if json.Unmarshal(data, &rl) != nil {
+			return 0
+		}
+		// Use the earliest reset timestamp that is still in the future.
+		for _, resetStr := range []string{rl.ResetUnified, rl.Reset5h, rl.Reset7d} {
+			if resetStr == "" {
+				continue
+			}
+			if ts, err := strconv.ParseInt(resetStr, 10, 64); err == nil && ts > 0 {
+				waitDur := time.Until(time.Unix(ts, 0))
+				if waitDur > 0 && waitDur < 10*time.Minute {
+					return waitDur
+				}
+			}
+		}
+		return 0
+	}
 
 	// Profile-selected OAuth token: enable transparent mode for sidecar routing.
 	if !transparent && strings.HasPrefix(apiKey, "sk-ant-oat01-") {
@@ -2207,6 +2354,103 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 		}
 	}
 
+}
+
+// clampThinkingBudget limits budget_tokens to the profile's configured max.
+func clampThinkingBudget(payload map[string]any, maxTokens int, model, profile string) {
+	if maxTokens <= 0 {
+		return
+	}
+	thinking, ok := payload["thinking"].(map[string]any)
+	if !ok {
+		return
+	}
+	var budget int
+	switch v := thinking["budget_tokens"].(type) {
+	case float64:
+		budget = int(v)
+	case int:
+		budget = v
+	default:
+		return
+	}
+	if budget > maxTokens {
+		thinking["budget_tokens"] = maxTokens
+		slog.Info("thinking budget clamped",
+			"model", model,
+			"profile", profile,
+			"original", budget,
+			"clamped", maxTokens,
+		)
+	}
+}
+
+// injectCacheBreakpoints ensures cache_control markers stay within
+// Anthropic's 20-block lookback window. In long conversations, messages
+// push the system prompt cache beyond the window, causing full cache misses.
+func injectCacheBreakpoints(payload map[string]any) int {
+	const maxBlockWindow = 20
+	safetyMargin := 2
+	threshold := maxBlockWindow - safetyMargin
+	injected := 0
+
+	messages, ok := payload["messages"].([]any)
+	if !ok || len(messages) < threshold {
+		return 0
+	}
+
+	blocksSinceLastCache := 0
+
+	// Count system blocks - they typically have cache_control already.
+	if sys, ok := payload["system"].([]any); ok {
+		for _, block := range sys {
+			if bm, ok := block.(map[string]any); ok {
+				if _, hasCC := bm["cache_control"]; hasCC {
+					blocksSinceLastCache = 0
+				} else {
+					blocksSinceLastCache++
+				}
+			}
+		}
+	}
+
+	// Walk messages in reverse, counting blocks since last cache_control.
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg, ok := messages[i].(map[string]any)
+		if !ok {
+			continue
+		}
+		content := msg["content"]
+		if content == nil {
+			continue
+		}
+
+		switch c := content.(type) {
+		case []any:
+			for j := len(c) - 1; j >= 0; j-- {
+				block, ok := c[j].(map[string]any)
+				if !ok {
+					continue
+				}
+				if _, hasCC := block["cache_control"]; hasCC {
+					blocksSinceLastCache = 0
+					continue
+				}
+				blocksSinceLastCache++
+				if blocksSinceLastCache >= threshold {
+					if bt, _ := block["type"].(string); bt == "text" {
+						block["cache_control"] = map[string]any{"type": "ephemeral"}
+						injected++
+						blocksSinceLastCache = 0
+					}
+				}
+			}
+		case string:
+			blocksSinceLastCache++
+		}
+	}
+
+	return injected
 }
 
 // filterUnsupportedContent strips cache_control from all content blocks

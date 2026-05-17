@@ -39,8 +39,8 @@ services:
       UPSTREAM_VISION_MODEL_LIMITS: ${UPSTREAM_VISION_MODEL_LIMITS:-glm-5.1:5,glm-4.6v:5,glm-4.5v:3}
       UPSTREAM_DEFAULT_LIMIT: ${UPSTREAM_DEFAULT_LIMIT:-1}
       UPSTREAM_GLOBAL_LIMIT: ${UPSTREAM_GLOBAL_LIMIT:-9}
-      UPSTREAM_MAX_RETRIES: ${UPSTREAM_MAX_RETRIES:-3}
-      UPSTREAM_RETRY_BACKOFF: ${UPSTREAM_RETRY_BACKOFF:-500ms}
+      UPSTREAM_MAX_RETRIES: ${UPSTREAM_MAX_RETRIES:-10}
+      UPSTREAM_RETRY_BACKOFF: ${UPSTREAM_RETRY_BACKOFF:-1s}
       ENABLE_PROMPT_INJECTION: ${ENABLE_PROMPT_INJECTION:-true}
       ENABLE_RESPONSE_TRIM: ${ENABLE_RESPONSE_TRIM:-true}
       ENABLE_SMART_MAX_TOKENS: ${ENABLE_SMART_MAX_TOKENS:-true}
@@ -408,9 +408,10 @@ services:
     profiles: ["debug"]
     volumes:
       - ./workspace:/workspace
-      - ./docker/settings-debug.json:/root/.claude/settings.json
+      - ./docker/settings-debug.json:/home/claude/.claude/settings.json
     environment:
-      PROFILE_NAME: debug
+      PROFILE_NAME: claude
+      DEFAULT_MODEL: claude-sonnet-4-6
       HTTPS_PROXY: http://arl-mitmweb:8083
       HTTP_PROXY: http://arl-mitmweb:8083
       NODE_TLS_REJECT_UNAUTHORIZED: "0"

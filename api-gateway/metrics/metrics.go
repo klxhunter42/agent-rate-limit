@@ -67,6 +67,9 @@ type Metrics struct {
 	ImageBytesOriginal    *prometheus.CounterVec
 	VisionPreAnalysis     *prometheus.CounterVec
 	VisionPreAnalysisDur  *prometheus.HistogramVec
+	CacheCreationTokens   *prometheus.CounterVec
+	CacheReadTokens       *prometheus.CounterVec
+	CacheSavingsTotal     *prometheus.CounterVec
 	registry              *prometheus.Registry
 	queueDepthFn          func() float64
 	pricing               map[string]modelPrice
@@ -346,6 +349,24 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Duration of vision pre-analysis API call.",
 			Buckets:   []float64{1, 3, 5, 10, 20, 30, 60, 120},
 		}, []string{}),
+
+		CacheCreationTokens: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cache_creation_tokens_total",
+			Help:      "Total tokens written to prompt cache by model.",
+		}, []string{"model"}),
+
+		CacheReadTokens: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cache_read_tokens_total",
+			Help:      "Total tokens read from prompt cache (0.1x cost) by model.",
+		}, []string{"model"}),
+
+		CacheSavingsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "cache_savings_total",
+			Help:      "Estimated USD saved from cache reads vs full-price input.",
+		}, []string{"model"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -398,6 +419,9 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.ImageBytesOriginal,
 		m.VisionPreAnalysis,
 		m.VisionPreAnalysisDur,
+		m.CacheCreationTokens,
+		m.CacheReadTokens,
+		m.CacheSavingsTotal,
 	)
 
 	return m
@@ -545,6 +569,20 @@ func (m *Metrics) RecordTokens(ctx context.Context, model string, input, output 
 	}
 	if m.usageRecorder != nil && (input > 0 || output > 0) {
 		m.usageRecorder(ctx, model, input, output, cost)
+	}
+}
+
+// RecordCacheUsage records prompt cache token breakdown and estimated savings.
+func (m *Metrics) RecordCacheUsage(model string, creation, read int) {
+	if creation > 0 {
+		m.CacheCreationTokens.WithLabelValues(model).Add(float64(creation))
+	}
+	if read > 0 {
+		m.CacheReadTokens.WithLabelValues(model).Add(float64(read))
+		if p, ok := m.pricing[model]; ok {
+			savings := float64(read) / 1_000_000 * p.inputPerMillion * 0.9
+			m.CacheSavingsTotal.WithLabelValues(model).Add(savings)
+		}
 	}
 }
 

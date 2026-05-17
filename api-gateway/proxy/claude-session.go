@@ -309,10 +309,11 @@ func extractPrompt(payload map[string]any) string {
 		if lastUserIdx > 3 {
 			start = lastUserIdx - 3 // include last few messages for context
 		}
-		return strings.Join(parts[start:], "\n\n")
+		result := strings.Join(parts[start:], "\n\n")
+		return masking.StripLeftoverPlaceholders(result)
 	}
 
-	return strings.Join(parts, "\n\n")
+	return masking.StripLeftoverPlaceholders(strings.Join(parts, "\n\n"))
 }
 
 // extractModel maps Anthropic model names to claude.ai model identifiers.
@@ -410,7 +411,7 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	flusher, _ := w.(http.Flusher)
 	scanner := bufio.NewScanner(resp.Body)
 	const maxSSELineSize = 8 * 1024 * 1024
-	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {

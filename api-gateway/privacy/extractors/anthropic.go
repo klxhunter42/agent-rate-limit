@@ -6,6 +6,11 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
+func hasCacheControl(block map[string]any) bool {
+	_, ok := block["cache_control"]
+	return ok
+}
+
 // ExtractTextSpans extracts all text content from an Anthropic-format request payload.
 func ExtractTextSpans(payload map[string]any) []masking.TextSpan {
 	var spans []masking.TextSpan
@@ -44,6 +49,7 @@ func ExtractTextSpans(payload map[string]any) []masking.TextSpan {
 					spans = append(spans, masking.TextSpan{
 						Text: text, Path: path + ".text",
 						MessageIndex: i, PartIndex: j, NestedIndex: -1, Role: role,
+						HasCacheControl: hasCacheControl(b),
 					})
 				case "tool_result":
 					cr := b["content"]
@@ -52,6 +58,7 @@ func ExtractTextSpans(payload map[string]any) []masking.TextSpan {
 						spans = append(spans, masking.TextSpan{
 							Text: cv, Path: path + ".content",
 							MessageIndex: i, PartIndex: j, NestedIndex: -1, Role: "tool",
+							HasCacheControl: hasCacheControl(b),
 						})
 					case []any:
 						for k, nested := range cv {
@@ -61,6 +68,7 @@ func ExtractTextSpans(payload map[string]any) []masking.TextSpan {
 								spans = append(spans, masking.TextSpan{
 									Text: text, Path: fmt.Sprintf("messages[%d].content[%d].content[%d].text", i, j, k),
 									MessageIndex: i, PartIndex: j, NestedIndex: k, Role: "tool",
+									HasCacheControl: hasCacheControl(b),
 								})
 							}
 						}
@@ -124,6 +132,7 @@ func extractFromValue(v any, msgIdx int, base string, spans []masking.TextSpan) 
 				spans = append(spans, masking.TextSpan{
 					Text: text, Path: path,
 					MessageIndex: msgIdx, PartIndex: j, NestedIndex: -1, Role: "system",
+					HasCacheControl: hasCacheControl(b),
 				})
 			}
 		}

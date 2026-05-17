@@ -217,7 +217,7 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 	flusher, _ := w.(http.Flusher)
 	scanner := bufio.NewScanner(resp.Body)
 	const maxSSELineSize = 8 * 1024 * 1024
-	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {

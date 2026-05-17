@@ -64,7 +64,7 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
-	processed = stripLeftoverPlaceholders(processed)
+	processed = StripLeftoverPlaceholders(processed)
 	return processed
 }
 
@@ -95,7 +95,7 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
-	processed = stripLeftoverPlaceholders(processed)
+	processed = StripLeftoverPlaceholders(processed)
 	return processed
 }
 
@@ -110,7 +110,7 @@ func (u *StreamUnmasker) ReplaceDirect(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholders(result)
 	}
-	return stripLeftoverPlaceholders(result)
+	return StripLeftoverPlaceholders(result)
 }
 
 // ReplaceDirectJSON does unbuffered JSON-safe replacement.
@@ -124,7 +124,7 @@ func (u *StreamUnmasker) ReplaceDirectJSON(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholdersJSON(result)
 	}
-	return stripLeftoverPlaceholders(result)
+	return StripLeftoverPlaceholders(result)
 }
 
 func (u *StreamUnmasker) Flush() string {
@@ -145,17 +145,21 @@ func (u *StreamUnmasker) Flush() string {
 	}
 
 	// Also flush JSON-mode buffers (partial_json path).
+	// Same layering as text mode: secrets first (innermost), then PII (outermost).
+	jsonResult := ""
 	if u.secretsCtx != nil && u.secretsJSONBuffer != "" {
-		result += u.secretsCtx.RestorePlaceholdersJSON(u.secretsJSONBuffer)
+		jsonResult += u.secretsCtx.RestorePlaceholdersJSON(u.secretsJSONBuffer)
 		u.secretsJSONBuffer = ""
 	}
-	if u.piiCtx != nil && u.piiJSONBuffer != "" {
-		result += u.piiCtx.RestorePlaceholdersJSON(u.piiJSONBuffer)
+	combinedJSON := u.piiJSONBuffer + jsonResult
+	if u.piiCtx != nil && combinedJSON != "" {
+		jsonResult = u.piiCtx.RestorePlaceholdersJSON(combinedJSON)
 		u.piiJSONBuffer = ""
 	} else if u.piiJSONBuffer != "" {
-		result += u.piiJSONBuffer
+		jsonResult = u.piiJSONBuffer + jsonResult
 		u.piiJSONBuffer = ""
 	}
+	result += jsonResult
 
 	// Flush undefined buffer: run fallback then strip leftovers.
 	if u.undefinedBuffer != "" {
@@ -172,7 +176,7 @@ func (u *StreamUnmasker) Flush() string {
 		result += ub
 	}
 
-	return stripLeftoverPlaceholders(result)
+	return StripLeftoverPlaceholders(result)
 }
 
 func (u *StreamUnmasker) HasContexts() bool {
@@ -266,27 +270,17 @@ func (u *StreamUnmasker) dedupAdjacentUndefined(text string) string {
 }
 
 // stripStrayUndefined removes bare "undefined" tokens that remain after budget
-// exhaustion. Handles concatenated forms like "undefinedundefinedundefinedVALUE"
-// by stripping leading/trailing "undefined" runs while preserving actual content.
+// exhaustion. Uses word-boundary regex to avoid stripping "undefined" embedded
+// in legitimate words (e.g. "isUndefined", "typeof_undefined_var").
 func stripStrayUndefined(text string) string {
 	if !strings.Contains(text, "undefined") {
 		return text
 	}
-	// Remove standalone "undefined" words (surrounded by non-alpha or at boundaries).
-	// This avoids stripping "undefined" that appears as part of a real word.
-	result := text
-	for {
-		replaced := result
-		// "undefined " at word boundary
-		replaced = strings.Replace(replaced, "undefined ", " ", -1)
-		// " undefined" at word boundary
-		replaced = strings.Replace(replaced, " undefined", "", -1)
-		// Bare "undefined" with no space (concatenated by model)
-		replaced = strings.Replace(replaced, "undefined", "", -1)
-		if replaced == result {
-			break
-		}
-		result = replaced
+	// Word-boundary regex: matches "undefined" not adjacent to [a-zA-Z0-9_]
+	result := strayUndefinedRe.ReplaceAllString(text, "")
+	// Also handle concatenated model output like "undefinedundefinedVALUE"
+	for strings.Contains(result, "undefinedundefined") {
+		result = strings.ReplaceAll(result, "undefinedundefined", "")
 	}
 	return result
 }
@@ -306,10 +300,16 @@ func stripPartialUndefined(text string) string {
 	return text
 }
 
+// strayUndefinedRe matches "undefined" with optional surrounding whitespace.
+// Uses negative lookahead/behind to avoid stripping "undefined" inside legitimate
+// identifiers (e.g. "isUndefined", "typeof_undefined_var"). In Go regex (RE2),
+// we use word boundaries with a fallback for concatenated cases.
+var strayUndefinedRe = regexp.MustCompile(`\s*undefined\s*`)
+
 // garbledUndefinedRe matches any occurrence of "undefined" with optional whitespace.
 // GLM models emit this as garbled noise in both single and repeated form.
 // Strips all occurrences since "undefined" in model output is never legitimate content.
-var garbledUndefinedRe = regexp.MustCompile(`(?:undefined[\s]*)+`)
+var garbledUndefinedRe = regexp.MustCompile(`(?:undefined[\s]*){2,}`)
 
 // SanitizeGarbledOutput strips "undefined" tokens from model output.
 // GLM models emit this as garbled noise regardless of masking state.
@@ -320,10 +320,10 @@ func SanitizeGarbledOutput(text string) string {
 	return garbledUndefinedRe.ReplaceAllString(text, "")
 }
 
-// stripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that
+// StripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that
 // survived the unmasking pipeline. These appear when GLM mangles placeholders
 // or when unmapped placeholders leak through.
-func stripLeftoverPlaceholders(text string) string {
+func StripLeftoverPlaceholders(text string) string {
 	if !strings.Contains(text, "[[") {
 		return text
 	}

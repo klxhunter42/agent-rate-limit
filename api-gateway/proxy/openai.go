@@ -259,6 +259,9 @@ streamOK:
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
 
 		// Standard streaming path (native tool handling or no tools).
 		var unmasker *masking.StreamUnmasker
@@ -438,6 +441,9 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 
 	respBody, _ := json.Marshal(anthropicResp)
 
+	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
@@ -455,7 +461,6 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
 	return nil
@@ -480,7 +485,7 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 	flusher, _ := w.(http.Flusher)
 	scanner := bufio.NewScanner(resp.Body)
 	const maxSSELineSize = 8 * 1024 * 1024
-	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	started := isContinuation
 	doneReceived := false
@@ -508,6 +513,9 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 				// Flush remaining tool_use stripper buffer.
 				if stripper != nil && textBlockOpen {
 					if remaining := stripper.Flush(); remaining != "" {
+						if unmasker != nil {
+							remaining = unmasker.ProcessChunk(remaining)
+						}
 						remaining = masking.SanitizeGarbledOutput(remaining)
 						if remaining != "" {
 													escaped, _ := json.Marshal(remaining)
@@ -618,7 +626,10 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 							contentBlockIdx++
 						}
 						// Start new tool_use content block
-						fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":%d,\"content_block\":{\"type\":\"tool_use\",\"id\":\"%s\",\"name\":\"%s\",\"input\":{}}}\n\n", contentBlockIdx, id, name)
+						// JSON-escape id and name to prevent injection via special characters.
+							safeID, _ := json.Marshal(id)
+							safeName, _ := json.Marshal(name)
+							fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":%d,\"content_block\":{\"type\":\"tool_use\",\"id\":%s,\"name\":%s,\"input\":{}}}\n\n", contentBlockIdx, string(safeID), string(safeName))
 						toolBlockOpen = true
 						if !ttfbRecorded {
 							p.metrics.RecordTTFB(model, time.Since(streamStart))
@@ -692,6 +703,9 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 	if started && !doneReceived {
 		if stripper != nil && textBlockOpen {
 			if remaining := stripper.Flush(); remaining != "" {
+				if unmasker != nil {
+					remaining = unmasker.ProcessChunk(remaining)
+				}
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
 									escaped, _ := json.Marshal(remaining)

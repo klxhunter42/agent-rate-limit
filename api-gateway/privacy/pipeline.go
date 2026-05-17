@@ -25,6 +25,10 @@ type Config struct {
 	PIIEntities    []string
 }
 
+type MaskOptions struct {
+	SkipCachedBlocks bool // skip blocks with cache_control (preserves Anthropic prompt cache)
+}
+
 type Pipeline struct {
 	cfg            *Config
 	secretDetector *secrets.SecretDetector
@@ -80,6 +84,10 @@ func NewPipeline(cfg *Config, m *Metrics) *Pipeline {
 }
 
 func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
+	return p.MaskRequestWithOptions(body, MaskOptions{})
+}
+
+func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskResult, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, err
@@ -113,6 +121,13 @@ func (p *Pipeline) MaskRequest(body []byte) (*MaskResult, error) {
 			defer wg.Done()
 			text := sp.Text
 			sr := spanResult{index: idx, maskedText: text}
+
+			// Skip blocks with cache_control to preserve Anthropic prompt cache hits.
+			if opts.SkipCachedBlocks && sp.HasCacheControl {
+				results[idx] = sr
+				return
+			}
+
 			origText := text
 
 			if p.secretDetector != nil && text != "" {
@@ -234,8 +249,17 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 		"pii_mapping", mapLen(result.PIICtx),
 	)
 
-	// Unmask secrets first (innermost), then PII (outermost).
-	// This matches the mask order: secrets masked first, then PII applied on top.
+	// Unmask PII first (outermost), then secrets (innermost).
+	// Mask order: secrets masked first (innermost), PII applied on top (outermost).
+	// Unmask must reverse: PII first, then secrets.
+	if result.HasPII && result.PIICtx != nil {
+		start := time.Now()
+		text = result.PIICtx.RestorePlaceholdersJSON(text)
+		if p.metrics != nil {
+			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
+		}
+	}
+
 	if result.HasSecrets && result.SecretsCtx != nil {
 		start := time.Now()
 		text = result.SecretsCtx.RestorePlaceholdersJSON(text)
@@ -244,14 +268,8 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 		}
 	}
 
-	// Then unmask PII.
-	if result.HasPII && result.PIICtx != nil {
-		start := time.Now()
-		text = result.PIICtx.RestorePlaceholdersJSON(text)
-		if p.metrics != nil {
-			p.metrics.ObserveMaskDuration("unmask", time.Since(start))
-		}
-	}
+	// Safety: strip any [[TYPE_N]] placeholders that survived unmasking.
+	text = masking.StripLeftoverPlaceholders(text)
 
 	// Fallback: GLM models may output "undefined" instead of preserving [[TYPE_N]] placeholders.
 	// The streaming path handles this in StreamUnmasker.replaceUndefinedFallback, but non-streaming

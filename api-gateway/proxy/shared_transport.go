@@ -136,6 +136,7 @@ func SharedTransport() *http.Transport {
 		}
 		sharedTransport = &http.Transport{
 			Proxy: mitmProxyFunc,
+			DisableCompression: true, // prevent gzip decompression buffering on SSE streams
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				host, _, err := net.SplitHostPort(addr)
 				if err != nil {

@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -755,13 +756,14 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	anthropicResp := OpenAIToAnthropic(zhipuResp, model, "")
 	respBody, _ := json.Marshal(anthropicResp)
 
+	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+
 	// Unmask secrets/PII placeholders before sending to client.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
 	}
-
-	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBody)
@@ -774,11 +776,13 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
-
 	flusher, _ := w.(http.Flusher)
+	if flusher != nil {
+		flusher.Flush()
+	}
 
 	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	msgID := fmt.Sprintf("msg_vision_%d", time.Now().UnixNano())
 	started := false
@@ -1037,14 +1041,15 @@ type FallbackResult struct {
 }
 
 type ProxyOptions struct {
-	AuthMode         string                                       // "api_key" (default) or "bearer"
-	UpstreamOverride string                                       // if non-empty, use this instead of cfg.UpstreamURL
-	ExtraHeaders     map[string]string                            // additional headers to set
-	Transparent      bool                                         // skip all body/header modifications (claude-oauth passthrough)
-	BillingInjected  bool                                         // billing header was injected in Go; return ErrBillingRejected on 400 reserved keyword
-	OnAuthError      func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
-	OnRateLimitError func(oldKey string) (FallbackResult, bool)   // called on 429 to rotate account or fallback provider
-	OnForbidden      func(oldKey string) (FallbackResult, bool)   // called on 403 to fallback to another provider
+	AuthMode            string                                       // "api_key" (default) or "bearer"
+	UpstreamOverride    string                                       // if non-empty, use this instead of cfg.UpstreamURL
+	ExtraHeaders        map[string]string                            // additional headers to set
+	Transparent         bool                                         // skip all body/header modifications (claude-oauth passthrough)
+	BillingInjected     bool                                         // billing header was injected in Go; return ErrBillingRejected on 400 reserved keyword
+	OnAuthError         func(oldKey string) (newKey string, ok bool) // called on 401 to refresh token
+	OnRateLimitError    func(oldKey string) (FallbackResult, bool)   // called on 429 to rotate account or fallback provider
+	OnForbidden         func(oldKey string) (FallbackResult, bool)   // called on 403 to fallback to another provider
+	GetRateLimitBackoff func() time.Duration                         // returns stored rate limit reset duration from Redis on 429
 }
 
 var ErrBillingRejected = fmt.Errorf("billing header rejected by upstream (reserved keyword)")
@@ -1073,6 +1078,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	var lastErrStatus int
 	currentFormat := "anthropic"
 	skipBackoff := false
+	streamStarted := false
+	var retryAfterOverride time.Duration
 	truncationAttempts := 0
 	transientAttempts := 0
 	maxTransient := p.cfg.TransientRetryMax
@@ -1084,6 +1091,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 && !skipBackoff {
 			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
+			if retryAfterOverride > 0 {
+				backoff = retryAfterOverride
+				retryAfterOverride = 0
+			}
 			// Cap backoff at 5 minutes to prevent excessive waits
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
@@ -1096,10 +1107,43 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				"max_attempts", maxAttempts,
 			)
 			p.metrics.IncRetry()
-			select {
-			case <-time.After(backoff):
-			case <-r.Context().Done():
-				return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
+
+			if isStream && !streamStarted {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Cache-Control", "no-cache")
+				w.Header().Set("Connection", "keep-alive")
+				w.WriteHeader(http.StatusOK)
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+				streamStarted = true
+			}
+
+			if streamStarted {
+				keepAlive := time.NewTicker(2 * time.Second)
+				deadline := time.After(backoff)
+			waitLoop:
+				for {
+					select {
+					case <-deadline:
+						keepAlive.Stop()
+						break waitLoop
+					case <-keepAlive.C:
+						fmt.Fprintf(w, ": retrying attempt %d/%d (%v backoff)\n\n", attempt+1, maxAttempts, backoff)
+						if f, ok := w.(http.Flusher); ok {
+							f.Flush()
+						}
+					case <-r.Context().Done():
+						keepAlive.Stop()
+						return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
+					}
+				}
+			} else {
+				select {
+				case <-time.After(backoff):
+				case <-r.Context().Done():
+					return fmt.Errorf("request cancelled during retry backoff: %w", r.Context().Err())
+				}
 			}
 		} else if attempt > 0 {
 			skipBackoff = false
@@ -1115,8 +1159,8 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			for k, vv := range r.Header {
 				httpReq.Header[k] = vv
 			}
-			// Remove hop-by-hop and host headers that must not be forwarded.
-			for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding"} {
+			// Remove hop-by-hop, host, and proxy-leak headers.
+			for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding", "Via", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
 				httpReq.Header.Del(h)
 			}
 			// Force uncompressed response so SSE/JSON validation works.
@@ -1188,13 +1232,66 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			feedback(resp.StatusCode, rtt, resp.Header)
 		}
 
-		if resp.StatusCode == 429 && attempt < p.cfg.UpstreamMaxRetries {
+		if resp.StatusCode == 429 {
+			retryAfterSec := resp.Header.Get("Retry-After")
+			unifiedReset := resp.Header.Get("Anthropic-Ratelimit-Unified-Reset")
+			// Dump ALL response headers for 429 diagnosis.
+			allHeaders := make(map[string][]string)
+			for k, v := range resp.Header {
+				allHeaders[k] = v
+			}
+			// Read response body for error type diagnosis (max 2KB).
+			bodySnippet := ""
+			if bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2048)); err == nil {
+				bodySnippet = string(bodyBytes)
+			}
+			slog.Warn("429 rate limit details",
+				"attempt", attempt+1,
+				"model", model,
+				"retry_after", retryAfterSec,
+				"unified_reset", unifiedReset,
+				"unified_5h_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Reset"),
+				"unified_5h_status", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Status"),
+				"unified_5h_util", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Utilization"),
+				"unified_7d_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-7d-Reset"),
+				"all_headers", allHeaders,
+				"body", bodySnippet,
+			)
+			// Parse Retry-After or Unified-Reset Unix timestamp for backoff override.
+			if retryAfterSec != "" {
+				if secs, err := strconv.Atoi(retryAfterSec); err == nil && secs > 0 {
+					retryAfterOverride = time.Duration(secs) * time.Second
+					slog.Warn("429 Retry-After override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+				}
+			} else if unifiedReset != "" {
+				if resetTs, err := strconv.ParseInt(unifiedReset, 10, 64); err == nil && resetTs > 0 {
+					waitDur := time.Until(time.Unix(resetTs, 0))
+					if waitDur > 0 && waitDur < 5*time.Minute {
+						retryAfterOverride = waitDur
+						slog.Warn("429 Unified-Reset override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+					}
+				}
+			}
+			// Fallback: use stored rate limit data from Redis when response has no headers.
+			if retryAfterOverride == 0 && opts != nil && opts.GetRateLimitBackoff != nil {
+				if backoff := opts.GetRateLimitBackoff(); backoff > 0 {
+					retryAfterOverride = backoff
+					slog.Warn("429 stored rate limit backoff", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+				}
+			}
 			resp.Body.Close()
 			p.metrics.Inc429()
+			hasFallback := false
 			if opts != nil && opts.OnRateLimitError != nil {
 				if fb, ok := opts.OnRateLimitError(apiKey); ok {
+					hasFallback = true
 					apiKey = fb.APIKey
-					if fb.UpstreamURL != "" {
+					if strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+						r.Header.Set("Authorization", "Bearer "+apiKey)
+						r.Header.Del("x-api-key")
+					}
+					upstreamChanged := fb.UpstreamURL != ""
+					if upstreamChanged {
 						upstreamURL = fb.UpstreamURL
 						opts.Transparent = false
 					}
@@ -1215,9 +1312,30 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 					if fb.ExtraHeaders != nil {
 						opts.ExtraHeaders = fb.ExtraHeaders
 					}
-					skipBackoff = true
-					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat)
+					if upstreamChanged {
+						skipBackoff = true
+					}
+					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat, "skip_backoff", upstreamChanged)
 				}
+			}
+			// No fallback provider: pass 429 to client with Retry-After from stored data.
+			// Claude Code CLI has built-in retry and will handle the 429 properly.
+			if !hasFallback {
+				if retryAfterOverride > 0 {
+					slog.Info("429 passthrough to client", "model", model, "retry_after", retryAfterOverride)
+				} else {
+					slog.Info("429 passthrough to client", "model", model, "retry_after", "none")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("X-Should-Retry", "true")
+				retrySeconds := int(retryAfterOverride.Seconds())
+				if retrySeconds <= 0 {
+					retrySeconds = 5
+				}
+				w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
+				w.WriteHeader(429)
+				w.Write([]byte(bodySnippet))
+				return nil
 			}
 			continue
 		}
@@ -1310,7 +1428,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				}
 				httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 				httpReq.Header.Del("x-api-key")
-				for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding"} {
+				for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding", "Via", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
 					httpReq.Header.Del(h)
 				}
 				httpReq.Header.Set("Accept-Encoding", "identity")
@@ -1398,9 +1516,11 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				lastErrBody = nil
 				break
 			} else {
-				// For streaming, peek at first SSE chunk to verify stream is alive
+				// For streaming, peek at first SSE chunk to verify stream is alive.
+				// Use single Read() instead of io.ReadFull to avoid blocking until
+				// 1024 bytes arrive - SSE events are typically 200-400 bytes each.
 				peekBuf := make([]byte, 1024)
-				n, _ := io.ReadFull(resp.Body, peekBuf)
+				n, _ := resp.Body.Read(peekBuf)
 				if n == 0 {
 					resp.Body.Close()
 					p.metrics.IncTransientRetry(200, model)
@@ -1479,6 +1599,14 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		// If billing was injected and upstream rejected with reserved keyword,
 		// return early so handler can fall back to sidecar.
 		if opts != nil && opts.BillingInjected && resp.StatusCode == 400 && strings.Contains(string(errBody), "reserved keyword") {
+			if streamStarted {
+				slog.Error("billing rejected after SSE stream committed, cannot fall back to sidecar", "model", model)
+				w.Write([]byte("event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"billing rejected\"}}\n\n"))
+				if f, ok := w.(http.Flusher); ok {
+					f.Flush()
+				}
+				return nil
+			}
 			slog.Warn("Go billing injection rejected by upstream, returning ErrBillingRejected", "model", model)
 			return ErrBillingRejected
 		}
@@ -1521,6 +1649,27 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	}
 
 	if lastResp == nil {
+		if streamStarted {
+			// SSE stream already committed - send error event through the stream.
+			errMsg := "upstream error after retries"
+			if len(lastErrBody) > 0 {
+				errMsg = string(lastErrBody[:min(500, len(lastErrBody))])
+			}
+			slog.Error("upstream failed after SSE stream started, sending error event",
+				"model", model, "last_status", lastErrStatus, "error", errMsg)
+			errJSON, _ := json.Marshal(ErrorResponse{
+				Type: "error",
+				Error: ErrorDetail{
+					Type:    "api_error",
+					Message: "rate limited: " + errMsg,
+				},
+			})
+			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errJSON)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			return nil
+		}
 		if len(lastErrBody) > 0 {
 			if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
@@ -1560,9 +1709,16 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 	defer lastResp.Body.Close()
 
 	if isStream {
-		// Stream: must write headers first (SSE requires it).
-		copyResponseHeaders(w, lastResp)
-		w.WriteHeader(lastResp.StatusCode)
+		// Stream: write headers only if not already sent during retry keep-alive.
+		if !streamStarted {
+			copyResponseHeaders(w, lastResp)
+			w.WriteHeader(lastResp.StatusCode)
+			// Flush headers immediately so client sees HTTP 200 without waiting
+			// for the first SSE data line from upstream.
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		}
 
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
@@ -1695,7 +1851,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 	for k, vv := range r.Header {
 		httpReq.Header[k] = vv
 	}
-	for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host"} {
+	for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Via", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
 		httpReq.Header.Del(h)
 	}
 	httpReq.ContentLength = int64(len(body))
@@ -1733,6 +1889,9 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		}
 	}
 	w.WriteHeader(resp.StatusCode)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 
 	if isStream {
 		var unmasker *masking.StreamUnmasker
@@ -1742,7 +1901,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 		flusher, _ := w.(http.Flusher)
 		scanner := bufio.NewScanner(resp.Body)
-		scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+		scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 		var sidecarInputTokens, sidecarOutputTokens int
 		var lastUnmaskBlockIdx int = -1
@@ -1766,6 +1925,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 						}
 						if json.Unmarshal([]byte(data), &msg) == nil {
 							sidecarInputTokens = msg.Message.Usage.InputTokens + msg.Message.Usage.CacheCreationInputTokens + msg.Message.Usage.CacheReadInputTokens
+							p.metrics.RecordCacheUsage(model, msg.Message.Usage.CacheCreationInputTokens, msg.Message.Usage.CacheReadInputTokens)
 						}
 					} else if strings.Contains(data, "message_delta") {
 						var msg struct {
@@ -1783,11 +1943,13 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							Type  string `json:"type"`
 							Index int    `json:"index"`
 							Delta struct {
-								Type           string `json:"type"`
-								Text           string `json:"text,omitempty"`
-								Thinking       string `json:"thinking,omitempty"`
-								PartialJSON    string `json:"partial_json,omitempty"`
-								InputJSONDelta string `json:"input_json_delta,omitempty"`
+								Type           string          `json:"type"`
+								Text           string          `json:"text,omitempty"`
+								Thinking       string          `json:"thinking,omitempty"`
+								PartialJSON    string          `json:"partial_json,omitempty"`
+								InputJSONDelta string          `json:"input_json_delta,omitempty"`
+								Signature      string          `json:"signature,omitempty"`
+								Citations      json.RawMessage `json:"citations,omitempty"`
 							} `json:"delta"`
 						}
 						if json.Unmarshal([]byte(data), &evt) == nil {
@@ -1818,10 +1980,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
 								evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = masking.SanitizeGarbledOutput(evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							} else if evt.Delta.InputJSONDelta != "" {
 								before := evt.Delta.InputJSONDelta
 								evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
+								evt.Delta.InputJSONDelta = masking.SanitizeGarbledOutput(evt.Delta.InputJSONDelta)
 								changed = evt.Delta.InputJSONDelta != before
 							}
 							if changed {
@@ -1920,6 +2084,9 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		return fmt.Errorf("read sidecar response: %w", err)
 	}
 
+	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
+	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
 		respBody = pipeline.UnmaskResponse(respBody, maskResult)
@@ -1936,13 +2103,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 	}
 	if json.Unmarshal(respBody, &nsUsage) == nil {
 		totalInput := nsUsage.Usage.InputTokens + nsUsage.Usage.CacheCreationInputTokens + nsUsage.Usage.CacheReadInputTokens
+		p.metrics.RecordCacheUsage(model, nsUsage.Usage.CacheCreationInputTokens, nsUsage.Usage.CacheReadInputTokens)
 		if totalInput > 0 || nsUsage.Usage.OutputTokens > 0 {
 			p.metrics.RecordTokens(r.Context(), model, totalInput, nsUsage.Usage.OutputTokens)
 		}
 	}
 
-	// Final guard: strip repeated "undefined" from garbled GLM output.
-	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
 	// Convert GLM <details><summary> HTML to markdown.
 	if strings.HasPrefix(model, "glm-") {
 		respBody = convertHTMLDetails(respBody)
@@ -1989,6 +2155,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	}
 	if json.Unmarshal(body, &usage) == nil {
 		totalInput := usage.Usage.InputTokens + usage.Usage.CacheCreationInputTokens + usage.Usage.CacheReadInputTokens
+		p.metrics.RecordCacheUsage(model, usage.Usage.CacheCreationInputTokens, usage.Usage.CacheReadInputTokens)
 		if totalInput > 0 || usage.Usage.OutputTokens > 0 {
 			p.metrics.RecordTokens(resp.Request.Context(), model, totalInput, usage.Usage.OutputTokens)
 			slog.Info("token usage",
@@ -2045,6 +2212,9 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 		)
 	}
 
+	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
+	body = []byte(masking.SanitizeGarbledOutput(string(body)))
+
 	// Unmask secrets/PII placeholders before trimming so placeholders stay intact.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		slog.Info("unmask debug",
@@ -2072,8 +2242,6 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 			}
 		}
 	}
-	// Final guard: strip repeated "undefined" from garbled GLM output.
-	body = []byte(masking.SanitizeGarbledOutput(string(body)))
 	// Convert GLM <details><summary> HTML to markdown.
 	if strings.HasPrefix(model, "glm-") {
 		body = convertHTMLDetails(body)
@@ -2119,7 +2287,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	body := &readCloser{Reader: io.NopCloser(resp.Body), ctx: ctx}
 
 	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 0, maxSSELineSize), maxSSELineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	// GLM models emit <details><summary> and XML tool blocks in streaming text.
 	var stripper *toolUseStripper
@@ -2142,6 +2310,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
+	var lastRelayBlockIdx = -1
 	var streamStart = time.Now()
 	for scanner.Scan() {
 		if !ttfbRecorded {
@@ -2168,14 +2337,30 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				Type  string `json:"type"`
 				Index int    `json:"index"`
 				Delta struct {
-					Type           string `json:"type"`
-					Text           string `json:"text,omitempty"`
-					Thinking       string `json:"thinking,omitempty"`
-					PartialJSON    string `json:"partial_json,omitempty"`
-					InputJSONDelta string `json:"input_json_delta,omitempty"`
+					Type           string          `json:"type"`
+					Text           string          `json:"text,omitempty"`
+					Thinking       string          `json:"thinking,omitempty"`
+					PartialJSON    string          `json:"partial_json,omitempty"`
+					InputJSONDelta string          `json:"input_json_delta,omitempty"`
+					Signature      string          `json:"signature,omitempty"`
+					Citations      json.RawMessage `json:"citations,omitempty"`
 				} `json:"delta"`
 			}
 			if json.Unmarshal([]byte(data), &evt) == nil {
+				// Flush on block index change to prevent cross-block buffer contamination
+				if unmasker != nil && evt.Index != lastRelayBlockIdx && lastRelayBlockIdx >= 0 {
+					if remaining := unmasker.Flush(); remaining != "" {
+						remaining = masking.SanitizeGarbledOutput(remaining)
+						if remaining != "" {
+							escaped, _ := json.Marshal(remaining)
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", lastRelayBlockIdx, string(escaped))
+						}
+					}
+				}
+				if unmasker != nil {
+					lastRelayBlockIdx = evt.Index
+				}
+
 				var changed bool
 				if evt.Delta.Text != "" {
 					before := evt.Delta.Text
@@ -2197,16 +2382,26 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				} else if evt.Delta.PartialJSON != "" && unmasker != nil {
 					before := evt.Delta.PartialJSON
 					evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
+					evt.Delta.PartialJSON = masking.SanitizeGarbledOutput(evt.Delta.PartialJSON)
 					changed = evt.Delta.PartialJSON != before
 				} else if evt.Delta.InputJSONDelta != "" && unmasker != nil {
 					before := evt.Delta.InputJSONDelta
 					evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
+					evt.Delta.InputJSONDelta = masking.SanitizeGarbledOutput(evt.Delta.InputJSONDelta)
 					changed = evt.Delta.InputJSONDelta != before
 				}
 				if changed {
 					unmaskHits++
 					if newData, err := json.Marshal(evt); err == nil {
 						line = "data: " + string(newData)
+					}
+				}
+				// Fallback: structured handler didn't match, but data contains [[ placeholders.
+				if !changed && unmasker != nil && strings.Contains(data, "[[") {
+					unmasked := unmasker.ReplaceDirectJSON(data)
+					if unmasked != data {
+						unmaskHits++
+						line = "data: " + unmasked
 					}
 				}
 			}
@@ -2249,6 +2444,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 			if json.Unmarshal([]byte(data), &msg) == nil {
 				total := msg.Message.Usage.InputTokens + msg.Message.Usage.CacheCreationInputTokens + msg.Message.Usage.CacheReadInputTokens
+					p.metrics.RecordCacheUsage(model, msg.Message.Usage.CacheCreationInputTokens, msg.Message.Usage.CacheReadInputTokens)
 				if total > 0 {
 					inputTokens = total
 				}

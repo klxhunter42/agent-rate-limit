@@ -2,6 +2,274 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-15] Fix: 429 on Expired Pool Tokens + Privacy Unmask Order + Prompt Caching Guard
+
+### แก้ไข: Expired OAuth tokens cause 429 - no proactive refresh (Critical)
+
+**Root cause**: เมื่อ token ทุกตัวใน pool หมดอายุ `GetFromPool` return nil แล้ว request fail ทันที ไม่มีกลไก refresh ก่อน reject
+
+**Fix**: เพิ่ม proactive refresh loop หลัง `GetFromPool` return nil - วน refresh แต่ละ account จนกว่าจะได้ token ที่ใช้ได้
+
+```go
+} else if h.refreshWorker != nil {
+    for _, aid := range poolAccountIDs {
+        if err := h.refreshWorker.RefreshOne(providerID, aid); err == nil {
+            if tok, err := h.tokenStore.Get(providerID, aid); err == nil && tok != nil && !tok.IsExpired() {
+                apiKey = tok.AccessToken
+                selectedTokenInfo = tok
+                break
+            }
+        }
+    }
+}
+```
+
+**ไฟล์**: `handler/handler.go` lines 673-688
+
+---
+
+### แก้ไข: Privacy unmask order ผิด - secrets ก่อน PII ทำให้ nested placeholder restore ไม่ถูก (Critical)
+
+**Root cause**: Unmask order เป็น secrets->PII (เหมือน mask order) แต่ mask ทำ secrets ก่อนแล้วคลุมด้วย PII ดังนั้น unmask ต้องทำ PII (ชั้นนอก) ก่อนแล้วค่อย secrets (ชั้นใน)
+
+**Fix**: สลับ unmask order เป็น PII->secrets ทั้ง non-streaming path (`pipeline.go`) และ streaming flush (`stream.go`)
+
+**Before**: `secrets.Restore() -> pii.Restore()` (ผิด - nested [[SECRET_1]] ซ่อนใน [[PII_1]] restore ไม่ออก)
+**After**: `pii.Restore() -> secrets.Restore()` (ถูก - peel ชั้นนอกก่อนแล้วค่อยชั้นใน)
+
+**ไฟล์**: `privacy/pipeline.go`, `privacy/masking/stream.go`
+
+---
+
+### แก้ไข: SanitizeGarbledOutput ทำหลัง unmask ทำให้ strip ค่าที่ restore ไปแล้ว (High)
+
+**Root cause**: `SanitizeGarbledOutput` ลบ repeated "undefined" แต่ทำหลัง unmask ทำให้ถ้า PII value ที่ restore มี "undefined" อยู่จะถูก strip ออก
+
+**Fix**: ย้าย `SanitizeGarbledOutput` มาทำก่อน unmask ทุก path (anthropic.go, openai.go, sidecar)
+
+**ไฟล์**: `proxy/anthropic.go`, `proxy/openai.go`
+
+---
+
+### เพิ่ม: cache_control guard - skip optimizer สำหรับ cached elements (High)
+
+Optimizer ไม่ควรแก้ elements ที่มี `cache_control: {"type":"ephemeral"}` เพราะจะทำให้ prompt cache miss ทุก request
+
+**Fix**: เพิ่ม guard `if _, hasCC := elem["cache_control"]; hasCC { continue }` ใน per-element optimizer loop
+
+**ผล**: element[2] (identity) + element[3] (main system prompt ~25K chars) ไม่ถูก optimize -> cache hit ปกติ
+
+**ไฟล์**: `handler/handler.go` lines 1170-1171
+**Tests**: `handler/optimizer_short_element_test.go` - 13/13 PASS (5 new cache_control test cases)
+
+---
+
+### แก้ไข: Proxy leak headers ส่งไป upstream (Medium)
+
+Headers `Via`, `X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto` ถูก forward ไป upstream ทำให้ leak internal network info
+
+**Fix**: เพิ่ม headers เหล่านี้ใน hop-by-hop strip list ทุก proxy path (transparent, sidecar)
+
+**ไฟล์**: `proxy/anthropic.go`, `proxy/shared_transport.go`
+
+---
+
+### แก้ไข: 429 retry ไม่ refresh OAuth token (Medium)
+
+เมื่อ Anthropic return 429 และไม่มี fallback target เดิม retry ด้วย token เดิมที่อาจถูก revoke แล้ว
+
+**Fix**: เพิ่ม `OnAuthError` refresh path ใน 429 retry loop สำหรับ OAuth tokens
+
+**ไฟล์**: `proxy/anthropic.go` lines 1224-1240
+
+---
+
+### แก้ไข: SSE stream peek block รอ 1024 bytes (Medium)
+
+`io.ReadFull(peekBuf)` รอจนครบ 1024 bytes ก่อนส่งต่อ ถ้า SSE event เล็กกว่านั้นจะติด
+
+**Fix**: เปลี่ยนเป็น `resp.Body.Read(peekBuf)` - ส่งต่อทันทีที่ได้ data
+
+**ไฟล์**: `proxy/anthropic.go`
+
+---
+
+### เพิ่ม: Flush headers ทุก SSE streaming path
+
+เพิ่ม `Flush()` หลัง `WriteHeader` ทุก streaming path ให้ client เห็น HTTP status ทันทีไม่ต้องรอ SSE data แรก
+
+**ไฟล์**: `proxy/anthropic.go`, `proxy/openai.go`, `middleware/logging.go`
+
+---
+
+### แก้ไข: Multi-target profile routing
+
+**Root cause**: Profile ที่มีหลาย target (เช่น claude-oauth + kimi) ใช้ single-target model mapping ทำให้ model ถูก map ผิด
+
+**Fix**: Multi-target profile resolve by model แล้ว match target จาก provider ที่ resolver เลือก
+
+**ไฟล์**: `handler/handler.go` lines 529-608
+
+---
+
+### เพิ่ม: Z.AI provider skip optimizer
+
+Z.AI ไม่มี prompt caching, optimizer เพิ่ม latency โดยไม่มี token savings บน glm models
+
+**Fix**: Skip optimizer + privacy สำหรับ requests ที่ resolve ไป Z.AI provider
+
+**ไฟล์**: `handler/handler.go` lines 1103-1106
+
+---
+
+### เพิ่ม: Sidecar delta fields (signature, citations)
+
+เพิ่ม JSON fields สำหรับ content_block_delta ที่ sidecar proxy ไม่ parse ทำให้ forward ไปไม่ครบ
+
+**ไฟล์**: `proxy/anthropic.go` sidecar SSE scanner
+
+---
+
+### แก้ไข: OpenAI tool_use injection + unmask flush
+
+1. tool_use id/name ไม่ JSON-escape -> เพิ่ม `json.Marshal` ป้องกัน injection
+2. Stripper flush ไม่ผ่าน unmasker -> เพิ่ม `unmasker.ProcessChunk` ก่อนส่ง
+
+**ไฟล์**: `proxy/openai.go`
+
+---
+
+### แก้ไข: Streaming scanner buffer 8MB -> 64KB initial
+
+`scanner.Buffer` initial buffer 8MB กิน memory โดยไม่จำเป็น (ส่วนใหญ่ SSE line < 1KB)
+
+**ไฟล์**: `proxy/anthropic.go`, `proxy/openai.go`, `proxy/claude-session.go`
+
+---
+
+### เพิ่ม: StripLeftoverPlaceholders safety net
+
+Export `stripLeftoverPlaceholders` -> `StripLeftoverPlaceholders` ให้ pipeline.go เรียกได้ และเพิ่มใน non-streaming unmask path + claude-session prompt extraction
+
+**ไฟล์**: `privacy/masking/stream.go`, `privacy/pipeline.go`, `proxy/claude-session.go`
+
+---
+
+### แก้ไข: DisableCompression บน shared transport
+
+Go `http.Transport` auto-decompress gzip ทำให้ SSE stream buffer
+
+**Fix**: `DisableCompression: true` บน shared transport
+
+**ไฟล์**: `proxy/shared_transport.go`
+
+---
+
+**Files changed**: 17 files, +609/-127 lines
+
+---
+
+## [2026-05-15] Fix: Array-Aware System Prompt Optimization
+
+### แก้ไข: OptimizeSystemPrompt ทำลาย system array structure และ cache_control markers (Critical)
+
+**Root cause**: `OptimizeSystemPrompt` รวม `system` array elements เป็น string เดียวก่อน optimize แล้วเขียนกลับเป็น string
+ทำให้ `cache_control` markers และ billing header position หายไป Claude Code OAuth requests ต้องการ
+`cache_control: {"type":"ephemeral"}` สำหรับ prompt caching และ `x-anhropic-billing-header` ที่ `system[0].text`
+สำหรับ Bucket 3 rate limit classification (higher limits)
+
+**Before** (เก่า - array ถูก flatten):
+```
+Request payload:
+  system: [
+    {type: "text", text: "billing-header-...", cache_control: {type: "ephemeral"}}
+    {type: "text", text: "system-prompt...", cache_control: {type: "ephemeral"}}
+    {type: "text", text: "tool-definitions..."}
+  ]
+
+After OptimizeSystemPrompt (OLD):
+  system: "optimized-text-string"  <-- cache_control หาย, array กลายเป็น string
+
+Workaround: if !transparent guard ข้าม optimizer ทั้งก้อนสำหรับ OAuth requests
+ผล: transparent requests ไม่ได้รับ optimization เลย
+```
+
+**After** (ใหม่ - per-element optimization):
+```
+Request payload:
+  system: [
+    {type: "text", text: "billing-header-...", cache_control: {type: "ephemeral"}}
+    {type: "text", text: "system-prompt...", cache_control: {type: "ephemeral"}}
+    {type: "text", text: "tool-definitions..."}
+  ]
+
+After OptimizeSystemPrompt (NEW):
+  system: [
+    {type: "text", text: "optimized-billing...", cache_control: {type: "ephemeral"}}  <-- preserved
+    {type: "text", text: "optimized-prompt...", cache_control: {type: "ephemeral"}}   <-- preserved
+    {type: "text", text: "optimized-tools..."}                                         <-- preserved
+  ]
+
+No guard needed: array structure preserved, each element's text optimized individually
+```
+
+**Files changed**:
+- `handler/handler.go` - Refactored system prompt optimization block:
+  - Array case: iterate elements, optimize each `text` field individually, preserve metadata
+  - String case: unchanged (optimize whole string)
+  - Removed `if !transparent` guard (no longer needed)
+  - Removed orphaned debug diagnostic code
+
+**ผล**:
+- `cache_control` markers preserved (prompt caching works)
+- Billing header stays at `system[0]` (Bucket 3 rate limits)
+- Transparent OAuth requests now get optimizer savings: semantic_dedup -263 chars, textcomp -234 chars, caveman -77 chars
+- 5/5 burst test passed, no 429 regression
+
+---
+
+### แก้ไข: Short-element skip guard - optimizer ไม่แตะ machine-readable elements (< 500 chars)
+
+**Root cause**: `semantic_dedup` CORRUPT privacy prompt (ลบ spaces, เพิ่มตัวอักษร) เวลา optimize short machine-readable elements เช่น privacy prompt (~91 chars), billing header (~62 chars), claude identity (~94 chars) นอกจากเสียหายแล้วยังเปลือง CPU -- ผ่าน 8 optimizer stages โดยไม่มี benefit
+
+**Fix**: `if len(orig) < 500 { continue }` skip optimizer สำหรับ elements ที่สั้นกว่า 500 chars
+
+- Privacy prompt: ไม่ถูก corrupt อีกต่อไป
+- Billing header: preserved exactly (critical สำหรับ Bucket 3 rate limits)
+- CPU: ~15% fewer optimizer calls per request
+- Token savings: unchanged (เฉพาะ 27K element มี savings จริง)
+
+**Files changed**:
+- `handler/handler.go` - added `len(orig) < 500` guard in per-element optimizer loop
+
+ดูรายละเอียด: [docs/optimizer-short-element-guard.md](docs/optimizer-short-element-guard.md)
+
+---
+
+## [2026-05-14] Fix: SSE Streaming Buffered Instead of Progressive
+
+### แก้ไข: SSE streaming response ไม่ได้ stream ทีละ chunk, รอจบแล้วส่งทีเดียว (Critical)
+
+**Root cause หลัก**: `responseWriter` wrapper ใน middleware/logging.go ไม่ implement `http.Flusher`
+ทำให้ `Flush()` calls ทั้งหมดใน proxy handlers เป็น no-op -> SSE data ถูก buffer จนกว่า handler จะ return
+
+**Root cause รอง**:
+- `io.ReadFull` ใน stream peek validation รอจนครบ 1024 bytes ก่อนส่งต่อ
+- ขาด `Flush()` หลัง `WriteHeader` ใน 4 streaming paths
+- Go `http.Transport` decompress gzip อัตโนมัติ -> buffer SSE response
+
+**Files changed**:
+- `middleware/logging.go` - เพิ่ม `Flush()` passthrough + compile-time check
+- `proxy/anthropic.go` - ReadFull->Read, 3x Flush, scanner buffer, scope fix
+- `proxy/openai.go` - Flush after WriteHeader, scanner buffer
+- `proxy/shared_transport.go` - `DisableCompression: true`
+- `proxy/gemini-*.go`, `proxy/claude-session.go` - scanner buffer 8MB->64KB
+
+**ผล**: Max chunk interval < 5ms (ก่อนแก้: buffered จนจบ), ทดสอบ 105 test cases ทั้ง 3 profiles
+ดูรายละเอียด: [docs/streaming-fix.md](docs/streaming-fix.md)
+
+---
+
 ## [2026-05-11] Fix: Tab-to-Space Conversion Breaking Edit Tool
 
 ### แก้ไข: `OptimizeWhitespace` แปลง tab เป็น space ทำให้ Claude Code Edit tool match string ไม่เจอ (High)

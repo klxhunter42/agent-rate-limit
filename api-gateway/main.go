@@ -28,6 +28,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/chunker"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/delta"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/desctrim"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/disclosure"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/filter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/handler"
@@ -162,6 +163,7 @@ func main() {
 
 	optToolComp := toolcomp.New(toolcomp.LoadConfig())
 	optToolFilter := toolfilter.New(toolfilter.LoadConfig())
+	optDescTrim := desctrim.New(desctrim.LoadConfig())
 
 	optimizers := &handler.Optimizers{
 		Chunker:    optChunker,
@@ -180,6 +182,7 @@ func main() {
 		TextComp:   optTextComp,
 		ToolComp:   optToolComp,
 		ToolFilter: optToolFilter,
+		DescTrim:   optDescTrim,
 		Pordee:     optPordee,
 	}
 

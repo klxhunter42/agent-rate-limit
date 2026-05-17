@@ -121,16 +121,16 @@ func TestStreamUnmasker_HasContexts(t *testing.T) {
 
 func TestStripLeftoverPlaceholders(t *testing.T) {
 	t.Run("no placeholders", func(t *testing.T) {
-		assert.Equal(t, "hello world", stripLeftoverPlaceholders("hello world"))
+		assert.Equal(t, "hello world", StripLeftoverPlaceholders("hello world"))
 	})
 
 	t.Run("single leftover", func(t *testing.T) {
-		assert.Equal(t, "hello  world", stripLeftoverPlaceholders("hello [[IP_ADDRESS_1]] world"))
+		assert.Equal(t, "hello  world", StripLeftoverPlaceholders("hello [[IP_ADDRESS_1]] world"))
 	})
 
 	t.Run("multiple leftovers", func(t *testing.T) {
 		assert.Equal(t, "user: admin, ip: ",
-			stripLeftoverPlaceholders("user: [[EMAIL_ADDRESS_1]]admin, ip: [[IP_ADDRESS_3]]"))
+			StripLeftoverPlaceholders("user: [[EMAIL_ADDRESS_1]]admin, ip: [[IP_ADDRESS_3]]"))
 	})
 }
 

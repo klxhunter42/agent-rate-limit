@@ -47,6 +47,7 @@ type Profile struct {
 	Targets            []ProfileTarget `json:"targets,omitempty"`
 	PassthroughAuth    bool            `json:"passthroughAuth,omitempty"`
 	OptimizerOverrides map[string]bool `json:"optimizerOverrides,omitempty"`
+	MaxThinkingTokens  int             `json:"maxThinkingTokens,omitempty"`
 	CreatedAt          string          `json:"createdAt"`
 	UpdatedAt          string          `json:"updatedAt"`
 }

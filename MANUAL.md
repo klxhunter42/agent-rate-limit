@@ -11,6 +11,9 @@
 - [Observability](docs/07-observability.md) -- Prometheus metrics, cost calculator, key metrics
 - [Docker Operations](docs/08-docker-ops.md) -- Docker commands, build, deployment
 
+## Performance & Fixes
+- [SSE Streaming Fix](docs/streaming-fix.md) -- Root causes, fixes, test suite for buffered streaming issue
+
 ## Features
 - [Features](docs/09-features.md) -- Vision auto-routing, multi-agent modes, message body optimization
 - [Privacy & Security](docs/11-privacy-security.md) -- PasteGuard PII detection, streaming unmask bugs, GLM mode isolation

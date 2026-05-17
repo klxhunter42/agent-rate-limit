@@ -90,3 +90,24 @@ func TestPipeline_NewStreamUnmasker(t *testing.T) {
 	u := p.NewStreamUnmasker(nil)
 	assert.False(t, u.HasContexts())
 }
+
+// H6: Verify StripLeftoverPlaceholders runs in UnmaskResponse as safety net.
+func TestPipeline_UnmaskResponse_StripsLeftoverPlaceholders(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.PIIEnabled = false
+	p := NewPipeline(cfg, nil)
+
+	body := []byte(`{"messages":[{"role":"user","content":"my key is sk-abc123def456ghi789jkl012mno"}]}`)
+	result, _ := p.MaskRequest(body)
+	assert.NotNil(t, result)
+
+	// Response contains a placeholder that won't match any mapping (simulates GLM mangling)
+	response := []byte("Your key [[API_KEY_SK_1]] and unknown [[UNKNOWN_TYPE_99]] here.")
+	unmasked := p.UnmaskResponse(response, result)
+
+	s := string(unmasked)
+	// Known placeholder should be restored
+	assert.Contains(t, s, "sk-abc123def456ghi789jkl012mno")
+	// Leftover placeholder should be stripped (safety net)
+	assert.NotContains(t, s, "[[UNKNOWN_TYPE_99]]")
+}

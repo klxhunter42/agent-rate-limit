@@ -11,6 +11,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/chunker"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/compcache"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/delta"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/desctrim"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/disclosure"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/filter"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
@@ -76,6 +77,7 @@ type Optimizers struct {
 	TextComp   *textcomp.TextComp
 	ToolComp   *toolcomp.ToolComp
 	ToolFilter *toolfilter.ToolFilter
+	DescTrim   *desctrim.DescTrim
 	CompCache  *compcache.CompCache
 	Pordee     *pordee.Pipeline
 }
@@ -219,7 +221,6 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 			m.RecordOptimizationDuration("pordee", time.Since(start).Seconds())
 		}
 	}
-
 
 	if totalSaved > 0 {
 		tokensSaved := float64(totalSaved) / 4.0

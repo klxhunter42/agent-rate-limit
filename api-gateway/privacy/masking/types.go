@@ -2,12 +2,13 @@ package masking
 
 // TextSpan represents extracted text from a request body.
 type TextSpan struct {
-	Text         string
-	Path         string // JSON path, e.g. "messages[0].content[1].text"
-	MessageIndex int
-	PartIndex    int
-	NestedIndex  int    // for tool_result nested content (-1 = unused)
-	Role         string // "system", "user", "assistant", "tool"
+	Text            string
+	Path            string // JSON path, e.g. "messages[0].content[1].text"
+	MessageIndex    int
+	PartIndex       int
+	NestedIndex     int    // for tool_result nested content (-1 = unused)
+	Role            string // "system", "user", "assistant", "tool"
+	HasCacheControl bool   // block has cache_control marker
 }
 
 // MaskedSpan holds a masked version of a TextSpan.

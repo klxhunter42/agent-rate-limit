@@ -37,6 +37,15 @@ func (t *TokenInfo) redisKey() string {
 	return tokenKeyPrefix + t.Provider + ":" + t.AccountID
 }
 
+// IsExpired returns true if the token's access_token has passed its expiry_date.
+// OAuth access tokens from Claude have ~1h TTL; after that the refresh_token must be used.
+func (t *TokenInfo) IsExpired() bool {
+	if t.ExpiryDate.IsZero() {
+		return false
+	}
+	return time.Now().After(t.ExpiryDate)
+}
+
 func tokenKey(provider, accountID string) string {
 	return tokenKeyPrefix + provider + ":" + accountID
 }
@@ -338,14 +347,14 @@ func (s *TokenStore) GetDefault(provider string) (*TokenInfo, error) {
 		return nil, err
 	}
 	for _, t := range tokens {
-		if t.IsDefault && !t.Paused {
+		if t.IsDefault && !t.Paused && !t.IsExpired() {
 			tCopy := t
 			return &tCopy, nil
 		}
 	}
-	// Fallback: return first non-paused token.
+	// Fallback: return first non-paused, non-expired token.
 	for _, t := range tokens {
-		if !t.Paused {
+		if !t.Paused && !t.IsExpired() {
 			tCopy := t
 			return &tCopy, nil
 		}
@@ -399,6 +408,10 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 		}
 		var t TokenInfo
 		if err := json.Unmarshal(data, &t); err != nil {
+			continue
+		}
+		if t.IsExpired() {
+			slog.Warn("skipping expired OAuth token", "provider", provider, "account_id", t.AccountID, "expiry", t.ExpiryDate)
 			continue
 		}
 		if !t.Paused {
