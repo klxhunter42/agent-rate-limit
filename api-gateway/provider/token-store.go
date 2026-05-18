@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -18,19 +19,42 @@ var providerRenames = map[string]string{
 	"claude": "claude-oauth",
 }
 
+type ClaudeProfile struct {
+	AccountUUID   string `json:"account_uuid,omitempty"`
+	AccountName   string `json:"account_name,omitempty"`
+	AccountEmail  string `json:"account_email,omitempty"`
+	HasClaudeMax  bool   `json:"has_claude_max,omitempty"`
+	HasClaudePro  bool   `json:"has_claude_pro,omitempty"`
+	OrgUUID       string `json:"org_uuid,omitempty"`
+	OrgName       string `json:"org_name,omitempty"`
+	OrgType       string `json:"org_type,omitempty"`
+	BillingType   string `json:"billing_type,omitempty"`
+	RateLimitTier string `json:"rate_limit_tier,omitempty"`
+	SeatTier      string `json:"seat_tier,omitempty"`
+	SubStatus     string `json:"subscription_status,omitempty"`
+	HasExtraUsage bool   `json:"has_extra_usage_enabled,omitempty"`
+	AppUUID       string `json:"app_uuid,omitempty"`
+	AppName       string `json:"app_name,omitempty"`
+	OrgRole       string `json:"org_role,omitempty"`
+	WorkspaceUUID string `json:"workspace_uuid,omitempty"`
+	WorkspaceName string `json:"workspace_name,omitempty"`
+	WorkspaceRole string `json:"workspace_role,omitempty"`
+}
+
 type TokenInfo struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token,omitempty"`
-	ExpiryDate   time.Time `json:"expiry_date"`
-	Email        string    `json:"email,omitempty"`
-	AccountID    string    `json:"account_id"`
-	Provider     string    `json:"provider"`
-	ProjectID    string    `json:"project_id,omitempty"`
-	Tier         string    `json:"tier,omitempty"`
-	Paused       bool      `json:"paused"`
-	IsDefault    bool      `json:"is_default"`
-	CreatedAt    time.Time `json:"created_at"`
-	Scopes       string    `json:"scopes,omitempty"`
+	AccessToken   string         `json:"access_token"`
+	RefreshToken  string         `json:"refresh_token,omitempty"`
+	ExpiryDate    time.Time      `json:"expiry_date"`
+	Email         string         `json:"email,omitempty"`
+	AccountID     string         `json:"account_id"`
+	Provider      string         `json:"provider"`
+	ProjectID     string         `json:"project_id,omitempty"`
+	Tier          string         `json:"tier,omitempty"`
+	Paused        bool           `json:"paused"`
+	IsDefault     bool           `json:"is_default"`
+	CreatedAt     time.Time      `json:"created_at"`
+	Scopes        string         `json:"scopes,omitempty"`
+	ClaudeProfile *ClaudeProfile `json:"claude_profile,omitempty"`
 }
 
 func (t *TokenInfo) redisKey() string {
@@ -452,4 +476,80 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 	}
 	tCopy := best
 	return &tCopy, nil
+}
+
+// MigrateClaudeOAuthEmails fetches profiles for existing claude-oauth tokens
+// and updates their email/account_id from the profile data.
+// Call this once after deploying the email-from-profile fix.
+func (s *TokenStore) MigrateClaudeOAuthEmails() int {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	tokens, err := s.ListByProvider("claude-oauth")
+	if err != nil || len(tokens) == 0 {
+		return 0
+	}
+
+	updated := 0
+	for _, token := range tokens {
+		// Skip if already has proper email format
+		if token.Email != "" && !strings.HasPrefix(token.Email, "claude-oauth_") {
+			continue
+		}
+
+		// Fetch profile using access token
+		if token.ClaudeProfile != nil && token.ClaudeProfile.AccountEmail != "" {
+			// Profile already cached, use it
+			newEmail := token.ClaudeProfile.AccountEmail
+			if newEmail != token.Email {
+				s.updateEmailAndAccountID(ctx, &token, newEmail)
+				updated++
+			}
+			continue
+		}
+
+		// No cached profile, fetch from API
+		profile, err := FetchClaudeProfile(ctx, token.AccessToken)
+		if err != nil {
+			slog.Warn("failed to fetch profile for migration", "account_id", token.AccountID, "error", err)
+			continue
+		}
+
+		if profile.AccountEmail != "" {
+			token.ClaudeProfile = profile
+			s.updateEmailAndAccountID(ctx, &token, profile.AccountEmail)
+			updated++
+		}
+	}
+
+	if updated > 0 {
+		slog.Info("migrated claude-oauth emails", "count", updated)
+	}
+	return updated
+}
+
+func (s *TokenStore) updateEmailAndAccountID(ctx context.Context, token *TokenInfo, newEmail string) {
+	oldKey := token.redisKey()
+	oldAccountID := token.AccountID
+
+	token.Email = newEmail
+	token.AccountID = newEmail
+	newKey := token.redisKey()
+
+	data, _ := json.Marshal(token)
+
+	// Write new key
+	s.client.Set(ctx, newKey, data, 0)
+
+	// Update index
+	idxKey := tokenKeyPrefix + token.Provider + ":_index"
+	s.client.SRem(ctx, idxKey, oldAccountID)
+	s.client.SAdd(ctx, idxKey, newEmail)
+
+	// Delete old key if different
+	if oldKey != newKey {
+		s.client.Del(ctx, oldKey)
+	}
+
+	slog.Info("migrated token email", "old_account_id", oldAccountID, "new_email", newEmail)
 }

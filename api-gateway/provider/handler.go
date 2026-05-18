@@ -34,6 +34,13 @@ type AuthHandler struct {
 	apiKey       string
 	profileRedis *redis.Client
 	refresher    *RefreshWorker
+	metrics      interface { // Minimal interface for metrics recording
+		RecordClaudeProfileFetch(success bool)
+		RecordClaudeProfileError(errorType string)
+		SetClaudeOrgTier(orgUUID, tier string)
+		SetClaudeSubStatus(orgUUID, status string)
+		SetClaudeRole(orgUUID, role string)
+	}
 }
 
 func (h *AuthHandler) SetRefreshWorker(rw *RefreshWorker) {
@@ -42,6 +49,16 @@ func (h *AuthHandler) SetRefreshWorker(rw *RefreshWorker) {
 
 func (h *AuthHandler) SetProfileRedis(rdb *redis.Client) {
 	h.profileRedis = rdb
+}
+
+func (h *AuthHandler) SetMetrics(m interface {
+	RecordClaudeProfileFetch(success bool)
+	RecordClaudeProfileError(errorType string)
+	SetClaudeOrgTier(orgUUID, tier string)
+	SetClaudeSubStatus(orgUUID, status string)
+	SetClaudeRole(orgUUID, role string)
+}) {
+	h.metrics = m
 }
 
 func NewAuthHandler(store *TokenStore, registry *Registry) *AuthHandler {
@@ -188,6 +205,23 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		slog.Error("store token from callback failed", "error", err)
 		http.Redirect(w, r, dashboardURL+"/admin?auth_error=store_failed", http.StatusTemporaryRedirect)
 		return
+	}
+
+	// Record Claude OAuth profile metrics
+	if pc.ID == "claude-oauth" && token.ClaudeProfile != nil && h.metrics != nil {
+		h.metrics.RecordClaudeProfileFetch(true)
+		p := token.ClaudeProfile
+		if p.OrgUUID != "" {
+			if p.RateLimitTier != "" {
+				h.metrics.SetClaudeOrgTier(p.OrgUUID, p.RateLimitTier)
+			}
+			if p.SubStatus != "" {
+				h.metrics.SetClaudeSubStatus(p.OrgUUID, p.SubStatus)
+			}
+			if p.OrgRole != "" {
+				h.metrics.SetClaudeRole(p.OrgUUID, p.OrgRole)
+			}
+		}
 	}
 
 	h.mu.Lock()
@@ -856,6 +890,13 @@ func (h *AuthHandler) UpdateAccountEmail(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// MigrateClaudeEmails triggers email migration for existing claude-oauth tokens.
+// Admin endpoint to fetch profiles and update email/account_id.
+func (h *AuthHandler) MigrateClaudeEmails(w http.ResponseWriter, r *http.Request) {
+	count := h.store.MigrateClaudeOAuthEmails()
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "updated": count})
+}
+
 // Routes returns all auth routes for mounting on a chi.Router.
 func (h *AuthHandler) Routes() func(chi.Router) {
 	return func(r chi.Router) {
@@ -877,6 +918,7 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 		r.Post("/auth/login", h.DashboardLogin)
 		r.Post("/auth/logout", h.DashboardLogout)
 		r.Get("/auth/check", h.CheckAuth)
+		r.Post("/auth/_admin/migrate-claude-emails", h.MigrateClaudeEmails)
 		r.Get("/providers", h.ListProviders)
 		r.Put("/providers/{provider}/upstream", h.UpdateProviderUpstream)
 		r.Post("/providers/custom", h.CreateCustomProvider)
@@ -887,10 +929,10 @@ func (h *AuthHandler) Routes() func(chi.Router) {
 
 func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name     string `json:"name"`
-		Format   string `json:"format"` // "openai" or "anthropic"
-		Upstream string `json:"upstream"`
-		APIKey   string `json:"apiKey"`
+		Name     string   `json:"name"`
+		Format   string   `json:"format"` // "openai" or "anthropic"
+		Upstream string   `json:"upstream"`
+		APIKey   string   `json:"apiKey"`
 		Models   []string `json:"models"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -917,8 +959,8 @@ func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Reques
 		Name:         body.Name,
 		AuthType:     AuthTypeAPIKey,
 		UpstreamBase: body.Upstream,
-		Format: string(format),
-		Models: body.Models,
+		Format:       string(format),
+		Models:       body.Models,
 	}
 
 	h.registry.Register(cfg)
@@ -1066,11 +1108,11 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	}
 	providers := h.registry.List()
 	type providerInfo struct {
-		ID           string `json:"id"`
-		Name         string `json:"name"`
-		AuthType     string `json:"authType"`
-		UpstreamBase string `json:"upstreamBase"`
-		Models []string `json:"models,omitempty"`
+		ID           string   `json:"id"`
+		Name         string   `json:"name"`
+		AuthType     string   `json:"authType"`
+		UpstreamBase string   `json:"upstreamBase"`
+		Models       []string `json:"models,omitempty"`
 	}
 	result := make([]providerInfo, 0, len(providers))
 	for _, p := range providers {
@@ -1079,7 +1121,7 @@ func (h *AuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 			Name:         p.Name,
 			AuthType:     string(p.AuthType),
 			UpstreamBase: p.UpstreamBase,
-			Models: p.Models,
+			Models:       p.Models,
 		})
 	}
 	writeJSON(w, http.StatusOK, result)

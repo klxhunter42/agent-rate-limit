@@ -115,11 +115,13 @@ func main() {
 	providerRegistry := provider.NewRegistry()
 	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
 	tokenStore.MigrateProviderRenames()
+	tokenStore.MigrateClaudeOAuthEmails()
 	seedProviderKeys(tokenStore, "lotuss", cfg.LotussAPIKeys)
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
 	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
 	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
 	authHandler.SetRefreshWorker(refreshWorker)
+	authHandler.SetMetrics(m)
 
 	// --- WebSocket Hub ---
 	wsHub := handler.NewWebSocketHub()

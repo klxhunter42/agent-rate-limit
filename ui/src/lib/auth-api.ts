@@ -1,3 +1,25 @@
+export interface ClaudeProfile {
+  account_uuid?: string;
+  account_name?: string;
+  account_email?: string;
+  has_claude_max?: boolean;
+  has_claude_pro?: boolean;
+  org_uuid?: string;
+  org_name?: string;
+  org_type?: string;
+  billing_type?: string;
+  rate_limit_tier?: string;
+  seat_tier?: string;
+  subscription_status?: string;
+  has_extra_usage_enabled?: boolean;
+  app_uuid?: string;
+  app_name?: string;
+  org_role?: string;
+  workspace_uuid?: string;
+  workspace_name?: string;
+  workspace_role?: string;
+}
+
 export interface AccountInfo {
   id: string;
   email?: string;
@@ -6,6 +28,7 @@ export interface AccountInfo {
   tier?: 'free' | 'pro' | 'ultra' | 'unknown';
   paused?: boolean;
   createdAt: string;
+  claude_profile?: ClaudeProfile;
 }
 
 export interface AuthStatus {
@@ -78,6 +101,7 @@ export async function listAccounts(provider?: string): Promise<AccountInfo[]> {
     tier: a.tier,
     paused: a.paused ?? false,
     createdAt: a.created_at ?? a.createdAt ?? '',
+    claude_profile: a.claude_profile,
   }));
 }
 
@@ -147,6 +171,7 @@ function mapAccount(a: any): AccountInfo {
     tier: a.tier,
     paused: a.paused ?? false,
     createdAt: a.created_at ?? a.createdAt ?? '',
+    claude_profile: a.claude_profile,
   };
 }
 

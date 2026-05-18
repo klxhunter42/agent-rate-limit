@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import type { AccountInfo, RateLimitStatus } from '@/lib/auth-api';
+import type { AccountInfo, RateLimitStatus, ClaudeProfile } from '@/lib/auth-api';
 import { updateAccountEmail } from '@/lib/auth-api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Pause, Play, Star, Trash2, Pencil } from 'lucide-react';
+import { Pause, Play, Star, Trash2, Pencil, Building2, Shield } from 'lucide-react';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { cn } from '@/lib/utils';
 
@@ -25,8 +25,57 @@ const TIER_STYLES: Record<string, string> = {
   pro: 'bg-blue-500/10 text-blue-500',
   ultra: 'bg-purple-500/10 text-purple-500',
   api_key: 'bg-amber-500/10 text-amber-500',
-	unknown: 'bg-muted text-muted-foreground',
+  unknown: 'bg-muted text-muted-foreground',
 };
+
+const SUB_STATUS_STYLES: Record<string, string> = {
+  active: 'bg-green-500/10 text-green-500',
+  past_due: 'bg-red-500/10 text-red-500',
+  canceled: 'bg-muted text-muted-foreground',
+  incomplete: 'bg-amber-500/10 text-amber-500',
+};
+
+function ClaudeProfileDisplay({ profile }: { profile: ClaudeProfile }) {
+  if (!profile.org_name) return null;
+
+  return (
+    <div className="flex flex-col gap-1.5 pt-1 border-t border-border/50 mt-1">
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+        <Building2 className="h-3 w-3" />
+        <span className="font-medium">{profile.org_name}</span>
+        {profile.subscription_status && (
+          <Badge className={cn('text-[9px] px-1', SUB_STATUS_STYLES[profile.subscription_status] ?? 'bg-muted')}>
+            {profile.subscription_status}
+          </Badge>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+        {profile.rate_limit_tier && (
+          <span>Tier: <span className="text-foreground">{profile.rate_limit_tier}</span></span>
+        )}
+        {profile.seat_tier && (
+          <span>Seat: <span className="text-foreground">{profile.seat_tier}</span></span>
+        )}
+        {profile.org_role && (
+          <span className="flex items-center gap-1">
+            <Shield className="h-2.5 w-2.5" />
+            {profile.org_role}
+          </span>
+        )}
+      </div>
+      {profile.has_claude_max && (
+        <Badge className="text-[9px] px-1 w-fit bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-600 border-amber-500/20">
+          Claude Max
+        </Badge>
+      )}
+      {profile.has_claude_pro && !profile.has_claude_max && (
+        <Badge className="text-[9px] px-1 w-fit bg-blue-500/10 text-blue-500">
+          Claude Pro
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 function blurEmail(email: string | undefined): string {
   if (!email) return '--';
@@ -208,6 +257,11 @@ export function AccountList({
           <span className="text-border">|</span>
           <span>7d: {rl.req_count_7d ?? 0} reqs</span>
         </div>
+      )}
+
+      {/* Claude OAuth profile details */}
+      {acct.provider === 'claude-oauth' && acct.claude_profile && (
+        <ClaudeProfileDisplay profile={acct.claude_profile} />
       )}
         </div>
         );

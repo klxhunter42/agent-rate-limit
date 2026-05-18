@@ -134,7 +134,6 @@ func (s *toolUseStripper) Flush() string {
 // allowedResponseHeaders lists headers safe to pass from upstream to client.
 var allowedResponseHeaders = map[string]bool{
 	"Content-Type":                                     true,
-	"Content-Encoding":                                 true,
 	"X-RateLimit-Limit":                                true,
 	"X-RateLimit-Remaining":                            true,
 	"X-RateLimit-Reset":                                true,
@@ -1164,7 +1163,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				httpReq.Header.Del(h)
 			}
 			// Force uncompressed response so SSE/JSON validation works.
-			httpReq.Header.Set("Accept-Encoding", "identity")
+			httpReq.Header.Set("Accept-Encoding", "gzip, deflate, zstd")
 		} else {
 			httpReq.Header.Set("Content-Type", "application/json")
 			if opts != nil && opts.AuthMode == "bearer" {
@@ -1223,6 +1222,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		rtt := time.Since(start)
 		if err != nil {
 			return fmt.Errorf("upstream call failed: %w", err)
+		}
+
+		// Decompress response body for SSE parsing and metrics.
+		respEnc := resp.Header.Get("Content-Encoding")
+		if respEnc != "" {
+			resp.Body = decompressReader(resp.Body, respEnc)
 		}
 
 		isLastAttempt := attempt >= maxAttempts-1
@@ -1392,6 +1397,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				if err2 != nil {
 					return fmt.Errorf("retry after refresh failed: %w", err2)
 				}
+				if enc := resp2.Header.Get("Content-Encoding"); enc != "" {
+					resp2.Body = decompressReader(resp2.Body, enc)
+				}
+
 				if feedback != nil {
 					feedback(resp2.StatusCode, rtt2, resp2.Header)
 				}
@@ -1431,7 +1440,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				for _, h := range []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailers", "Transfer-Encoding", "Upgrade", "Host", "Accept-Encoding", "Via", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto"} {
 					httpReq.Header.Del(h)
 				}
-				httpReq.Header.Set("Accept-Encoding", "identity")
+				httpReq.Header.Set("Accept-Encoding", "gzip, deflate, zstd")
 				httpReq.ContentLength = int64(len(body))
 				start2 := time.Now()
 				resp2, err2 := p.client.Do(httpReq)
@@ -1439,6 +1448,10 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				if err2 != nil {
 					return fmt.Errorf("retry after refresh failed: %w", err2)
 				}
+				if enc := resp2.Header.Get("Content-Encoding"); enc != "" {
+					resp2.Body = decompressReader(resp2.Body, enc)
+				}
+
 				if feedback != nil {
 					feedback(resp2.StatusCode, rtt2, resp2.Header)
 				}
@@ -2444,7 +2457,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			}
 			if json.Unmarshal([]byte(data), &msg) == nil {
 				total := msg.Message.Usage.InputTokens + msg.Message.Usage.CacheCreationInputTokens + msg.Message.Usage.CacheReadInputTokens
-					p.metrics.RecordCacheUsage(model, msg.Message.Usage.CacheCreationInputTokens, msg.Message.Usage.CacheReadInputTokens)
+				p.metrics.RecordCacheUsage(model, msg.Message.Usage.CacheCreationInputTokens, msg.Message.Usage.CacheReadInputTokens)
 				if total > 0 {
 					inputTokens = total
 				}

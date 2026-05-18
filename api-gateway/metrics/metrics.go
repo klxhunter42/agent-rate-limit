@@ -70,6 +70,11 @@ type Metrics struct {
 	CacheCreationTokens   *prometheus.CounterVec
 	CacheReadTokens       *prometheus.CounterVec
 	CacheSavingsTotal     *prometheus.CounterVec
+	ClaudeProfileFetches  *prometheus.CounterVec
+	ClaudeProfileErrors   *prometheus.CounterVec
+	ClaudeOrgTier         *prometheus.GaugeVec
+	ClaudeSubStatus       *prometheus.GaugeVec
+	ClaudeRoleCount       *prometheus.GaugeVec
 	registry              *prometheus.Registry
 	queueDepthFn          func() float64
 	pricing               map[string]modelPrice
@@ -367,6 +372,36 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Name:      "cache_savings_total",
 			Help:      "Estimated USD saved from cache reads vs full-price input.",
 		}, []string{"model"}),
+
+		ClaudeProfileFetches: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "claude_profile_fetches_total",
+			Help:      "Total Claude OAuth profile fetch attempts.",
+		}, []string{"status"}),
+
+		ClaudeProfileErrors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "claude_profile_errors_total",
+			Help:      "Total Claude OAuth profile fetch errors by error type.",
+		}, []string{"error_type"}),
+
+		ClaudeOrgTier: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "claude_org_tier",
+			Help:      "Current Claude OAuth organization tier distribution (1=has tier).",
+		}, []string{"org_uuid", "tier"}),
+
+		ClaudeSubStatus: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "claude_subscription_status",
+			Help:      "Current Claude OAuth subscription status (1=has status).",
+		}, []string{"org_uuid", "status"}),
+
+		ClaudeRoleCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "claude_role_count",
+			Help:      "Current Claude OAuth role distribution count.",
+		}, []string{"org_uuid", "role"}),
 	}
 
 	m.QueueDepth = prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -422,6 +457,11 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.CacheCreationTokens,
 		m.CacheReadTokens,
 		m.CacheSavingsTotal,
+		m.ClaudeProfileFetches,
+		m.ClaudeProfileErrors,
+		m.ClaudeOrgTier,
+		m.ClaudeSubStatus,
+		m.ClaudeRoleCount,
 	)
 
 	return m
@@ -584,6 +624,35 @@ func (m *Metrics) RecordCacheUsage(model string, creation, read int) {
 			m.CacheSavingsTotal.WithLabelValues(model).Add(savings)
 		}
 	}
+}
+
+// RecordClaudeProfileFetch records a Claude OAuth profile fetch attempt.
+func (m *Metrics) RecordClaudeProfileFetch(success bool) {
+	status := "success"
+	if !success {
+		status = "error"
+	}
+	m.ClaudeProfileFetches.WithLabelValues(status).Inc()
+}
+
+// RecordClaudeProfileError records a Claude OAuth profile fetch error.
+func (m *Metrics) RecordClaudeProfileError(errorType string) {
+	m.ClaudeProfileErrors.WithLabelValues(errorType).Inc()
+}
+
+// SetClaudeOrgTier records the organization tier for a Claude OAuth account.
+func (m *Metrics) SetClaudeOrgTier(orgUUID, tier string) {
+	m.ClaudeOrgTier.WithLabelValues(orgUUID, tier).Set(1)
+}
+
+// SetClaudeSubStatus records the subscription status for a Claude OAuth organization.
+func (m *Metrics) SetClaudeSubStatus(orgUUID, status string) {
+	m.ClaudeSubStatus.WithLabelValues(orgUUID, status).Set(1)
+}
+
+// SetClaudeRole records the role count for a Claude OAuth organization.
+func (m *Metrics) SetClaudeRole(orgUUID, role string) {
+	m.ClaudeRoleCount.WithLabelValues(orgUUID, role).Inc()
 }
 
 // SetUsageRecorder registers a callback invoked after every RecordTokens call.

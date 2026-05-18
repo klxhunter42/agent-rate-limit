@@ -69,6 +69,43 @@ type userInfoResponse struct {
 	Picture string `json:"picture"`
 }
 
+type claudeProfileResponse struct {
+	Account struct {
+		UUID         string `json:"uuid"`
+		FullName     string `json:"full_name"`
+		DisplayName  string `json:"display_name"`
+		Email        string `json:"email"`
+		HasClaudeMax bool   `json:"has_claude_max"`
+		HasClaudePro bool   `json:"has_claude_pro"`
+		CreatedAt    string `json:"created_at"`
+	} `json:"account"`
+	Organization struct {
+		UUID                  string `json:"uuid"`
+		Name                  string `json:"name"`
+		OrganizationType      string `json:"organization_type"`
+		BillingType           string `json:"billing_type"`
+		RateLimitTier         string `json:"rate_limit_tier"`
+		SeatTier              string `json:"seat_tier"`
+		HasExtraUsageEnabled  bool   `json:"has_extra_usage_enabled"`
+		SubscriptionStatus    string `json:"subscription_status"`
+		SubscriptionCreatedAt string `json:"subscription_created_at"`
+	} `json:"organization"`
+	Application struct {
+		UUID string `json:"uuid"`
+		Name string `json:"name"`
+		Slug string `json:"slug"`
+	} `json:"application"`
+}
+
+type claudeRolesResponse struct {
+	OrganizationUUID string `json:"organization_uuid"`
+	OrganizationName string `json:"organization_name"`
+	OrganizationRole string `json:"organization_role"`
+	WorkspaceUUID    string `json:"workspace_uuid"`
+	WorkspaceName    string `json:"workspace_name"`
+	WorkspaceRole    string `json:"workspace_role"`
+}
+
 // generateState creates a random 32-byte base64url state parameter.
 func generateState() (string, error) {
 	b := make([]byte, 32)
@@ -250,6 +287,20 @@ func HandleCallbackWithPKCE(ctx context.Context, pc ProviderConfig, code, state,
 		Scopes:       firstNonEmpty(tokResp.Scope, strings.Join(pc.Scopes, " ")),
 	}
 
+	// Fetch Claude profile for claude-oauth provider
+	if pc.ID == "claude-oauth" && tokResp.AccessToken != "" {
+		if profile, err := FetchClaudeProfile(ctx, tokResp.AccessToken); err == nil {
+			token.ClaudeProfile = profile
+			// Always use email from profile for Claude OAuth
+			if profile.AccountEmail != "" {
+				token.Email = profile.AccountEmail
+				token.AccountID = profile.AccountEmail
+			}
+		} else {
+			slog.Warn("failed to fetch claude profile", "error", err)
+		}
+	}
+
 	slog.Info("auth code token obtained", "provider", pc.ID, "account_id", accountID, "email", email)
 	return token, nil
 }
@@ -323,4 +374,81 @@ func firstNonEmpty(s ...string) string {
 		}
 	}
 	return ""
+}
+
+// FetchClaudeProfile retrieves user profile, organization, and role information
+// from Claude's /api/oauth/profile and /api/oauth/claude_cli/roles endpoints.
+func FetchClaudeProfile(ctx context.Context, accessToken string) (*ClaudeProfile, error) {
+	profileURL := "https://api.anthropic.com/api/oauth/profile"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, profileURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build profile request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := getOAuthClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("profile request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("profile failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var profileResp claudeProfileResponse
+	if err := json.Unmarshal(body, &profileResp); err != nil {
+		return nil, fmt.Errorf("decode profile response: %w", err)
+	}
+
+	profile := &ClaudeProfile{
+		AccountUUID:   profileResp.Account.UUID,
+		AccountName:   profileResp.Account.FullName,
+		AccountEmail:  profileResp.Account.Email,
+		HasClaudeMax:  profileResp.Account.HasClaudeMax,
+		HasClaudePro:  profileResp.Account.HasClaudePro,
+		OrgUUID:       profileResp.Organization.UUID,
+		OrgName:       profileResp.Organization.Name,
+		OrgType:       profileResp.Organization.OrganizationType,
+		BillingType:   profileResp.Organization.BillingType,
+		RateLimitTier: profileResp.Organization.RateLimitTier,
+		SeatTier:      profileResp.Organization.SeatTier,
+		SubStatus:     profileResp.Organization.SubscriptionStatus,
+		HasExtraUsage: profileResp.Organization.HasExtraUsageEnabled,
+		AppUUID:       profileResp.Application.UUID,
+		AppName:       profileResp.Application.Name,
+	}
+
+	// Fetch roles separately
+	rolesURL := "https://api.anthropic.com/api/oauth/claude_cli/roles"
+	req2, err := http.NewRequestWithContext(ctx, http.MethodGet, rolesURL, nil)
+	if err == nil {
+		req2.Header.Set("Authorization", "Bearer "+accessToken)
+		req2.Header.Set("Accept", "application/json")
+		resp2, err := getOAuthClient().Do(req2)
+		if err == nil {
+			defer resp2.Body.Close()
+			body2, _ := io.ReadAll(resp2.Body)
+			if resp2.StatusCode == http.StatusOK {
+				var rolesResp claudeRolesResponse
+				if json.Unmarshal(body2, &rolesResp) == nil {
+					profile.OrgRole = rolesResp.OrganizationRole
+					profile.WorkspaceUUID = rolesResp.WorkspaceUUID
+					profile.WorkspaceName = rolesResp.WorkspaceName
+					profile.WorkspaceRole = rolesResp.WorkspaceRole
+				}
+			}
+		}
+	}
+
+	slog.Info("claude profile fetched",
+		"email", profile.AccountEmail,
+		"org", profile.OrgName,
+		"tier", profile.RateLimitTier,
+		"role", profile.OrgRole,
+	)
+
+	return profile, nil
 }
