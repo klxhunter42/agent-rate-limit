@@ -138,12 +138,12 @@ func TestStripStrayUndefined_PreservesSingleInCode(t *testing.T) {
 func TestStripStrayUndefined_WithSpaces(t *testing.T) {
 	input := "result: undefined undefined value"
 	result := stripStrayUndefined(input)
-	assert.Equal(t, "result:value", result)
+	assert.Equal(t, "result: value", result)
 }
 
 func TestStripStrayUndefined_SurroundingWhitespaceConsumed(t *testing.T) {
 	input := "prefix undefined suffix"
 	result := stripStrayUndefined(input)
-	// Regex \s*undefined\s* consumes space before and after
-	assert.Equal(t, "prefixsuffix", result)
+	// Whitespace is preserved (no longer consumed).
+	assert.Equal(t, "prefix suffix", result)
 }

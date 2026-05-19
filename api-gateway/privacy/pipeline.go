@@ -1,6 +1,14 @@
 package privacy
 
+// Privacy masking with cache-aware behavior for Anthropic prompt caching:
+// - Mask cache: identical text spans produce identical masked output, preserving Anthropic prompt cache hits
+// - Placeholder mappings are stored per-request in MaskResult for unmasking (independent of cache TTL)
+// - Masking order: secrets first (innermost), then PII (outermost)
+// - Unmasking order: PII first (outermost), then secrets (innermost)
+// - GLM models may output "undefined" instead of placeholders; fallback handles this
+
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -26,7 +34,7 @@ type Config struct {
 }
 
 type MaskOptions struct {
-	SkipCachedBlocks bool // skip blocks with cache_control (preserves Anthropic prompt cache)
+	SkipSystemBlocks bool // skip all system prompt blocks (preserves Anthropic prompt cache)
 }
 
 type Pipeline struct {
@@ -34,6 +42,7 @@ type Pipeline struct {
 	secretDetector *secrets.SecretDetector
 	piiDetector    *pii.RegexDetector
 	metrics        *Metrics
+	cache          *MaskCache
 }
 
 type MaskResult struct {
@@ -62,7 +71,7 @@ func (r *MaskResult) PrivacyPrompt() string {
 }
 
 func NewPipeline(cfg *Config, m *Metrics) *Pipeline {
-	p := &Pipeline{cfg: cfg, metrics: m}
+	p := &Pipeline{cfg: cfg, metrics: m, cache: NewMaskCache()}
 
 	if cfg.SecretsEnabled {
 		if len(cfg.SecretEntities) > 0 {
@@ -105,11 +114,13 @@ func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskR
 
 	// Process spans in parallel - each span is independent.
 	type spanResult struct {
-		index        int
-		maskedText   string
-		changed      bool
-		totalSecrets int
-		totalPII     int
+		index                    int
+		maskedText               string
+		changed                  bool
+		totalSecrets             int
+		totalPII                 int
+		cachedSecretPlaceholders map[string]string // from cache hit, merge into secretsCtx
+		cachedPIIPlaceholders    map[string]string // from cache hit, merge into piiCtx
 	}
 
 	results := make([]spanResult, len(spans))
@@ -122,13 +133,39 @@ func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskR
 			text := sp.Text
 			sr := spanResult{index: idx, maskedText: text}
 
-			// Skip blocks with cache_control to preserve Anthropic prompt cache hits.
-			if opts.SkipCachedBlocks && sp.HasCacheControl {
+			// Skip system blocks first (before cache lookup) to avoid serving
+			// previously-cached masked system prompt that would defeat SkipSystemBlocks.
+			if opts.SkipSystemBlocks && sp.MessageIndex < 0 {
 				results[idx] = sr
 				return
 			}
 
+			// Cache lookup: reuse masked output for identical text to preserve Anthropic prompt cache.
+			if p.cache != nil {
+				if cached := p.cache.Lookup(text); cached.Hit {
+					sr.maskedText = cached.MaskedText
+					sr.changed = cached.Changed
+					sr.cachedSecretPlaceholders = cached.SecretPlaceholders
+					sr.cachedPIIPlaceholders = cached.PIIPlaceholders
+					results[idx] = sr
+					return
+				}
+			}
+
 			origText := text
+
+			// Snapshot pre-existing keys to capture only THIS span's new mappings.
+			var preSecretKeys, prePIIKeys map[string]struct{}
+			ctxMu.Lock()
+			preSecretKeys = make(map[string]struct{}, len(secretsCtx.Mapping))
+			for k := range secretsCtx.Mapping {
+				preSecretKeys[k] = struct{}{}
+			}
+			prePIIKeys = make(map[string]struct{}, len(piiCtx.Mapping))
+			for k := range piiCtx.Mapping {
+				prePIIKeys[k] = struct{}{}
+			}
+			ctxMu.Unlock()
 
 			if p.secretDetector != nil && text != "" {
 				start := time.Now()
@@ -180,10 +217,52 @@ func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskR
 
 			sr.maskedText = text
 			sr.changed = text != origText
+
+			// Store mask result in cache: only capture THIS span's new placeholder mappings.
+			if p.cache != nil && sr.changed {
+				var secretPH, piiPH map[string]string
+				ctxMu.Lock()
+				for k, v := range secretsCtx.Mapping {
+					if _, existed := preSecretKeys[k]; !existed {
+						if secretPH == nil {
+							secretPH = make(map[string]string)
+						}
+						secretPH[k] = v
+					}
+				}
+				for k, v := range piiCtx.Mapping {
+					if _, existed := prePIIKeys[k]; !existed {
+						if piiPH == nil {
+							piiPH = make(map[string]string)
+						}
+						piiPH[k] = v
+					}
+				}
+				ctxMu.Unlock()
+				p.cache.Store(sp.Text, sr.maskedText, secretPH, piiPH, true)
+			}
+
 			results[idx] = sr
 		}(i, span)
 	}
 	wg.Wait()
+
+	// Merge cached placeholders into per-request MaskContexts.
+	cachedSecretHits := 0
+	cachedPIIHits := 0
+	for _, sr := range results {
+		if sr.cachedSecretPlaceholders == nil && sr.cachedPIIPlaceholders == nil {
+			continue
+		}
+		if sr.cachedSecretPlaceholders != nil {
+			secretsCtx.MergeExternal(sr.cachedSecretPlaceholders)
+			cachedSecretHits++
+		}
+		if sr.cachedPIIPlaceholders != nil {
+			piiCtx.MergeExternal(sr.cachedPIIPlaceholders)
+			cachedPIIHits++
+		}
+	}
 
 	// Apply masked results back to payload.
 	totalSecrets := 0
@@ -196,12 +275,12 @@ func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskR
 		}
 	}
 
-	if totalSecrets == 0 && totalPII == 0 {
+	if totalSecrets+cachedSecretHits == 0 && totalPII+cachedPIIHits == 0 {
 		return nil, nil
 	}
 
-	result.HasSecrets = totalSecrets > 0
-	result.HasPII = totalPII > 0
+	result.HasSecrets = totalSecrets+cachedSecretHits > 0
+	result.HasPII = totalPII+cachedPIIHits > 0
 	result.SecretsCtx = secretsCtx
 	result.PIICtx = piiCtx
 
@@ -352,10 +431,11 @@ func replaceUndefinedNonStream(text string, result *MaskResult) string {
 		}
 	}
 
-	// Phase 3: Strip remaining bare "undefined" (budget exhausted).
+	// Phase 3: Strip remaining bare "undefined" (budget exhausted), preserving spacing.
 	for strings.Contains(text, "undefined") {
 		replaced := text
-		replaced = strings.Replace(replaced, "undefined ", " ", -1)
+		replaced = strings.Replace(replaced, " undefined ", " ", -1)
+		replaced = strings.Replace(replaced, "undefined ", "", -1)
 		replaced = strings.Replace(replaced, " undefined", "", -1)
 		replaced = strings.Replace(replaced, "undefined", "", -1)
 		if replaced == text {
@@ -475,6 +555,16 @@ func (p *Pipeline) HasPIIDetector() bool {
 	return p.piiDetector != nil
 }
 
+func (p *Pipeline) StartCacheCleanup(ctx context.Context) {
+	if p.cache != nil {
+		go p.cache.StartCleanup(ctx)
+	}
+}
+
+// DefaultConfig returns the full configuration with all supported entity types.
+// Runtime defaults (in NewPipeline) are more conservative: only EMAIL_ADDRESS and PHONE_NUMBER
+// are enabled by default to avoid false positives. The full list below is used when
+// explicit entity configuration is provided.
 func DefaultConfig() *Config {
 	return &Config{
 		Enabled:        true,

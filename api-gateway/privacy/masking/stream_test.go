@@ -144,7 +144,7 @@ func TestStripStrayUndefined(t *testing.T) {
 	})
 
 	t.Run("mixed undefined and content", func(t *testing.T) {
-		assert.Equal(t, "IP:172.18.0.9", stripStrayUndefined("IP: undefinedundefined172.18.0.9"))
+		assert.Equal(t, "IP: 172.18.0.9", stripStrayUndefined("IP: undefinedundefined172.18.0.9"))
 	})
 
 	t.Run("trailing undefined", func(t *testing.T) {

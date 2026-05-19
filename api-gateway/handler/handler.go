@@ -134,6 +134,7 @@ type Handler struct {
 	sidecarURL      string // empty = sidecar disabled
 	sessionManager  *proxy.ClaudeSessionManager
 	mcpProxy        *proxy.MCPProxy
+	accountSems     sync.Map // accountID -> chan struct{} (buffer=1)
 }
 
 // New creates a new Handler.
@@ -1113,7 +1114,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// Z.AI has no prompt caching, optimizer adds latency with ~0% token savings on glm models.
 	// For transparent OAuth: toolcomp+toolfilter run, system prompt optimization is skipped.
 	isZAIProvider := decision != nil && decision.ProviderID == "zai"
-	isClaudeCLIReq := isClaudeCLI(r.UserAgent())
 	if !hasImages && !isZAIProvider {
 		// Extract per-profile optimizer overrides
 		var optOverrides map[string]bool
@@ -1304,19 +1304,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Privacy masking: detect and mask secrets/PII before proxying
-		// Skip for Claude CLI - agentic tools handle their own content,
-		// and masking invalidates Anthropic cache_control markers causing 429.
-		if !isClaudeCLIReq && h.privacy != nil {
-			maskResult, _ = h.privacy.MaskRequest(body)
+		// Privacy masking: detect and mask secrets/PII before proxying.
+		// Cache-aware: identical text spans produce identical masked output.
+		if h.privacy != nil {
+			maskResult, _ = h.privacy.MaskRequestWithOptions(body, privacy.MaskOptions{SkipSystemBlocks: true})
 			if maskResult != nil {
 				body = maskResult.MaskedBody
-				// Inject privacy prompt so provider treats [[TYPE_N]] as real values.
-				// Must unmarshal masked body back into payload to preserve masked values.
+				// Append privacy instruction to END of system array (not beginning)
+				// to preserve Anthropic prompt cache on existing system blocks.
 				if pp := maskResult.PrivacyPrompt(); pp != "" {
 					var maskedPayload map[string]any
 					if err := json.Unmarshal(body, &maskedPayload); err == nil {
-						injectSystemPrompt(maskedPayload, pp)
+						appendPrivacyPrompt(maskedPayload, pp)
 						if updated, err := json.Marshal(maskedPayload); err == nil {
 							body = updated
 							payload = maskedPayload
@@ -1956,6 +1955,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				OnRateLimitError: rotateAccountFn,
 				Transparent:      transparent,
 			}
+			semKey := profileName
+			if semKey == "" {
+				semKey = apiKey
+			}
+			releaseSem := h.acquireAccountSem(semKey)
+			defer releaseSem()
 			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
 				slog.Error("proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
@@ -2263,6 +2268,29 @@ func injectSystemPrompt(payload map[string]any, prompt string) {
 		}
 	} else {
 		payload["system"] = prompt
+	}
+}
+
+// appendPrivacyPrompt appends the privacy instruction to the END of the system
+// array. This preserves Anthropic prompt cache on existing system blocks because
+// the cache prefix (blocks before cache_control markers) is unchanged.
+func appendPrivacyPrompt(payload map[string]any, prompt string) {
+	if prompt == "" {
+		return
+	}
+	block := map[string]any{"type": "text", "text": prompt}
+	if sys, ok := payload["system"]; ok {
+		switch v := sys.(type) {
+		case string:
+			payload["system"] = []any{
+				map[string]any{"type": "text", "text": v},
+				block,
+			}
+		case []any:
+			payload["system"] = append(v, block)
+		}
+	} else {
+		payload["system"] = []any{block}
 	}
 }
 
@@ -3328,4 +3356,11 @@ func (h *Handler) SetMITMConfig(w http.ResponseWriter, r *http.Request) {
 		"enabled":   proxy.GetMITM(),
 		"proxy_url": proxy.GetMITMProxyURL(),
 	})
+}
+
+func (h *Handler) acquireAccountSem(accountID string) func() {
+	v, _ := h.accountSems.LoadOrStore(accountID, make(chan struct{}, 1))
+	ch := v.(chan struct{})
+	ch <- struct{}{}
+	return func() { <-ch }
 }

@@ -276,12 +276,12 @@ func stripStrayUndefined(text string) string {
 	if !strings.Contains(text, "undefined") {
 		return text
 	}
-	// Word-boundary regex: matches "undefined" not adjacent to [a-zA-Z0-9_]
 	result := strayUndefinedRe.ReplaceAllString(text, "")
-	// Also handle concatenated model output like "undefinedundefinedVALUE"
-	for strings.Contains(result, "undefinedundefined") {
-		result = strings.ReplaceAll(result, "undefinedundefined", "")
+	// Clean up extra spaces left after removal.
+	for strings.Contains(result, "  ") {
+		result = strings.ReplaceAll(result, "  ", " ")
 	}
+	result = strings.TrimRight(result, " ")
 	return result
 }
 
@@ -300,11 +300,8 @@ func stripPartialUndefined(text string) string {
 	return text
 }
 
-// strayUndefinedRe matches "undefined" with optional surrounding whitespace.
-// Uses negative lookahead/behind to avoid stripping "undefined" inside legitimate
-// identifiers (e.g. "isUndefined", "typeof_undefined_var"). In Go regex (RE2),
-// we use word boundaries with a fallback for concatenated cases.
-var strayUndefinedRe = regexp.MustCompile(`\s*undefined\s*`)
+// strayUndefinedRe matches "undefined" anywhere in the string (including concatenated).
+var strayUndefinedRe = regexp.MustCompile(`undefined`)
 
 // garbledUndefinedRe matches any occurrence of "undefined" with optional whitespace.
 // GLM models emit this as garbled noise in both single and repeated form.

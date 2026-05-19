@@ -1323,8 +1323,9 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat, "skip_backoff", upstreamChanged)
 				}
 			}
-			// No fallback provider: pass 429 to client with Retry-After from stored data.
-			// Claude Code CLI has built-in retry and will handle the 429 properly.
+			// No fallback: pass 429 to client immediately.
+			// Claude CLI has built-in retry (attempt N/10) and handles backoff itself.
+			// Server-side retry causes 502 when client cancels during backoff sleep.
 			if !hasFallback {
 				if retryAfterOverride > 0 {
 					slog.Info("429 passthrough to client", "model", model, "retry_after", retryAfterOverride)
@@ -1335,7 +1336,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				w.Header().Set("X-Should-Retry", "true")
 				retrySeconds := int(retryAfterOverride.Seconds())
 				if retrySeconds <= 0 {
-					retrySeconds = 5
+					retrySeconds = 15
 				}
 				w.Header().Set("Retry-After", strconv.Itoa(retrySeconds))
 				w.WriteHeader(429)

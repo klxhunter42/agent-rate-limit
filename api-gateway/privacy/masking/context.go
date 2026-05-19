@@ -2,6 +2,7 @@ package masking
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -110,6 +111,24 @@ func indexOf(s, substr string) int {
 		}
 	}
 	return -1
+}
+
+func (ctx *MaskContext) MergeExternal(mapping map[string]string) {
+	for placeholder, original := range mapping {
+		if _, exists := ctx.Mapping[placeholder]; !exists {
+			ctx.Mapping[placeholder] = original
+			ctx.ReverseMap[original] = placeholder
+			// Update counter to prevent NextPlaceholder collision.
+			// Placeholder format: [[TYPE_N]] -> extract TYPE and N.
+			inner := strings.TrimPrefix(strings.TrimSuffix(placeholder, "]]"), "[[")
+			if idx := strings.LastIndex(inner, "_"); idx > 0 {
+				entityType := inner[:idx]
+				if n, err := strconv.Atoi(inner[idx+1:]); err == nil && n > ctx.Counters[entityType] {
+					ctx.Counters[entityType] = n
+				}
+			}
+		}
+	}
 }
 
 func sortByLenDesc(ss []string) {

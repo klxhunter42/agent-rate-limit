@@ -92,11 +92,13 @@ func (p *OpenAIProxy) ProxyOpenAI(
 	var lastErrBody []byte
 	var lastErrStatus int
 	transientAttempts := 0
+	truncationAttempts := 0
 	maxTransient := p.cfg.TransientRetryMax
 	if maxTransient <= 0 {
 		maxTransient = 2
 	}
 	maxAttempts := p.cfg.UpstreamMaxRetries + 1 + maxTransient
+	originalBody := body
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
@@ -154,7 +156,36 @@ func (p *OpenAIProxy) ProxyOpenAI(
 		resp.Body.Close()
 
 		action := ClassifyError(resp.StatusCode, errBody)
-		if action == ActionRetryTransient && transientAttempts < maxTransient {
+		switch action {
+		case ActionTruncateAndRetry:
+			if truncationAttempts >= 1 || !p.cfg.EnableAutoTruncate {
+				break
+			}
+			result := TruncateMessages(originalBody, model)
+			if result == nil {
+				break
+			}
+			truncationAttempts++
+			openaiReq, err = AnthropicToOpenAI(result.Body, model, p.metrics, toolMode)
+			if err != nil {
+				break
+			}
+			openaiBody, err = json.Marshal(openaiReq)
+			if err != nil {
+				break
+			}
+			p.metrics.IncContextTruncation(model)
+			slog.Info("auto-truncated conversation",
+				"model", model,
+				"dropped_messages", result.DroppedMsgs,
+				"orig_tokens", result.OrigTokens,
+				"new_tokens", result.NewTokens)
+			lastErrBody = nil
+			continue
+		case ActionRetryTransient:
+			if transientAttempts >= maxTransient {
+				break
+			}
 			transientAttempts++
 			p.metrics.IncTransientRetry(resp.StatusCode, model)
 			slog.Warn("openai upstream retry transient error",
@@ -518,9 +549,9 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 						}
 						remaining = masking.SanitizeGarbledOutput(remaining)
 						if remaining != "" {
-													escaped, _ := json.Marshal(remaining)
-						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
-						accumulatedText += remaining
+							escaped, _ := json.Marshal(remaining)
+							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+							accumulatedText += remaining
 
 						}
 					}
@@ -530,12 +561,12 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 					if remaining := unmasker.Flush(); remaining != "" {
 						remaining = masking.SanitizeGarbledOutput(remaining)
 						if remaining != "" {
-													escaped, _ := json.Marshal(remaining)
-						if toolBlockOpen {
-							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
-						} else {
-							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
-						}
+							escaped, _ := json.Marshal(remaining)
+							if toolBlockOpen {
+								fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+							} else {
+								fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+							}
 
 						}
 					}
@@ -610,12 +641,12 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 								if remaining := unmasker.Flush(); remaining != "" {
 									remaining = masking.SanitizeGarbledOutput(remaining)
 									if remaining != "" {
-																			escaped, _ := json.Marshal(remaining)
-									if toolBlockOpen {
-										fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
-									} else {
-										fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
-									}
+										escaped, _ := json.Marshal(remaining)
+										if toolBlockOpen {
+											fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+										} else {
+											fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+										}
 
 									}
 								}
@@ -627,9 +658,9 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 						}
 						// Start new tool_use content block
 						// JSON-escape id and name to prevent injection via special characters.
-							safeID, _ := json.Marshal(id)
-							safeName, _ := json.Marshal(name)
-							fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":%d,\"content_block\":{\"type\":\"tool_use\",\"id\":%s,\"name\":%s,\"input\":{}}}\n\n", contentBlockIdx, string(safeID), string(safeName))
+						safeID, _ := json.Marshal(id)
+						safeName, _ := json.Marshal(name)
+						fmt.Fprintf(w, "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":%d,\"content_block\":{\"type\":\"tool_use\",\"id\":%s,\"name\":%s,\"input\":{}}}\n\n", contentBlockIdx, string(safeID), string(safeName))
 						toolBlockOpen = true
 						if !ttfbRecorded {
 							p.metrics.RecordTTFB(model, time.Since(streamStart))
@@ -708,9 +739,9 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 				}
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
-				accumulatedText += remaining
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+					accumulatedText += remaining
 
 				}
 			}
@@ -719,12 +750,12 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 			if remaining := unmasker.Flush(); remaining != "" {
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				if toolBlockOpen {
-					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
-				} else {
-					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
-				}
+					escaped, _ := json.Marshal(remaining)
+					if toolBlockOpen {
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
+					} else {
+						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", contentBlockIdx, string(escaped))
+					}
 
 				}
 			}
@@ -746,8 +777,8 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 			if remaining := unmasker.Flush(); remaining != "" {
 				remaining = masking.SanitizeGarbledOutput(remaining)
 				if remaining != "" {
-									escaped, _ := json.Marshal(remaining)
-				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+					escaped, _ := json.Marshal(remaining)
+					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
 
 				}
 			}

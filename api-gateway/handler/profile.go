@@ -30,6 +30,7 @@ type ProfileTarget struct {
 	BaseURL         string   `json:"baseUrl,omitempty"`
 	APIKey          string   `json:"apiKey,omitempty"`
 	AccountIDs      []string `json:"accountIds,omitempty"`
+	AccountEmails   []string `json:"accountEmails,omitempty"` // emails for each account ID
 	PassthroughAuth bool     `json:"passthroughAuth,omitempty"`
 }
 
@@ -44,6 +45,7 @@ type Profile struct {
 	Target             string          `json:"target"`
 	Provider           string          `json:"provider,omitempty"`
 	AccountIDs         []string        `json:"accountIds"`
+	AccountEmails      []string        `json:"accountEmails,omitempty"` // emails for each account ID
 	Targets            []ProfileTarget `json:"targets,omitempty"`
 	PassthroughAuth    bool            `json:"passthroughAuth,omitempty"`
 	OptimizerOverrides map[string]bool `json:"optimizerOverrides,omitempty"`
@@ -275,6 +277,7 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal([]byte(val), &p); err != nil {
 			continue
 		}
+		enrichProfileWithEmails(ctx, h.redis, &p)
 		profiles = append(profiles, p)
 	}
 
@@ -320,6 +323,101 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, p)
 }
 
+// enrichProfileWithEmails fetches emails from token store for account IDs.
+func enrichProfileWithEmails(ctx context.Context, rdb *redis.Client, p *Profile) {
+	slog.Info("enrichProfileWithEmails called", "profile", p.Name, "provider", p.Provider, "account_ids_count", len(p.AccountIDs), "account_ids", p.AccountIDs)
+	if len(p.AccountIDs) == 0 {
+		slog.Debug("no account IDs to enrich", "profile", p.Name, "provider", p.Provider)
+		return
+	}
+	slog.Info("enriching profile with emails", "profile", p.Name, "provider", p.Provider, "account_ids", p.AccountIDs)
+	emails := make([]string, 0, len(p.AccountIDs))
+	for _, accountID := range p.AccountIDs {
+		tokenKey := "arl:tokens:" + p.Provider + ":" + accountID
+		slog.Debug("fetching token", "key", tokenKey)
+		data, err := rdb.Get(ctx, tokenKey).Result()
+		if err != nil {
+			slog.Warn("token lookup failed", "key", tokenKey, "error", err)
+			emails = append(emails, "")
+			continue
+		}
+		var tokenInfo struct {
+				Email         string           `json:"email"`
+				ClaudeProfile *map[string]any  `json:"claude_profile,omitempty"`
+				AccountEmail  string           `json:"account_email,omitempty"`
+			}
+			if err := json.Unmarshal([]byte(data), &tokenInfo); err == nil {
+				email := ""
+				if tokenInfo.Email != "" {
+					email = tokenInfo.Email
+				} else if tokenInfo.AccountEmail != "" {
+					email = tokenInfo.AccountEmail
+				} else if tokenInfo.ClaudeProfile != nil {
+					if ae, ok := (*tokenInfo.ClaudeProfile)["account_email"].(string); ok && ae != "" {
+						email = ae
+					}
+				}
+				if email != "" {
+					emails = append(emails, email)
+					slog.Debug("found email", "account_id", accountID, "email", email)
+				} else {
+					emails = append(emails, "")
+				}
+			} else {
+				emails = append(emails, "")
+			}
+	}
+	p.AccountEmails = emails
+	slog.Info("enriched profile emails", "profile", p.Name, "emails", emails)
+
+	// Also enrich targets with emails
+	for i := range p.Targets {
+		t := &p.Targets[i]
+		if len(t.AccountIDs) == 0 {
+			continue
+		}
+		slog.Info("enriching target with emails", "target", t.Target, "account_ids", t.AccountIDs)
+		emails := make([]string, 0, len(t.AccountIDs))
+		for _, accountID := range t.AccountIDs {
+			tokenKey := "arl:tokens:" + t.Target + ":" + accountID
+			slog.Debug("fetching target token", "key", tokenKey)
+			data, err := rdb.Get(ctx, tokenKey).Result()
+			if err != nil {
+				slog.Warn("target token lookup failed", "key", tokenKey, "error", err)
+				emails = append(emails, "")
+				continue
+			}
+			var tokenInfo struct {
+				Email         string           `json:"email"`
+				ClaudeProfile *map[string]any  `json:"claude_profile,omitempty"`
+				AccountEmail  string           `json:"account_email,omitempty"`
+			}
+			if err := json.Unmarshal([]byte(data), &tokenInfo); err == nil {
+				email := ""
+				if tokenInfo.Email != "" {
+					email = tokenInfo.Email
+				} else if tokenInfo.AccountEmail != "" {
+					email = tokenInfo.AccountEmail
+				} else if tokenInfo.ClaudeProfile != nil {
+					if ae, ok := (*tokenInfo.ClaudeProfile)["account_email"].(string); ok && ae != "" {
+						email = ae
+					}
+				}
+				if email != "" {
+					emails = append(emails, email)
+					slog.Debug("found target email", "account_id", accountID, "email", email)
+				} else {
+					emails = append(emails, "")
+				}
+			} else {
+				emails = append(emails, "")
+			}
+		}
+		t.AccountEmails = emails
+		slog.Info("enriched target emails", "target", t.Target, "emails", emails)
+	}
+}
+
 // Get returns a single profile by name.
 func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
@@ -340,6 +438,8 @@ func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get profile"})
 		return
 	}
+
+	enrichProfileWithEmails(ctx, h.redis, p)
 
 	writeJSON(w, http.StatusOK, p)
 }

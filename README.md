@@ -189,7 +189,7 @@ git clone <repo-url> && cd agent-rate-limit
 # 2. Configure
 cp .env.example .env
 # Edit .env -- set at minimum one provider key:
-#   GLM_API_KEYS=your-zai-key
+#   ZAI_API_KEYS=your-zai-key
 #   or ANTHROPIC_API_KEYS=sk-ant-xxx
 #   or OPENAI_API_KEYS=sk-xxx
 

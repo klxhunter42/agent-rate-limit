@@ -191,6 +191,7 @@ func main() {
 	// Background optimizer goroutines.
 	bgCtx, cancelBg := context.WithCancel(context.Background())
 	defer cancelBg()
+	privacyPipeline.StartCacheCleanup(bgCtx)
 
 	// Wire usage recording: every metrics.RecordTokens call also persists to Redis + optimizer feedback.
 	m.SetUsageRecorder(func(ctx context.Context, model string, input, output int, cost float64) {
