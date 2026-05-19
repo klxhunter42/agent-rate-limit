@@ -50,13 +50,12 @@
 
 | Service              | Technology                           | Port                 | Purpose                                              |
 |----------------------|--------------------------------------|----------------------|------------------------------------------------------|
-| **arl-gateway**      | Go (chi router)                      | 8080 (internal)      | HTTP proxy, rate limit check, queue, OAuth, profiles |
+| **arl-gateway**      | Go (chi router)                      | 8080 (internal)      | HTTP proxy, rate limit check, queue, OAuth, profiles, embedded dashboard SPA |
 | **arl-proxy**        | Caddy                                | 9000 (external)      | Reverse proxy to gateway + dashboard                 |
 | **arl-rate-limiter** | Java / Spring Boot                   | 8080 (internal)      | Token bucket rate limiting, admin API                |
 | **arl-dragonfly**    | DragonflyDB v1.37 (Redis-compatible) | 6379 (internal)      | Cache, queue, rate limit state, token storage        |
 | **arl-worker**       | Python (asyncio + httpx)             | 9090/9091 (internal) | AI job processing, provider fallback                 |
-| **arl-rl-dashboard** | React + Vite + nginx                 | internal             | Rate limiter web management UI                       |
-| **arl-dashboard**    | React + Vite + Bun                   | 5173 (internal)      | Gateway dashboard SPA (embedded in Go binary)        |
+| **arl-rl-dashboard** | React + Vite + nginx                 | internal             | Rate limiter web management UI (optional, behind profiles gate)  |
 | **arl-prometheus**   | Prometheus v2.54                     | 9090 (internal)      | Metrics collection                                   |
 | **arl-grafana**      | Grafana 11.3                         | internal             | Dashboard & visualization                            |
 | **arl-otel**         | OTel Collector Contrib 0.112         | 4317/4318 (internal) | Trace & metric pipeline                              |
@@ -246,8 +245,6 @@ arl-proxy           Up (healthy)
 arl-rate-limiter    Up (healthy)
 arl-dragonfly       Up (healthy)
 arl-worker          Up (healthy)
-arl-dashboard       Up (healthy)
-arl-rl-dashboard    Up
 arl-prometheus      Up
 arl-grafana         Up
 arl-otel            Up
@@ -266,7 +263,7 @@ cp .env.example .env
 | Variable                       | Default                                                 | Description                                           |
 |--------------------------------|---------------------------------------------------------|-------------------------------------------------------|
 | `SERVER_PORT`                  | `:8080`                                                 | Gateway listen address                                |
-| `REDIS_ADDR`                   | `dragonfly:6379`                                        | Dragonfly/Redis address                               |
+| `REDIS_ADDR`                   | `arl-dragonfly:6379`                                   | Dragonfly/Redis address (docker-compose overrides Go default) |
 | `RATE_LIMITER_ADDR`            | `http://rate-limiter:8080`                              | Rate limiter service URL                              |
 | `QUEUE_NAME`                   | `ai_jobs`                                               | Redis queue name for async jobs                       |
 | `GLOBAL_RATE_LIMIT`            | `100`                                                   | Global rate limit (req/min)                           |

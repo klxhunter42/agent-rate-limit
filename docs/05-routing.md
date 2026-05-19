@@ -112,6 +112,8 @@ When a profile has a `target` but the request model doesn't belong to that provi
 | `copilot`         | `gpt-4o`                    |
 | `openrouter`      | `or-openai/gpt-4o`          |
 | `qwen`            | `qwen-plus`                 |
+| `kimi`            | `moonshot-v1-8k`            |
+| `huggingface`     | (model from request)        |
 
 Some providers also override the model name and clamp `max_tokens`:
 

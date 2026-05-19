@@ -285,3 +285,176 @@ glm-5.1 request -> Resolve() -> matched "glm-" rule -> zai token
 unknown-model request -> Resolve() -> no rule matched -> GLM fallback -> zai decision
   -> handler: content blocks pass through as-is
 ```
+
+---
+
+## 4. Cache-Aware Privacy Masking
+
+### Problem: Privacy prompt injection breaks Anthropic prompt cache -> 429
+
+When user content contains secrets (e.g. `client_secret=abcdefghijklmnopqrstuvwxyz123456`), the privacy pipeline masks them to `[[ENV_SECRET_1]]` before sending to Anthropic. A privacy instruction prompt was injected into the **beginning** of the system prompt so Claude preserves `[[TYPE_N]]` placeholders in its response.
+
+This caused Anthropic's prompt cache to miss on every request:
+
+```
+BEFORE (broken):
+
+Request 1:
+  system = [PRIVACY_PROMPT, sys_block(cache_control)]
+                     ^--- PREPENDED --- shifts everything down
+  Anthropic sees: "PRIVACY_PROMPT\n\n<sys_block>" -> cache CREATE
+
+Request 2:
+  system = [PRIVACY_PROMPT, sys_block(cache_control)]
+  Anthropic cache hit? YES (same prefix) ...BUT only if masking active
+
+Request 3 (no secrets in user message):
+  system = [sys_block(cache_control)]     <-- no privacy prompt
+  Anthropic cache hit? NO (different prefix from request 1 & 2)
+  cache_read_input_tokens = 0 -> full token billing -> 429
+```
+
+The root cause: `injectSystemPrompt` **prepends** the privacy prompt to the system array. This shifts the cache prefix, so:
+
+1. Requests WITH secrets: system = `[privacy, sys(cache)]`
+2. Requests WITHOUT secrets: system = `[sys(cache)]`
+3. Different prefix every time -> Anthropic cache never stabilizes
+4. Full token billing on every request -> rate limit exhaustion -> **429**
+
+### Fix: Append privacy prompt to END of system array
+
+```
+AFTER (fixed):
+
+Request 1 (has secrets):
+  system = [sys_block(cache_control), PRIVACY_PROMPT]
+                                            ^--- APPENDED at end
+  Anthropic caches: sys_block (prefix with cache_control)
+  cache_create = 50K tokens (sys_block), privacy_prompt = uncached ~170 tokens
+
+Request 2 (has secrets):
+  system = [sys_block(cache_control), PRIVACY_PROMPT]
+  Anthropic cache hit: sys_block (identical prefix)
+  cache_read = 50K tokens -> only ~170 new tokens billed
+
+Request 3 (no secrets):
+  system = [sys_block(cache_control)]
+  Anthropic cache hit: sys_block (identical prefix)
+  cache_read = 50K tokens -> no privacy prompt overhead
+```
+
+Key insight: Anthropic's prompt cache is **prefix-based**. Blocks with `cache_control: {"type": "ephemeral"}` are cached. Adding blocks AFTER the cached prefix does not invalidate it.
+
+### Request Flow Diagram
+
+```
+                    BEFORE (prepend)                           AFTER (append)
+                ========================                 ========================
+
+User: "secret=abc123"                     User: "secret=abc123"
+  |                                         |
+  v                                         v
+Mask: "secret=[[ENV_SECRET_1]]"           Mask: "secret=[[ENV_SECRET_1]]"
+  |                                         |
+  v                                         v
++---------------------------+             +---------------------------+
+| injectSystemPrompt()      |             | appendPrivacyPrompt()     |
+|                           |             |                           |
+| system[0] = PRIVACY_PROMPT|             | system[0] = sys_block     |
+| system[1] = sys_block     |             |   (cache_control)         |
+|   (cache_control)         |             | system[1] = PRIVACY_PROMPT|
+|                           |             |                           |
+| Prefix CHANGED!           |             | Prefix UNCHANGED!         |
+| Cache MISS                |             | Cache HIT                 |
++---------------------------+             +---------------------------+
+  |                                         |
+  v                                         v
+Anthropic receives:                       Anthropic receives:
+  [privacy, sys(cache)]                     [sys(cache), privacy]
+  cache_read = 0                            cache_read = 50000+
+  Full token billing                        Minimal billing
+  -> 429 after a few requests               -> No 429
+```
+
+### Multi-turn Conversation Cache Behavior
+
+```
+Turn 1: user sends "my password=meow123"
+  maskResult != nil (has ENV_SECRET)
+  system = [sys(cache), privacy_prompt]
+  -> cache CREATE for sys block
+
+Turn 2: user sends "how do I change it?"
+  maskResult == nil (no secrets)
+  system = [sys(cache)]
+  -> cache READ for sys block (identical prefix)
+
+Turn 3: user sends "the password is hunter2 now"
+  maskResult != nil (has ENV_SECRET)
+  system = [sys(cache), privacy_prompt]
+  -> cache READ for sys block (identical prefix)
+
+Result: All 3 turns hit cache for the system block prefix.
+The privacy_prompt block (170 tokens) is only billed when present.
+```
+
+### Token Cost Analysis
+
+| Scenario | Input tokens | Cache savings | Cost impact |
+|----------|-------------|---------------|-------------|
+| Before (prepend, cache miss) | ~50,000 | 0% | Full price every request |
+| After (append, cache hit) | ~170 (privacy only) | ~99.7% | ~$0.0005/request |
+| No secrets (no privacy) | 0 | 100% | Zero overhead |
+
+### Files Changed
+
+| File | Change | Purpose |
+|------|--------|---------|
+| `handler/handler.go:1313-1324` | Replace `injectSystemPrompt` with `appendPrivacyPrompt` | Append privacy prompt to END of system array |
+| `handler/handler.go:2274-2295` | New `appendPrivacyPrompt()` function | APPEND instead of PREPEND to preserve cache prefix |
+| `privacy/pipeline.go:130-153` | Cache lookup/store in span goroutine | Identical text produces identical masked output (mask cache) |
+| `privacy/pipeline.go:136-141` | `SkipSystemBlocks` check before cache lookup | Never mask system blocks for Claude requests |
+| `privacy/maskcache.go` | New `MaskCache` with SHA-256 key, 5min TTL | Local mask cache for dedup |
+| `privacy/masking/context.go:116-132` | `MergeExternal()` with counter update | Inject cached placeholders into per-request context |
+
+### Mask Cache (Local, In-Memory)
+
+In addition to the Anthropic prompt cache fix, a local mask cache avoids re-masking identical text spans:
+
+```
+Span text: "client_secret=abcdefghijklmnopqrstuvwxyz123456"
+  |
+  v
+Cache lookup (SHA-256 of span text, 5min TTL)
+  |
+  +-- HIT: return cached masked text + inject placeholders into MaskContext
+  |
+  +-- MISS: run detection + masking -> store result in cache
+```
+
+The mask cache ensures identical text produces identical masked output, which helps Anthropic's cache even when the same secret appears in different requests.
+
+### Verification
+
+```bash
+# Test: 5 rapid requests with large system prompt + secret in user message
+# Expected: cache_read > 0 on requests 2-5, no 429s
+
+Conv 1: input=201 cache_read=0    cache_create=1616   # First request creates cache
+Conv 2: input=3   cache_read=1616 cache_create=198    # Cache HIT!
+Conv 3: input=3   cache_read=1616 cache_create=198    # Cache HIT!
+Conv 4: input=3   cache_read=1616 cache_create=198    # Cache HIT!
+Conv 5: input=3   cache_read=1616 cache_create=198    # Cache HIT!
+```
+
+### Deployment
+
+Only `arl-gateway` needs restart. The change is in the Go binary only:
+- No database changes
+- No Redis/Dragonfly changes (tokens unaffected)
+- No config changes
+
+```bash
+DOCKER_DEFAULT_PLATFORM="" docker-compose build arl-gateway
+docker-compose up -d arl-gateway
+```

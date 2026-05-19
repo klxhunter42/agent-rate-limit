@@ -53,6 +53,12 @@ type Optimizers struct {
     Cache       *cache.EvictionManager
     WarmStart   *warmstart.WarmStart
     Caveman     *caveman.CavemanPipeline
+    TextComp    *textcomp.TextComp
+    ToolComp    *toolcomp.ToolComp
+    ToolFilter  *toolfilter.ToolFilter
+    DescTrim    *desctrim.DescTrim
+    CompCache   *compcache.CompCache
+    Pordee      *pordee.Pordee
 }
 ```
 
@@ -679,8 +685,8 @@ Mask Flow:
 
 Unmask Flow (non-streaming):
   UnmaskResponse(body, maskResult)
-    -> SecretsCtx.RestorePlaceholdersJSON(text)  -- secrets first (inner)
-    -> PIICtx.RestorePlaceholdersJSON(text)       -- PII second (outer)
+    -> PIICtx.RestorePlaceholdersJSON(text)       -- PII first (outermost)
+    -> SecretsCtx.RestorePlaceholdersJSON(text)    -- secrets second (innermost)
 
 Unmask Flow (streaming):
   NewStreamUnmasker(result)
@@ -700,9 +706,10 @@ File: `api-gateway/privacy/config.go`
 | PASTEGUARD_SECRET_ENTITIES | (all types)                                                                            | Comma-separated entity types to detect |
 | PASTEGUARD_PII_ENABLED     | true                                                                                   | Enable PII detection                   |
 | PASTEGUARD_PII_ENTITIES    | EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE | Comma-separated PII types              |
+| PASTEGUARD_PII_ENTITIES    | EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE | Comma-separated PII types              |
 
 **Default Config** (when env vars not set):
-- Secret entities: `OPENSSH_PRIVATE_KEY,PEM_PRIVATE_KEY,API_KEY_SK,API_KEY_AWS,API_KEY_GITHUB,JWT_TOKEN,BEARER_TOKEN`
+- Secret entities: 26 types (see full list in section 5.4 below)
 - PII entities: `EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,SSN,IBAN,IP_ADDRESS,THAI_NATIONAL_ID,THAI_PHONE`
 - When `PIIEntities` is empty in code (but non-default): defaults to `EMAIL_ADDRESS,PHONE_NUMBER`
 
@@ -754,8 +761,26 @@ File: `api-gateway/privacy/secrets/detect.go`, `secrets/patterns.go`
 | BEARER_TOKEN | `(?i)Bearer\s+[a-zA-Z0-9._-]{40,}` | Bearer auth headers |
 | ENV_PASSWORD | `(?i)[A-Za-z_][A-Za-z0-9_]*(PASSWORD|_PWD)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Password env vars |
 | ENV_SECRET | `(?i)[A-Za-z_][A-Za-z0-9_]*_SECRET\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Secret env vars |
+| ENV_USER | `(?i)[A-Za-z_][A-Za-z0-9_]*_USER\s*[=:]\s*['"]?[^\s'"]{3,}['"]?` | User env vars |
 | CONNECTION_STRING | `(?i)(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?):\/\/[^:]+:[^@\s]+@[^\s'"]+` | DB connection strings |
-| THAI_NATIONAL_ID | `\b[1-8]\d{12}\b` | 13-digit Thai ID |
+| API_KEY_GCP | `(?i)AIza[0-9A-Za-z_-]{35}` | Google Cloud API keys |
+| API_KEY_TENCENT | `(?i)AKID[a-zA-Z0-9]{32,}` | Tencent Cloud SecretId |
+| API_KEY_ALIBABA | `(?i)LTAI[a-zA-Z0-9]{16,}` | Alibaba Cloud AccessKey |
+| API_KEY_SLACK | `xox[baprs]-[a-zA-Z0-9-]{10,}` | Slack tokens |
+| API_KEY_STRIPE | `(?i)(?:sk|pk)_(?:test|live)_[a-zA-Z0-9]{24,}` | Stripe API keys |
+| API_KEY_SENDGRID | `SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}` | SendGrid API keys |
+| ENV_TOKEN | `(?i)[A-Za-z_][A-Za-z0-9_]*_TOKEN\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Token env vars |
+| ENV_CREDENTIAL | `(?i)[A-Za-z_][A-Za-z0-9_]*_CREDENTIAL\b` | Credential env var names |
+| BASIC_AUTH_URL | `(?i)https?://[^:\s]+:[^@\s]+@[^\s]+` | URLs with embedded credentials |
+| CLI_AUTH | `(?i)(?:--token|--api-key|--secret)\s+[^\s]{8,}` | CLI auth arguments |
+| CURL_BASIC_AUTH | `(?i)curl\b.*-[u|U]\s+[^\s]+:[^\s]+` | curl with basic auth |
+| VAULT_TOKEN | `(?i)(?:hvs\.[a-zA-Z0-9]{24}|s\.[a-zA-Z0-9]{24})` | HashiCorp Vault tokens |
+| AZURE_CREDENTIAL | `(?i)[a-zA-Z0-9+/]{40,}\.[a-zA-Z0-9+/]{40,}` | Azure credential strings |
+| WEBHOOK_URL | `(?i)(?:webhook|hook)[_-]?(?:secret|token|url|key)\s*[=:]\s*['"]?[^\s'"]{8,}['"]?` | Webhook secrets |
+
+> Note: THAI_NATIONAL_ID is listed under PII entities (section 5.5), not secrets.
+
+**DefaultConfig() enables all 26 secret entity types listed above.**
 
 **Detection Process**:
 1. Truncate text to `maxScanChars` if configured
@@ -766,7 +791,7 @@ File: `api-gateway/privacy/secrets/detect.go`, `secrets/patterns.go`
 
 **DefaultDetector** (fallback when SecretEntities is empty) enables: OpenSSHKey, PEMKey, APIKeySK, APIKeyAWS, APIKeyGitHub, APIKeyGitLab, JWTToken, BearerToken, ThaiID.
 
-**Note:** The normal code path uses `DefaultConfig().SecretEntities` (7 types, no GitLab or ThaiID) since `DefaultConfig()` always provides a non-empty list. `DefaultDetector()` is only reached if `SecretEntities` is explicitly set to empty.
+**Note:** The normal code path uses `DefaultConfig().SecretEntities` (26 types) since `DefaultConfig()` always provides a non-empty list. `DefaultDetector()` is only reached if `SecretEntities` is explicitly set to empty.
 
 ### 5.5 PII Detection
 
@@ -898,11 +923,19 @@ type StreamUnmasker struct {
 
 ### 5.10 Unmask Order
 
-For both streaming and non-streaming:
+The unmask order differs between non-streaming and streaming:
+
+**Non-streaming** (UnmaskResponse):
+1. **PII first** (outermost layer)
+2. **Secrets second** (innermost layer)
+
+This reverses the mask order: secrets are detected and masked first (innermost), then PII is applied on top (outermost). Unmask must reverse: PII first, then secrets.
+
+**Streaming** (ProcessChunk):
 1. **Secrets first** (innermost layer)
 2. **PII second** (outermost layer)
 
-This matches the mask order: secrets are detected and masked first, then PII is applied on top of the already-masked text.
+Streaming uses the same order as masking because both contexts are applied independently per-chunk via `processStreamChunk`.
 
 ### 5.11 Apply Masked Results to Payload
 
@@ -951,14 +984,14 @@ File: `api-gateway/metrics/metrics.go`
 
 | Metric                                     | Type      | Labels      | Description                    |
 |--------------------------------------------|-----------|-------------|--------------------------------|
-| `api_gateway_optimizer_chars_saved_total`  | Counter   | `technique` | Characters saved by technique  |
+| `api_gateway_optimizer_chars_saved_total`  | Counter   | `technique`, `direction` | Characters saved by technique  |
 | `api_gateway_optimizer_runs_total`         | Counter   | `technique` | Optimization runs by technique |
 | `api_gateway_optimizer_duration_seconds`   | Histogram | `technique` | Execution time by technique    |
-| `api_gateway_optimizer_tokens_saved_total` | Counter   | -           | Total estimated tokens saved   |
+| `api_gateway_optimizer_tokens_saved_total` | Counter   | `direction` | Total estimated tokens saved   |
 | `api_gateway_budget_level`                 | Gauge     | `model`     | Current budget level (0/1/2)   |
 | `api_gateway_cost_savings_total`           | Counter   | -           | Estimated cost savings in USD  |
 
-**Technique labels**: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `intent_filter`, `caveman`, `message_text`, `message_block_text`, `message_block_tool_result`
+**Technique labels**: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `textcomp`, `caveman`, `pordee`, `toolcomp`, `toolfilter`, `desctrim`, `message_text`, `message_block_text`, `message_block_tool_result`
 
 ### 6.3 Per-Component Metrics
 

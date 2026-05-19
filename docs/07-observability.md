@@ -71,16 +71,22 @@ Namespace: `api_gateway`
 
 ### Optimizer Metrics
 
-| Metric                                     | Type      | Labels      | Description                                                                           |
-|--------------------------------------------|-----------|-------------|---------------------------------------------------------------------------------------|
-| `api_gateway_optimizer_runs_total`         | Counter   | `technique` | Optimization runs per technique                                                       |
-| `api_gateway_optimizer_chars_saved_total`  | Counter   | `technique` | Characters saved per technique                                                        |
-| `api_gateway_optimizer_duration_seconds`   | Histogram | `technique` | Optimizer execution time. Buckets: 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1 |
-| `api_gateway_optimizer_tokens_saved_total` | Counter   | -           | Estimated total tokens saved                                                          |
-| `api_gateway_cost_savings_total`           | Counter   | -           | Estimated cost savings from optimization (USD)                                        |
-| `api_gateway_budget_level`                 | Gauge     | `model`     | Budget utilization level (0=green, 1=yellow, 2=red)                                   |
+| Metric                                     | Type      | Labels                   | Description                                                                           |
+|--------------------------------------------|-----------|--------------------------|---------------------------------------------------------------------------------------|
+| `api_gateway_optimizer_runs_total`         | Counter   | `technique`              | Optimization runs per technique                                                       |
+| `api_gateway_optimizer_chars_saved_total`  | Counter   | `technique`, `direction` | Characters saved per technique. Direction: `input`, `output`                         |
+| `api_gateway_optimizer_duration_seconds`   | Histogram | `technique`              | Optimizer execution time. Buckets: 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1 |
+| `api_gateway_optimizer_tokens_saved_total` | Counter   | `direction`              | Estimated total tokens saved. Direction: `input`, `output`                            |
+| `api_gateway_cost_savings_total`           | Counter   | -                        | Estimated cost savings from optimization (USD)                                        |
+| `api_gateway_budget_level`                 | Gauge     | `model`                  | Budget utilization level (0=green, 1=yellow, 2=red)                                   |
 
-Technique labels: `chunker`, `delta`, `sketch_dedup`, `semantic_dedup`, `disclosure`, `packer`, `bandit`, `prefetcher`, `summarizer`, `warmstart`, `caveman`, `filter`, `cache`, `waste`, `message_text`, `message_block_text`, `message_block_tool_result`
+Technique labels: `semantic_dedup`, `chunker`, `delta`, `sketch_dedup`, `summarizer`, `textcomp`, `caveman`, `pordee`, `toolcomp`, `toolfilter`, `desctrim`, `message_text`, `message_block_text`, `message_block_tool_result`
+
+### Profile Optimizer Metrics
+
+| Metric                                          | Type    | Labels                    | Description                          |
+|-------------------------------------------------|---------|---------------------------|--------------------------------------|
+| `api_gateway_profile_optimizer_chars_saved_total` | Counter | `profile`, `technique`  | Per-profile optimizer chars saved    |
 
 ### Waste Detection Metrics
 
@@ -89,7 +95,7 @@ Technique labels: `chunker`, `delta`, `sketch_dedup`, `semantic_dedup`, `disclos
 | `api_gateway_waste_findings_total`      | Counter | `detector`, `severity` | Waste findings detected     |
 | `api_gateway_waste_tokens_wasted_total` | Counter | `detector`             | Tokens identified as wasted |
 
-Detector values: `repetition`, `padding`, `off_topic`, `redundancy`. Severity values: `low`, `medium`, `high`.
+Detector values: `empty_response`, `retry_churn`, `loop_detection`, `oversized_context`, `budget_exceeded`, `redundant_tool_call`, `low_value_response`. Severity values: `low`, `medium`, `high`.
 
 ### Billing Path Metrics
 
@@ -105,11 +111,55 @@ Detector values: `repetition`, `padding`, `off_topic`, `redundancy`. Severity va
 | `api_gateway_context_truncation_total` | Counter | `model`           | Auto-truncation recovery attempts                |
 | `api_gateway_transient_retry_total`    | Counter | `status`, `model` | Transient error retries by status code and model |
 
-### Anomaly Detection Metrics
+### Claude OAuth Metrics
 
-| Metric                      | Type    | Labels             | Description                                                                                                                 |
-|-----------------------------|---------|--------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `api_gateway_anomaly_total` | Counter | `type`, `severity` | Detected anomalies. Type: `spike`, `drop`, `sustained_high`, `sustained_low`. Severity: `low`, `medium`, `high`, `critical` |
+| Metric                                        | Type    | Labels                          | Description                                        |
+|-----------------------------------------------|---------|---------------------------------|----------------------------------------------------|
+| `api_gateway_claude_profile_fetches_total`    | Counter | `status`                        | Claude profile fetch attempts                      |
+| `api_gateway_claude_profile_errors_total`     | Counter | `error_type`                    | Claude profile fetch errors                        |
+| `api_gateway_claude_org_tier`                 | Gauge   | `org_uuid`, `tier`              | Claude organization tier                           |
+| `api_gateway_claude_subscription_status`      | Gauge   | `org_uuid`, `status`            | Claude subscription status                         |
+| `api_gateway_claude_role_count`               | Gauge   | `org_uuid`, `role`              | Seat role counts                                   |
+
+### Account Metrics
+
+| Metric                                        | Type    | Labels                          | Description                                        |
+|-----------------------------------------------|---------|---------------------------------|----------------------------------------------------|
+| `api_gateway_account_token_input_total`       | Counter | `account_id`, `model`           | Input tokens per account                           |
+| `api_gateway_account_token_output_total`      | Counter | `account_id`, `model`           | Output tokens per account                          |
+
+### Cache Token Metrics
+
+| Metric                                        | Type    | Labels                          | Description                                        |
+|-----------------------------------------------|---------|---------------------------------|----------------------------------------------------|
+| `api_gateway_cache_creation_tokens_total`     | Counter | `model`                         | Anthropic cache creation input tokens              |
+| `api_gateway_cache_read_tokens_total`         | Counter | `model`                         | Anthropic cache read input tokens                  |
+| `api_gateway_cache_savings_total`             | Counter | `model`                         | Estimated cost savings from cache hits             |
+
+### MCP Server Metrics
+
+| Metric                                        | Type      | Labels                  | Description                          |
+|-----------------------------------------------|-----------|-------------------------|--------------------------------------|
+| `api_gateway_mcp_calls_total`                 | Counter   | `server`, `tool`, `status` | MCP tool call count               |
+| `api_gateway_mcp_call_duration_seconds`       | Histogram | `server`, `tool`        | MCP tool call latency                |
+| `api_gateway_mcp_cache_hits_total`            | Counter   | `server`, `tool`        | MCP cache hits                       |
+| `api_gateway_mcp_cache_misses_total`          | Counter   | `server`, `tool`        | MCP cache misses                     |
+| `api_gateway_mcp_quota_usage`                 | Gauge     | `account_id`            | MCP quota usage                      |
+
+### Image Compression Metrics
+
+| Metric                                        | Type    | Labels                  | Description                          |
+|-----------------------------------------------|---------|-------------------------|--------------------------------------|
+| `api_gateway_image_compressions_total`        | Counter | `model`                 | Compressed image count               |
+| `api_gateway_image_bytes_saved_total`         | Counter | `model`                 | Bytes saved by compression           |
+| `api_gateway_image_bytes_original_total`      | Counter | `model`                 | Original bytes before compression    |
+
+### Vision Pre-Analysis Metrics
+
+| Metric                                            | Type      | Labels  | Description                       |
+|---------------------------------------------------|-----------|---------|-----------------------------------|
+| `api_gateway_vision_preanalysis_total`            | Counter   | `status` | Vision pre-analysis call count   |
+| `api_gateway_vision_preanalysis_duration_seconds` | Histogram | -       | Vision pre-analysis latency       |
 
 ### Runtime Metrics (collected every 10s)
 
@@ -143,7 +193,7 @@ The following middleware runs on every request (in order):
 
 ## Cost Calculator
 
-Dashboard Cost Calculator is at http://localhost:3000/d/arl-cost
+Dashboard Cost Calculator is at http://localhost:3000/d/ai-cost
 
 ### How to Use
 

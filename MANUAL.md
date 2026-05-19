@@ -16,7 +16,7 @@
 
 ## Features
 - [Features](docs/09-features.md) -- Vision auto-routing, multi-agent modes, message body optimization
-- [Privacy & Security](docs/11-privacy-security.md) -- PasteGuard PII detection, streaming unmask bugs, GLM mode isolation
+- [Privacy & Security](docs/11-privacy-security.md) -- PasteGuard PII detection, streaming unmask bugs, GLM mode isolation, cache-aware privacy masking
 - [Z.AI Vision Routing](docs/12-zai.md) -- Image format bug fix, filterUnsupportedContent changes
 - [Troubleshooting](docs/13-troubleshooting.md) -- Common issues, service health, reset procedures
 - [Retry & MCP Servers](docs/14-retry-mcp-servers.md) -- Upstream retry logic, Z.AI MCP server reference, quota, fallback strategies

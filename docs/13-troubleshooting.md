@@ -20,8 +20,9 @@ docker-compose up -d --build <service>      # Rebuild
 | `arl-grafana`      | arl-grafana      | Dashboards                      |
 | `arl-otel`         | arl-otel         | OpenTelemetry Collector         |
 | `arl-rl-dashboard` | arl-rl-dashboard | Rate Limiter Dashboard (React)  |
-| `arl-dashboard`    | arl-dashboard    | Main Dashboard (React/Vite)     |
 | `arl-proxy`        | arl-proxy        | Caddy reverse proxy (port 9000) |
+
+> **Note:** The main gateway dashboard is embedded in the Go binary (no separate container). It is served by `arl-gateway` on port 8080 (via Caddy on port 9000).
 
 ## DOCKER_DEFAULT_PLATFORM
 
@@ -66,7 +67,7 @@ docker-compose down -v && docker-compose up -d --build
 | 6379      | arl-dragonfly (Redis)    | No (internal)           | TCP       |
 | 9090      | arl-prometheus           | No (internal)           | HTTP      |
 | 9090/9091 | arl-worker (metrics)     | No (internal)           | HTTP      |
-| 5173      | arl-dashboard (Vite dev) | No (internal)           | HTTP      |
+| 5173      | Dashboard UI (Vite dev)  | No (internal)           | HTTP      |
 | 3000      | arl-grafana              | No (via Caddy /grafana) | HTTP      |
 | 4317/4318 | arl-otel (OTLP)          | No (internal)           | gRPC/HTTP |
 

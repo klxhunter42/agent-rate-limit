@@ -53,6 +53,7 @@ Gateway handler.go
 |
 +- filterUnsupportedContent() <- line 735 (no-op)
 |  content blocks pass through as-is (including server_tool_use)
+|  only cache_control fields are stripped
 |  image block: no conversion, keep type "image" <- FIXED
 |
 +- HasImageContent() -> true
@@ -71,7 +72,7 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 
 | Point                             | Before                                                      | After                                                            |
 |-----------------------------------|-------------------------------------------------------------|------------------------------------------------------------------|
-| `filterUnsupportedContent()`      | Removes `server_tool_use` + converts `image` to `image_url` | Removes `server_tool_use` only                                   |
+| `filterUnsupportedContent()`      | Removes `server_tool_use` + converts `image` to `image_url` | Strips `cache_control` fields only, all block types pass through |
 | Vision endpoint                   | Sent to `open.bigmodel.cn` (GLM native) + format conversion | Sent to `api.z.ai` (Anthropic-compatible) + no format conversion |
 | Image format received by upstream | `image_url` (GLM) -> 400 error                              | `image` (Anthropic) -> 200 OK                                    |
 
@@ -87,7 +88,7 @@ OK 200 {"model":"glm-4.6v","content":[{"type":"text","text":"blue"}]}
 ## Lesson Learned
 
 - When changing upstream endpoint, verify that middleware transforming payload is still correct
-- `filterUnsupportedContent` no longer filters content blocks (previously filtered `server_tool_use`)
+- `filterUnsupportedContent` strips `cache_control` fields only, all block types (including `server_tool_use`) pass through
 - After migrating to api.z.ai (Anthropic-compatible), no format conversion needed because client already sends Anthropic format
 
 ## Image Compression: Evolution

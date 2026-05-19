@@ -17,13 +17,12 @@ arl-gateway (:8080)
 |
 +-- Has images: analyzeImagePayload()
     |-- Calculate totalBase64Bytes + imageCount
-    |-- selectVisionModel(): score = totalBase64KB + (imageCount * 300)
-    |   |-- score <= 2000 && count < 3 -> glm-4.6v (10 slots, best quality)
-    |   |-- score > 2000 || count >= 3 -> glm-4.6v (heavy payload fallback)
+    |-- selectVisionModel(): currently hardcoded -> "glm-4.6v"
+    |   (parameters reserved for future scoring logic)
     |
     |-- filterUnsupportedContent():
-    |   strip server_tool_use blocks
-    |   convert Anthropic image -> GLM image_url format
+    |   strip cache_control fields only
+    |   all content block types (including server_tool_use) pass through
     |
     |-- AnthropicToOpenAI():
     |   Anthropic Messages format -> OpenAI/Zhipu format
@@ -47,26 +46,7 @@ arl-gateway (:8080)
 
 ### Vision Model Auto-Select
 
-Gateway auto-selects vision model based on **scoring formula**:
-
-```
-score = totalBase64KB + (imageCount * 300)
-```
-
-| Score / Condition          | Selected Model | Slots | Reason                      |
-|----------------------------|----------------|-------|-----------------------------|
-| score <= 2000 && count < 3 | `glm-4.6v`     | 10    | Best quality, high capacity |
-| score > 2000 or count >= 3 | `glm-4.6v`     | 10    | Fallback for heavy payloads |
-
-**Examples:**
-
-| Scenario                   | Total KB | Count | Score | Model    |
-|----------------------------|----------|-------|-------|----------|
-| 1 screenshot (200KB)       | 200      | 1     | 500   | glm-4.6v |
-| 1 photo (1.5MB)            | 1500     | 1     | 1800  | glm-4.6v |
-| 2 photos (1MB each)        | 2000     | 2     | 2600  | glm-4.6v |
-| 5 screenshots (100KB each) | 500      | 5     | 2000  | glm-4.6v |
-| 1 large photo (3MB)        | 3000     | 1     | 3300  | glm-4.6v |
+Currently `selectVisionModel` returns hardcoded `"glm-4.6v"` for all requests. Parameters `totalBytes` and `imageCount` are accepted but unused, reserved for future scoring logic.
 
 ### SSE Streaming for Vision
 
@@ -132,7 +112,7 @@ Gateway compresses base64 images before forwarding to reduce bandwidth and laten
 | Model    | Format | Quality | Dim  | Accuracy |
 |----------|--------|---------|------|----------|
 | glm-4.6v | JPEG   | 75      | 1600 | **90%**  |
-| glm-5.1  | WebP   | 75      | 1600 | 85%      |
+| glm-5.1  | JPEG   | 75      | 1600 | 85%      |
 | glm-4.5v | JPEG   | 75      | 1600 | 85%      |
 
 **Compression pipeline:**
@@ -154,7 +134,25 @@ api_gateway_image_bytes_original_total{model} -- original bytes processed
 | Limitation                  | Detail                                                                                                              |
 |-----------------------------|---------------------------------------------------------------------------------------------------------------------|
 | Privacy pipeline skipped    | Vision path does not go through privacy masking                                                                     |
-| server_tool_use passthrough | `server_tool_use`, `server_tool_result` blocks are passed through as-is (no longer filtered). Only filtered for Zhipu native vision endpoint. |
+| server_tool_use passthrough | `server_tool_use`, `server_tool_result` blocks are passed through as-is by `filterUnsupportedContent`. Only filtered for Zhipu native vision endpoint. |
+
+### Vision Pre-Analysis
+
+Before forwarding to the main model, gateway can replace image blocks with text descriptions via Zhipu's vision API. Controlled by `VISION_PRE_ANALYSIS_ENABLED` (default: `true`).
+
+```
+preAnalyzeImages()
+|-- callVisionAnalysisSingle / callVisionAnalysisParallel
+|   Send images to Zhipu vision model with visionAnalysisPrompt
+|-- replaceImagesWithDescription()
+    Swap image blocks for text descriptions in the payload
+```
+
+**Prometheus metrics:**
+```
+api_gateway_vision_preanalysis_total{status}       -- count of pre-analysis calls
+api_gateway_vision_preanalysis_duration_seconds     -- pre-analysis latency
+```
 
 > **Note**: Error 1210 ("API parameter error") that previously occurred from sending `system` role and Anthropic-specific content blocks has been fixed (commit 7c08cb0) -- gateway now auto-filters roles and content types.
 
