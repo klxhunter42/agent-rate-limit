@@ -30,6 +30,7 @@
   "panels": [
     {
       "title": "Protection Status",
+      "description": "PII protection overview: total protections applied, detection rate, and current status",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -101,7 +102,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         }
@@ -193,7 +194,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) / sum(increase(api_gateway_mask_requests_total[$__range])) * 100, 0, 100) or vector(100)) or on() vector(0)",
+          "expr": "clamp(((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii!=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii=\"true\"}[$__range])) or vector(0))) / (sum(increase(api_gateway_mask_requests_total[$__range])) or vector(0)) * 100, 0, 100) or on() vector(0)",
           "legendFormat": "Coverage",
           "refId": "A"
         }
@@ -234,6 +235,7 @@
     },
     {
       "title": "Privacy Protection Over Time",
+      "description": "Protection activity over time: requests protected vs unprotected",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -245,6 +247,7 @@
     },
     {
       "title": "Protection Activity",
+      "description": "Protection events grouped by detection type and action taken",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -361,6 +364,7 @@
     },
     {
       "title": "Detection Rate by Type",
+      "description": "PII detection rate grouped by entity type: email, phone number, etc.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -541,6 +545,7 @@
     },
     {
       "title": "Detection Analysis",
+      "description": "Detailed detection analysis with counts and percentages by entity type",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -566,7 +571,7 @@
       },
       "targets": [
         {
-          "expr": "(topk(10, sum by (type) (increase(api_gateway_pii_detected_total[$__range]))))",
+          "expr": "(topk(10, sum by (type) (increase(api_gateway_secrets_detected_total[$__range]))))",
           "legendFormat": "{{type}}",
           "refId": "A",
           "instant": true
@@ -767,7 +772,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_pii_detected_total[$__range])) or vector(0)) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_secrets_detected_total[$__range])) or vector(0)) or on() vector(0)",
           "legendFormat": "Secrets",
           "refId": "A"
         },
@@ -806,6 +811,7 @@
     },
     {
       "title": "Performance & Compliance",
+      "description": "Privacy protection performance metrics and compliance tracking",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -977,7 +983,7 @@
       },
       "targets": [
         {
-          "expr": "((sum(increase(api_gateway_mask_requests_total[$__range])) - sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) - sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0)) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii!=\"true\"}[$__range])) or on() vector(0)",
           "legendFormat": "Clean",
           "refId": "A"
         }
@@ -1023,7 +1029,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0) or on() vector(0)",
+          "expr": "((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii!=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii=\"true\"}[$__range])) or vector(0))) or on() vector(0)",
           "legendFormat": "Protected",
           "refId": "A"
         }
@@ -1055,6 +1061,7 @@
     },
     {
       "title": "Secrets Detection Trend",
+      "description": "Secret/credential detection events over time. Spikes may indicate leaked keys.",
       "type": "timeseries",
       "gridPos": {
         "h": 4,
@@ -1109,6 +1116,7 @@
     },
     {
       "title": "Detection Detail Table",
+      "description": "Detailed table of all detections with entity type, count, and action taken",
       "type": "row",
       "gridPos": {
         "h": 1,
@@ -1120,6 +1128,7 @@
     },
     {
       "title": "Detection Summary",
+      "description": "Summary statistics of all PII detections and masking operations",
       "type": "table",
       "gridPos": {
         "h": 8,
@@ -1133,7 +1142,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (type) (increase(api_gateway_pii_detected_total[$__range])))",
+          "expr": "(sum by (type) (increase(api_gateway_secrets_detected_total[$__range])))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,

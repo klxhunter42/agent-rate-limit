@@ -194,7 +194,7 @@
       },
       "targets": [
         {
-          "expr": "(clamp((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) / sum(increase(api_gateway_mask_requests_total[$__range])) * 100, 0, 100) or vector(100)) or on() vector(0)",
+          "expr": "clamp(((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii!=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii=\"true\"}[$__range])) or vector(0))) / (sum(increase(api_gateway_mask_requests_total[$__range])) or vector(0)) * 100, 0, 100) or on() vector(0)",
           "legendFormat": "Coverage",
           "refId": "A"
         }
@@ -983,7 +983,7 @@
       },
       "targets": [
         {
-          "expr": "((sum(increase(api_gateway_mask_requests_total[$__range])) - sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) - sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0)) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii!=\"true\"}[$__range])) or on() vector(0)",
           "legendFormat": "Clean",
           "refId": "A"
         }
@@ -1029,7 +1029,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\"}[$__range])) + sum(increase(api_gateway_mask_requests_total{has_pii=\"true\"}[$__range]))) or vector(0) or on() vector(0)",
+          "expr": "((sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets=\"true\",has_pii!=\"true\"}[$__range])) or vector(0)) + (sum(increase(api_gateway_mask_requests_total{has_secrets!=\"true\",has_pii=\"true\"}[$__range])) or vector(0))) or on() vector(0)",
           "legendFormat": "Protected",
           "refId": "A"
         }

@@ -144,7 +144,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 * sum(increase(api_gateway_cost_total{type=\"input\"}[$__range])) / (sum(increase(api_gateway_token_input_total[$__range])) + 1)) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_cost_savings_total[$__range])) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -241,7 +241,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100) or on() vector(0)",
+          "expr": "clamp_max(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100, 100) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -249,7 +249,7 @@
         "defaults": {
           "unit": "percent",
           "min": 0,
-          "max": 50,
+          "max": 100,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -424,7 +424,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 * sum(rate(api_gateway_cost_total{type=\"input\"}[$__interval])) / (sum(rate(api_gateway_token_input_total[$__interval])) + 1)) or on() vector(0)",
+          "expr": "sum(rate(api_gateway_cost_savings_total[$__interval])) or on() vector(0)",
           "legendFormat": "savings ($/s)",
           "refId": "A"
         }
@@ -665,7 +665,7 @@
           "legendFormat": "Without Optimization"
         },
         {
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
+          "expr": "clamp_min(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4, 0) or on() vector(0)",
           "refId": "B",
           "legendFormat": "With Optimization"
         }
@@ -746,7 +746,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + 1) * 100) or on() vector(0)",
+          "expr": "clamp_max(sum(rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval])) / 4 / (sum(rate(api_gateway_token_input_total[$__interval])) + 1) * 100, 100) or on() vector(0)",
           "legendFormat": "optimization rate %",
           "refId": "A"
         }
@@ -1711,186 +1711,14 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (increase(api_gateway_chunker_chunks_total[$__interval]))",
+          "expr": "sum by (type) (increase(api_gateway_chunker_chunks_total[$__interval]))",
           "refId": "A",
-          "legendFormat": "{{model}}"
+          "legendFormat": "{{type}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
-      }
-    },
-    {
-      "title": "Caveman Compression",
-      "description": "Caveman compression: simple text compression with output-style injection for shorter prompts",
-      "type": "row",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 74
-      },
-      "collapsed": false
-    },
-    {
-      "title": "Compressions",
-      "description": "Total Caveman compression operations performed",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 75
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(api_gateway_caveman_compressions_total[$__range]))",
-          "refId": "A",
-          "legendFormat": ""
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "fixedColor": "#f59e0b",
-            "mode": "fixed"
-          },
-          "custom": {
-            "colorMode": "background_solid",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "wideLayout": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "sort": "desc"
-      }
-    },
-    {
-      "title": "Avg Ratio",
-      "description": "Median and P95 Caveman compression ratio. Lower = better compression.",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 75
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.5, sum(rate(api_gateway_caveman_compression_ratio_bucket[$__range])) by (le))",
-          "refId": "A",
-          "legendFormat": ""
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "decimals": 2,
-          "color": {
-            "fixedColor": "#10b981",
-            "mode": "fixed"
-          },
-          "custom": {
-            "colorMode": "background_solid",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "wideLayout": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "sort": "desc"
-      }
-    },
-    {
-      "title": "Compression Ratio",
-      "description": "P50 and P95 Caveman compression ratio over time",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 75
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(api_gateway_caveman_compression_ratio_bucket[$__range])) by (le))",
-          "refId": "A",
-          "legendFormat": "P50"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(api_gateway_caveman_compression_ratio_bucket[$__range])) by (le))",
-          "refId": "B",
-          "legendFormat": "P95"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -2284,183 +2112,6 @@
       "options": {
         "showThresholdLabels": false,
         "showThresholdMarkers": true
-      }
-    },
-    {
-      "title": "Packer",
-      "description": "Context packing: rearrange and compress conversation history to fit within token budget",
-      "type": "row",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 95
-      },
-      "collapsed": false
-    },
-    {
-      "title": "Tokens Saved",
-      "description": "Tokens saved by context packing (reordering + compression of conversation history)",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 96
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(api_gateway_packer_tokens_saved_total[$__range]))",
-          "refId": "A",
-          "legendFormat": ""
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "fixedColor": "#10b981",
-            "mode": "fixed"
-          },
-          "custom": {
-            "colorMode": "background_solid",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "wideLayout": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "sort": "desc"
-      }
-    },
-    {
-      "title": "Budget Utilization",
-      "description": "Current optimization budget utilization gauge: 0=minimal, 1=moderate, 2=aggressive",
-      "type": "gauge",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
-        "y": 96
-      },
-      "targets": [
-        {
-          "expr": "avg(api_gateway_packer_budget_utilization)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "min": 0,
-          "max": 1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.5
-              },
-              {
-                "color": "red",
-                "value": 0.8
-              }
-            ]
-          },
-          "custom": {
-            "showPercentChange": false
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      }
-    },
-    {
-      "title": "Budget Utilization Over Time",
-      "description": "Budget level over time: 0=minimal, 1=moderate, 2=aggressive",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 96
-      },
-      "targets": [
-        {
-          "expr": "avg(api_gateway_packer_budget_utilization)",
-          "refId": "A",
-          "legendFormat": "utilization"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
       }
     },
     {

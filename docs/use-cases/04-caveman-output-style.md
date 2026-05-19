@@ -10,9 +10,9 @@ Caveman เป็น optimizer stage ประเภท **OUTPUT influence** - �
 
 | Tier | Budget Level | ลด output ประมาณ | Directive |
 |------|-------------|-------------------|-----------|
-| **lite** | Green (< 50% context) | ~30% | ตัด pleasantries, ตอบบรรทัดเดียวถ้าได้ |
-| **full** | Yellow (50-75% context) | ~50% | ตัดทุก filler, ใช้ short variable names, ไม่ repeat คำถาม |
-| **ultra** | Red (> 75% context) | ~75% | Raw output เท่านั้น, ไม่มี natural language wrapper, ใช้ symbols/abbreviations |
+| **lite** | Green (< 60% context) | ~30% | ตัด pleasantries, ตอบบรรทัดเดียวถ้าได้ |
+| **full** | Yellow (>= 60% context) | ~50% | ตัดทุก filler, ใช้ short variable names, ไม่ repeat คำถาม |
+| **ultra** | Red (>= 80% context) | ~75% | Raw output เท่านั้น, ไม่มี natural language wrapper, ใช้ symbols/abbreviations |
 | **wenyan** | พิเศษ | ~70% | Classical notation, facts only, ไม่มี grammar glue words |
 
 **Code validation**: หลังจาก compression แล้ว Caveman ตรวจสอบว่า code blocks และ identifiers ยังคงอยู่ครบ โดยนับจำนวน code blocks (``` pairs) และตรวจ identifier preservation >= 80%
@@ -131,9 +131,9 @@ CAVEMAN_MIN_SIZE=500
 // จาก caveman.go
 func BudgetToTier(level int) CompressionTier {
     switch level {
-    case 2: return TierUltra   // red budget (>75% context)
-    case 1: return TierFull    // yellow budget (50-75% context)
-    default: return TierLite   // green budget (<50% context)
+    case 2: return TierUltra   // red budget (>=80% context)
+    case 1: return TierFull    // yellow budget (>=60% context)
+    default: return TierLite   // green budget (<60% context)
     }
 }
 ```
@@ -194,8 +194,11 @@ rate(api_gateway_caveman_compression_ratio_count[5m])
 
 ## ข้อควรระวัง
 
-### 1. Transparent Mode Skip
-Caveman **จะไม่ทำงาน** ใน transparent mode (debug/observability mode) เพื่อไม่ให้กระทบการวิเคราะห์ output จริงของ model
+### 1. Skip Conditions
+Caveman **จะไม่ทำงาน** เมื่อ:
+- **Transparent mode** (debug/observability) เพื่อไม่ให้กระทบการวิเคราะห์ output จริงของ model
+- **Images present** ใน request (corruption risk)
+- **Z.AI provider** (GLM models ไม่มี prompt caching, optimizer เพิ่ม latency โดยไม่มี benefit)
 
 ### 2. Code Block Validation
 ก่อนยืนยัน compression จะตรวจสอบ:

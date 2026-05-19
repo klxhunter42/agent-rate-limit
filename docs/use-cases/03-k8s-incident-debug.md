@@ -43,7 +43,7 @@ Gateway รับ request เข้า pipeline:
 | Stage | Action | ผลลัพธ์ |
 |-------|--------|---------|
 | **F10 Warm Start** | Cosine similarity scan กับ session ก่อนหน้า | เจอ session `inc-20260505-network` คล้าย 0.73 (K8s debug) ดึง optimizer params มาใช้ |
-| **F1 Chunker** | จัดเรียง stable chunks | Green budget < 50% |
+| **F1 Chunker** | จัดเรียง stable chunks | Green budget < 60% |
 | **F7 Semantic Dedup** | Dedup system prompt | -12 chars (เอา "You are a helpful assistant" ซ้ำออก) |
 | **F16 Caveman** | Lite tier (green budget) | Replace system prompt 1,067 -> 229 chars |
 | **F19 ToolFilter** | Intent=action, เลือก Bash, Read | จาก 27 tools -> เหลือ 4 (ประหยัด ~1,100 tokens manifest) |
@@ -410,8 +410,8 @@ Session ยาวเกิน 50% context window
 
 | Budget Level | Tool Output Handling |
 |-------------|---------------------|
-| Green (< 50%) | Pass through (no truncation) |
-| **Yellow (50-75%)** | **Truncate to L2Tokens * 8 chars for content > 2000** |
+| Green (< 60%) | Pass through (no truncation) |
+| **Yellow (>=60%)** | **Truncate to L2Tokens * 8 chars for content > 2000** |
 | Red (> 75%) | Truncate to L1Tokens * 4 chars |
 
 วิชัย paste post-mortem template ยาว 4,500 chars

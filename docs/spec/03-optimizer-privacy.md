@@ -618,8 +618,8 @@ File: `tokenizer/optimizer.go`
 type BudgetLevel int
 const (
     BudgetGreen  BudgetLevel = iota  // <50% context used
-    BudgetYellow                      // 50-75% context used
-    BudgetRed                         // >75% context used
+    BudgetYellow                      // >=60% context used
+    BudgetRed                         // >=80% context used
 )
 ```
 

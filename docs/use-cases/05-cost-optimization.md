@@ -79,7 +79,7 @@ Estimated Real Cost: $421.58/เดือน
 | F1 | Chunker | INPUT | 5-15% | ~7,875 | $0.024 | Reorder stable chunks, เพิ่ม cache hit |
 | F8 | Delta Encoding | INPUT | 20-60% | ~52,500 | $0.158 | Diff-encode สำหรับ iterative edits |
 | F9 | Sketch Dedup | INPUT | 5-30% | ~26,250 | $0.079 | ตรวจ near-duplicate prompts |
-| F6 | Summarizer | INPUT | 50-70% | ~78,750* | $0.236* | Red budget เท่านั้น (>75% context) |
+| F6 | Summarizer | INPUT | 50-70% | ~78,750* | $0.236* | Red budget เท่านั้น (>=80% context) |
 | F13 | Intent Filter | OUTPUT | 10-40% | ~20,000 | $0.300 | กรอง response ตาม intent |
 | F17 | TextComp | INPUT | 5-15% | ~13,125 | $0.039 | ตัด filler/verbose text |
 | F16 | **Caveman** | **OUTPUT** | **30-75%** | **~120,000** | **$1.800** | **ลด output ด้วย style injection** |

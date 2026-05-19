@@ -2,7 +2,7 @@
 
 ## Background
 
-System prompt optimizer (`OptimizeSystemPrompt`) รัน 8+ stages: `semantic_dedup`, `chunker`, `delta`, `sketch`, `summarizer`, `textcomp`, `caveman`, `pordee`
+System prompt optimizer (`OptimizeSystemPrompt`) รัน 9 stages: `semantic_dedup`, `chunker`, `delta`, `sketch`, `summarizer`, `textcomp`, `caveman_input`, `caveman_output`, `pordee`
 
 หลังจาก array-aware refactor (2026-05-15) optimizer ทำงานแบบ per-element บน `system` array แทนที่จะ flatten เป็น string เดียว
 
@@ -75,7 +75,7 @@ optimize_system_prompt_entry: len=27967 (system prompt only)
 |--------|--------|-------|
 | Privacy prompt integrity | CORRUPTED (semantic_dedup removes space, adds chars) | Preserved exactly |
 | Billing header | Preserved (lucky) but wastes CPU | Preserved exactly, zero CPU waste |
-| Optimizer calls per request | 3-4 elements x 8 stages = 24-32 | 1 element x 8 stages = 8 |
+| Optimizer calls per request | 3-4 elements x 9 stages = 27-36 | 1 element x 9 stages = 9 |
 | CPU savings | - | ~15% fewer optimizer calls |
 | Token savings | Only from 27K element | Unchanged |
 
@@ -105,7 +105,8 @@ System array:
                                       sketch
                                       summarizer
                                       textcomp
-                                      caveman
+                                      caveman_input
+                                      caveman_output
                                       pordee
 ```
 

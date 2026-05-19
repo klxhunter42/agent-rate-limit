@@ -2,6 +2,8 @@
 
 All 16 optimization stages in the API Gateway pipeline, with concrete examples showing what each one does to real input.
 
+> **Full pipeline reference**: See [optimizer-pipeline.md](../optimizer-pipeline.md) for complete 17-stage reference with configuration and execution order.
+
 ---
 
 ## Table of Contents
@@ -45,7 +47,7 @@ All 16 optimization stages in the API Gateway pipeline, with concrete examples s
   │  [F17] textcomp        ── regex filler removal              │
   │  [F16] caveman_input   ── regex input compression           │
   │  [F16] caveman_output  ── output style injection            │
-  │  [F18] pordee          ── Thai output compression (NEW)     │
+  │  pordee          ── Thai output compression            │
   │                                                             │
   └─────────────────────────────────────────────────────────────┘
        |
@@ -66,7 +68,8 @@ All 16 optimization stages in the API Gateway pipeline, with concrete examples s
   ┌─────────────────────────────────────────────────────────────┐
   │  TOOL MANIFEST OPTIMIZATION                                 │
   │                                                             │
-  │    toolfilter ── keep only relevant tools (if >15)          │
+  │    desctrim    ── trim verbose tool descriptions            │
+  │    toolfilter  ── keep only relevant tools (if >15)         │
   │                                                             │
   └─────────────────────────────────────────────────────────────┘
        |
@@ -864,4 +867,4 @@ Not a compressor. Analyzes request patterns after the fact to identify waste. 7 
 | toolcomp | Tool result content | Format-aware truncation | 30-86% | Content > 256 chars |
 | toolfilter | Tool manifest | Intent scoring | 30-50% tools | > 15 tools |
 | waste | Post-hoc analysis | Pattern detection | Reports only | Background scan |
-| **pordee (NEW)** | **System prompt** | **Thai injection** | **60-75% output** | **Thai text detected** |
+| **pordee** | **System prompt** | **Thai injection** | **60-75% output** | **Thai text detected** |

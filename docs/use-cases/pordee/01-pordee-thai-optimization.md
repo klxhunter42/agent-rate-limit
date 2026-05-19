@@ -159,7 +159,7 @@ The system prompt is assembled in this order:
 
 ### Integration Point
 
-Pordee integrates as stage F17 in the optimizer pipeline (after caveman at F16):
+Pordee integrates as stage 9 in system prompt pipeline in the optimizer pipeline (after caveman at F16):
 
 ```
   Optimizer Stages (system prompt):
@@ -171,7 +171,7 @@ Pordee integrates as stage F17 in the optimizer pipeline (after caveman at F16):
   F5  summarizer (red budget only)
   F6  textcomp
   F16 caveman (English compression)
-  F17 pordee (Thai compression)     <-- NEW
+  pordee (Thai compression)     <-- NEW
 ```
 
 ---
@@ -613,5 +613,5 @@ Pordee temporarily disables itself when precision matters more than brevity:
 - Pordee plugin: `improvements/pordee/` (original Claude Code plugin)
 - Caveman pipeline: `api-gateway/caveman/caveman.go` (English compression, same mechanism)
 - Thai detection: `api-gateway/proxy/anthropic.go` line 385 (`thaiRe` regex)
-- Optimizer pipeline: `api-gateway/handler/optimizers.go` (integration point at stage F17)
+- Optimizer pipeline: `api-gateway/handler/optimizers.go` (integration point at stage 9 in system prompt pipeline)
 - Model pricing: `api-gateway/config/config.go` (`defaultModelPricing`)

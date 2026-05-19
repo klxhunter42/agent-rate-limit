@@ -2,9 +2,7 @@
 
 Date: 2026-04-22
 
-> **Note**: Numbers below are from test fixtures (`effectiveness_test.go`), not production. For production metrics, see [19-optimizer-pipeline-reference.md](19-optimizer-pipeline-reference.md) - Production Measurement section.
-
-> **Full pipeline reference**: See [19-optimizer-pipeline-reference.md](19-optimizer-pipeline-reference.md) for all 14 stages.
+> **Full pipeline reference**: See [optimizer-pipeline.md](optimizer-pipeline.md) for all 17 stages.
 
 ---
 
@@ -47,11 +45,11 @@ All tests pass. Results from realistic system prompt (~5000 chars, simulating CL
 
 ### Budget Tracking Thresholds
 
-| Usage   | % of Context   | Level   | Action                |
-|---------|----------------|---------|-----------------------|
-| < 50%   | < 100K/200K    | GREEN   | Normal                |
-| 50-75%  | 100K-150K/200K | YELLOW  | Optimize (ws + dedup) |
-| > 75%   | > 150K/200K    | RED     | Force truncate        |
+| Usage   | % of Context   | Level   | Action                     |
+|---------|----------------|---------|----------------------------|
+| < 60%   | < 120K/200K    | GREEN   | Normal                     |
+| >= 60%  | 120K-160K/200K | YELLOW  | Optimize (ws + dedup + ..) |
+| >= 80%  | >= 160K/200K   | RED     | Force truncate + summarize |
 
 ---
 
@@ -249,5 +247,4 @@ After:  Record(value) -> update mean, m2 in 3 arithmetic ops -> O(1)
 - `api-gateway/proxy/anthropic.go` - Integration: ProxyTransparent + ProxyNativeVision
 - `api-gateway/proxy/gemini-codeassist.go` - Integration: anthropicToGemini optimizer
 - `api-gateway/proxy/gemini-apikey.go` - Uses shared anthropicToGemini
-- `docs/token-optimization.md` - Technical analysis (English)
-- `docs/token-optimization-th.md` - Thai summary
+- `docs/optimizer-pipeline.md` - Full 17-stage pipeline reference

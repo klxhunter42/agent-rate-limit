@@ -578,7 +578,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "sum by (type) (rate(api_gateway_error_total[$__interval])) or on() vector(0)",
           "legendFormat": "{{type}}",
           "refId": "A"
         }
@@ -664,7 +664,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "sum by (key) (rate(api_gateway_rate_limit_hits_total[$__interval])) or on() vector(0)",
           "legendFormat": "{{key}}",
           "refId": "A"
         }
@@ -1022,24 +1022,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (technique) (rate(api_gateway_chunker_chars_saved_total[$__interval]))",
-          "legendFormat": "chunker",
+          "expr": "sum by (technique) (rate(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__interval]))",
+          "legendFormat": "{{technique}}",
           "refId": "A"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_delta_chars_saved_total[$__interval]))",
-          "legendFormat": "delta",
-          "refId": "B"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_disclosure_chars_saved_total[$__interval]))",
-          "legendFormat": "disclosure",
-          "refId": "C"
-        },
-        {
-          "expr": "sum by (technique) (rate(api_gateway_sketch_chars_saved_total[$__interval]))",
-          "legendFormat": "sketch",
-          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -1128,7 +1113,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -1168,7 +1153,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_chunker_chars_saved_total[$__range])) + sum(increase(api_gateway_delta_chars_saved_total[$__range])) + sum(increase(api_gateway_disclosure_chars_saved_total[$__range])) + sum(increase(api_gateway_sketch_chars_saved_total[$__range]))) / (sum(increase(api_gateway_optimizer_runs_total{technique=\"chunker\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"delta\"}[$__range])) + sum(increase(api_gateway_optimizer_runs_total{technique=\"sketch\"}[$__range]))) or on() vector(0)",
+          "expr": "sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / sum(increase(api_gateway_optimizer_runs_total[$__range])) or on() vector(0)",
           "refId": "A"
         }
       ],
@@ -1484,8 +1469,8 @@
       },
       "targets": [
         {
-          "expr": "(sum by (requested, fallback, reason) (rate(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
-          "legendFormat": "{{requested}} -> {{fallback}} ({{reason}})",
+          "expr": "(sum by (requested, selected) (rate(api_gateway_model_fallback_total[$__interval]))) or on() vector(0)",
+          "legendFormat": "{{requested}} -> {{selected}}",
           "refId": "A"
         }
       ],
@@ -1900,357 +1885,6 @@
             "max"
           ]
         }
-      }
-    },
-    {
-      "title": "Prefetcher",
-      "description": "Model cache prefetching: prewarm duration and order strategy metrics",
-      "type": "row",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 137
-      },
-      "collapsed": false
-    },
-    {
-      "title": "Prewarm Duration",
-      "description": "Time spent on model prewarming (cache prefetching)",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 138
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(api_gateway_prefetcher_prewarm_duration_seconds_bucket[$__range])) by (le)) * 1000",
-          "refId": "A",
-          "legendFormat": "P50"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
-      }
-    },
-    {
-      "title": "Order Used",
-      "description": "Prefetcher order strategy used: sequential, random, or adaptive",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 138
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(api_gateway_prefetcher_order_used_bucket[$__range])) by (le))",
-          "refId": "A",
-          "legendFormat": "P50"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
-      }
-    },
-    {
-      "title": "Warmstart",
-      "description": "Cache warmstart: warmup duration and content similarity scoring",
-      "type": "row",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 144
-      },
-      "collapsed": false
-    },
-    {
-      "title": "Warmup Duration",
-      "description": "Time spent on cache warmup operations",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 145
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(api_gateway_warmstart_warmup_duration_seconds_bucket[$__range])) by (le)) * 1000",
-          "refId": "A",
-          "legendFormat": "P50"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
-      }
-    },
-    {
-      "title": "Similarity Score",
-      "description": "Content similarity score used for cache hit decisions",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 145
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(api_gateway_warmstart_similarity_score_bucket[$__range])) by (le))",
-          "refId": "A",
-          "legendFormat": "P50"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        }
-      }
-    },
-    {
-      "title": "Summarizer",
-      "description": "LLM summarizer: tokens consumed and summarization overhead",
-      "type": "row",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 151
-      },
-      "collapsed": false
-    },
-    {
-      "title": "LLM Tokens",
-      "description": "Tokens consumed by LLM summarization in the summarizer pipeline",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 152
-      },
-      "targets": [
-        {
-          "expr": "sum(increase(api_gateway_summarizer_llm_tokens_total[$__range]))",
-          "refId": "A",
-          "legendFormat": ""
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "decimals": 0,
-          "color": {
-            "fixedColor": "#6366f1",
-            "mode": "fixed"
-          },
-          "custom": {
-            "colorMode": "background_solid",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "textMode": "auto",
-            "wideLayout": true
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "sort": "desc"
       }
     },
     {

@@ -11,7 +11,7 @@
 Session Token Usage (cumulative input + output)
 │
 ├── 0-50%   ──► GREEN   (budgetLevel=0)   → lightweight optimization
-├── 50-75%  ──► YELLOW  (budgetLevel=1)   → moderate optimization
+├── >=60%  ──► YELLOW  (budgetLevel=1)   → moderate optimization
 └── 75-100% ──► RED     (budgetLevel=2)   → aggressive optimization
 ```
 
@@ -206,8 +206,8 @@ Tier ขึ้นอยู่กับ budgetLevel ณ เวลานั้น:
 ```
 func BudgetToTier(level int) CompressionTier {
     switch level {
-    case 2:  → TierUltra   // red budget (>75%)  → ~75% output reduction
-    case 1:  → TierFull    // yellow (50-75%)     → ~50% output reduction
+    case 2:  → TierUltra   // red budget (>=80%)  → ~75% output reduction
+    case 1:  → TierFull    // yellow (>=60%)     → ~50% output reduction
     default: → TierLite    // green (<50%)        → ~30% output reduction
     }
 }
@@ -314,7 +314,7 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
 │  Token Estimation + Budget Level Calculation                            │
 │  ├── Content-type aware estimation (code/JSON/markdown/text)            │
 │  ├── Sum input + output tokens from session history                     │
-│  └── budgetLevel = 0 (green<50%), 1 (yellow 50-75%), 2 (red>75%)        │
+│  └── budgetLevel = 0 (green<50%), 1 (yellow >=60%), 2 (red>=80%)        │
 └───────────────────────────┬─────────────────────────────────────────────┘
                             │
               ┌─────────────┼─────────────┐
@@ -398,8 +398,8 @@ cache_roi          ●   ●   ●   ●   ●   ●   ●   ●   ●   ●   �
 | Budget | Active Stages | Input Savings | Output Savings | Typical Scenario |
 |--------|--------------|---------------|----------------|------------------|
 | **Green** (<50%) | dedup, chunker, delta, sketch, textcomp, caveman-lite, toolcomp, toolfilter | 20-30% | ~30% | New session, simple Q&A |
-| **Yellow** (50-75%) | All Green + disclosure, caveman-full | 35-50% | ~50% | Multi-turn code review, debugging |
-| **Red** (>75%) | All Yellow + summarizer, caveman-ultra, aggressive disclosure | 55-70% | ~75% | Long debug marathon, complex feature |
+| **Yellow** (>=60%) | All Green + disclosure, caveman-full | 35-50% | ~50% | Multi-turn code review, debugging |
+| **Red** (>=80%) | All Yellow + summarizer, caveman-ultra, aggressive disclosure | 55-70% | ~75% | Long debug marathon, complex feature |
 
 ---
 

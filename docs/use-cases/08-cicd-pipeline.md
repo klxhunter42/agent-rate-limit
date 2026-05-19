@@ -185,7 +185,7 @@ jobs:
 ```
 Request (raw)
   │
-  ├─ Budget Level: GREEN (context < 50%)
+  ├─ Budget Level: GREEN (context < 60%)
   │
   ├─ F7 Semantic Dedup
   │  Input:  "You are a senior code reviewer..."
@@ -603,11 +603,11 @@ spec:
 │     ↓                                                        │
 │  Stage 4: ★ AI GATE ★                                        │
 │     │                                                        │
-│     ├─ GREEN BUDGET (< 50% context):                         │
+│     ├─ GREEN BUDGET (< 60% context):                         │
 │     │  Caveman lite: ตอบสั้น "APPROVE" or "ROLLBACK: reason" │
 │     │  Intent filter: สกัดเฉพาะ decision keywords            │
 │     │                                                        │
-│     ├─ YELLOW BUDGET (50-75% context):                       │
+│     ├─ YELLOW BUDGET (>=60% context):                       │
 │     │  Caveman full: บีบ verbose metric explanations         │
 │     │  Budget-aware disclosure: truncate ให้เหลือ key metrics│
 │     │  → เก็บเฉพาะ p99 latency, error rate, CPU/memory       │
@@ -745,7 +745,7 @@ AI Gate ปรับพฤติกรรมตาม budget level อัตโ�
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Budget Level: GREEN (< 50% context used)                     │
+│ Budget Level: GREEN (< 60% context used)                     │
 │                                                              │
 │ Deploying single service, first deployment of the day         │
 │                                                              │
@@ -757,7 +757,7 @@ AI Gate ปรับพฤติกรรมตาม budget level อัตโ�
 │ Output: 1-2 บรรทัด                                          │
 │ Tokens: ~150 input, ~80 output                               │
 ├─────────────────────────────────────────────────────────────┤
-│ Budget Level: YELLOW (50-75% context used)                   │
+│ Budget Level: YELLOW (>=60% context used)                   │
 │                                                              │
 │ Deploying 3rd service, context มี canary metrics 2 รอบแล้ว    │
 │                                                              │

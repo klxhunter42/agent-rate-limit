@@ -55,7 +55,7 @@ curl -s https://ai.klxhub.com/health | jq
 ```
 Request → Handler.HandleMessages()
 │
-├─ Budget Level: GREEN (session เพิ่งเริ่ม, context < 50%)
+├─ Budget Level: GREEN (session เพิ่งเริ่ม, context < 60%)
 │
 ├─ OptimizeSystemPrompt (system prompt ~577 chars)
 │  ├─ F7 semantic_dedup    → 577→565 chars (-12, dedup "You are" directives)
@@ -104,11 +104,11 @@ Request → Handler.HandleMessages()
 ┌────────────────────────────────────────────────────────────────┐
 │                    BUDGET LEVEL SYSTEM                         │
 │                                                                │
-│  ● GREEN    (< 50% context window)                             │
+│  ● GREEN    (< 60% context window)                             │
 │    เปิด: semantic_dedup, chunker, delta, sketch, textcomp,     │
 │          caveman lite (30% output reduction)                   │
 │                                                                │
-│  ● YELLOW   (50-75% context window)                            │
+│  ● YELLOW   (>=60% context window)                            │
 │    เปิด: ทุกอย่างใน GREEN +                                    │
 │          packer, disclosure truncation (L2),                   │
 │          caveman full (50% output reduction)                   │
@@ -308,7 +308,7 @@ Session นี้ยาว 20+ turns เพราะมีทั้งเขี�
 **Gateway pipeline (turn 1-5)**:
 
 ```
-Budget: GREEN (< 50% context)
+Budget: GREEN (< 60% context)
 │
 ├─ semantic_dedup  → 12-23 chars saved per turn
 ├─ chunker         → cache hits on repeated system prompt
@@ -947,8 +947,8 @@ Fix:
 │    Health:     https://ai.klxhub.com/health                     │
 │                                                                 │
 │  Budget Levels:                                                 │
-│    GREEN  (< 50%)  → basic optimizers, caveman lite (30%)       │
-│    YELLOW (50-75%) → + packer, disclosure, caveman full (50%)   │
+│    GREEN  (< 60%)  → basic optimizers, caveman lite (30%)       │
+│    YELLOW (>=60%) → + packer, disclosure, caveman full (50%)   │
 │    RED   (> 75%)   → + summarizer, caveman ultra (75%)          │
 │                                                                 │
 │  Key Optimizers:                                                │
