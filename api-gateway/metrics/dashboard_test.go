@@ -133,16 +133,15 @@ var skipMetricsFromCoverage = map[string]string{
 	"api_gateway_sketch_checks_total":              "covered by optimizer_runs panel",
 	"api_gateway_waste_scan_duration_seconds":      "covered by waste detection panel",
 	"api_gateway_anomaly_total":               "registered but not incremented until anomaly detector runs",
-
-	"api_gateway_caveman_compression_ratio":        "caveman ratio, covered by optimizer aggregate panel",,
-	"api_gateway_caveman_compressions_total":       "caveman count, covered by optimizer_runs panel",,
-	"api_gateway_packer_budget_utilization":        "packer internal, covered by optimizer aggregate panel",,
-	"api_gateway_packer_tokens_saved_total":        "packer savings, covered by optimizer_chars_saved panel",,
-	"api_gateway_prefetcher_order_used":            "prefetcher internal diagnostic",,
-	"api_gateway_prefetcher_prewarm_duration_seconds": "prefetcher internal, covered by optimizer_duration panel",,
-	"api_gateway_summarizer_llm_tokens_total":      "summarizer LLM cost, covered by optimizer aggregate panel",,
-	"api_gateway_warmstart_similarity_score":       "warmstart internal diagnostic",,
-	"api_gateway_warmstart_warmup_duration_seconds": "warmstart internal, covered by optimizer_duration panel",,
+	"api_gateway_caveman_compression_ratio":        "caveman ratio, covered by optimizer aggregate panel",
+	"api_gateway_caveman_compressions_total":       "caveman count, covered by optimizer_runs panel",
+	"api_gateway_packer_budget_utilization":        "packer internal, covered by optimizer aggregate panel",
+	"api_gateway_packer_tokens_saved_total":        "packer savings, covered by optimizer_chars_saved panel",
+	"api_gateway_prefetcher_order_used":            "prefetcher internal diagnostic",
+	"api_gateway_prefetcher_prewarm_duration_seconds": "prefetcher internal, covered by optimizer_duration panel",
+	"api_gateway_summarizer_llm_tokens_total":      "summarizer LLM cost, covered by optimizer aggregate panel",
+	"api_gateway_warmstart_similarity_score":       "warmstart internal diagnostic",
+	"api_gateway_warmstart_warmup_duration_seconds": "warmstart internal, covered by optimizer_duration panel",
 }
 
 var (

@@ -78,7 +78,8 @@ func Test429_OnRateLimitError_Callback(t *testing.T) {
 	err := proxy.ProxyTransparent(w, r, "test-key", makeMinimalBody(), "claude-haiku-4-5-20251001", false, nil, nil, opts)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), callbackCalled.Load(), "OnRateLimitError should be called once")
-	assert.Equal(t, 200, w.Code, "should succeed after retry")
+	assert.Equal(t, 429, w.Code, "should return 429 to client when no fallback provided")
+	assert.Equal(t, "true", w.Header().Get("X-Should-Retry"), "should set X-Should-Retry")
 }
 
 // Test429_Retries_Exhausted verifies 429 is returned to client immediately

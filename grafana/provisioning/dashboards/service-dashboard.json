@@ -467,7 +467,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Without Optimization"
+              "options": "Before Optimization"
             },
             "properties": [
               {
@@ -482,7 +482,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "With Optimization"
+              "options": "After Optimization"
             },
             "properties": [
               {

@@ -386,8 +386,8 @@ func TestAllowedResponseHeaders(t *testing.T) {
 	}
 
 	// Verify total count
-	if len(allowedResponseHeaders) != 26 {
-		t.Errorf("allowedResponseHeaders has %d entries, want 26", len(allowedResponseHeaders))
+	if len(allowedResponseHeaders) != 25 {
+		t.Errorf("allowedResponseHeaders has %d entries, want 25", len(allowedResponseHeaders))
 	}
 }
 
