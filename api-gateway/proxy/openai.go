@@ -487,6 +487,7 @@ func (p *OpenAIProxy) handleOpenAIResponse(w http.ResponseWriter, resp *http.Res
 				p.metrics.RecordOptimization("response_trim", charsSaved, "output")
 				tokensSaved := int(float64(charsSaved) / 4.0)
 				p.metrics.RecordTokensSaved(tokensSaved, "output")
+				p.metrics.RecordCostSavings(model, float64(tokensSaved)*p.metrics.GetInputPrice(model)/1_000_000)
 			}
 		}
 	}

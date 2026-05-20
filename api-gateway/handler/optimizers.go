@@ -225,8 +225,8 @@ func (o *Optimizers) OptimizeSystemPrompt(text string, m *metrics.Metrics, budge
 	if totalSaved > 0 {
 		tokensSaved := float64(totalSaved) / 4.0
 		m.RecordTokensSaved(int(tokensSaved+0.5), "input")
-		costSavings := tokensSaved * 3.0 / 1_000_000
-		m.RecordCostSavings(costSavings)
+		costSavings := tokensSaved * m.GetInputPrice(model) / 1_000_000
+		m.RecordCostSavings(model, costSavings)
 	}
 
 	return text

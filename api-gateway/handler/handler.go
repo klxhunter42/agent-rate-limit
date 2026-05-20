@@ -1288,10 +1288,13 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		// Cache breakpoint guard: inject cache_control markers to keep
-		// system prompt cache alive in long conversations (>20 blocks).
+		// Cache breakpoint guard: clamp to Anthropic's 4-block cache_control
+		// limit, then inject markers to keep system prompt cache alive in
+		// long conversations (>20 blocks).
 		if !isZAIProvider {
-
+			if n := clampCacheControlBlocks(payload); n > 0 {
+				slog.Info("clamped cache_control blocks to Anthropic limit", "stripped", n, "model", selectedModel)
+			}
 			if n := injectCacheBreakpoints(payload); n > 0 {
 				slog.Info("cache breakpoints injected", "count", n, "model", selectedModel)
 			}
@@ -1955,12 +1958,6 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				OnRateLimitError: rotateAccountFn,
 				Transparent:      transparent,
 			}
-			semKey := profileName
-			if semKey == "" {
-				semKey = apiKey
-			}
-			releaseSem := h.acquireAccountSem(semKey)
-			defer releaseSem()
 			if err := h.trySidecarOrDirect(w, r, apiKey, body, selectedModel, isStream, feedbackFn, maskResult, opts, transparent); err != nil {
 				slog.Error("proxy error", "error", err, "model", selectedModel)
 				h.metrics.IncError("upstream")
@@ -2416,8 +2413,10 @@ func clampThinkingBudget(payload map[string]any, maxTokens int, model, profile s
 // injectCacheBreakpoints ensures cache_control markers stay within
 // Anthropic's 20-block lookback window. In long conversations, messages
 // push the system prompt cache beyond the window, causing full cache misses.
+// Respects Anthropic's 4-block cache_control limit - only injects if budget allows.
 func injectCacheBreakpoints(payload map[string]any) int {
 	const maxBlockWindow = 20
+	const maxCacheControlBlocks = 4 // Anthropic hard limit
 	safetyMargin := 2
 	threshold := maxBlockWindow - safetyMargin
 	injected := 0
@@ -2426,6 +2425,13 @@ func injectCacheBreakpoints(payload map[string]any) int {
 	if !ok || len(messages) < threshold {
 		return 0
 	}
+
+	// Count existing cache_control blocks after clamp.
+	existingCC := countCacheControlBlocks(payload)
+	if existingCC >= maxCacheControlBlocks {
+		return 0
+	}
+	remaining := maxCacheControlBlocks - existingCC
 
 	blocksSinceLastCache := 0
 
@@ -2444,6 +2450,9 @@ func injectCacheBreakpoints(payload map[string]any) int {
 
 	// Walk messages in reverse, counting blocks since last cache_control.
 	for i := len(messages) - 1; i >= 0; i-- {
+		if remaining <= 0 {
+			break
+		}
 		msg, ok := messages[i].(map[string]any)
 		if !ok {
 			continue
@@ -2456,6 +2465,9 @@ func injectCacheBreakpoints(payload map[string]any) int {
 		switch c := content.(type) {
 		case []any:
 			for j := len(c) - 1; j >= 0; j-- {
+				if remaining <= 0 {
+					break
+				}
 				block, ok := c[j].(map[string]any)
 				if !ok {
 					continue
@@ -2469,6 +2481,7 @@ func injectCacheBreakpoints(payload map[string]any) int {
 					if bt, _ := block["type"].(string); bt == "text" {
 						block["cache_control"] = map[string]any{"type": "ephemeral"}
 						injected++
+						remaining--
 						blocksSinceLastCache = 0
 					}
 				}
@@ -2479,6 +2492,116 @@ func injectCacheBreakpoints(payload map[string]any) int {
 	}
 
 	return injected
+}
+
+// clampCacheControlBlocks strips excess cache_control markers to stay within
+// Anthropic's 4-block hard limit. Priority order (strip first):
+//  1. Tiny system blocks: billing header + identity (~160 chars total, cache not worth it)
+//  2. Oldest message blocks (least valuable for cache lookback)
+//  3. Remaining system blocks from beginning (prefix, less valuable than suffix/main prompt)
+func clampCacheControlBlocks(payload map[string]any) int {
+	const maxCacheControlBlocks = 4
+
+	total := countCacheControlBlocks(payload)
+	if total <= maxCacheControlBlocks {
+		return 0
+	}
+
+	excess := total - maxCacheControlBlocks
+	stripped := 0
+
+	// Pass 1: strip cache_control from tiny system blocks (billing header, identity).
+	// These are ~60-100 chars each - caching saves ~25 tokens, not worth the budget slot.
+	if sys, ok := payload["system"].([]any); ok {
+		for _, block := range sys {
+			if stripped >= excess {
+				break
+			}
+			bm, ok := block.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, hasCC := bm["cache_control"]; !hasCC {
+				continue
+			}
+			text, _ := bm["text"].(string)
+			if len(text) < 200 {
+				delete(bm, "cache_control")
+				stripped++
+			}
+		}
+	}
+
+	// Pass 2: strip from oldest message blocks.
+	if stripped < excess {
+		if messages, ok := payload["messages"].([]any); ok {
+			for i := 0; i < len(messages) && stripped < excess; i++ {
+				m, ok := messages[i].(map[string]any)
+				if !ok {
+					continue
+				}
+				c, ok := m["content"].([]any)
+				if !ok {
+					continue
+				}
+				for j := 0; j < len(c) && stripped < excess; j++ {
+					if bm, ok := c[j].(map[string]any); ok {
+						if _, hasCC := bm["cache_control"]; hasCC {
+							delete(bm, "cache_control")
+							stripped++
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Pass 3: strip from beginning of system blocks (billing/identity are prefix).
+	// Do NOT strip from end - the main system prompt (25K+ chars) is the suffix.
+	if stripped < excess {
+		if sys, ok := payload["system"].([]any); ok {
+			for i := 0; i < len(sys) && stripped < excess; i++ {
+				if bm, ok := sys[i].(map[string]any); ok {
+					if _, hasCC := bm["cache_control"]; hasCC {
+						delete(bm, "cache_control")
+						stripped++
+					}
+				}
+			}
+		}
+	}
+
+	return stripped
+}
+
+// countCacheControlBlocks counts all blocks with cache_control across system and messages.
+func countCacheControlBlocks(payload map[string]any) int {
+	count := 0
+	if sys, ok := payload["system"].([]any); ok {
+		for _, block := range sys {
+			if bm, ok := block.(map[string]any); ok {
+				if _, hasCC := bm["cache_control"]; hasCC {
+					count++
+				}
+			}
+		}
+	}
+	if messages, ok := payload["messages"].([]any); ok {
+		for _, msg := range messages {
+			if m, ok := msg.(map[string]any); ok {
+				if c, ok := m["content"].([]any); ok {
+					for _, block := range c {
+						if bm, ok := block.(map[string]any); ok {
+							if _, hasCC := bm["cache_control"]; hasCC {
+								count++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return count
 }
 
 // filterUnsupportedContent strips cache_control from all content blocks

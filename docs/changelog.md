@@ -2,6 +2,53 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-05-20] Perf: Concurrent Request Optimization for Z.AI/GLM Mode
+
+### ปัญหา: Multi-agent serialize เหลือ 1 concurrent/profile
+
+**Root cause**: `acquireAccountSem` ใช้ `make(chan struct{}, 1)` ต่อ profile/apiKey ทำให้ request ทุกตัวที่ใช้ profile เดียวกันต่อคิว 1-by-1 แม้ upstream ไม่มี per-account rate limit + KeyPool ใช้ `sync.Mutex` + `[]int64` sliding window lock ทุก `Acquire()` call
+
+**Fix**:
+
+1. **ลบ `acquireAccountSem` ออกจาก default format proxy path** - ให้ adaptive limiter เป็นตัวคุม concurrency แทน
+2. **Rewrite KeyPool** เป็น lock-free atomic hot path:
+   - `keyEntry.count` -> `atomic.Int64` (RPM counter, CAS reset on window rollover)
+   - `keyEntry.windowStart` -> `atomic.Int64` (window boundary)
+   - `keyEntry.cooldownUntil` -> `atomic.Int64`
+   - Round-robin cursor -> `atomic.Int64`
+   - `Acquire()` happy path = zero mutex contention
+   - Mutex ใช้เฉพาะ cold path (รอ cooldown expiry จาก 429)
+
+**ไฟล์**:
+- `handler/handler.go` - ลบ acquireAccountSem call
+- `proxy/key_pool.go` - rewrite เป็น atomic-based
+
+**Impact**:
+- ก่อน: agent 10 ตัว -> serialize ผ่าน account sem (buffer=1) + KeyPool mutex -> 1 concurrent/profile
+- หลัง: agent 10 ตัว -> concurrent ทั้งหมด, adaptive limiter คุม, KeyPool zero-lock on happy path
+
+---
+
+## [2026-05-20] Fix: cache_control 4-Block Limit Exceeded (400 Error)
+
+### ปัญหา: `400 A maximum of 4 blocks with cache_control may be provided. Found 5.`
+
+**Root cause**: Claude Code ส่ง `cache_control: {"type": "ephemeral"}` บนหลาย block แล้ว gateway เพิ่ม cache breakpoint เพิ่มเติมผ่าน `injectCacheBreakpoints()` โดยไม่เช็คจำนวนรวม เกิน Anthropic API hard limit ที่ 4 blocks
+
+**Fix**:
+
+1. **`clampCacheControlBlocks()`** - นับ cache_control blocks ทั้งหมดใน payload (system + messages) และ strip ส่วนเกินจาก message block เก่าสุดก่อน (preserve system cache anchors) สำรอง strip จาก system block ท้ายสุด
+2. **`injectCacheBreakpoints()`** - เพิ่ม budget check: นับ existing cache_control blocks ก่อน inject ใหม่ จะ inject ได้สูงสุด `4 - existing` เท่านั้น
+3. **Pipeline order**: clamp ก่อน (strip ส่วนเกินจาก client) -> แล้วค่อย inject breakpoints (ตาม budget ที่เหลือ)
+
+**ไฟล์**: `handler/handler.go`, `handler/handler_test.go`
+
+**Impact**:
+- ก่อน: Claude Code ส่ง 4 cache_control blocks + gateway เพิ่ม 1 = 5 = 400 error
+- หลัง: clamp เหลือ 4 ก่อน -> inject เฉพาะถ้ายังมี budget -> ไม่เกิน 4
+
+---
+
 ## [2026-05-15] Fix: 429 on Expired Pool Tokens + Privacy Unmask Order + Prompt Caching Guard
 
 ### แก้ไข: Expired OAuth tokens cause 429 - no proactive refresh (Critical)

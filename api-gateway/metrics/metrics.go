@@ -50,7 +50,7 @@ type Metrics struct {
 	OptimizerTokensSaved  *prometheus.CounterVec
 	ProfileOptimizerSaved *prometheus.CounterVec
 	BudgetLevel           *prometheus.GaugeVec
-	CostSavings           prometheus.Counter
+	CostSavings           *prometheus.CounterVec
 	ContextTruncations    *prometheus.CounterVec
 	TransientRetries      *prometheus.CounterVec
 	BillingPathRequests   *prometheus.CounterVec
@@ -280,11 +280,11 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Current budget utilization level per model (0=green, 1=yellow, 2=red).",
 		}, []string{"model"}),
 
-		CostSavings: prometheus.NewCounter(prometheus.CounterOpts{
+		CostSavings: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "cost_savings_total",
-			Help:      "Total estimated cost savings from optimization in USD.",
-		}),
+			Help:      "Total estimated cost savings from optimization in USD by model.",
+		}, []string{"model"}),
 		WasteFindings: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "waste_findings_total",
@@ -516,11 +516,19 @@ func (m *Metrics) SetBudgetLevel(model string, level int) {
 	m.BudgetLevel.WithLabelValues(model).Set(float64(level))
 }
 
-// RecordCostSavings records estimated cost savings from optimization.
-func (m *Metrics) RecordCostSavings(usd float64) {
+// RecordCostSavings records estimated cost savings from optimization for a model.
+func (m *Metrics) RecordCostSavings(model string, usd float64) {
 	if usd > 0 {
-		m.CostSavings.Add(usd)
+		m.CostSavings.WithLabelValues(model).Add(usd)
 	}
+}
+
+// GetInputPrice returns the input price per million tokens for a model. Falls back to $3/M.
+func (m *Metrics) GetInputPrice(model string) float64 {
+	if p, ok := m.pricing[model]; ok {
+		return p.inputPerMillion
+	}
+	return 3.0
 }
 
 // Handler returns an HTTP handler that serves Prometheus metrics.
@@ -814,7 +822,7 @@ func (m *Metrics) seedOptimizers() {
 		m.OptimizerDuration.WithLabelValues(t.name).Observe(t.duration * 1.4)
 	}
 	m.OptimizerTokensSaved.WithLabelValues("input").Add(42800)
-	m.CostSavings.Add(3.47)
+	m.CostSavings.WithLabelValues("claude-sonnet-4-6").Add(3.47)
 }
 
 func (m *Metrics) seedBudget() {
@@ -958,7 +966,7 @@ func (m *Metrics) StartMockDataLoop(ctx context.Context) {
 				}
 
 				m.OptimizerTokensSaved.WithLabelValues("input").Add(40)
-				m.CostSavings.Add(0.003)
+				m.CostSavings.WithLabelValues("claude-sonnet-4-6").Add(0.003)
 
 				severities := []string{"low", "medium", "high"}
 				for _, d := range wasteDetectors {

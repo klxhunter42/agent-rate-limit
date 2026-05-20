@@ -81,7 +81,9 @@ func Test429_OnRateLimitError_Callback(t *testing.T) {
 	assert.Equal(t, 200, w.Code, "should succeed after retry")
 }
 
-// Test429_Retries_Exhausted verifies 429 is returned to client after retries exhausted.
+// Test429_Retries_Exhausted verifies 429 is returned to client immediately
+// when no fallback is available (passthrough mode). Server-side retry is skipped
+// because Claude CLI handles retries itself.
 func Test429_Retries_Exhausted(t *testing.T) {
 	var attempts atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,8 +115,9 @@ func Test429_Retries_Exhausted(t *testing.T) {
 	r := httptest.NewRequest("POST", "/v1/messages", bytes.NewReader(makeMinimalBody()))
 	err := proxy.ProxyTransparent(w, r, "test-key", makeMinimalBody(), "claude-haiku-4-5-20251001", false, nil, nil, opts)
 	assert.NoError(t, err)
-	assert.True(t, attempts.Load() >= 3, "should have attempted at least 3 times (1 initial + 2 retries), got %d", attempts.Load())
-	assert.Equal(t, 429, w.Code, "should return 429 to client after retries exhausted")
+	assert.Equal(t, int32(1), attempts.Load(), "should attempt once (passthrough, no server-side retry)")
+	assert.Equal(t, 429, w.Code, "should return 429 to client")
+	assert.Equal(t, "true", w.Header().Get("X-Should-Retry"), "should set X-Should-Retry header")
 }
 
 // Test429_Fallback_WithNewKey verifies OnRateLimitError provides new key and request succeeds.

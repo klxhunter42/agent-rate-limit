@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -742,19 +743,19 @@ func TestSelectVisionModel(t *testing.T) {
 func TestStripUnsupportedFields_GLMMustRemoveContextManagement(t *testing.T) {
 	payload := map[string]any{
 		"model":              "glm-5.1",
-		"messages":          []any{},
-		"system":            "you are helpful",
-		"tools":             []any{},
-		"tool_choice":       "auto",
-		"thinking":          map[string]any{"type": "enabled", "budget_tokens": 5000},
-		"budget_tokens":     5000,
-		"effort":            "high",
-		"stream_options":    map[string]any{"include_usage": true},
-		"metadata":          map[string]any{"user_id": "abc"},
-		"output_config":     map[string]any{"effort": "high"},
+		"messages":           []any{},
+		"system":             "you are helpful",
+		"tools":              []any{},
+		"tool_choice":        "auto",
+		"thinking":           map[string]any{"type": "enabled", "budget_tokens": 5000},
+		"budget_tokens":      5000,
+		"effort":             "high",
+		"stream_options":     map[string]any{"include_usage": true},
+		"metadata":           map[string]any{"user_id": "abc"},
+		"output_config":      map[string]any{"effort": "high"},
 		"context_management": map[string]any{},
-		"service_tier":      "auto",
-		"max_tokens":        4096,
+		"service_tier":       "auto",
+		"max_tokens":         4096,
 	}
 
 	stripUnsupportedFields(payload, false, "glm-5.1")
@@ -777,7 +778,6 @@ func TestStripUnsupportedFields_GLMMustRemoveContextManagement(t *testing.T) {
 	assert.Equal(t, "glm-5.1", payload["model"])
 	assert.Equal(t, 4096, payload["max_tokens"])
 }
-
 
 func TestStripUnsupportedFields_NonGLMKeepsFields(t *testing.T) {
 	payload := map[string]any{
@@ -890,15 +890,15 @@ func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
 				},
 			},
 		},
-		"output_config":  map[string]any{"effort": "high"},
-		"tools":          []any{map[string]any{"name": "bash"}},
-		"thinking":       map[string]any{"type": "enabled", "budget_tokens": 5000},
-		"stream_options": map[string]any{"include_usage": true},
-		"metadata":       map[string]any{"user_id": "test"},
+		"output_config":      map[string]any{"effort": "high"},
+		"tools":              []any{map[string]any{"name": "bash"}},
+		"thinking":           map[string]any{"type": "enabled", "budget_tokens": 5000},
+		"stream_options":     map[string]any{"include_usage": true},
+		"metadata":           map[string]any{"user_id": "test"},
 		"context_management": map[string]any{},
-		"service_tier":      "auto",
-		"model":          "glm-5.1",
-		"max_tokens":     8192,
+		"service_tier":       "auto",
+		"model":              "glm-5.1",
+		"max_tokens":         8192,
 	}
 
 	// Apply both transformations like the real handler does.
@@ -938,4 +938,142 @@ func TestFilterUnsupportedContent_VSCodeRealisticPayload(t *testing.T) {
 	assistantContent := msgs[1].(map[string]any)["content"].([]any)
 	assert.Len(t, assistantContent, 2, "server_tool_use kept in assistant message")
 	assert.Equal(t, "result", assistantContent[1].(map[string]any)["text"])
+}
+
+func TestClampCacheControlBlocks_NoExcess(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "hello"},
+			}},
+		},
+	}
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 0, stripped)
+	// System block still has cache_control.
+	_, hasCC := payload["system"].([]any)[0].(map[string]any)["cache_control"]
+	assert.True(t, hasCC)
+}
+
+func TestClampCacheControlBlocks_StripsExcessFromMessages(t *testing.T) {
+	// 5 cache_control blocks: 2 large system + 3 messages. Should strip 1 from oldest message.
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": strings.Repeat("sys1 ", 50), "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": strings.Repeat("sys2 ", 50), "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "old", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": "mid", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "new", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+	}
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 1, stripped)
+
+	// Oldest message block lost cache_control, large system blocks and newer messages kept.
+	oldBlock := payload["messages"].([]any)[0].(map[string]any)["content"].([]any)[0].(map[string]any)
+	_, hasCC := oldBlock["cache_control"]
+	assert.False(t, hasCC, "oldest message block should lose cache_control")
+
+	for _, sb := range payload["system"].([]any) {
+		_, hasCC := sb.(map[string]any)["cache_control"]
+		assert.True(t, hasCC, "large system block should keep cache_control")
+	}
+	newBlock := payload["messages"].([]any)[2].(map[string]any)["content"].([]any)[0].(map[string]any)
+	_, newHasCC := newBlock["cache_control"]
+	assert.True(t, newHasCC, "newest message block should keep cache_control")
+
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+}
+
+func TestClampCacheControlBlocks_StripsTinySystemBlocksFirst(t *testing.T) {
+	// Claude Code realistic: billing (~80 chars) + identity (~60 chars) + main prompt (25K+) + 2 messages = 5 CC.
+	// Should strip from billing + identity (tiny system blocks < 200 chars), NOT from main prompt.
+	mainPrompt := strings.Repeat("You are a helpful assistant. ", 1000)
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "x-anthropic-billing-header: cc_version=2.1.123; cc_entrypoint=cli;", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "You are Claude Code, Anthropic's official CLI for Claude.", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": mainPrompt, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": strings.Repeat("message content ", 20), "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": strings.Repeat("response content ", 20), "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+	}
+
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 1, stripped)
+
+	// Billing header (tiny, index 0) stripped, NOT main prompt (index 2).
+	sys := payload["system"].([]any)
+	_, billingCC := sys[0].(map[string]any)["cache_control"]
+	assert.False(t, billingCC, "tiny billing header should lose cache_control")
+	_, identityCC := sys[1].(map[string]any)["cache_control"]
+	assert.True(t, identityCC, "identity keeps cache_control (only 1 excess)")
+	_, mainCC := sys[2].(map[string]any)["cache_control"]
+	assert.True(t, mainCC, "main system prompt MUST keep cache_control")
+
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+}
+
+func TestInjectCacheBreakpoints_RespectsBudget(t *testing.T) {
+	// 3 existing cache_control blocks, long conversation -> should inject at most 1.
+	msgs := make([]any, 25)
+	for i := range msgs {
+		msgs[i] = map[string]any{
+			"role":    "user",
+			"content": []any{map[string]any{"type": "text", "text": fmt.Sprintf("msg %d", i)}},
+		}
+	}
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys3", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": msgs,
+	}
+
+	injected := injectCacheBreakpoints(payload)
+	assert.Equal(t, 1, injected, "should inject exactly 1 breakpoint (4 - 3 existing)")
+	assert.Equal(t, 4, countCacheControlBlocks(payload), "total should be exactly 4")
+}
+
+func TestInjectCacheBreakpoints_NoBudget_NoInjection(t *testing.T) {
+	// 4 existing cache_control blocks, long conversation -> should inject 0.
+	msgs := make([]any, 25)
+	for i := range msgs {
+		msgs[i] = map[string]any{
+			"role":    "user",
+			"content": []any{map[string]any{"type": "text", "text": fmt.Sprintf("msg %d", i)}},
+		}
+	}
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys3", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys4", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": msgs,
+	}
+
+	injected := injectCacheBreakpoints(payload)
+	assert.Equal(t, 0, injected, "no budget for new breakpoints")
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
 }

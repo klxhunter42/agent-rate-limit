@@ -253,7 +253,7 @@
       },
       "targets": [
         {
-          "expr": "clamp_max(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + 1) * 100, 100) or on() vector(0)",
+          "expr": "clamp_max(sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4 / (sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) * 100, 100) or on() vector(0)",
           "legendFormat": "",
           "datasource": {
             "type": "prometheus",
@@ -446,16 +446,16 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(increase(api_gateway_token_input_total[$__range]))) or on() vector(0)",
-          "legendFormat": "Without Optimization"
+          "expr": "(sum(increase(api_gateway_token_input_total[$__range])) + sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4) or on() vector(0)",
+          "legendFormat": "Before Optimization"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "clamp_min(sum(increase(api_gateway_token_input_total[$__range])) - sum(increase(api_gateway_optimizer_chars_saved_total{direction=\"input\"}[$__range])) / 4, 0) or on() vector(0)",
-          "legendFormat": "With Optimization"
+          "expr": "sum(increase(api_gateway_token_input_total[$__range])) or on() vector(0)",
+          "legendFormat": "After Optimization"
         }
       ],
       "fieldConfig": {
