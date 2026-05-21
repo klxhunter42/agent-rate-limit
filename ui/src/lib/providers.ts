@@ -35,6 +35,7 @@ const FALLBACK_NAMES: Record<string, string> = {
   codebuddy: 'CodeBuddy',
   kilo: 'Kilo',
   qwen: 'Qwen',
+  lotuss: 'Lotuss',
 };
 
 export const UNAVAILABLE_PROVIDER_IDS = new Set([
@@ -69,6 +70,7 @@ const PROVIDER_ACCENT: Record<string, string> = {
   huggingface: '#ec4899',
   ollama: '#78716c',
   qwen: '#ef4444',
+  lotuss: '#8b5cf6',
 };
 
 export function providerColor(id: string): string {

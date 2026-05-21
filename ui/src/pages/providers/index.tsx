@@ -29,6 +29,7 @@ interface ProviderDef {
 }
 
 const PROVIDERS: ProviderDef[] = [
+ // --- Available ---
  { id: 'zai', name: 'Z.AI', icon: Sparkles, authType: 'API Key',
     setup: [
       'Go to open.bigmodel.cn and sign up',
@@ -60,6 +61,15 @@ const PROVIDERS: ProviderDef[] = [
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
+ { id: 'lotuss', name: 'Lotuss', icon: Globe, authType: 'API Key',
+    setup: [
+      'OpenAI-compatible endpoint at llm.internal/custom/llm',
+      'Get API key from Lotuss admin',
+      'Use model prefix "lotus-" (e.g., lotus-sonnet)',
+      'Model is overridden to "default" automatically',
+      'max_tokens is clamped to 14000',
+    ] },
+ // --- Unavailable ---
  { id: 'anthropic', name: 'Anthropic', icon: Bot, authType: 'API Key', unavailable: true,
     setup: [
       'Go to console.anthropic.com and sign up',
@@ -145,6 +155,13 @@ const PROVIDERS: ProviderDef[] = [
     setup: [
       'Go to your Kilo provider dashboard',
       'Navigate to API Keys section',
+      'Create a new API key and copy it',
+      'Paste the key in the connect dialog',
+    ] },
+ { id: 'qwen', name: 'Qwen (Aliyun)', icon: Brain, authType: 'API Key', unavailable: true,
+    setup: [
+      'Go to dashscope.aliyun.com and sign up',
+      'Navigate to API Keys in your dashboard',
       'Create a new API key and copy it',
       'Paste the key in the connect dialog',
     ] },
