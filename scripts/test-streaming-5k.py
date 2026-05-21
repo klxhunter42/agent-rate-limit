@@ -37,12 +37,6 @@ PROFILES = {
         "supports_tools": True,
         "supports_thinking": True,
     },
-    "lotuss": {
-        "key": "${LOTUSS_KEY:-REPLACE_ME}",
-        "model": "lotuss-default",
-        "supports_tools": True,
-        "supports_thinking": False,
-    },
     "kimi": {
         "key": "${KIMI_KEY:-sk-kimi-REPLACE_ME}",
         "model": "kimi-k2.6",
@@ -460,8 +454,8 @@ def generate_tests(
                     "max_tokens": mt, "stream": True, "messages": messages,
                 }, desc)
 
-    # Section 4: Tool Use (cc + lotuss only, supports_tools)
-    # ~6 tool sets x 2 profiles = 12
+    # Section 4: Tool Use (cc only, supports_tools)
+    # ~6 tool sets x 1 profile = 6
     if should_run("tools"):
         for profile in target_profiles:
             if not PROFILES[profile]["supports_tools"]:
@@ -1018,7 +1012,7 @@ def print_summary(results: list[TestResult], elapsed: float):
 
     print(f"\n  {'Profile':<12s} {'Pass':>6s} {'Fail':>6s} {'Avg TTFB':>10s} {'Avg Total':>10s} {'Avg Chunks':>11s}")
     print(f"  {'-'*55}")
-    for profile in ["cc", "lotuss", "kimi"]:
+    for profile in ["cc", "kimi"]:
         if profile in by_profile:
             p = by_profile[profile]
             avg_ttfb = sum(p["ttfb"]) / len(p["ttfb"]) if p["ttfb"] else 0
@@ -1074,7 +1068,7 @@ def list_tests(tests: list[TestCase]):
 # ===== Main =====
 def main():
     parser = argparse.ArgumentParser(description="SSE Streaming Parameterized Test Suite")
-    parser.add_argument("--profile", nargs="*", help="Filter profiles (cc, lotuss, kimi)")
+    parser.add_argument("--profile", nargs="*", help="Filter profiles (cc, kimi)")
     parser.add_argument("--section", nargs="*", help="Filter sections")
     parser.add_argument("--limit", type=int, help="Max tests to run")
     parser.add_argument("--concurrent", type=int, default=1, help="Parallel workers")

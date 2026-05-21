@@ -28,7 +28,6 @@ const AVAILABLE_PROVIDERS = [
  'Claude (OAuth)',
  'Gemini (OAuth)',
  'Kimi',
- 'Lotuss',
 ];
 
 test.describe('Provider Unavailable Status', () => {

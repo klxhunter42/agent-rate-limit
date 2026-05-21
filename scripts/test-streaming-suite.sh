@@ -1,6 +1,6 @@
 #!/bin/bash
 # SSE Streaming Test Suite - 100 test cases
-# Profiles: cc, lotuss, kimi
+# Profiles: cc, kimi
 # Dimensions: stream/non-stream, message sizes, multi-turn, tools, system prompts,
 #             languages, concurrent, edge cases, long context, thinking, etc.
 
@@ -12,7 +12,6 @@ mkdir -p "$RESULTS_DIR"
 
 # Profile keys
 CC_KEY="${CC_KEY:-sk-ant-oat01-REPLACE_ME}"
-LOTUSS_KEY="${LOTUSS_KEY:-REPLACE_ME}"
 KIMI_KEY="${KIMI_KEY:-sk-kimi-REPLACE_ME}"
 
 PASS=0
@@ -187,7 +186,7 @@ q() {
 echo ""
 echo -e "${BOLD}${CYAN}================================================================${NC}"
 echo -e "${BOLD}${CYAN}  SSE Streaming Test Suite - 100 Cases                        ${NC}"
-echo -e "${BOLD}${CYAN}  Profiles: cc, lotuss, kimi                                  ${NC}"
+echo -e "${BOLD}${CYAN}  Profiles: cc, kimi                                          ${NC}"
 echo -e "${BOLD}${CYAN}================================================================${NC}"
 echo ""
 
@@ -196,10 +195,9 @@ echo ""
 # ==============================================================================
 echo -e "${BOLD}${YELLOW}[Section 1] Basic Streaming${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -245,10 +243,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 2] Non-Streaming (baseline comparison)${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -277,10 +274,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 3] Multi-turn Conversations${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -330,10 +326,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 4] System Prompts${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -374,15 +369,14 @@ print(json.dumps({'model':'$model','max_tokens':64,'stream':True,
 done
 
 # ==============================================================================
-# SECTION 5: Tool Use (cc + lotuss only, kimi may not support) (2 profiles x 5 = 10)
+# SECTION 5: Tool Use (cc only, kimi may not support) (1 profile x 5 = 5)
 # ==============================================================================
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 5] Tool Use${NC}"
 
-for profile in cc lotuss; do
+for profile in cc; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
     esac
 
     # Single tool
@@ -438,10 +432,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 6] Language & Encoding${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -473,10 +466,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 7] Long Output${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -508,10 +500,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 8] Long Input Context${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -553,10 +544,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 9] Edge Cases${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -588,10 +578,9 @@ done
 echo ""
 echo -e "${BOLD}${YELLOW}[Section 10] Streaming Integrity${NC}"
 
-for profile in cc lotuss kimi; do
+for profile in cc kimi; do
     case $profile in
         cc) key="$CC_KEY"; model="claude-sonnet-4-20250514" ;;
-        lotuss) key="$LOTUSS_KEY"; model="lotuss-default" ;;
         kimi) key="$KIMI_KEY"; model="kimi-k2.6" ;;
     esac
 
@@ -721,14 +710,6 @@ print(json.dumps({'model':'claude-sonnet-4-20250514','max_tokens':256,'stream':T
     'messages':[{'role':'user','content':'Solve: if a train leaves Bangkok at 60km/h and another leaves Chiang Mai at 80km/h, when do they meet if 700km apart?'}]}))")
 run_test "S11-cc-thinking" "cc" "$CC_KEY" "claude-sonnet-4-20250514" "true" "$body" 200 "extended thinking"
 
-# Lotuss with thinking
-body=$(python3 -c "
-import json
-print(json.dumps({'model':'lotuss-default','max_tokens':256,'stream':True,
-    'thinking':{'type':'enabled','budget_tokens':1024},
-    'messages':[{'role':'user','content':'What are the pros and cons of microservices vs monolith?'}]}))")
-run_test "S11-lotuss-thinking" "lotuss" "$LOTUSS_KEY" "lotuss-default" "true" "$body" 200 "lotuss thinking"
-
 # Kimi non-stream
 body=$(python3 -c "
 import json
@@ -801,22 +782,17 @@ print(json.dumps({'model':'$model','max_tokens':64,'stream':True,
 
 # 3 concurrent cc
 run_concurrent "cc" "$CC_KEY" "claude-sonnet-4-20250514" 3 "3 concurrent streams"
-# 3 concurrent lotuss
-run_concurrent "lotuss" "$LOTUSS_KEY" "lotuss-default" 3 "3 concurrent streams"
 # 3 concurrent kimi
 run_concurrent "kimi" "$KIMI_KEY" "kimi-k2.6" 3 "3 concurrent streams"
 # 5 concurrent cc
 run_concurrent "cc" "$CC_KEY" "claude-sonnet-4-20250514" 5 "5 concurrent streams"
-# 5 concurrent lotuss
-run_concurrent "lotuss" "$LOTUSS_KEY" "lotuss-default" 5 "5 concurrent streams"
 # 10 concurrent mixed
 TOTAL=$((TOTAL + 1))
 all_pass=true
 for i in $(seq 1 10); do
-    case $((i % 3)) in
+    case $((i % 2)) in
         0) p="cc"; k="$CC_KEY"; m="claude-sonnet-4-20250514" ;;
-        1) p="lotuss"; k="$LOTUSS_KEY"; m="lotuss-default" ;;
-        2) p="kimi"; k="$KIMI_KEY"; m="kimi-k2.6" ;;
+        1) p="kimi"; k="$KIMI_KEY"; m="kimi-k2.6" ;;
     esac
     body=$(python3 -c "
 import json

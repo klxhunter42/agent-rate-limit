@@ -35,7 +35,6 @@ const FALLBACK_NAMES: Record<string, string> = {
   codebuddy: 'CodeBuddy',
   kilo: 'Kilo',
   qwen: 'Qwen',
-  lotuss: 'Lotuss',
 };
 
 export const UNAVAILABLE_PROVIDER_IDS = new Set([

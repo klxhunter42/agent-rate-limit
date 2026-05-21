@@ -201,7 +201,7 @@ privacy_email() {
   send_sse "Privacy: EMAIL" \
     "$(jq -nc --arg m "$SELECTED_MODEL" '{
       model: $m, stream: true, max_tokens: 128,
-      messages: [{role:"user",content:"Contact our team:\nCEO: thanapat@lotus.com\nCTO: somchai.dev@gmail.com\nHR: hr-team@cpaxtra.co.th\nSupport: helpdesk@cpsall.co.th\nAlso CC: admin@kmitl.ac.th and no-reply@aws.amazon.com\nPlease send the quarterly report to all of them."}]
+      messages: [{role:"user",content:"Contact our team:\nCEO: thanapat@example.com\nCTO: somchai.dev@gmail.com\nHR: hr-team@cpaxtra.co.th\nSupport: helpdesk@cpsall.co.th\nAlso CC: admin@kmitl.ac.th and no-reply@aws.amazon.com\nPlease send the quarterly report to all of them."}]
     }')" \
     "EMAIL_ADDRESS detection - 6 emails across domains"
 }
@@ -421,7 +421,7 @@ privacy_mixed_pii() {
   send_sse "Privacy: MIXED PII" \
     "$(jq -nc --arg m "$SELECTED_MODEL" '{
       model: $m, stream: true, max_tokens: 256,
-      messages: [{role:"user",content:"HR report:\nName: Somchai (SSN: 123-45-6789)\nEmail: somchai@lotus.com\nPhone: +66-81-234-5678\nThai ID: 1-1001-00001-23-4\nIBAN: TH96-0000-0000-0000-0000-0001\nIP workstation: 10.0.1.50\nCC for expense: 4111-1111-1111-1111"}]
+      messages: [{role:"user",content:"HR report:\nName: Somchai (SSN: 123-45-6789)\nEmail: somchai@example.com\nPhone: +66-81-234-5678\nThai ID: 1-1001-00001-23-4\nIBAN: TH96-0000-0000-0000-0000-0001\nIP workstation: 10.0.1.50\nCC for expense: 4111-1111-1111-1111"}]
     }')" \
     "All PII types in single request - 7 entity types"
 }
@@ -430,7 +430,7 @@ privacy_mixed_secrets() {
   send_sse "Privacy: MIXED SECRETS" \
     "$(jq -nc --arg m "$SELECTED_MODEL" '{
       model: $m, stream: true, max_tokens: 256,
-      messages: [{role:"user",content:"Production config dump:\nDATABASE_URL=postgres://admin:s3cret@db.internal:5432/app\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nVAULT_TOKEN=hvs.abcdefghijklmnopqrstuvwxyz123456\nSLACK_TOKEN=xoxb-1234567890-1234567890123-abcdefghijklmnopqrstuvwxyz\nSTRIPE_KEY=sk_live_abcdefghijklmnopqrstuvwxyz1234567890\nSend to: devops@lotus.com"}]
+      messages: [{role:"user",content:"Production config dump:\nDATABASE_URL=postgres://admin:s3cret@db.internal:5432/app\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nVAULT_TOKEN=hvs.abcdefghijklmnopqrstuvwxyz123456\nSLACK_TOKEN=xoxb-1234567890-1234567890123-abcdefghijklmnopqrstuvwxyz\nSTRIPE_KEY=sk_live_abcdefghijklmnopqrstuvwxyz1234567890\nSend to: devops@example.com"}]
     }')" \
     "All secret types in single request - 6 secret types"
 }
@@ -439,7 +439,7 @@ privacy_mixed_everything() {
   send_sse "Privacy: EVERYTHING" \
     "$(jq -nc --arg m "$SELECTED_MODEL" '{
       model: $m, stream: true, max_tokens: 512,
-      messages: [{role:"user",content:"Incident report - DO NOT SHARE:\nAffected user: somchai@lotus.com / +66-81-234-5678\nSSN on file: 123-45-6789, Thai ID: 1-1001-00001-23-4\nDB breached: postgres://admin:P@ssw0rd@10.0.1.50:5432/users\nAWS key exposed: AKIAIOSFODNN7EXAMPLE\nVault token leaked: hvs.abcdefghijklmnopqrstuvwxyz123456\nSlack webhook: https://hooks.slack.com/services/T00/B00/XXYYZZ\nExpense card: 4111-1111-1111-1111\nServer IP: 52.74.128.33 / IBAN: TH96-0000-0000-0000-0000-0001\nJWT found: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc123\nGitHub PAT: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij\nGCP key: AIzaSyA1234567890abcdefghijklmnopqrstuv"}]
+      messages: [{role:"user",content:"Incident report - DO NOT SHARE:\nAffected user: somchai@example.com / +66-81-234-5678\nSSN on file: 123-45-6789, Thai ID: 1-1001-00001-23-4\nDB breached: postgres://admin:P@ssw0rd@10.0.1.50:5432/users\nAWS key exposed: AKIAIOSFODNN7EXAMPLE\nVault token leaked: hvs.abcdefghijklmnopqrstuvwxyz123456\nSlack webhook: https://hooks.slack.com/services/T00/B00/XXYYZZ\nExpense card: 4111-1111-1111-1111\nServer IP: 52.74.128.33 / IBAN: TH96-0000-0000-0000-0000-0001\nJWT found: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.abc123\nGitHub PAT: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij\nGCP key: AIzaSyA1234567890abcdefghijklmnopqrstuv"}]
     }')" \
     "ALL PII + ALL secrets combined - stress test"
 }
@@ -448,7 +448,7 @@ privacy_dedup() {
   send_sse "Privacy: DEDUP" \
     "$(jq -nc --arg m "$SELECTED_MODEL" '{
       model: $m, stream: true, max_tokens: 128,
-      messages: [{role:"user",content:"Contact somchai@lotus.com for details.\nAlso email somchai@lotus.com for the report.\nCC somchai@lotus.com on all replies.\nForward to somchai@lotus.com when done.\nSame email appears 4 times - should get same placeholder."}]
+      messages: [{role:"user",content:"Contact somchai@example.com for details.\nAlso email somchai@example.com for the report.\nCC somchai@example.com on all replies.\nForward to somchai@example.com when done.\nSame email appears 4 times - should get same placeholder."}]
     }')" \
     "Same value repeated 4x - should produce identical placeholder"
 }
@@ -666,14 +666,14 @@ optim_combined() {
     sys+="You are a helpful assistant.    Please be thorough.     "
     sys+="I would like to note that basically, at the end of the day, accuracy matters.  "
   done
-  sys+="You are a security audit assistant. Contact somchai@lotus.com for findings. AWS key AKIAIOSFODNN7EXAMPLE found."
+  sys+="You are a security audit assistant. Contact somchai@example.com for findings. AWS key AKIAIOSFODNN7EXAMPLE found."
   local sys_json
   sys_json=$(echo "$sys" | jq -Rs .)
   send_sse "Optim: COMBINED" \
     "$(jq -nc --arg m "$SELECTED_MODEL" --argjson s "$sys_json" '{
       model: $m, stream: true, max_tokens: 256,
       system: $s,
-      messages: [{role:"user",content:"Audit this config and email results to admin@lotus.com"}]
+      messages: [{role:"user",content:"Audit this config and email results to admin@example.com"}]
     }')" \
     "Combined: TextComp + SemDedup + Whitespace + Privacy masking"
 }

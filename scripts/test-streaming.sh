@@ -1,6 +1,6 @@
 #!/bin/bash
 # SSE Streaming Test - Detailed per-chunk timing
-# Tests 3 profiles: cc, lotuss, kimi
+# Tests 2 profiles: cc, kimi
 # Measures: TTFB, inter-chunk timing, total time, chunk count
 
 GATEWAY="http://localhost:9000"
@@ -141,10 +141,6 @@ print('=' * 58)
 # ===== CC (Claude OAuth) =====
 CC_KEY="${CC_KEY:-sk-ant-oat01-REPLACE_ME}"
 test_profile "cc" "$CC_KEY" "claude-sonnet-4-20250514"
-
-# ===== Lotuss =====
-LOTUSS_KEY="${LOTUSS_KEY:-REPLACE_ME}"
-test_profile "lotuss" "$LOTUSS_KEY" "lotuss-default"
 
 # ===== Kimi =====
 KIMI_KEY="${KIMI_KEY:-sk-kimi-REPLACE_ME}"

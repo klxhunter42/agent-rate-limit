@@ -548,7 +548,6 @@ curl -X POST ${baseUrl}/v1/profiles \
             <li><code className="bg-muted px-1 rounded text-xs">kimi</code> - Kimi / Moonshot</li>
             <li><code className="bg-muted px-1 rounded text-xs">huggingface</code> - HuggingFace Inference</li>
             <li><code className="bg-muted px-1 rounded text-xs">ollama</code> - Ollama (local models)</li>
-            <li><code className="bg-muted px-1 rounded text-xs">lotus</code> - Lotuss (OpenAI-compatible, model override: "default")</li>
             <li><code className="bg-muted px-1 rounded text-xs">cursor</code> / <code className="bg-muted px-1 rounded text-xs">codebuddy</code> / <code className="bg-muted px-1 rounded text-xs">kilo</code> / <code className="bg-muted px-1 rounded text-xs">agy</code> - Other providers</li>
           </ul>
         </Section>

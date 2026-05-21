@@ -27,11 +27,6 @@ PROFILES = {
         "expect_optimizer": "toolcomp+toolfilter_only", "auth_value": None,
         "concurrent_limit": 2,
     },
-    "lotuss": {
-        "name": "lotuss", "provider": "lotuss", "model": "glm-5.1",
-        "expect_optimizer": "all_stages", "auth_value": None,
-        "concurrent_limit": 2,
-    },
     "kimi": {
         "name": "kimi", "provider": "kimi", "model": "kimi-latest",
         "expect_optimizer": "all_stages", "auth_value": None,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive optimizer + routing test for all profiles: cc, lotuss, kimi, zai-test.
+Comprehensive optimizer + routing test for all profiles: cc, kimi, zai-test.
 20 test cases covering: system prompts, tools, multi-turn, languages, streaming, concurrency.
 Verifies optimizer behavior per provider with detailed comparison tables.
 """
@@ -363,14 +363,6 @@ PROFILES = {
         "expect_optimizer": "toolcomp+toolfilter_only",
         "auth_value": None,
     },
-    "lotuss": {
-        "name": "lotuss",
-        "provider": "lotuss",
-        "model": "glm-5.1",
-        "description": "Lotuss (glm-5.1 via Z.AI)",
-        "expect_optimizer": "all_stages",
-        "auth_value": None,
-    },
     "kimi": {
         "name": "kimi",
         "provider": "kimi",
@@ -554,7 +546,7 @@ def fmt_concurrent(oks, errs, wall):
 def parse_args():
     import argparse
     p = argparse.ArgumentParser(description="Comprehensive profile test")
-    p.add_argument("--profile", "-p", help="Run only this profile (cc, lotuss, kimi, zai-test)", default=None)
+    p.add_argument("--profile", "-p", help="Run only this profile (cc, kimi, zai-test)", default=None)
     p.add_argument("--gateway", "-g", help="Gateway URL", default=None)
     return p.parse_args()
 
