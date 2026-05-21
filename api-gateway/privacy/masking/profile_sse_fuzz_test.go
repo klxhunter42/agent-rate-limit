@@ -21,7 +21,7 @@ import (
 //
 // Profiles tested:
 //   cc (Claude Code)     -> text_delta, thinking_delta, input_json_delta
-//   lotuss (Lotuss/Z.AI) -> text chunks, tool calls in JSON
+//   example (Z.AI)       -> text chunks, tool calls in JSON
 //   kimi (Kimi)          -> OpenAI-format text deltas
 // =============================================================================
 
@@ -193,11 +193,11 @@ func TestSSE_Lotuss_TextDelta_SplitPositions(t *testing.T) {
 	placeholders := []struct {
 		ph, orig string
 	}{
-		{"[[EMAIL_ADDRESS_1]]", "lotuss@sse.io"},
-		{"[[API_KEY_SK_1]]", "sk-lotuss-key"},
+		{"[[EMAIL_ADDRESS_1]]", "example@sse.io"},
+		{"[[API_KEY_SK_1]]", "sk-example-key"},
 		{"[[PHONE_NUMBER_1]]", "+66-99-888-7777"},
 		{"[[IP_ADDRESS_1]]", "192.168.99.1"},
-		{"[[CLI_AUTH_1]]", "root:lotuss-pw"},
+		{"[[CLI_AUTH_1]]", "root:example-pw"},
 	}
 
 	for _, p := range placeholders {
@@ -1046,7 +1046,7 @@ func TestSSE_RealisticCCStream(t *testing.T) {
 
 func TestSSE_RealisticLotussStream(t *testing.T) {
 	ctx := NewMaskContext()
-	ctx.Mapping["[[API_KEY_SK_1]]"] = "sk-lotuss-real"
+	ctx.Mapping["[[API_KEY_SK_1]]"] = "sk-example-real"
 	ctx.Mapping["[[IP_ADDRESS_1]]"] = "10.222.222.222"
 	ctx.Counters["API_KEY_SK"] = 1
 	ctx.Counters["IP_ADDRESS"] = 1
@@ -1065,7 +1065,7 @@ func TestSSE_RealisticLotussStream(t *testing.T) {
 
 		full := StripLeftoverPlaceholders(r1 + f1 + r2 + r3 + f2)
 		assert.Contains(t, full, "10.222.222.222")
-		assert.Contains(t, full, "sk-lotuss-real")
+		assert.Contains(t, full, "sk-example-real")
 	})
 }
 

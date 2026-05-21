@@ -38,7 +38,7 @@ PROFILES = {
         "supports_thinking": True,
     },
     "lotuss": {
-        "key": "REDACTED",
+        "key": "${LOTUSS_KEY:-REPLACE_ME}",
         "model": "lotuss-default",
         "supports_tools": True,
         "supports_thinking": False,

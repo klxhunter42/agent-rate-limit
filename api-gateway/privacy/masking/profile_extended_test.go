@@ -399,7 +399,7 @@ func TestLotussProfile_GarbledAfterUnmask(t *testing.T) {
 
 func TestLotussProfile_SecretAndPIITogether(t *testing.T) {
 	pii := NewMaskContext()
-	pii.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@lotuss.com"
+	pii.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@example.com"
 	pii.Counters["EMAIL_ADDRESS"] = 1
 	sec := NewMaskContext()
 	sec.Mapping["[[API_KEY_SK_1]]"] = "sk-prod"
@@ -409,7 +409,7 @@ func TestLotussProfile_SecretAndPIITogether(t *testing.T) {
 	result := simulateSSEChunks(u, []string{
 		"User [[EMAIL_ADDRESS_1]] key [[API_KEY_SK_1]]",
 	}, false)
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.Contains(t, result, "sk-prod")
 	assert.NotContains(t, result, "[[")
 }
@@ -1194,7 +1194,7 @@ func TestSanitizeGarbledOutput_Comprehensive(t *testing.T) {
 
 func TestRealistic_CCStreamingSession(t *testing.T) {
 	pii := NewMaskContext()
-	pii.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@lotuss.com"
+	pii.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@example.com"
 	pii.Mapping["[[IP_ADDRESS_1]]"] = "10.0.0.1"
 	pii.Counters["EMAIL_ADDRESS"] = 1
 	pii.Counters["IP_ADDRESS"] = 1
@@ -1211,7 +1211,7 @@ func TestRealistic_CCStreamingSession(t *testing.T) {
 	_ = u.Flush()
 
 	text := u.ProcessChunk("Email results to [[EMAIL_ADDRESS_1]]")
-	assert.Contains(t, text, "admin@lotuss.com")
+	assert.Contains(t, text, "admin@example.com")
 
 	_ = u.Flush()
 
@@ -1226,11 +1226,11 @@ func TestRealistic_LotussStreaming(t *testing.T) {
 	sec.Counters["CLI_AUTH"] = 1
 	u := NewStreamUnmasker(nil, sec)
 
-	// Realistic lotuss session: content + tool call
+	// Realistic example session: content + tool call
 	content := u.ProcessChunk("Deploying with credentials [[CLI_AUTH_1]]")
 	assert.Contains(t, content, "deploy:secret123")
 
-	toolArgs := u.ProcessChunkJSON(`{"host":"api.lotuss.co.th","auth":"[[CLI_AUTH_1]]","env":"prod"}`)
+	toolArgs := u.ProcessChunkJSON(`{"host":"api.example.co.th","auth":"[[CLI_AUTH_1]]","env":"prod"}`)
 	assert.Contains(t, toolArgs, "deploy:secret123")
 
 	var parsed map[string]any

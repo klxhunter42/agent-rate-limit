@@ -12,7 +12,7 @@ mkdir -p "$RESULTS_DIR"
 
 # Profile keys
 CC_KEY="${CC_KEY:-sk-ant-oat01-REPLACE_ME}"
-LOTUSS_KEY="REDACTED"
+LOTUSS_KEY="${LOTUSS_KEY:-REPLACE_ME}"
 KIMI_KEY="${KIMI_KEY:-sk-kimi-REPLACE_ME}"
 
 PASS=0

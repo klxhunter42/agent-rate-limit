@@ -16,7 +16,7 @@ import (
 //   SSE events: content_block_delta {text_delta, thinking_delta, input_json_delta}
 //   content_block_start, content_block_stop, message_delta
 //
-// lotuss -> OpenAI format, relayOpenAIStream path
+// example-provider -> OpenAI format, relayOpenAIStream path
 //   SSE data: {"choices":[{"delta":{"content":"..."}}]}
 //   tool_calls: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"..."}}]}}]}
 //
@@ -28,7 +28,7 @@ import (
 
 func makePIICtx() *MaskContext {
 	ctx := NewMaskContext()
-	ctx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@lotuss.com"
+	ctx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@example.com"
 	ctx.Mapping["[[PHONE_NUMBER_1]]"] = "+66-81-234-5678"
 	ctx.Counters["EMAIL_ADDRESS"] = 1
 	ctx.Counters["PHONE_NUMBER"] = 1
@@ -85,14 +85,14 @@ func TestCCProfile_TextDelta_FullRoundTrip(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.Contains(t, result, "sk-prod-key-abc123def456")
 	assert.NotContains(t, result, "[[")
 }
 
 func TestCCProfile_TextDelta_SplitPlaceholder(t *testing.T) {
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@lotuss.com"
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@example.com"
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piiCtx, nil)
@@ -104,7 +104,7 @@ func TestCCProfile_TextDelta_SplitPlaceholder(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.NotContains(t, result, "[[")
 }
 
@@ -176,7 +176,7 @@ func TestCCProfile_CrossBlockBufferContamination(t *testing.T) {
 	// H3+H4: Simulate block index change in relayStreamWithTracking
 	// Block 0 (text) ends with partial placeholder, block 1 (thinking) starts fresh
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@lotuss.com"
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@example.com"
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	// Block 0: text delta with partial placeholder at end
@@ -202,7 +202,7 @@ func TestCCProfile_MultiplePlaceholdersInOneChunk(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.Contains(t, result, "sk-prod-key-abc123def456")
 	assert.Contains(t, result, "admin:secretpass")
 	assert.Contains(t, result, "+66-81-234-5678")
@@ -248,7 +248,7 @@ func TestCCProfile_GLMConcatenatedUndefined(t *testing.T) {
 
 func TestCCProfile_StripLeftoverPlaceholders(t *testing.T) {
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@lotuss.com"
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "user@example.com"
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piiCtx, nil)
@@ -259,7 +259,7 @@ func TestCCProfile_StripLeftoverPlaceholders(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.NotContains(t, result, "[[MANGLED")
 }
 
@@ -276,7 +276,7 @@ func TestCCProfile_NoMasking_Passthrough(t *testing.T) {
 }
 
 // =============================================================================
-// Profile: lotuss - OpenAI relayOpenAIStream path
+// Profile: example - OpenAI relayOpenAIStream path
 // Uses {"choices":[{"delta":{"content":"..."}}]} format
 // Tool calls via tool_calls delta
 // =============================================================================
@@ -293,7 +293,7 @@ func TestLotussProfile_ContentDelta_FullRoundTrip(t *testing.T) {
 
 	result := simulateSSEChunks(u, chunks, false)
 	assert.Contains(t, result, "sk-prod-key-abc123def456")
-	assert.Contains(t, result, "user@lotuss.com")
+	assert.Contains(t, result, "user@example.com")
 	assert.NotContains(t, result, "[[")
 }
 
@@ -322,7 +322,7 @@ func TestLotussProfile_ToolCallArguments_RoundTrip(t *testing.T) {
 
 func TestLotussProfile_SplitContentAcrossChunks(t *testing.T) {
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@lotuss.co.th"
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@example.co.th"
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piiCtx, nil)
@@ -337,7 +337,7 @@ func TestLotussProfile_SplitContentAcrossChunks(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "admin@lotuss.co.th")
+	assert.Contains(t, result, "admin@example.co.th")
 	assert.NotContains(t, result, "[[")
 }
 
@@ -441,7 +441,7 @@ func TestKimiProfile_ThinkingAndTextBlocks(t *testing.T) {
 
 	// Block 1: text
 	textResult := u.ProcessChunk("Email [[EMAIL_ADDRESS_1]] confirmed.")
-	assert.Contains(t, textResult, "user@lotuss.com")
+	assert.Contains(t, textResult, "user@example.com")
 	assert.NotContains(t, textResult, "[[")
 }
 
@@ -505,7 +505,7 @@ func TestKimiProfile_NoContexts_PreservesUndefined(t *testing.T) {
 func TestCrossProfile_PlaceholderInJSONValue(t *testing.T) {
 	// Placeholder inside a JSON string value must be properly escaped
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = `user"with"quotes@lotuss.com`
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = `user"with"quotes@example.com`
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piiCtx, nil)
@@ -519,7 +519,7 @@ func TestCrossProfile_PlaceholderInJSONValue(t *testing.T) {
 	var parsed map[string]any
 	err := json.Unmarshal([]byte(result), &parsed)
 	require.NoError(t, err)
-	assert.Equal(t, `user"with"quotes@lotuss.com`, parsed["email"])
+	assert.Equal(t, `user"with"quotes@example.com`, parsed["email"])
 }
 
 func TestCrossProfile_NewlinesInRestoredValue(t *testing.T) {
@@ -559,7 +559,7 @@ func TestCrossProfile_TabInRestoredValue(t *testing.T) {
 
 func TestCrossProfile_UnicodeInRestoredValue(t *testing.T) {
 	piiCtx := NewMaskContext()
-	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "สมชาย@lotuss.co.th"
+	piiCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "สมชาย@example.co.th"
 	piiCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piiCtx, nil)
@@ -569,7 +569,7 @@ func TestCrossProfile_UnicodeInRestoredValue(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "สมชาย@lotuss.co.th")
+	assert.Contains(t, result, "สมชาย@example.co.th")
 	assert.NotContains(t, result, "[[")
 }
 
@@ -600,7 +600,7 @@ func TestCrossProfile_TwoLayerMasking_PIIContainsSecret(t *testing.T) {
 	secCtx.Counters["API_KEY_SK"] = 1
 
 	piCtx := NewMaskContext()
-	piCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@lotuss.com"
+	piCtx.Mapping["[[EMAIL_ADDRESS_1]]"] = "admin@example.com"
 	piCtx.Counters["EMAIL_ADDRESS"] = 1
 
 	u := NewStreamUnmasker(piCtx, secCtx)
@@ -610,7 +610,7 @@ func TestCrossProfile_TwoLayerMasking_PIIContainsSecret(t *testing.T) {
 	}
 
 	result := simulateSSEChunks(u, chunks, false)
-	assert.Contains(t, result, "admin@lotuss.com")
+	assert.Contains(t, result, "admin@example.com")
 	assert.Contains(t, result, "sk-secret")
 	assert.NotContains(t, result, "[[")
 }

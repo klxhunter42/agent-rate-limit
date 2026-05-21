@@ -143,7 +143,7 @@ CC_KEY="${CC_KEY:-sk-ant-oat01-REPLACE_ME}"
 test_profile "cc" "$CC_KEY" "claude-sonnet-4-20250514"
 
 # ===== Lotuss =====
-LOTUSS_KEY="REDACTED"
+LOTUSS_KEY="${LOTUSS_KEY:-REPLACE_ME}"
 test_profile "lotuss" "$LOTUSS_KEY" "lotuss-default"
 
 # ===== Kimi =====
