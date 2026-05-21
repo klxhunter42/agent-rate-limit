@@ -342,30 +342,30 @@ func enrichProfileWithEmails(ctx context.Context, rdb *redis.Client, p *Profile)
 			continue
 		}
 		var tokenInfo struct {
-				Email         string           `json:"email"`
-				ClaudeProfile *map[string]any  `json:"claude_profile,omitempty"`
-				AccountEmail  string           `json:"account_email,omitempty"`
+			Email         string          `json:"email"`
+			ClaudeProfile *map[string]any `json:"claude_profile,omitempty"`
+			AccountEmail  string          `json:"account_email,omitempty"`
+		}
+		if err := json.Unmarshal([]byte(data), &tokenInfo); err == nil {
+			email := ""
+			if tokenInfo.Email != "" {
+				email = tokenInfo.Email
+			} else if tokenInfo.AccountEmail != "" {
+				email = tokenInfo.AccountEmail
+			} else if tokenInfo.ClaudeProfile != nil {
+				if ae, ok := (*tokenInfo.ClaudeProfile)["account_email"].(string); ok && ae != "" {
+					email = ae
+				}
 			}
-			if err := json.Unmarshal([]byte(data), &tokenInfo); err == nil {
-				email := ""
-				if tokenInfo.Email != "" {
-					email = tokenInfo.Email
-				} else if tokenInfo.AccountEmail != "" {
-					email = tokenInfo.AccountEmail
-				} else if tokenInfo.ClaudeProfile != nil {
-					if ae, ok := (*tokenInfo.ClaudeProfile)["account_email"].(string); ok && ae != "" {
-						email = ae
-					}
-				}
-				if email != "" {
-					emails = append(emails, email)
-					slog.Debug("found email", "account_id", accountID, "email", email)
-				} else {
-					emails = append(emails, "")
-				}
+			if email != "" {
+				emails = append(emails, email)
+				slog.Debug("found email", "account_id", accountID, "email", email)
 			} else {
 				emails = append(emails, "")
 			}
+		} else {
+			emails = append(emails, "")
+		}
 	}
 	p.AccountEmails = emails
 	slog.Info("enriched profile emails", "profile", p.Name, "emails", emails)
@@ -388,9 +388,9 @@ func enrichProfileWithEmails(ctx context.Context, rdb *redis.Client, p *Profile)
 				continue
 			}
 			var tokenInfo struct {
-				Email         string           `json:"email"`
-				ClaudeProfile *map[string]any  `json:"claude_profile,omitempty"`
-				AccountEmail  string           `json:"account_email,omitempty"`
+				Email         string          `json:"email"`
+				ClaudeProfile *map[string]any `json:"claude_profile,omitempty"`
+				AccountEmail  string          `json:"account_email,omitempty"`
 			}
 			if err := json.Unmarshal([]byte(data), &tokenInfo); err == nil {
 				email := ""
@@ -481,10 +481,24 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 	p.Name = name
 	p.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
-	// Fetch existing to preserve CreatedAt.
+	// Fetch existing to preserve CreatedAt and sensitive fields not sent by frontend.
 	existing, err := getProfile(ctx, h.redis, name)
 	if err == nil {
 		p.CreatedAt = existing.CreatedAt
+		if p.APIKey == "" {
+			p.APIKey = existing.APIKey
+		}
+		for i := range p.Targets {
+			if p.Targets[i].APIKey == "" && i < len(existing.Targets) {
+				p.Targets[i].APIKey = existing.Targets[i].APIKey
+			}
+		}
+		if p.AccountIDs == nil {
+			p.AccountIDs = existing.AccountIDs
+		}
+		if p.AccountEmails == nil {
+			p.AccountEmails = existing.AccountEmails
+		}
 	}
 
 	if err := setProfile(ctx, h.redis, &p); err != nil {

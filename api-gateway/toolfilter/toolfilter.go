@@ -68,7 +68,7 @@ func (tf *ToolFilter) FilterTools(tools []Tool, recentMessages string) []Tool {
 	}
 
 	alwaysKeep := parseAlwaysKeep(tf.cfg.AlwaysKeep)
-	intent := classifyIntent(recentMessages)
+	intent := ClassifyIntent(recentMessages)
 	keywords := extractKeywords(recentMessages)
 
 	type scoredTool struct {
@@ -153,7 +153,7 @@ func (tf *ToolFilter) scoreTool(t Tool, intent string, keywords map[string]bool)
 	return score
 }
 
-func classifyIntent(text string) string {
+func ClassifyIntent(text string) string {
 	textLower := strings.ToLower(text)
 
 	codeIndicators := 0
@@ -161,22 +161,26 @@ func classifyIntent(text string) string {
 	analysisIndicators := 0
 	actionIndicators := 0
 
-	for _, kw := range []string{"fix", "implement", "add", "create", "write", "edit", "modify", "update", "refactor"} {
+	for _, kw := range []string{"fix", "implement", "add", "create", "write", "edit", "modify", "update", "refactor",
+		"สร้าง", "เขียน", "แก้", "เพิ่ม", "ลบ", "แก้ไข", "ทำ", "ติดตั้ง", "ปรับ", "ย้าย", "เปลี่ยน", "ตั้งค่า"} {
 		if strings.Contains(textLower, kw) {
 			codeIndicators++
 		}
 	}
-	for _, kw := range []string{"find", "search", "where", "locate", "grep", "list", "show"} {
+	for _, kw := range []string{"find", "search", "where", "locate", "grep", "list", "show",
+		"หา", "ค้นหา", "ดู", "เช็ค", "ตรวจสอบ", "แสดง", "เปิด", "อ่าน"} {
 		if strings.Contains(textLower, kw) {
 			searchIndicators++
 		}
 	}
-	for _, kw := range []string{"analyze", "review", "explain", "understand", "how", "why", "what"} {
+	for _, kw := range []string{"analyze", "review", "explain", "understand", "how", "why", "what",
+		"วิเคราะห์", "อธิบาย", "สรุป", "review", "ทำไม", "อะไร", "ยังไง", "เข้าใจ"} {
 		if strings.Contains(textLower, kw) {
 			analysisIndicators++
 		}
 	}
-	for _, kw := range []string{"run", "execute", "deploy", "build", "test", "start", "restart"} {
+	for _, kw := range []string{"run", "execute", "deploy", "build", "test", "start", "restart",
+		"รัน", "ทดสอบ", "สั่ง", "deploy", "build", "start", "หยุด", "เริ่ม", "ต่อ"} {
 		if strings.Contains(textLower, kw) {
 			actionIndicators++
 		}

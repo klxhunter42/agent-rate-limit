@@ -135,6 +135,7 @@ type Handler struct {
 	sessionManager  *proxy.ClaudeSessionManager
 	mcpProxy        *proxy.MCPProxy
 	accountSems     sync.Map // accountID -> chan struct{} (buffer=1)
+	toolCache       *ToolCache
 }
 
 // New creates a new Handler.
@@ -144,7 +145,7 @@ func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, 
 		sidecarURL = cfg.CLISidecarURL
 	}
 	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode)
-	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), mcpProxy: mcp}
+	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), mcpProxy: mcp, toolCache: NewToolCache()}
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -1108,6 +1109,19 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	if err := r.Context().Err(); err != nil {
 		slog.Info("client disconnected before optimizer", "error", err)
 		return
+	}
+
+	// Tool cache + injection: cache tools from requests that include them,
+	// inject cached tools into requests that lack them.
+	if h.toolCache != nil {
+		if injected := h.injectCachedTools(payload, profileName, r); injected {
+			var marshalErr error
+			body, marshalErr = json.Marshal(payload)
+			if marshalErr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+				return
+			}
+		}
 	}
 
 	// Optimizer pipeline: skip for images (corruption) and Z.AI provider (priority = SSE throughput).

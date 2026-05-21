@@ -144,9 +144,9 @@ func TestClassifyIntent(t *testing.T) {
 		{"", "code"}, // default
 	}
 	for _, tt := range tests {
-		got := classifyIntent(tt.input)
+		got := ClassifyIntent(tt.input)
 		if got != tt.expected {
-			t.Errorf("classifyIntent(%q) = %q, want %q", tt.input, got, tt.expected)
+			t.Errorf("ClassifyIntent(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
