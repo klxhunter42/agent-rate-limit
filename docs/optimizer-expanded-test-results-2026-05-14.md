@@ -67,36 +67,6 @@ Total API calls: 80 (20 per profile x 4 profiles)
 - toolfilter reduces 25 tools to ~15 (MaxTools=15 default)
 - cache_control array preserved because optimizer doesn't modify system prompt
 
-
-**Expected**: optimizer_step logs visible for semantic_dedup, sketch, caveman
-
-| # | Test | Input | Output | Time | Status |
-|---|------|-------|--------|------|--------|
-| 1 | Verbose system | 331 | 128 | - | PASS |
-| 2 | Array system + cache_control | - | - | - | PASS (array converted to string for GLM) |
-| 3 | Very long system | - | - | - | PASS / FLAKY (upstream) |
-| 4 | No system prompt | - | - | - | PASS |
-| 5 | System with code blocks | - | - | - | PASS / FLAKY |
-| 6 | 25-tool manifest | 1,172 | 56 | - | PASS (toolfilter active) |
-| 7 | 10-tool manifest | - | - | - | PASS |
-| 8 | Single tool | - | - | - | PASS |
-| 9 | K8s logs tool_result | 957 | 202 | - | PASS |
-| 10 | Code review multi-turn | - | - | - | PASS |
-| 11 | Large tool_result (120) | - | - | - | PASS |
-| 12 | 3-turn tool chain | - | - | - | PASS |
-| 13 | Thai content | 345 | 128 | - | PASS |
-| 14 | Mixed Thai+English | - | - | - | PASS |
-| 15 | Chinese content | - | - | - | PASS |
-| 16 | Simple ping | 244 | 32 | - | PASS |
-| 17 | Streaming SSE | - | - | - | PASS |
-| 18 | Concurrent 3x | 3/3 OK | - | 2.8s | PASS |
-| 19 | Concurrent 5x | - | - | - | PASS |
-| 20 | Burst 10x | - | - | - | PASS |
-
-**Notes**:
-- Intermittent "Remote end closed connection" from Z.AI upstream (not gateway bug)
-- GLM tokenizer counts tokens differently from Claude (higher counts)
-
 ### kimi (kimi-latest, provider=kimi)
 
 **Optimizer**: all stages active (global default)
@@ -141,12 +111,13 @@ Total API calls: 80 (20 per profile x 4 profiles)
 
 ### Token Efficiency (Non-Cached Tests)
 
-|------|-----|--------|-------|----------|
-| 25-tool manifest | 1,314 | 1,172 | 0 (cached) | 1,915 |
-| K8s tool_result | 801 | 957 | 0 (cached) | 838 |
-| Verbose system | 142 | 331 | 0 (cached) | 255 |
-| Thai content | 102 | 345 | 0 (cached) | 217 |
-| Simple ping | 24 | 244 | 0 (cached) | 145 |
+| Test | cc | kimi* | zai-test |
+|------|-----|-------|----------|
+| 25-tool manifest | 1,314 | 0 (cached) | 1,915 |
+| K8s tool_result | 801 | 0 (cached) | 838 |
+| Verbose system | 142 | 0 (cached) | 255 |
+| Thai content | 102 | 0 (cached) | 217 |
+| Simple ping | 24 | 0 (cached) | 145 |
 
 *kimi cache_read covers input; actual token count similar to others
 
@@ -177,6 +148,7 @@ docker logs arl-gateway 2>&1 | grep 'zai_provider_skip' | wc -l
 docker logs arl-gateway 2>&1 | grep 'optimizer_step' | grep 'claude-sonnet-4-6'
 # Expected: 0
 
+# Check kimi have optimizer_step logs
 docker logs arl-gateway 2>&1 | grep 'optimizer_step' | grep -E 'default|kimi'
 # Expected: multiple entries
 ```

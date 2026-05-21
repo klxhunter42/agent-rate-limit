@@ -209,15 +209,17 @@ if !hasImages && !isZAI {
 
 ### Test Results (docker-compose, live API - all 4 profiles)
 
+**3-profile test**: cc (Claude OAuth sonnet-4-6), kimi (kimi-latest), zai-test (Z.AI direct glm-5.1)
 
 ```
-|-------------------------------------|------------|------------|------------|------------|------------|------------|------------|------------|
-| Verbose system (dedup target)       |        142 |        128 |        331 |        128 |          0*|        128 |        255 |        128 |
-| 25-tool manifest (toolfilter)       |      1,314 |         54 |      1,172 |         56 |          0*|         18 |      1,915 |         11 |
-| K8s logs tool_result (toolcomp)     |        801 |        220 |        957 |        202 |          0*|         89 |        838 |        129 |
-| Thai content (pordee)               |        102 |        128 |        345 |        128 |          0*|        128 |        217 |        128 |
-| Simple ping                         |         24 |          4 |        244 |         32 |          0*|          4 |        145 |          2 |
-| Concurrent SSE (3 parallel)         |  3/3 OK 3.3s  |        |  3/3 OK 2.8s  |        |  3/3 OK 1.6s  |        |  3/3 OK 6.4s  |        |
+| Test                                |      cc in |     cc out |    kimi in |   kimi out | zai-test in | zai-test out |
+|-------------------------------------|------------|------------|------------|------------|------------|------------|
+| Verbose system (dedup target)       |        142 |        128 |          0*|        128 |        255 |        128 |
+| 25-tool manifest (toolfilter)       |      1,314 |         54 |          0*|         18 |      1,915 |         11 |
+| K8s logs tool_result (toolcomp)     |        801 |        220 |          0*|         89 |        838 |        129 |
+| Thai content (pordee)               |        102 |        128 |          0*|        128 |        217 |        128 |
+| Simple ping                         |         24 |          4 |          0*|          4 |        145 |          2 |
+| Concurrent SSE (3 parallel)         |  3/3 OK 3.3s  |        |  3/3 OK 1.6s  |        |  3/3 OK 6.4s  |        |
 
 * kimi shows input=0 due to prompt caching (cache_read tokens cover full input)
 ```

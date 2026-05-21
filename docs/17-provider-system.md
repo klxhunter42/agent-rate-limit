@@ -188,6 +188,7 @@ type providerRoute struct {
     authMode     string             // "api_key" or "bearer"
     urlSuffix    string             // appended to UpstreamBase
     extraHeaders map[string]string  // injected into upstream requests
+    modelOverride string            // override model name
     maxTokens    int                // cap max_tokens in requests (0 = no cap)
 }
 ```
@@ -250,14 +251,8 @@ The `anthropic-beta` header includes these beta features:
 **Auto-continuations** (`providerContinuations`):
 When a provider returns `finish_reason: "length"`, the gateway automatically sends a continuation request up to `MaxContinuations` times.
 
-| Provider | Max Continuations |
-|----------|-------------------|
-
 **Tool mode** (`providerToolMode`):
 `"native"` = use OpenAI function calling format, convert `tool_calls` to Anthropic `tool_use`.
-
-| Provider | Tool Mode |
-|----------|-----------|
 
 ### Dynamic Route Registration
 
@@ -802,17 +797,6 @@ When a custom provider is deleted:
 | Client ID       | `Iv1.b507a08c87ecfe98`                        |
 | Endpoint        | `POST /v1/chat/completions`                   |
 | Format          | OpenAI Chat Completions                       |
-
-
-| Aspect             | Value                                                               |
-|--------------------|---------------------------------------------------------------------|
-| Auth               | `Authorization: Bearer {apiKey}`                                    |
-| Endpoint           | `POST /v1/chat/completions`                                         |
-| Format             | OpenAI Chat Completions                                             |
-| Model Override     | All models mapped to `"default"`                                    |
-| Max Tokens         | Capped at 4096                                                      |
-| Auto-continuations | Up to 3 on `finish_reason: "length"`                                |
-| Tool Mode          | `native` (OpenAI function calling -> Anthropic tool_use conversion) |
 
 ### Qwen (Aliyun)
 

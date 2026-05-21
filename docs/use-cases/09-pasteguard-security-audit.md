@@ -1,6 +1,7 @@
 # PasteGuard Security Audit - Use Case ภาษาไทย
 
 วันที่: 2026-05-07
+วิศวกรรักษาความปลอดภัย: ประเจต (Security Engineer)
 
 ---
 
@@ -101,6 +102,7 @@ Nesting นี้ป้องกัน partial unmask
 | 1 | `API_KEY_AWS` | `AKIAIOSFODNN7EXAMPLE` | `AKIAIOSFODNN7EXAMPLE` |
 | 2 | `OPENSSH_PRIVATE_KEY` | `-----BEGIN OPENSSH PRIVATE KEY-----...` | `-----BEGIN OPENSSH PRIVATE KEY-----\n b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n c2gtcnNhAAAAABJAAAABG90cBE6PHMZYjFKdFMxXzJqNgAAADB2/Z+/dDAAAADAQ\n -----END OPENSSH PRIVATE KEY-----` |
 | 3 | `JWT_TOKEN` | `eyJhbGciOiJIUzI1NiIs...SflKxw...` | `[[JWT_TOKEN_1]]` |
+| 4 | `CONNECTION_STRING` | `postgres://admin:S3cretP@ss@...` | `postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//` |
 | 5 | `API_KEY_AWS` | `AKIAI44QH8DHBEXAMPLE` | `AKIAI44QH8DHBEXAMPLE` |
 | 6 | `API_KEY_AWS` | `AKIAI44QH8DHBEXAMPLE2` | `[[API_KEY_AWS_3]]` |
 | 7 | `API_KEY_SK` | `sk-proj-abcdefghijklmnopqrstuvwxyz...` | `sk-proj-abcdefghijklmnopqrstuvwx1234567890abcdefghij` |
@@ -121,6 +123,7 @@ Nesting นี้ป้องกัน partial unmask
   "messages": [
     {
       "role": "user",
+      "content": "Scan ไฟล์เหล่านี้หา secrets ที่ hardcoded:\n\n// config/production.yaml\naws_access_key: AKIAIOSFODNN7EXAMPLE\naws_secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nssh_key: |\n  -----BEGIN OPENSSH PRIVATE KEY-----\n b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n c2gtcnNhAAAAABJAAAABG90cBE6PHMZYjFKdFMxXzJqNgAAADB2/Z+/dDAAAADAQ\n -----END OPENSSH PRIVATE KEY-----\njwt_secret: [[JWT_TOKEN_1]]\ndb_url: postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//\n\n// deploy/secrets.env\nAWS_ACCESS_KEY_ID=AKIAI44QH8DHBEXAMPLE\n\n// config/staging.yaml\naws_access_key: [[API_KEY_AWS_3]]\napi_key: sk-proj-abcdefghijklmnopqrstuvwx1234567890abcdefghij\n\nบอกหน่อยว่ามีอะไรบ้างที่ผิด security policy"
     }
   ]
 }
@@ -145,6 +148,7 @@ Nesting นี้ป้องกัน partial unmask
    - JWT secret ถูก hardcoded ใน config
    - แนะนำให้ใช้ environment variable + rotation policy
 
+4. Database Connection String (postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//)
    - มี credentials ฝังอยู่ใน URL
    - ใช้ Vault dynamic secrets + connection pooling
 
@@ -186,6 +190,7 @@ Nesting นี้ป้องกัน partial unmask
 | `AKIAIOSFODNN7EXAMPLE` | `AKIAIOSFODNN7EXAMPLE` | คืนค่าเดิม |
 | `-----BEGIN OPENSSH PRIVATE KEY-----...` | `-----BEGIN OPENSSH PRIVATE KEY-----\n b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n c2gtcnNhAAAAABJAAAABG90cBE6PHMZYjFKdFMxXzJqNgAAADB2/Z+/dDAAAADAQ\n -----END OPENSSH PRIVATE KEY-----` | คืนค่าเดิม |
 | `eyJhbGciOiJIUzI1NiIs...SflKxw...` | `[[JWT_TOKEN_1]]` | คืนค่าเดิม |
+| `postgres://admin:S3cretP@ss@...` | `postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//` | คืนค่าเดิม |
 | `AKIAI44QH8DHBEXAMPLE` | `AKIAI44QH8DHBEXAMPLE` | คืนค่าเดิม |
 | `AKIAI44QH8DHBEXAMPLE2` | `[[API_KEY_AWS_3]]` | คืนค่าเดิม |
 | `sk-proj-abcdefghijk...` | `sk-proj-abcdefghijklmnopqrstuvwx1234567890abcdefghij` | คืนค่าเดิม |
@@ -220,6 +225,7 @@ api_gateway_mask_requests_total{has_secrets="true", has_pii="false"} 1
   "messages": [
     {
       "role": "user",
+      "content": "วิเคราะห์ customer data นี้หา pattern:\n\nCustomer Record #1:\n  Name: สมชาย ใจดี\n  Email: somchai.jaidi@example.com\n  Phone: 089-123-4567\n  National ID: 1-1001-54321-67-8\n  Card: 4532-1234-5678-1234\n  IP: 10.0.45.101\n  Last order: 2024-03-15\n\nCustomer Record #2:\n  Name: วิภา สุขสันต์\n  Email: wipa.sooksunt@gmail.com\n  Phone: 062-987-6543\n  National ID: 3-2010-67890-12-3\n  Card: 5425-9876-5432-5678\n  IP: 10.0.45.202\n  Last order: 2024-03-16\n\nสรุป demographic pattern ของลูกค้า 2 คนนี้"
     }
   ]
 }
@@ -233,6 +239,7 @@ api_gateway_mask_requests_total{has_secrets="true", has_pii="false"} 1
 
 | # | Entity | ค่าที่จับได้ | Confidence | Mask Placeholder |
 |---|---|---|---|---|
+| 1 | `EMAIL_ADDRESS` | `somchai.jaidi@example.com` | 0.95 | `user@example.com` |
 | 2 | `THAI_PHONE` | `089-123-4567` | 0.90 | `+1-555-123-4567` |
 | 3 | `THAI_NATIONAL_ID` | `1-1001-54321-67-8` | 0.90 | `1-1001-00001-23-4` |
 | 4 | `CREDIT_CARD` | `4532-1234-5678-1234` | 0.95 | `4111-1111-1111-1111` |
@@ -286,6 +293,7 @@ data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"+1-555-
 
 ```
 Chunk 1: "...คนที่ 1: user@example.com (corporate)\n- คนที่ 2: "
+  -> ProcessChunk() -> unmask -> "...คนที่ 1: somchai.jaidi@example.com (corporate)\n- คนที่ 2: "
 
 Chunk 2: "kanokpan@example.co.th (personal)\n\nเบอร์โทรทั้งคู่เป็นรูปแบบไทย:\n- "
   -> ProcessChunk() -> unmask -> "wipa.sooksunt@gmail.com (personal)\n\nเบอร์โทรทั้งคู่เป็นรูปแบบไทย:\n- "
@@ -300,6 +308,7 @@ Chunk 3: "+1-555-123-4567 และ 081-234-5678"
 
 ```
 ลูกค้าทั้งสองคนใช้ email โดเมนต่างกัน:
+- คนที่ 1: somchai.jaidi@example.com (corporate)
 - คนที่ 2: wipa.sooksunt@gmail.com (personal)
 
 เบอร์โทรทั้งคู่เป็นรูปแบบไทย:
@@ -317,6 +326,7 @@ IP ทั้งคู่อยู่ใน subnet 10.0.45.x (internal network)
 
 | ข้อมูล | ที่ส่งไป upstream | ที่ประเจต ได้รับ |
 |---|---|---|
+| `somchai.jaidi@example.com` | `user@example.com` | คืนค่าเดิม |
 | `wipa.sooksunt@gmail.com` | `kanokpan@example.co.th` | คืนค่าเดิม |
 | `089-123-4567` | `+1-555-123-4567` | คืนค่าเดิม |
 | `062-987-6543` | `081-234-5678` | คืนค่าเดิม |
@@ -388,6 +398,7 @@ api_gateway_mask_requests_total{has_secrets="false", has_pii="true"} 1
   "messages": [
     {
       "role": "user",
+      "content": "Error trace จาก user report:\n\n[TRACE] User กนกพรรณ (kanokpan.p@example.com) called /api/order\n  Phone: 081-234-5678\n  SSN reference: 123-45-6789\n  Customer ID: 5-1012-34567-89-0\n  Credit card: 4111-1111-1111-1111\n  IP: 192.168.1.100\n\n[ERROR] Payment gateway timeout for customer 5-1012-34567-89-0\n  Contact: +6681-234-9999\n\nช่วยวิเคราะห์ root cause หน่อย"
     }
   ]
 }
@@ -434,6 +445,7 @@ var ctxMu sync.Mutex // ป้องกัน concurrent write ใน MaskContex
 
 | # | Entity | ค่าที่จับได้ | Layer |
 |---|---|---|---|
+| 1 | `EMAIL_ADDRESS` | `kanokpan.p@example.com` | PII |
 | 2 | `THAI_PHONE` | `081-234-5678` | PII |
 | 3 | `SSN` | `123-45-6789` | PII |
 | 4 | `THAI_NATIONAL_ID` | `5-1012-34567-89-0` | PII |
@@ -451,6 +463,7 @@ var ctxMu sync.Mutex // ป้องกัน concurrent write ใน MaskContex
 
 [ERROR] Auth failed for service-account
   token: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzZXJ2aWNlLWFjY291bnQiLCJuYW1lIjoiYXBpLWdhdGV3YXkiLCJpYXQiOjE3MTUwMzQwMDB9.minimumhere_40chars_padding_for_bearer_x
+  Connection: postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//
   SSH: |
     -----BEGIN OPENSSH PRIVATE KEY-----\n b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n c2gtcnNhAAAAABJAAAABG90cBE6PHMZYjFKdFMxXzJqNgAAADB2/Z+/dDAAAADAQ\n -----END OPENSSH PRIVATE KEY-----
   DB_PASSWORD=secret123`
@@ -465,6 +478,7 @@ env dump จาก staging:
 
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+DATABASE_URL=postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//
 GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij
 njwt_secret: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c\ndb_url:
 DB_PASSWORD=secret123`
@@ -497,16 +511,19 @@ Error trace จาก user report:
 ```
 Request A MaskContext.Mapping:
   Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzZXJ2aWNlLWFjY291bnQiLCJuYW1lIjoiYXBpLWdhdGV3YXkiLCJpYXQiOjE3MTUwMzQwMDB9.minimumhere_40chars_padding_for_bearer_x        -> "Bearer eyJhbGci...longsignaturehere..."
+  postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//   -> "postgres://svc_account:dbP@ssword@db.prod..."
   -----BEGIN OPENSSH PRIVATE KEY-----\n b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\n c2gtcnNhAAAAABJAAAABG90cBE6PHMZYjFKdFMxXzJqNgAAADB2/Z+/dDAAAADAQ\n -----END OPENSSH PRIVATE KEY----- -> "-----BEGIN OPENSSH PRIVATE KEY-----..."
   DB_PASSWORD=secret123`        -> "DB_PASSWORD=SuperSecret123!"
 
 Request B MaskContext.Mapping:
   AKIAIOSFODNN7EXAMPLE         -> "AKIAI44QH8DHBEXAMPLE"
+  postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//   -> "postgres://staging_user:stagPass99@db.staging..."
   ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij      -> "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij"
   njwt_secret: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c\ndb_url:          -> "APP_SECRET=myappsecrethere12345678901234"
   DB_PASSWORD=secret123`        -> "ADMIN_PASSWORD=AdminP@ssw0rd!"
 ```
 
+แม้ Request A และ B จะมี `postgres://admin:S3cretP@ss@db.internal.example.com:5432/production?sslmode=require\n\n//` และ `DB_PASSWORD=secret123`` ชื่อเหมือนกัน แต่เป็นคนละ `MaskContext` instance -- unmask จะ restore ค่าที่ถูกต้องของแต่ละ request โดยไม่สับสน
 
 ```go
 // maskResult ถูกส่งผ่านไปยัง proxy function โดยตรง

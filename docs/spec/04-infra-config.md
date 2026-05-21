@@ -20,6 +20,7 @@ The gateway entry point (`api-gateway/main.go`) initializes components in this e
 9. **Proxy handlers** - AnthropicProxy, GeminiCodeAssistProxy, OpenAIProxy, GeminiAPIProxy
 10. **Adaptive limiter** - per-model concurrency with `AdaptiveLimiter`; probe multiplier for ceiling discovery
 11. **Key pool** - `proxy.NewKeyPool()` for multi-key round-robin rotation with per-key RPM budgets
+12. **Provider registry** - 17 built-in providers (Z.AI, Anthropic, Claude OAuth, OpenAI, Gemini, Gemini OAuth, Copilot, OpenRouter, Qwen, DeepSeek, Kimi, HuggingFace, Ollama, AGY, Cursor, CodeBuddy, Kilo); plus custom providers loaded from Redis
 13. **Token store** - Redis-backed OAuth token persistence with provider rename migration
 14. **Auth handler** - device code, auth code (PKCE), API key, session cookie flows
 15. **Token refresh worker** - 30-min refresh cycle, immediate refresh on startup, auto-cleanup of expired tokens
@@ -709,7 +710,7 @@ Workers accept keys for multiple providers:
 
 ## 11. Provider Ecosystem
 
-### 11.1 Built-in Providers (18)
+### 11.1 Built-in Providers (17)
 
 | ID             | Name            | Auth Type   | Upstream                              |
 |----------------|-----------------|-------------|---------------------------------------|

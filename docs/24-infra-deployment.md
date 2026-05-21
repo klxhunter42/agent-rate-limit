@@ -395,6 +395,7 @@ Each component follows a consistent pattern with:
 | Resources       | 256Mi-1Gi RAM, 500m-2 CPU                                                                |
 | HPA             | Optional (2-10 replicas, CPU 70%, Memory 80%)                                            |
 | Probes          | Readiness: `/health` (5s delay), Liveness: `/health` (10s delay)                         |
+| Secrets mounted | `ZAI_API_KEYS`, `GEMINI_OAUTH_CLIENT_ID`, `GEMINI_OAUTH_CLIENT_SECRET` |
 | Config checksum | Secrets template hash triggers rollout on change                                         |
 
 **Gateway HPA** (optional, controlled by `gateway.hpa.enabled`):
@@ -412,6 +413,7 @@ Each component follows a consistent pattern with:
 | Ports           | 9090 (metrics), 9091 (internal)                                                                                     |
 | Resources       | 512Mi-2Gi RAM, 500m-2 CPU                                                                                           |
 | Probes          | `/metrics-internal` on port 9091                                                                                    |
+| Secrets mounted | `GLM_API_KEYS`, `OPENAI_API_KEYS`, `ANTHROPIC_API_KEYS`, `GEMINI_API_KEYS`, `OPENROUTER_API_KEYS` |
 
 #### 4.3.3 Rate Limiter
 
@@ -686,18 +688,12 @@ Lightweight Anthropic-to-OpenAI format translator proxy.
 - Listens on port 8999
 - Accepts Anthropic `/v1/messages` POST requests
 - Converts to OpenAI chat completions format
+- Forwards to configured upstream (`/v1/chat/completions`)
 - Converts response back to Anthropic format
 - Non-streaming only
 - Health check: `GET /health`
 
-
-
-- Listens on port 8999
-- Patches `message_start` SSE events by injecting missing `usage`, `role`, `type`, `stop_reason` fields
-- Supports both streaming and non-streaming
-- Forwards `anthropic-version` and `anthropic-beta` headers
-
-### 7.3 `concurrent-test.sh`
+### 7.2 `concurrent-test.sh`
 
 Concurrent load tester for finding optimal concurrency thresholds.
 
@@ -707,7 +703,7 @@ Concurrent load tester for finding optimal concurrency thresholds.
 - Reports p50, p95 latency percentiles
 - 5s cooldown between levels
 
-### 7.4 `conversation-test.sh`
+### 7.3 `conversation-test.sh`
 
 Multi-turn conversation test (Thai + English).
 
@@ -717,7 +713,7 @@ Multi-turn conversation test (Thai + English).
 - Logs raw responses for inspection
 - Reports artifact count
 
-### 7.5 `multi-agent-test.sh`
+### 7.4 `multi-agent-test.sh`
 
 Realistic multi-agent simulation.
 
@@ -727,7 +723,7 @@ Realistic multi-agent simulation.
 - Measures per-agent latency, throughput (req/min)
 - Reports model distribution
 
-### 7.6 `stress-test.sh`
+### 7.5 `stress-test.sh`
 
 Simple concurrent stress test for sync endpoint.
 

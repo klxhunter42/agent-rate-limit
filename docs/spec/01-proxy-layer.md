@@ -34,6 +34,7 @@ Client (Anthropic format)
 [Handler Layer] -- picks proxy based on provider routing
   |
   +-- AnthropicProxy       (direct Anthropic, transparent passthrough, sidecar)
+  +-- OpenAIProxy          (Z.AI / OpenAI-compatible)
   +-- GeminiCodeAssistProxy (Google Code Assist OAuth)
   +-- GeminiAPIProxy       (Google Gemini API key)
   +-- ClaudeSessionProxy   (claude.ai web session cookies)
@@ -47,6 +48,7 @@ Upstream Provider
 | File                   | Lines | Purpose                                                                             |
 |------------------------|-------|-------------------------------------------------------------------------------------|
 | `anthropic.go`         | ~2120 | Native Anthropic, transparent passthrough, sidecar, vision proxy, format converters |
+| `openai.go`            | ~730  | OpenAI/Z.AI proxy with auto-continuation and compaction                             |
 | `gemini-codeassist.go` | ~725  | Google Code Assist via OAuth, Anthropic<->Gemini conversion                         |
 | `gemini-apikey.go`     | ~322  | Gemini API key auth, reuses conversion from gemini-codeassist.go                    |
 | `claude_session.go`    | ~386  | claude.ai web API session proxy                                                     |
@@ -361,6 +363,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 ```
 
 **Parameters:**
+- `maxContinuations`: 0 = no auto-continuation, >0 = enable
 - `toolMode`: "" = no tools, "native" = OpenAI function calling
 
 **Processing pipeline:**

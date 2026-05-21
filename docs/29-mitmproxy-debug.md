@@ -118,6 +118,7 @@ starts when you pass `--profile debug`. Normal `docker compose up` ignores it.
         accepts this)
 ```
 
+Works for all upstream targets: Anthropic, Z.AI, Gemini, etc.
 
 ---
 

@@ -6,6 +6,7 @@
 
 ## บทนำ: ทำไมต้องใช้ Optimizer Gateway ใน CI/CD
 
+กิตติทำงานที่บริษัทดูแล Kubernetes clusters กว่า 200+ nodes และมี CI/CD pipelines หลายสิบตัวที่ต้อง deploy ทุกวัน เขาเริ่มใช้ AI เข้ามาช่วยใน pipeline แต่เจอปัญหา:
 
 1. **Token cost พุ่ง** - แต่ละ pipeline run ส่ง PR diff, logs, metrics เข้า AI หมด ค่าใช้จ่ายเพิ่ม 40%
 2. **Latency สูง** - AI analysis ใช้เวลา 30-60 วินาที ต่อ step ทำให้ pipeline ช้าลง
@@ -55,6 +56,7 @@ GitHub Actions / PagerDuty / CronJob
 
 ### สถานการณ์
 
+นักพัฒนาส่ง PR เข้ามาใน repo `example-platform/api-gateway` GitHub Actions workflow จะเรียก Optimizer Gateway เพื่อวิเคราะห์ PR diff อัตโนมัติ
 
 ### Pipeline Flow
 
@@ -207,6 +209,7 @@ Request (raw)
   │
   ├─ PasteGuard (privacy masking)
   │  ตรวจ PR diff: mask ทุก EMAIL_ADDRESS, PHONE_NUMBER
+  │  "Contact admin@example.com" → "Contact __PII_EMAIL_1__"
   │  → ป้องกัน secrets leak ไปยัง AI provider
   │
   └─ POST to Provider → Response
@@ -562,6 +565,7 @@ spec:
           serviceAccountName: drift-detector
           containers:
             - name: drift-detector
+              image: example/drift-detector:v1
               env:
                 - name: OPTIMIZER_GATEWAY_URL
                   value: "http://arl-gateway.platform-tools.svc:8080"

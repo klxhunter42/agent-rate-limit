@@ -281,6 +281,8 @@ This is especially impactful because Claude Code (claude-sonnet-4-6) makes heavy
 
 | Test File | Tests | Category |
 |---|---|---|
+| `profile_audit_test.go` | 35 | Per-profile audit: cc (12), kimi (11) |
+| `profile_extended_test.go` | 97 | CC extended (15), Kimi extended (15), Cross-profile (25+), GLM mode (15+), Realistic (5) |
 | `profile_fuzz_test.go` | 3619 | Parametric fuzz: split positions, chunk sweeps, permutations, JSON depth, unicode, budget exhaustion |
 | `profile_sse_fuzz_test.go` | 625+ | SSE-format streaming fuzz: split positions, chunk count sweep, JSON parse verification, dual context, undefined fallback, block change flush, realistic stream simulation |
 | `stream_undefined_edge_test.go` | 20 | Undefined edge cases |
@@ -322,6 +324,8 @@ All tests simulate real SSE event streams (`data: {"type":"content_block_delta",
 | CC_TextDelta_SplitEveryPosition | ~85 | text_delta split at every position for 5 placeholder types |
 | CC_ThinkingDelta_SplitEveryPosition | ~16 | thinking_delta split at every position |
 | CC_JSONDelta_SplitEveryPosition | ~15 | input_json_delta split at every position |
+| ZAI_TextDelta_SplitPositions | ~85 | OpenAI text_delta split at every position for 5 types |
+| ZAI_ToolCallJSON_SplitPositions | ~45 | Tool call JSON args split at every position for 3 types |
 | Kimi_TextDelta_SplitPositions | ~68 | OpenAI-to-Anthropic text deltas split for 4 types |
 | CrossProfile_MultiplePlaceholders | ~60 | 2-4 placeholders in single stream, split at various positions |
 | ChunkCountSweep | 9 | Text mode: 1-30 chunks per stream |
@@ -338,6 +342,7 @@ All tests simulate real SSE event streams (`data: {"type":"content_block_delta",
 | ReplaceDirect_Variations | 5 | Direct replacement patterns |
 | ReplaceDirectJSON_Variations | 3 | JSON-safe direct replacement |
 | RealisticCCStream | 2 | Full Claude Code session simulation |
+| RealisticZAIStream | 1 | Z.AI tool call stream |
 | RealisticKimiStream | 1 | Kimi OpenAI text deltas |
 
 ### Profile-Specific Coverage
@@ -350,6 +355,7 @@ All tests simulate real SSE event streams (`data: {"type":"content_block_delta",
 - Garbled `SanitizeGarbledOutput` after unmasker
 - Realistic streaming session simulation
 
+**Z.AI Profile** -- `relayOpenAIStream` (OpenAI format):
 - Multiple tool calls with interleaved deltas
 - Nested JSON in tool call arguments
 - Password special characters in JSON values

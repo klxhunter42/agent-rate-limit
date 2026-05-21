@@ -226,6 +226,7 @@ type RoutingDecision struct {
     ExtraHeaders      map[string]string
     APIKey            string
     AccountID         string
+    ModelOverride     string           // non-empty = override payload model
     MaxTokens         int              // 0 = no clamp, >0 = max_tokens ceiling
     MaxContinuations  int              // 0 = disabled, >0 = auto-continuation limit
     ToolMode          string           // ""|"native" (OpenAI function calling)

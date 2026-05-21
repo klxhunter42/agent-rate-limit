@@ -28,3 +28,5 @@ flows_parsed.json
 
 # Secrets
 api-gateway/config/session_secret
+
+litellm_bk

@@ -20,6 +20,7 @@ Auto-generated documentation from source analysis. Covers entry point, handler, 
 
 ## 1. Architecture Overview
 
+The API gateway is a multi-provider AI proxy written in Go. It sits between AI clients (Claude Code CLI, custom agents, web apps) and upstream AI providers (Anthropic, OpenAI, Gemini, Z.AI, OpenRouter, Copilot, Qwen, DeepSeek, Kimi, and more).
 
 Key capabilities:
 - Multi-provider routing with automatic format conversion (Anthropic/OpenAI/Gemini)
@@ -275,6 +276,7 @@ Transparent proxy to `api.anthropic.com` for Claude Code CLI routes (`/api/claud
 | Gemini     | gemini-2.5-flash-preview-05-20                                                                                   |
 | OpenRouter | Various via `or-` prefix                                                                                         |
 
+
 ### 3.9 Profile Handler
 
 **File:** `handler/profile.go` (~768 lines)
@@ -457,8 +459,10 @@ Methods:
 Format conversion between Anthropic and OpenAI APIs:
 - `AnthropicToOpenAI()`: Convert Anthropic messages to OpenAI format
 - Tool support: `tool_use` <-> `tool_calls` bidirectional conversion
+- Auto-continuation for providers with context limits (~40k, up to 3 continuations)
 - `compactOpenAIMessages()`: Message truncation keeping last 2 turns
 
+Supports: OpenAI, Copilot, OpenRouter, Qwen, DeepSeek, HuggingFace, Ollama, Cursor, CodeBuddy, Kilo
 
 ### 4.4 Gemini Code Assist Proxy
 
@@ -826,6 +830,7 @@ Model prefix -> provider mapping:
 
 API format per provider:
 - **Anthropic format**: anthropic, claude-oauth, claude, zai, agy, kimi
+- **OpenAI format**: openai, copilot, openrouter, qwen, deepseek, huggingface, ollama, cursor, codebuddy, kilo
 - **Gemini format**: gemini, gemini-oauth
 
 ### Model-Level Fallback

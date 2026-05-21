@@ -174,7 +174,6 @@ Resolve "claude-*" -> fallback to provider: anthropic
 
 ## 4. OpenAI-Compatible Providers
 
-
 ```
 Resolve model prefix -> provider -> format: FormatOpenAI, auth: bearer
         |
@@ -334,7 +333,6 @@ Request resolution:
                      +-- or-* ------> OpenRouter (FormatOpenAI)
                      |
                      +-- kimi-* ----> Kimi (FormatAnthropic)
-                     |
                      |
                      +-- custom-* --> Custom Provider (FormatOpenAI)
                      |

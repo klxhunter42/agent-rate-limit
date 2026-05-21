@@ -32,7 +32,7 @@
 │ └───────────────────────┬────────────────────────────┘               │
 │                         │                                            │
 │ ┌───────────────────────▼────────────────────────────┐               │
-│ │ Provider Fallback Chain (18 providers)              │              │
+│ │ Provider Fallback Chain (17 providers)              │              │
 │ │ claude-oauth → anthropic → gemini-oauth → gemini   │               │
 │ │ → openai → zai → copilot → openrouter → qwen      │                │
 │ │ → deepseek → kimi → huggingface → ollama          │                │

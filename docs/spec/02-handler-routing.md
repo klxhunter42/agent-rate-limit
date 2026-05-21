@@ -208,6 +208,7 @@ X-Profile header present?
 | `apiKey`                                   | Static API key (fallback when no account pool)                 |
 | `model`                                    | Hard override for payload["model"]                             |
 | `opusModel` / `sonnetModel` / `haikuModel` | Per-tier model overrides                                       |
+| `target`                                   | Provider ID to route through (e.g., "claude-oauth")             |
 | `provider`                                 | Explicit provider ID (takes precedence over target)            |
 | `accountIds`                               | Account pool for round-robin selection                         |
 | `passthroughAuth`                          | Forward client's own Bearer/x-api-key instead of stored tokens |
@@ -247,6 +248,7 @@ When a profile has a `target` provider but the requested model doesn't belong to
 ```go
 func mapModelForTarget(model, targetProvider string) string {
     if d, ok := providerDefaultModels[targetProvider]; ok {
+        return d  // e.g., "zai" -> "glm-4.5"
     }
     return model
 }
@@ -659,6 +661,8 @@ type providerRoute struct {
     authMode     string           // "api_key" | "bearer"
     urlSuffix    string           // e.g., "/v1/messages"
     extraHeaders map[string]string
+    modelOverride string
+    maxTokens    int
 }
 ```
 

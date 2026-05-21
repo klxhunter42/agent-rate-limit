@@ -3,7 +3,7 @@
   <br/>
   <br/>
   <h3>Enterprise-Grade Multi-Provider AI Gateway</h3>
-  <p><strong>Transparent proxy · 18 providers · 5-layer rate limiting · Token optimization · Privacy masking</strong></p>
+  <p><strong>Transparent proxy · 17 providers · 5-layer rate limiting · Token optimization · Privacy masking</strong></p>
   <br/>
   <img src="https://img.shields.io/badge/Go-1.23-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go">
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React">
@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Dragonfly-Redis_Compat-00D4AA?style=flat-square" alt="Dragonfly">
   <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
   <br/>
-  <img src="https://img.shields.io/badge/Providers-18-blue?style=flat-square" alt="Providers">
+  <img src="https://img.shields.io/badge/Providers-17-blue?style=flat-square" alt="Providers">
   <img src="https://img.shields.io/badge/API_Endpoints-100+-green?style=flat-square" alt="API">
   <img src="https://img.shields.io/badge/Prometheus-36+_Metrics-ff6f00?style=flat-square&logo=prometheus&logoColor=white" alt="Prometheus">
   <img src="https://img.shields.io/badge/Go_Codebase-577K_LoC-00ADD8?style=flat-square" alt="LoC">
@@ -28,7 +28,7 @@
 
 ## What is this?
 
-A **self-hosted AI gateway** that sits between your AI clients (Claude Code, CI/CD, agent frameworks) and 18 AI providers. One endpoint, automatic fallback, built-in rate limiting, token optimization, and privacy masking.
+A **self-hosted AI gateway** that sits between your AI clients (Claude Code, CI/CD, agent frameworks) and 17 AI providers. One endpoint, automatic fallback, built-in rate limiting, token optimization, and privacy masking.
 
 ```
 Your Agents                    Agent Rate Limit                   AI Providers
@@ -40,7 +40,7 @@ Your Agents                    Agent Rate Limit                   AI Providers
 └───────────┘                 │  Optimizer      │                │ OpenRouter│
                               │  PasteGuard     │                │ Qwen      │
                               │  Vision Router  │                │ DeepSeek  │
-                              └─────────────────┘                │ + 10 more │
+                              └─────────────────┘                │ + 9 more │
                                                                  └───────────┘
 ```
 
@@ -75,9 +75,9 @@ Keep your API usage under control.
 <tr>
 <td width="50%">
 
-### 18 Providers, Zero Lock-in
+### 17 Providers, Zero Lock-in
 Route to any provider, fallback automatically.
-- OpenRouter, Qwen, DeepSeek, Kimi, Ollama
+- Z.AI, OpenAI, Claude, Gemini, OpenRouter, Qwen, DeepSeek, Kimi, Ollama
 - Custom providers via runtime API
 - Round-robin token rotation
 - Utilization-aware account selection
@@ -120,15 +120,6 @@ Send images, gateway handles the rest.
 <tr>
 <td width="50%">
 
-Use OpenAI-compatible endpoints with Claude Code.
-- Anthropic tools -> OpenAI function calling
-- Streaming SSE conversion (`tool_calls` -> `tool_use`)
-- 3-layer context overflow defense
-- Auto-continuation (up to 3x on `length`)
-
-</td>
-<td width="50%">
-
 ### Observability Built-in
 Production-ready monitoring from day one.
 - 36+ Prometheus metrics
@@ -136,6 +127,11 @@ Production-ready monitoring from day one.
 - Real-time admin dashboard (React)
 - OpenTelemetry distributed tracing
 - Anomaly detection (Z-score ring buffer)
+
+</td>
+<td width="50%">
+
+&nbsp;
 
 </td>
 </tr>
@@ -359,7 +355,7 @@ All providers           --> 200+ RPM
 |-----|---------------------------------------------------|----------------------------------------------|
 | 01  | [Getting Started](docs/01-getting-started.md)     | Architecture, install, env vars, ports       |
 | 03  | [API Reference](docs/03-api-reference.md)         | All 100+ API endpoints                       |
-| 04  | [Providers](docs/04-providers.md)                 | 18 providers, OAuth flows, token management  |
+| 04  | [Providers](docs/04-providers.md)                 | 17 providers, OAuth flows, token management  |
 | 05  | [Routing](docs/05-routing.md)                     | Profile-based routing, model mapping         |
 | 06  | [Dashboards](docs/06-dashboards.md)               | Grafana, admin UI, pricing                   |
 | 07  | [Observability](docs/07-observability.md)         | 36+ Prometheus metrics reference             |

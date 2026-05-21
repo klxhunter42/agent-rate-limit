@@ -16,12 +16,14 @@ Handler.Messages()
 +-- Profile found:
 |   |-- If profile.model set: override request model
 |   |-- Else if profile.target set and model doesn't match target:
+|   |   map model to target's default model (e.g. claude -> "claude-haiku-4-5-20251001")
 |   |-- Token selection (priority order):
 |   |   1. accountIds set -> pick from pool (round-robin)
 |   |   2. passthroughAuth -> use client's Bearer token
 |   |   3. provider default token from token store
 |   |   4. fallback to resolver key pool
 |   |-- If profile.baseURL set: override upstream URL
+|   |-- Provider-level model override
 |   |-- Skip key pool + model fallback logic
 |
 +-- Profile not found:
@@ -69,6 +71,7 @@ No need to enter base URL, model, or API key manually - gateway pulls from provi
 | Field             |  Required  | Description                                                              |
 |-------------------|:----------:|--------------------------------------------------------------------------|
 | `name`            |    Yes     | Profile name (unique key)                                                |
+| `target`          |    Yes     | Provider ID (e.g., `claude-oauth`, `gemini-oauth`, `anthropic`)          |
 | `provider`        |    Auto    | Set automatically from target                                            |
 | `accountIds`      |     No     | Select specific accounts from pool (empty = use default)                 |
 | `model`           |     No     | Override model name (empty = use model from request)                     |
@@ -114,11 +117,6 @@ When a profile has a `target` but the request model doesn't belong to that provi
 | `qwen`            | `qwen-plus`                 |
 | `kimi`            | `moonshot-v1-8k`            |
 | `huggingface`     | (model from request)        |
-
-Some providers also override the model name and clamp `max_tokens`:
-
-| Provider   | Model Override  | Max Tokens Clamp  |
-|------------|-----------------|-------------------|
 
 ---
 

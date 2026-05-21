@@ -2,6 +2,7 @@
 
 **ทีมแพลตฟอร์ม - วันทำงานปกติของ API Gateway**
 
+วันที่: 7 พฤษภาคม 2569 | Provider: Anthropic, Z.AI, Google Gemini
 
 ---
 
@@ -22,6 +23,7 @@
 │  │ (Distributed│  │ Optimizer    │  │ claude-oauth -> Anthropic│    │
 │  │  + Adaptive)│  │ Pipeline     │  │ zai          -> Z.AI     │    │
 │  │             │  │              │  │ gemini-oauth -> Gemini   │    │
+│  │ 60 req/min  │  │ 40-60% token │  │                          │    │
 │  │ per user    │  │ savings      │  │                          │    │
 │  └─────────────┘  └──────────────┘  └──────────────────────────┘    │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────────┐    │
