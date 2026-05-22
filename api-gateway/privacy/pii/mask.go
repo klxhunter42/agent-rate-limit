@@ -31,7 +31,7 @@ func MaskPII(text string, entities []masking.PIIEntity, ctx *masking.MaskContext
 		if ph, ok := ctx.ReverseMap[original]; ok {
 			return ph
 		}
-		ph := ctx.NextPlaceholder(entityType)
+		ph := ctx.NextPlaceholderFor(entityType, original)
 		ctx.Mapping[ph] = original
 		ctx.ReverseMap[original] = ph
 		return ph

@@ -16,13 +16,15 @@ func TestMaskSecrets(t *testing.T) {
 
 	t.Run("single secret", func(t *testing.T) {
 		ctx := masking.NewMaskContext()
+		secret := "sk-abc123def456ghi789jkl"
 		locs := []masking.SecretLocation{
 			{Start: 8, End: 32, Type: "API_KEY_SK"},
 		}
-		result := MaskSecrets("use key sk-abc123def456ghi789jkl now", locs, ctx)
-		assert.Contains(t, result.MaskedText, "[[API_KEY_SK_1]]")
-		assert.NotContains(t, result.MaskedText, "sk-abc123def456ghi789jkl")
-		assert.Equal(t, "sk-abc123def456ghi789jkl", ctx.Mapping["[[API_KEY_SK_1]]"])
+		result := MaskSecrets("use key "+secret+" now", locs, ctx)
+		ph := ctx.ReverseMap[secret]
+		assert.Contains(t, result.MaskedText, ph)
+		assert.NotContains(t, result.MaskedText, secret)
+		assert.Equal(t, secret, ctx.Mapping[ph])
 	})
 
 	t.Run("dedup same secret", func(t *testing.T) {
@@ -35,7 +37,9 @@ func TestMaskSecrets(t *testing.T) {
 			{Start: 29, End: 53, Type: "API_KEY_SK"},
 		}
 		result := MaskSecrets(text, locs, ctx)
-		assert.Equal(t, "[[API_KEY_SK_1]] and [[API_KEY_SK_1]]", result.MaskedText)
+		ph := ctx.ReverseMap[secret]
+		expected := ph + " and " + ph
+		assert.Equal(t, expected, result.MaskedText)
 	})
 
 	t.Run("nil context creates new", func(t *testing.T) {

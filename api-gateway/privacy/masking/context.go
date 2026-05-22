@@ -2,6 +2,7 @@ package masking
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 )
@@ -29,6 +30,31 @@ func GeneratePlaceholder(entityType string, counter int) string {
 	return fmt.Sprintf("[[%s_%d]]", entityType, counter)
 }
 
+// deterministicIndex produces a stable counter from an original value.
+// Range 1000-9999 avoids collision with sequential counters (1-999).
+func deterministicIndex(original string) int {
+	h := fnv.New32a()
+	h.Write([]byte(original))
+	return int(h.Sum32()%9000) + 1000
+}
+
+// NextPlaceholderFor generates a deterministic placeholder for the given original value.
+// Same original always gets the same placeholder index across requests.
+func (ctx *MaskContext) NextPlaceholderFor(entityType, original string) string {
+	idx := deterministicIndex(original)
+	placeholder := GeneratePlaceholder(entityType, idx)
+	for _, exists := ctx.Mapping[placeholder]; exists; {
+		idx++
+		placeholder = GeneratePlaceholder(entityType, idx)
+		_, exists = ctx.Mapping[placeholder]
+	}
+	if idx > ctx.Counters[entityType] {
+		ctx.Counters[entityType] = idx
+	}
+	return placeholder
+}
+
+// NextPlaceholder generates a sequential placeholder. Kept for backward compatibility.
 func (ctx *MaskContext) NextPlaceholder(entityType string) string {
 	ctx.Counters[entityType]++
 	return GeneratePlaceholder(entityType, ctx.Counters[entityType])

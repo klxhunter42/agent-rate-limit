@@ -65,3 +65,40 @@ func TestRestorePlaceholders_MultipleOccurrences(t *testing.T) {
 	restored := ctx.RestorePlaceholders(text)
 	assert.Equal(t, "secret appears twice: secret and other", restored)
 }
+
+func TestNextPlaceholderFor_Deterministic(t *testing.T) {
+	ctx1 := NewMaskContext()
+	ph1 := ctx1.NextPlaceholderFor("PHONE_NUMBER", "+66812345678")
+	ctx1.Mapping[ph1] = "+66812345678"
+	ctx1.ReverseMap["+66812345678"] = ph1
+
+	ctx2 := NewMaskContext()
+	ph2 := ctx2.NextPlaceholderFor("PHONE_NUMBER", "+66812345678")
+
+	assert.Equal(t, ph1, ph2, "same original should get same placeholder across contexts")
+}
+
+func TestNextPlaceholderFor_DifferentValues(t *testing.T) {
+	ctx := NewMaskContext()
+	ph1 := ctx.NextPlaceholderFor("PHONE_NUMBER", "+66811111111")
+	ph2 := ctx.NextPlaceholderFor("PHONE_NUMBER", "+66822222222")
+
+	assert.NotEqual(t, ph1, ph2, "different originals should get different placeholders")
+}
+
+func TestNextPlaceholderFor_NoCollisionBetweenTypes(t *testing.T) {
+	ctx := NewMaskContext()
+	ph1 := ctx.NextPlaceholderFor("EMAIL", "user@example.com")
+	ctx2 := NewMaskContext()
+	ph2 := ctx2.NextPlaceholderFor("PHONE_NUMBER", "user@example.com")
+
+	assert.NotEqual(t, ph1, ph2, "different entity types should produce different placeholders")
+}
+
+func TestNextPlaceholderFor_CollisionAvoidance(t *testing.T) {
+	ctx := NewMaskContext()
+	ctx.Mapping["[[PHONE_NUMBER_1234]]"] = "existing"
+
+	ph := ctx.NextPlaceholderFor("PHONE_NUMBER", "test-value")
+	assert.NotEqual(t, "[[PHONE_NUMBER_1234]]", ph)
+}

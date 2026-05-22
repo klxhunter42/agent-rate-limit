@@ -1306,6 +1306,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// limit, then inject markers to keep system prompt cache alive in
 		// long conversations (>20 blocks).
 		if !isZAIProvider {
+			if n := ensureToolsCacheControl(payload); n > 0 {
+				slog.Info("tools cache_control injected", "count", n, "model", selectedModel)
+			}
+			if n := ensureSystemTailCacheControl(payload); n > 0 {
+				slog.Info("system tail cache_control injected", "count", n, "model", selectedModel)
+			}
 			if n := clampCacheControlBlocks(payload); n > 0 {
 				slog.Info("clamped cache_control blocks to Anthropic limit", "stripped", n, "model", selectedModel)
 			}
@@ -1366,6 +1372,75 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			reason = "zai_provider_skip"
 		}
 		slog.Info("optimizer and privacy skipped", "reason", reason)
+	}
+
+	// TextComp runs even for Z.AI - lossless compression benefits all providers.
+	// Other optimizers are skipped for Z.AI (no prompt caching, adds latency,
+	// ~0% token savings on GLM models), but textcomp is regex-only and lossless.
+	if isZAIProvider && !hasImages && h.optimizers != nil && h.optimizers.TextComp != nil {
+		var optOverrides map[string]bool
+		if profileOverride != nil {
+			optOverrides = profileOverride.OptimizerOverrides
+		}
+		if optimizerAllowed(optOverrides, "textcomp", h.optimizers.TextComp) {
+			// System prompt textcomp
+			if sys, ok := payload["system"].([]any); ok {
+				for _, item := range sys {
+					if m, ok := item.(map[string]any); ok {
+						if t, ok := m["text"].(string); ok && len(t) >= 50 {
+							opt, saved := h.optimizers.TextComp.Compress(t)
+							if saved > 0 {
+								m["text"] = opt
+								h.metrics.RecordOptimization("zai_textcomp_sys", saved, "input")
+							}
+						}
+					}
+				}
+			}
+			// Message textcomp
+			if msgs, ok := payload["messages"].([]any); ok {
+				for _, msg := range msgs {
+					if mm, ok := msg.(map[string]any); ok {
+						switch c := mm["content"].(type) {
+						case string:
+							if c != "" {
+								opt, saved := h.optimizers.TextComp.Compress(c)
+								if saved > 0 {
+									mm["content"] = opt
+									h.metrics.RecordOptimization("zai_textcomp_msg", saved, "input")
+								}
+							}
+						case []any:
+							for _, block := range c {
+								if bm, ok := block.(map[string]any); ok {
+									bt, _ := bm["type"].(string)
+									if bt == "tool_use" {
+										continue
+									}
+									field := "text"
+									if bt == "tool_result" {
+										field = "content"
+									}
+									if t, ok := bm[field].(string); ok && t != "" {
+										opt, saved := h.optimizers.TextComp.Compress(t)
+										if saved > 0 {
+											bm[field] = opt
+											h.metrics.RecordOptimization("zai_textcomp_block", saved, "input")
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			// Re-encode after textcomp
+			body, err = json.Marshal(payload)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+				return
+			}
+		}
 	}
 
 	isStream, _ := payload["stream"].(bool)
@@ -2322,9 +2397,9 @@ var modelMaxTokens = map[string]int{
 	"glm-z1-air":                128000,
 	"glm-z1-airx":               128000,
 	"glm-z1-flashx":             128000,
-	"claude-opus-4-7":           200000,
-	"claude-sonnet-4-6":         200000,
-	"claude-haiku-4-5-20251001": 200000,
+	"claude-opus-4-7":           64000,
+	"claude-sonnet-4-6":         64000,
+	"claude-haiku-4-5-20251001": 64000,
 }
 
 var modelMaxTokensMu sync.RWMutex
@@ -2364,7 +2439,10 @@ func stripUnsupportedFields(payload map[string]any, nativeAnthropic bool, model 
 		delete(payload, f)
 	}
 	// Strip thinking params for models that don't support extended thinking.
-	if strings.Contains(model, "haiku") || strings.Contains(model, "3-5-sonnet") {
+	unsupported := strings.Contains(model, "haiku") ||
+		strings.Contains(model, "3-5-sonnet") ||
+		strings.Contains(model, "claude-sonnet-4-2025")
+	if unsupported {
 		delete(payload, "thinking")
 		delete(payload, "budget_tokens")
 		delete(payload, "effort")
@@ -2616,6 +2694,57 @@ func countCacheControlBlocks(payload map[string]any) int {
 		}
 	}
 	return count
+}
+
+// ensureToolsCacheControl adds cache_control to the last tool definition
+// if tools are present and budget allows (<4 cache_control blocks).
+func ensureToolsCacheControl(payload map[string]any) int {
+	const maxCacheControlBlocks = 4
+	tools, ok := payload["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		return 0
+	}
+	total := countCacheControlBlocks(payload)
+	if total >= maxCacheControlBlocks {
+		return 0
+	}
+	last, ok := tools[len(tools)-1].(map[string]any)
+	if !ok {
+		return 0
+	}
+	if _, hasCC := last["cache_control"]; hasCC {
+		return 0
+	}
+	last["cache_control"] = map[string]any{"type": "ephemeral"}
+	return 1
+}
+
+// ensureSystemTailCacheControl adds cache_control to the last system block if:
+//   - system is an array (not string)
+//   - the last block does NOT already have cache_control
+//   - budget allows (total cache_control blocks < 4)
+//
+// This ensures the reference tokens notice block (system[3], ~635 chars)
+// gets cached alongside the main system prompt blocks.
+func ensureSystemTailCacheControl(payload map[string]any) int {
+	const maxCacheControlBlocks = 4
+	sys, ok := payload["system"].([]any)
+	if !ok || len(sys) == 0 {
+		return 0
+	}
+	total := countCacheControlBlocks(payload)
+	if total >= maxCacheControlBlocks {
+		return 0
+	}
+	last, ok := sys[len(sys)-1].(map[string]any)
+	if !ok {
+		return 0
+	}
+	if _, hasCC := last["cache_control"]; hasCC {
+		return 0
+	}
+	last["cache_control"] = map[string]any{"type": "ephemeral"}
+	return 1
 }
 
 // filterUnsupportedContent strips cache_control from all content blocks
@@ -2885,9 +3014,9 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 // anthropicModelMaxTokens are hard limits enforced by Anthropic's API.
 var anthropicModelMaxTokens = map[string]int{
 	"claude-haiku-4-5-20251001": 64000,
-	"claude-opus-4-7":           200000,
-	"claude-sonnet-4-20250514":  200000,
-	"claude-sonnet-4-6":         200000,
+	"claude-opus-4-7":           64000,
+	"claude-sonnet-4-20250514":  64000,
+	"claude-sonnet-4-6":         64000,
 }
 
 // clampMaxTokens ensures max_tokens does not exceed the upstream model's limit.
@@ -2970,17 +3099,17 @@ var knownModels = []struct {
 	{"glm-z1-airx", "zai", "z1", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-z1-flashx", "zai", "z1", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
 	// Anthropic
-	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
-	{"claude-haiku-4-5", "anthropic", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
-	{"claude-3-5-sonnet-20241022", "anthropic", "sonnet-3.5", "anthropic", 3, 15, 200000, "none", false, false, false},
-	{"claude-3-5-haiku-20241022", "anthropic", "haiku-3.5", "anthropic", 0.80, 4, 200000, "none", false, false, false},
+	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 64000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
+	{"claude-haiku-4-5", "anthropic", "haiku", "anthropic", 0.80, 4, 64000, "none", false, true, false},
+	{"claude-3-5-sonnet-20241022", "anthropic", "sonnet-3.5", "anthropic", 3, 15, 64000, "none", false, false, false},
+	{"claude-3-5-haiku-20241022", "anthropic", "haiku-3.5", "anthropic", 0.80, 4, 64000, "none", false, false, false},
 	// Claude OAuth
-	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
-	{"claude-sonnet-4-20250514", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
-	{"claude-haiku-4-5-20251001", "claude-oauth", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
+	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 64000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude-oauth", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
+	{"claude-sonnet-4-20250514", "claude-oauth", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
+	{"claude-haiku-4-5-20251001", "claude-oauth", "haiku", "anthropic", 0.80, 4, 64000, "none", false, true, false},
 	// OpenAI
 	{"gpt-4o", "openai", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
 	{"gpt-4o-mini", "openai", "gpt-4", "openai", 0.15, 0.60, 128000, "none", false, false, false},
@@ -2997,7 +3126,7 @@ var knownModels = []struct {
 	{"gpt-4o", "copilot", "gpt-4", "openai", 0, 0, 128000, "none", false, false, false},
 	{"claude-sonnet-4-6", "copilot", "sonnet", "anthropic", 0, 0, 128000, "none", false, false, false},
 	// OpenRouter
-	{"or-anthropic/claude-sonnet-4-6", "openrouter", "sonnet", "openai", 3, 15, 200000, "budget", false, false, false},
+	{"or-anthropic/claude-sonnet-4-6", "openrouter", "sonnet", "openai", 3, 15, 64000, "budget", false, false, false},
 	{"or-openai/gpt-4o", "openrouter", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
 	{"or-google/gemini-2.5-pro", "openrouter", "gemini", "openai", 1.25, 10, 1048576, "budget", true, false, false},
 	{"or-meta/llama-4-maverick", "openrouter", "llama", "openai", 0.20, 0.80, 1048576, "none", true, false, false},

@@ -155,8 +155,9 @@ func TestMaskPII(t *testing.T) {
 			{EntityType: "EMAIL_ADDRESS", Start: 0, End: 16, Score: 0.9},
 		}
 		result := MaskPII("user@example.com is my email", entities, ctx)
-		assert.Contains(t, result.MaskedText, "[[EMAIL_ADDRESS_1]]")
-		assert.Equal(t, "user@example.com", ctx.Mapping["[[EMAIL_ADDRESS_1]]"])
+		ph := ctx.ReverseMap["user@example.com"]
+		assert.Contains(t, result.MaskedText, ph)
+		assert.Equal(t, "user@example.com", ctx.Mapping[ph])
 	})
 
 	t.Run("dedup same entity", func(t *testing.T) {
@@ -167,6 +168,7 @@ func TestMaskPII(t *testing.T) {
 		}
 		text := "user@example.com xx user@example.com!!"
 		result := MaskPII(text, entities, ctx)
-		assert.Contains(t, result.MaskedText, "[[EMAIL_ADDRESS_1]]")
+		ph := ctx.ReverseMap["user@example.com"]
+		assert.Contains(t, result.MaskedText, ph)
 	})
 }

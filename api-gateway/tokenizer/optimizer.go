@@ -100,8 +100,8 @@ type ModelCapabilities struct {
 // KnownModels is the static model capability map.
 var KnownModels = map[string]ModelCapabilities{
 	// Anthropic
-	"claude-opus-4-7":            {ContextWindow: 200000, MaxOutputTokens: 163840, Provider: "anthropic"},
-	"claude-sonnet-4-6":          {ContextWindow: 200000, MaxOutputTokens: 163840, Provider: "anthropic"},
+	"claude-opus-4-7":            {ContextWindow: 200000, MaxOutputTokens: 64000, Provider: "anthropic"},
+	"claude-sonnet-4-6":          {ContextWindow: 200000, MaxOutputTokens: 64000, Provider: "anthropic"},
 	"claude-haiku-4-5-20251001":  {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},
 	"claude-3-5-sonnet-20241022": {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},
 	"claude-3-5-haiku-20241022":  {ContextWindow: 200000, MaxOutputTokens: 8192, Provider: "anthropic"},

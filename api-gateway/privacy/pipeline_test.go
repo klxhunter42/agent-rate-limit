@@ -26,13 +26,13 @@ func TestPipeline_MaskRequest_WithSecret(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.True(t, result.HasSecrets)
 
-	// Verify masked body has placeholder
+	// Verify masked body has placeholder (deterministic, not sequential)
 	var payload map[string]any
 	json.Unmarshal(result.MaskedBody, &payload)
 	msgs := payload["messages"].([]any)
 	msg := msgs[0].(map[string]any)
 	content := msg["content"].(string)
-	assert.Contains(t, content, "[[API_KEY_SK_1]]")
+	assert.Contains(t, content, "[[API_KEY_SK_")
 	assert.NotContains(t, content, "sk-abc123def456ghi789jkl012mno")
 }
 
@@ -45,11 +45,15 @@ func TestPipeline_UnmaskResponse(t *testing.T) {
 	result, _ := p.MaskRequest(body)
 	assert.NotNil(t, result)
 
-	// Simulate response containing placeholders
-	response := []byte("Your key [[API_KEY_SK_1]] is noted.")
+	// Extract the actual placeholder from the mapping to use in simulated response
+	secret := "sk-abc123def456ghi789jkl012mno"
+	ph := result.SecretsCtx.ReverseMap[secret]
+	assert.NotEmpty(t, ph)
+
+	response := []byte("Your key " + ph + " is noted.")
 	unmasked := p.UnmaskResponse(response, result)
-	assert.Contains(t, string(unmasked), "sk-abc123def456ghi789jkl012mno")
-	assert.NotContains(t, string(unmasked), "[[API_KEY_SK_1]]")
+	assert.Contains(t, string(unmasked), secret)
+	assert.NotContains(t, string(unmasked), ph)
 }
 
 func TestPipeline_UnmaskResponse_NilResult(t *testing.T) {
@@ -101,8 +105,11 @@ func TestPipeline_UnmaskResponse_StripsLeftoverPlaceholders(t *testing.T) {
 	result, _ := p.MaskRequest(body)
 	assert.NotNil(t, result)
 
-	// Response contains a placeholder that won't match any mapping (simulates GLM mangling)
-	response := []byte("Your key [[API_KEY_SK_1]] and unknown [[UNKNOWN_TYPE_99]] here.")
+	secret := "sk-abc123def456ghi789jkl012mno"
+	ph := result.SecretsCtx.ReverseMap[secret]
+
+	// Response contains the known placeholder and an unknown leftover placeholder
+	response := []byte("Your key " + ph + " and unknown [[UNKNOWN_TYPE_99]] here.")
 	unmasked := p.UnmaskResponse(response, result)
 
 	s := string(unmasked)
