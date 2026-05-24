@@ -1077,3 +1077,217 @@ func TestInjectCacheBreakpoints_NoBudget_NoInjection(t *testing.T) {
 	assert.Equal(t, 0, injected, "no budget for new breakpoints")
 	assert.Equal(t, 4, countCacheControlBlocks(payload))
 }
+
+func TestCountCacheControlBlocks_CountsTools(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "hi", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}},
+			map[string]any{"name": "tool2", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+	}
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+}
+
+func TestCountCacheControlBlocks_NoToolsField(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "hi", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+			map[string]any{"role": "assistant", "content": []any{
+				map[string]any{"type": "text", "text": "bye", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+	}
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+}
+
+func TestCountCacheControlBlocks_ToolsWithoutCacheControl(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "hi", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}},
+			map[string]any{"name": "tool2", "input_schema": map[string]any{"type": "object"}},
+		},
+	}
+	assert.Equal(t, 3, countCacheControlBlocks(payload))
+}
+
+func TestClampCacheControlBlocks_Pass4StripsFromTools(t *testing.T) {
+	// 4 large system blocks + 1 tool = 5 CC. Pass 1 (tiny <200) skips all (all large).
+	// Pass 2 (messages) skips (no message CC). Pass 3 strips 1 system. Pass 4 would run
+	// if Pass 3 didn't have enough targets.
+	//
+	// To test Pass 4 directly, we need system+messages already at exactly 4 with no more
+	// to strip, plus tools pushing over:
+	// 4 system (no more stripping possible after Pass 3 strips 0 -- wait, Pass 3 WILL strip).
+	// The real way to test Pass 4: have tools be the ONLY excess after Passes 1-3 run out.
+	mainPrompt := strings.Repeat("You are a helpful assistant. ", 50)
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": mainPrompt, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool2", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool3", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool4", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+	}
+	// 1 large system + 4 tools = 5 CC. Excess = 1. Pass 3 strips the system block (1).
+	// After Pass 3, stripped == excess, so Pass 4 never runs.
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 1, stripped)
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+
+	// System block stripped by Pass 3.
+	_, sysCC := payload["system"].([]any)[0].(map[string]any)["cache_control"]
+	assert.False(t, sysCC, "system block stripped by Pass 3")
+
+	// All 4 tools still have CC because Pass 3 already handled the 1 excess.
+	toolCCCount := 0
+	for _, tool := range payload["tools"].([]any) {
+		if _, hasCC := tool.(map[string]any)["cache_control"]; hasCC {
+			toolCCCount++
+		}
+	}
+	assert.Equal(t, 4, toolCCCount, "all tools retain cache_control (Pass 3 handled excess)")
+}
+
+func TestClampCacheControlBlocks_Pass4FiresWhenSystemMessagesExhausted(t *testing.T) {
+	// No system, no messages -- only 6 tools with CC. Passes 1-3 find nothing.
+	// Pass 4 strips 2 tools to reach 4.
+	payload := map[string]any{
+		"system":   []any{},
+		"messages": []any{},
+		"tools": []any{
+			map[string]any{"name": "tool1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool2", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool3", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool4", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool5", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"name": "tool6", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+	}
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 2, stripped)
+	assert.Equal(t, 4, countCacheControlBlocks(payload))
+
+	// First 2 tools stripped, last 4 kept.
+	_, cc1 := payload["tools"].([]any)[0].(map[string]any)["cache_control"]
+	assert.False(t, cc1, "first tool stripped by Pass 4")
+	_, cc2 := payload["tools"].([]any)[1].(map[string]any)["cache_control"]
+	assert.False(t, cc2, "second tool stripped by Pass 4")
+	_, cc3 := payload["tools"].([]any)[2].(map[string]any)["cache_control"]
+	assert.True(t, cc3, "third tool keeps cache_control")
+}
+
+func TestClampCacheControlBlocks_ExactBugScenario(t *testing.T) {
+	// The exact scenario that caused the 400 error:
+	// 3 system blocks (billing tiny, identity tiny, main large) + 1 tool + 1 message = 5 CC.
+	mainPrompt := strings.Repeat("You are a helpful assistant. ", 1000)
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "billing header", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "identity block", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": mainPrompt, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "text", "text": "user message", "cache_control": map[string]any{"type": "ephemeral"}},
+			}},
+		},
+		"tools": []any{
+			map[string]any{"name": "read_file", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+	}
+	assert.Equal(t, 5, countCacheControlBlocks(payload), "bug: 5 CC blocks before clamp")
+
+	stripped := clampCacheControlBlocks(payload)
+	assert.Equal(t, 1, stripped)
+	assert.Equal(t, 4, countCacheControlBlocks(payload), "must be exactly 4 after clamp")
+
+	// Pass 1 should strip tiny system (billing < 200 chars), NOT the tool.
+	sys := payload["system"].([]any)
+	_, billingCC := sys[0].(map[string]any)["cache_control"]
+	assert.False(t, billingCC, "tiny billing header stripped first")
+	_, mainCC := sys[2].(map[string]any)["cache_control"]
+	assert.True(t, mainCC, "main prompt preserved")
+
+	// Tool CC preserved because Pass 1 already handled the excess.
+	_, toolCC := payload["tools"].([]any)[0].(map[string]any)["cache_control"]
+	assert.True(t, toolCC, "tool cache_control preserved (Pass 1 handled the strip)")
+}
+
+func TestEnsureToolsCacheControl_SkipsWhenAlreadyPresent(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}},
+			map[string]any{"name": "tool2", "input_schema": map[string]any{"type": "object"}, "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+	}
+	added := ensureToolsCacheControl(payload)
+	assert.Equal(t, 0, added, "should not add duplicate cache_control")
+	assert.Equal(t, 2, countCacheControlBlocks(payload))
+}
+
+func TestEnsureToolsCacheControl_SkipsWhenNoBudget(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys1", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys2", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys3", "cache_control": map[string]any{"type": "ephemeral"}},
+			map[string]any{"type": "text", "text": "sys4", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}},
+		},
+	}
+	added := ensureToolsCacheControl(payload)
+	assert.Equal(t, 0, added, "no budget for tools cache_control")
+}
+
+func TestEnsureToolsCacheControl_AddsWhenBudgetAllows(t *testing.T) {
+	payload := map[string]any{
+		"system": []any{
+			map[string]any{"type": "text", "text": "sys", "cache_control": map[string]any{"type": "ephemeral"}},
+		},
+		"messages": []any{},
+		"tools": []any{
+			map[string]any{"name": "tool1", "input_schema": map[string]any{"type": "object"}},
+			map[string]any{"name": "tool2", "input_schema": map[string]any{"type": "object"}},
+		},
+	}
+	added := ensureToolsCacheControl(payload)
+	assert.Equal(t, 1, added)
+	_, lastCC := payload["tools"].([]any)[1].(map[string]any)["cache_control"]
+	assert.True(t, lastCC, "last tool should get cache_control")
+	assert.Equal(t, 2, countCacheControlBlocks(payload))
+}

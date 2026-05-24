@@ -2663,10 +2663,28 @@ func clampCacheControlBlocks(payload map[string]any) int {
 		}
 	}
 
+	// Pass 4: strip from tools. The gateway will re-add cache_control to the last
+	// tool via ensureToolsCacheControl if budget allows, so stripping here is safe.
+	if stripped < excess {
+		if tools, ok := payload["tools"].([]any); ok {
+			for _, tool := range tools {
+				if stripped >= excess {
+					break
+				}
+				if tm, ok := tool.(map[string]any); ok {
+					if _, hasCC := tm["cache_control"]; hasCC {
+						delete(tm, "cache_control")
+						stripped++
+					}
+				}
+			}
+		}
+	}
+
 	return stripped
 }
 
-// countCacheControlBlocks counts all blocks with cache_control across system and messages.
+// countCacheControlBlocks counts all blocks with cache_control across system, messages, and tools.
 func countCacheControlBlocks(payload map[string]any) int {
 	count := 0
 	if sys, ok := payload["system"].([]any); ok {
@@ -2689,6 +2707,15 @@ func countCacheControlBlocks(payload map[string]any) int {
 							}
 						}
 					}
+				}
+			}
+		}
+	}
+	if tools, ok := payload["tools"].([]any); ok {
+		for _, tool := range tools {
+			if tm, ok := tool.(map[string]any); ok {
+				if _, hasCC := tm["cache_control"]; hasCC {
+					count++
 				}
 			}
 		}
