@@ -2,6 +2,44 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-05-27] - Fix Claude Code Edit Failures (P0/P1)
+
+### Problem
+Claude Code edit operations failing repeatedly through the gateway. Root causes: max_tokens capped too low (truncating extended thinking mid-tool_use), streaming errors masked as successful responses, excessive retry defaults causing cascading failures.
+
+### Changes
+
+#### handler/handler.go
+- **Fix P0-1**: `modelMaxTokens` and `anthropicModelMaxTokens` for `claude-opus-4-7` and `claude-sonnet-4-6` raised from 64000 to 128000. Extended thinking requires higher output token limits; 64K truncated tool_use JSON mid-generation.
+- **Fix P0-1**: `knownModels` ContextWindow for all Claude entries corrected from 64000 to 200000.
+- **Fix P0-1**: `countCacheControlBlocks` now iterates `tools` array (previously only counted `system` + `messages`). This caused Anthropic 400 errors when client sent cache_control on tool definitions.
+- **Fix P0-1**: `clampCacheControlBlocks` gained Pass 4 to strip cache_control from tools as last resort.
+
+#### tokenizer/optimizer.go
+- `KnownModels` MaxOutputTokens for Claude opus/sonnet raised from 64000 to 128000.
+
+#### proxy/anthropic.go
+- **Fix P0-2**: Scanner error now emits `event: error` SSE event before `message_stop`, instead of silently faking `end_turn`. Returns error to caller for proper logging. Prevents Claude Code from processing incomplete tool_use JSON as valid.
+- **Fix P1-3**: Default `ResponseHeaderTimeout` reduced from 4 hours to 60 seconds (in shared_transport.go).
+
+#### proxy/anthropic_test.go
+- `TestGracefulStreamCloseOnScannerError` updated to expect error return and verify `event: error` is emitted.
+
+#### config/config.go
+- **Fix P1-3**: Default `UpstreamMaxRetries` reduced from 20 to 5 (max attempts 9 instead of 31).
+- **Fix P1-3**: Default `TransientRetryMax` reduced from 10 to 3.
+
+#### toolcomp/toolcomp.go
+- **Fix P1-2**: Default `TOOLCOMP_MAX_LINES` raised from 50 to 200. Diff compression no longer strips critical context lines needed for accurate edits.
+
+#### handler/handler_test.go
+- Added 11 new test cases covering tools cache_control counting, Pass 4 stripping, exact bug scenario, and ensureToolsCacheControl behavior.
+
+### Risk Assessment
+- All changes have env var overrides (TOOLCOMP_MAX_LINES, UPSTREAM_MAX_RETRIES, TRANSIENT_RETRY_MAX, etc.)
+- No breaking API changes
+- Claude models genuinely support 128K output tokens per Anthropic docs
+
 ## [2026-05-20] - Concurrent Request Optimization for Z.AI/GLM Mode
 
 ### Problem

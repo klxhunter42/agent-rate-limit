@@ -2504,12 +2504,14 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
+		errMsg, _ := json.Marshal(err.Error())
+		fmt.Fprintf(w, "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":%s}}\n\n", string(errMsg))
 		fmt.Fprintf(w, "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":%d}}\n\n", outputTokens)
 		fmt.Fprintf(w, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		return nil
+		return fmt.Errorf("stream scanner error: %w", err)
 	}
 
 	// Flush GLM HTML/XML stripper before unmasker.

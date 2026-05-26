@@ -490,12 +490,16 @@ func TestGracefulStreamCloseOnScannerError(t *testing.T) {
 
 	err := p.relayStreamWithTracking(w, fakeResp, "glm-4v", nil, 0, nil)
 
-	// Should NOT return error - graceful close returns nil
-	if err != nil {
-		t.Errorf("relayStreamWithTracking returned error: %v", err)
+	// Should return error - scanner failure is now surfaced to caller
+	if err == nil {
+		t.Error("relayStreamWithTracking should return error on scanner failure")
 	}
 
 	body := w.Body.String()
+
+	if !strings.Contains(body, "event: error") {
+		t.Errorf("response missing error event\ngot:\n%s", body)
+	}
 
 	if !strings.Contains(body, "message_stop") {
 		t.Errorf("response missing message_stop event (graceful close)\ngot:\n%s", body)

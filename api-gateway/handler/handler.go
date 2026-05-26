@@ -2397,8 +2397,8 @@ var modelMaxTokens = map[string]int{
 	"glm-z1-air":                128000,
 	"glm-z1-airx":               128000,
 	"glm-z1-flashx":             128000,
-	"claude-opus-4-7":           64000,
-	"claude-sonnet-4-6":         64000,
+	"claude-opus-4-7":           128000,
+	"claude-sonnet-4-6":         128000,
 	"claude-haiku-4-5-20251001": 64000,
 }
 
@@ -3041,9 +3041,9 @@ func applySmartMaxTokens(payload map[string]any, model string) {
 // anthropicModelMaxTokens are hard limits enforced by Anthropic's API.
 var anthropicModelMaxTokens = map[string]int{
 	"claude-haiku-4-5-20251001": 64000,
-	"claude-opus-4-7":           64000,
-	"claude-sonnet-4-20250514":  64000,
-	"claude-sonnet-4-6":         64000,
+	"claude-opus-4-7":           128000,
+	"claude-sonnet-4-20250514":  128000,
+	"claude-sonnet-4-6":         128000,
 }
 
 // clampMaxTokens ensures max_tokens does not exceed the upstream model's limit.
@@ -3126,17 +3126,17 @@ var knownModels = []struct {
 	{"glm-z1-airx", "zai", "z1", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-z1-flashx", "zai", "z1", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
 	// Anthropic
-	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 64000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
-	{"claude-haiku-4-5", "anthropic", "haiku", "anthropic", 0.80, 4, 64000, "none", false, true, false},
-	{"claude-3-5-sonnet-20241022", "anthropic", "sonnet-3.5", "anthropic", 3, 15, 64000, "none", false, false, false},
-	{"claude-3-5-haiku-20241022", "anthropic", "haiku-3.5", "anthropic", 0.80, 4, 64000, "none", false, false, false},
+	{"claude-opus-4-7", "anthropic", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "anthropic", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-haiku-4-5", "anthropic", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
+	{"claude-3-5-sonnet-20241022", "anthropic", "sonnet-3.5", "anthropic", 3, 15, 200000, "none", false, false, false},
+	{"claude-3-5-haiku-20241022", "anthropic", "haiku-3.5", "anthropic", 0.80, 4, 200000, "none", false, false, false},
 	// Claude OAuth
-	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 64000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
-	{"claude-sonnet-4-6", "claude-oauth", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
-	{"claude-sonnet-4-20250514", "claude-oauth", "sonnet", "anthropic", 3, 15, 64000, "budget", false, false, false},
-	{"claude-haiku-4-5-20251001", "claude-oauth", "haiku", "anthropic", 0.80, 4, 64000, "none", false, true, false},
+	{"claude-opus-4-7", "claude", "opus", "anthropic", 15, 75, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-6", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-sonnet-4-20250514", "claude-oauth", "sonnet", "anthropic", 3, 15, 200000, "budget", false, false, false},
+	{"claude-haiku-4-5-20251001", "claude-oauth", "haiku", "anthropic", 0.80, 4, 200000, "none", false, true, false},
 	// OpenAI
 	{"gpt-4o", "openai", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
 	{"gpt-4o-mini", "openai", "gpt-4", "openai", 0.15, 0.60, 128000, "none", false, false, false},
@@ -3153,7 +3153,7 @@ var knownModels = []struct {
 	{"gpt-4o", "copilot", "gpt-4", "openai", 0, 0, 128000, "none", false, false, false},
 	{"claude-sonnet-4-6", "copilot", "sonnet", "anthropic", 0, 0, 128000, "none", false, false, false},
 	// OpenRouter
-	{"or-anthropic/claude-sonnet-4-6", "openrouter", "sonnet", "openai", 3, 15, 64000, "budget", false, false, false},
+	{"or-anthropic/claude-sonnet-4-6", "openrouter", "sonnet", "openai", 3, 15, 200000, "budget", false, false, false},
 	{"or-openai/gpt-4o", "openrouter", "gpt-4", "openai", 2.50, 10, 128000, "none", false, false, false},
 	{"or-google/gemini-2.5-pro", "openrouter", "gemini", "openai", 1.25, 10, 1048576, "budget", true, false, false},
 	{"or-meta/llama-4-maverick", "openrouter", "llama", "openai", 0.20, 0.80, 1048576, "none", true, false, false},

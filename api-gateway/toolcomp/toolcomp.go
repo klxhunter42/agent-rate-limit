@@ -35,7 +35,7 @@ func envIntOr(key string, fallback int) int {
 func LoadConfig() Config {
 	return Config{
 		Enabled:  envBoolOr("TOOLCOMP_ENABLED", true),
-		MaxLines: envIntOr("TOOLCOMP_MAX_LINES", 50),
+		MaxLines: envIntOr("TOOLCOMP_MAX_LINES", 200),
 	}
 }
 
