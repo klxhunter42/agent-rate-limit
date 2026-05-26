@@ -8,7 +8,7 @@ import (
 
 // leftoverPlaceholderRe matches [[TYPE_N]] placeholder tokens that survived
 // unmasking (e.g. when GLM mangles them beyond recognition).
-var leftoverPlaceholderRe = regexp.MustCompile(`\[\[[A-Z_]+_\d+\]\]`)
+var leftoverPlaceholderRe = regexp.MustCompile(`\[\[[A-Z][A-Z0-9_]*_[A-Za-z0-9]+\]\]`)
 
 type StreamUnmasker struct {
 	piiBuffer     string

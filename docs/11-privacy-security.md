@@ -239,6 +239,16 @@ Non-stream path:
 
 Placeholders that split across content block boundary (text -> thinking) cannot be restored because each block is a separate logical unit. However this case is very rare in practice.
 
+### Privacy Prompt Design (2026-05-27c fix)
+
+The privacy instruction injected into the system prompt must be **minimal**. It tells Claude to preserve `[[...]]` tokens as opaque values without explaining what they represent.
+
+Previous design (v1) explicitly showed placeholder examples (`[[IP_ADDRESS_1]]`, `[[ENV_USER_3]]`), explained "anonymized" concept, and gave Correct/Wrong examples. This caused Claude to reference the placeholder format in responses, leaking implementation details to users.
+
+Current design (v2) uses a single concise instruction: "Preserve all tokens enclosed in [[...]] exactly as written. Do not modify, replace, or explain them." No examples, no terminology, no format description.
+
+Key principle: **the less the model knows about the masking system, the less it can leak about it.**
+
 ---
 
 ## 3. GLM Mode Isolation Fix

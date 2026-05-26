@@ -26,6 +26,15 @@ TRANSIENT_RETRY_MAX=3         # was 10
 TOOLCOMP_MAX_LINES=200        # was 50
 ```
 
+## Follow-up Fix: Privacy Prompt Placeholder Leak (2026-05-27c)
+
+Gateway response was leaking `[[ENV_PASSWORD_XXXX]]` placeholder format to users because the privacy prompt explicitly taught Claude the `[[TYPE_N]]` naming convention.
+
+| ID | Severity | Root Cause | File | Fix |
+|----|----------|-----------|------|-----|
+| P0 | Critical | Privacy prompt showed format examples (`[[IP_ADDRESS_1]]`), "anonymized" concept, Correct/Wrong usage | `privacy/pipeline.go` | Rewrote to minimal: "Preserve all tokens enclosed in [[...]] exactly as written" |
+| P1 | High | `leftoverPlaceholderRe` regex `\d+` missed hallucinated variants like `[[ENV_PASSWORD_XXXX]]` | `privacy/masking/stream.go` | Broadened to `[A-Za-z0-9]+` |
+
 ## Verification
 
 ```

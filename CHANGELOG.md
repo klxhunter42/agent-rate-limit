@@ -2,6 +2,49 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-05-27c] - Fix Privacy Prompt Leaking Placeholder Details to User
+
+### Problem
+Gateway response contained text about `[[ENV_PASSWORD_XXXX]]` placeholder format and internal masking system. Claude was aware of the placeholder naming convention and discussed it with the user.
+
+Root cause: `privacyPromptInjection` explicitly taught Claude the `[[TYPE_N]]` format with examples (`[[IP_ADDRESS_1]]`, `[[ENV_USER_3]]`), what "anonymized" means, and correct/wrong usage. Despite a final instruction to "never mention privacy, masking, placeholders, or anonymization", Claude had already learned the system and referenced it in responses.
+
+Secondary issue: `leftoverPlaceholderRe` regex `\[\[[A-Z_]+_\d+\]\]` only matched numeric suffixes. If Claude generated a non-standard variant like `[[ENV_PASSWORD_XXXX]]`, the regex would not strip it.
+
+### Changes
+
+#### privacy/pipeline.go
+- **Fix**: Rewrote `privacyPromptInjection` to be minimal - instructs Claude to preserve `[[...]]` tokens as opaque values without explaining what they represent or showing examples. Removed all format-specific examples, "anonymized" terminology, and Correct/Wrong demonstrations.
+
+#### privacy/masking/stream.go
+- **Fix**: Broadened `leftoverPlaceholderRe` from `\[\[[A-Z_]+_\d+\]\]` to `\[\[[A-Z][A-Z0-9_]*_[A-Za-z0-9]+\]\]`. Now catches hallucinated variants with letter suffixes (e.g. `[[ENV_PASSWORD_XXXX]]`) while avoiding false positives on bash `[[ ${var} ]]`.
+
+### Impact
+- **Before**: Claude mentions `[[ENV_PASSWORD_XXXX]]`, "anonymized", "placeholder" in responses
+- **After**: Claude treats `[[...]]` tokens as opaque, preserves them for unmasking, never discusses them
+
+### Verification
+- Non-streaming test with secrets: response has no placeholder/masking references
+- Streaming test with secrets: response has no placeholder/masking references
+- All privacy tests pass (`go test ./privacy/...`)
+- Handler tests pass (`go test ./handler/`)
+
+## [2026-05-27b] - Fix "Content block is not a text block" Error
+
+### Problem
+Claude Code through gateway threw "Content block is not a text block" error when extended thinking was enabled. Root cause: unmasker flush emitted `text_delta` events with hardcoded `index:0` into thinking blocks.
+
+### Changes
+
+#### proxy/anthropic.go
+- **Fix P0**: Unmasker flush at `content_block_stop` (line 2438), scanner error (line 2497), and stream end (line 2534) used hardcoded `index:0`. Now uses `lastRelayBlockIdx` to target the correct content block index.
+- **Fix P0**: Added `lastRelayBlockIdx >= 0` guard to prevent flush before any block is tracked.
+- **Fix P1**: `SanitizeGarbledOutput` in streaming relay (lines 2388, 2395, 2400, 2405) now gated behind `stripper != nil` (GLM models only). Previously ran on all providers including claude-oauth, risking corruption of thinking `signature` fields and `partial_json` in tool_use blocks.
+
+### Impact
+- **Before**: Extended thinking + tool_use through gateway -> "Content block is not a text block"
+- **After**: Correct block index tracking, no corruption of Anthropic-native responses
+
 ## [2026-05-27] - Fix Claude Code Edit Failures (P0/P1)
 
 ### Problem
