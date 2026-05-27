@@ -1111,9 +1111,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Tool cache + injection: cache tools from requests that include them,
-	// inject cached tools into requests that lack them.
-	if h.toolCache != nil {
+	// Tool cache + injection: skip for transparent OAuth (passthrough).
+	if !transparent && h.toolCache != nil {
 		if injected := h.injectCachedTools(payload, profileName, r); injected {
 			var marshalErr error
 			body, marshalErr = json.Marshal(payload)
@@ -1222,7 +1221,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Description trim - trim verbose tool descriptions to first paragraph/sentence.
-		if h.optimizers != nil && optimizerAllowed(optOverrides, "desctrim", h.optimizers.DescTrim) {
+		// Description trimming: skip for transparent OAuth (passthrough).
+		if !transparent && h.optimizers != nil && optimizerAllowed(optOverrides, "desctrim", h.optimizers.DescTrim) {
 			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
 				parsed := make([]desctrim.ToolDesc, 0, len(tools))
 				for _, t := range tools {
@@ -1255,8 +1255,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Tool filter - safe for Claude CLI (only removes unused tools).
-		if h.optimizers != nil && optimizerAllowed(optOverrides, "toolfilter", h.optimizers.ToolFilter) {
+		// Tool filter - skip for transparent OAuth (no token budget constraint).
+		if !transparent && h.optimizers != nil && optimizerAllowed(optOverrides, "toolfilter", h.optimizers.ToolFilter) {
 			if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
 				parsedTools := make([]toolfilter.Tool, 0, len(tools))
 				for _, t := range tools {
@@ -1273,8 +1273,17 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				if msgs, ok := payload["messages"].([]any); ok {
 					for i := len(msgs) - 1; i >= 0 && len(recentText) < 500; i-- {
 						if mm, ok := msgs[i].(map[string]any); ok {
-							if c, ok := mm["content"].(string); ok {
+							switch c := mm["content"].(type) {
+							case string:
 								recentText = c + " " + recentText
+							case []any:
+								for _, block := range c {
+									if bm, ok := block.(map[string]any); ok {
+										if t, ok := bm["text"].(string); ok {
+											recentText = t + " " + recentText
+										}
+									}
+								}
 							}
 						}
 					}

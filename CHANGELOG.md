@@ -2,6 +2,45 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-05-27d] - Fix Tools Not Called via Claude OAuth CLI
+
+### Problem
+Claude Code CLI through gateway did not call tools (Read, Edit, Bash, Agent, etc.) while VSCode Claude Code panel worked fine. Both used same `arl_*` profile token targeting `claude-oauth` provider.
+
+### Root Causes
+
+| ID | Severity | Root Cause | File | Fix |
+|----|----------|-----------|------|-----|
+| P0 | Critical | Tool filter dropped ~10 of 25 tools from Claude OAuth requests. Filter activated at >15 tools, scored all tools 0 (empty recentText), kept only 4 AlwaysKeep + top 11 by description length | handler.go | Skip tool filter for `transparent` requests |
+| P0 | Critical | Content extraction `mm["content"].(string)` failed for Claude Code array-format content blocks `[{"type":"text","text":"..."}]`, producing empty `recentText` | handler.go | Type switch handling both string and []any |
+| P1 | High | `injectCachedTools` ran on transparent requests, mutating passthrough payload | handler.go | Guard with `!transparent` |
+| P1 | High | `desctrim` ran on transparent requests, modifying tool descriptions in passthrough | handler.go | Guard with `!transparent` |
+
+### Changes
+
+#### handler/handler.go
+- **Line 1115**: Added `!transparent` guard to `injectCachedTools` - tool cache injection skipped for transparent OAuth passthrough
+- **Line 1225**: Added `!transparent` guard to `desctrim` - description trimming skipped for transparent OAuth passthrough
+- **Line 1259**: Added `!transparent` guard to `toolfilter` - tool filtering skipped for transparent OAuth passthrough
+- **Line 1273-1289**: Fixed content extraction to handle array-format content blocks (`[]any`) in addition to string content. Previously only `mm["content"].(string)` was handled, which silently failed for Claude Code's array content format, resulting in empty `recentText` and all tools scoring 0 in the filter.
+
+### Why Transparent Requests Should Skip Optimizers
+
+Transparent OAuth requests are passthrough to Anthropic API using the client's own token:
+- No Z.AI token budget constraint - no need to save tokens
+- Client chose its own tools - gateway should not remove them
+- Anthropic supports up to 128 tools - 25 is well within limits
+- Tool filter's heuristic (intent classification + keyword matching) can wrongly drop tools the client needs
+
+### Impact
+- **Before**: Claude Code CLI through gateway - tools dropped, model responds with text only
+- **After**: All 25 tools preserved, model can use any tool it needs
+
+### Verification
+- Build: `go build ./...` - clean
+- Tests: `go test ./handler/ -count=1` - pass
+- Integration: 16-tool request through gateway returns `tool_use` content block (Bash)
+
 ## [2026-05-27c] - Fix Privacy Prompt Leaking Placeholder Details to User
 
 ### Problem
