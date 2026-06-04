@@ -2176,10 +2176,14 @@ func (h *Handler) UpdateProviderUpstream(w http.ResponseWriter, r *http.Request)
 
 	var req struct {
 		UpstreamURL string `json:"upstream_url"`
+		Upstream    string `json:"upstream"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
 		return
+	}
+	if req.UpstreamURL == "" {
+		req.UpstreamURL = req.Upstream
 	}
 	if req.UpstreamURL == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "upstream_url is required"})
