@@ -273,6 +273,31 @@ func (r *Registry) RemovePersisted(rdb *redis.Client, id string) error {
 	return rdb.Del(context.Background(), customProviderPrefix+id).Err()
 }
 
+const upstreamOverridePrefix = "arl:provider_upstream:"
+
+func (r *Registry) LoadPersistedUpstreams(rdb *redis.Client) {
+	if rdb == nil {
+		return
+	}
+	keys, err := rdb.Keys(context.Background(), upstreamOverridePrefix+"*").Result()
+	if err != nil {
+		slog.Warn("failed to load persisted upstream overrides", "error", err)
+		return
+	}
+	for _, key := range keys {
+		providerID := strings.TrimPrefix(key, upstreamOverridePrefix)
+		url, err := rdb.Get(context.Background(), key).Result()
+		if err != nil {
+			continue
+		}
+		if p, ok := r.providers[providerID]; ok {
+			p.UpstreamBase = url
+			r.providers[providerID] = p
+			slog.Info("restored persisted upstream override", "provider", providerID, "upstream", url)
+		}
+	}
+}
+
 func (r *Registry) LoadCustomProviders(rdb *redis.Client) {
 	if rdb == nil {
 		return

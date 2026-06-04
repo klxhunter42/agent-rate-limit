@@ -133,6 +133,7 @@ func main() {
 	if profileHandler != nil {
 		authHandler.SetProfileRedis(profileHandler.Redis())
 		providerRegistry.LoadCustomProviders(profileHandler.Redis())
+		providerRegistry.LoadPersistedUpstreams(profileHandler.Redis())
 	}
 	usageHandler := handler.NewUsageHandler(cfg.RedisAddr)
 	quotaHandler := handler.NewQuotaHandler(cfg.RedisAddr, tokenStore, cfg)
