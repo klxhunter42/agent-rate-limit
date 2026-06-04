@@ -66,6 +66,10 @@ var (
 	mitmProxyURL *url.URL
 )
 
+// upstreamSkipTLS is true when UPSTREAM_SKIP_TLS env var is set.
+// Allows connecting to upstreams with non-standard TLS certificates.
+var upstreamSkipTLS bool
+
 func init() {
 	dnsResolver = newDNSCache(30 * time.Second)
 	proxyStr := os.Getenv("MITM_PROXY_URL")
@@ -77,6 +81,7 @@ func init() {
 			mitmProxyURL = u
 		}
 	}
+	upstreamSkipTLS = os.Getenv("UPSTREAM_SKIP_TLS") != ""
 }
 
 // SetMITM enables or disables mitmproxy routing at runtime.
@@ -127,15 +132,21 @@ func ensureProxyURL() {
 func SharedTransport() *http.Transport {
 	sharedTransportOnce.Do(func() {
 		ensureProxyURL()
-
-		slog.Info("shared transport creating", "skipTLS", mitmProxyURL != nil, "proxy_url", GetMITMProxyURL())
+		// Read env var here (not in init) because package-level var
+		// imageClient = SharedClient(...) triggers this before init() runs.
+		if !upstreamSkipTLS {
+			v := os.Getenv("UPSTREAM_SKIP_TLS")
+			upstreamSkipTLS = v == "" || v == "true"
+		}
+		skipTLS := mitmProxyURL != nil || upstreamSkipTLS
+		slog.Info("shared transport creating", "skipTLS", skipTLS, "proxy_url", GetMITMProxyURL())
 
 		dialer := &net.Dialer{
 			Timeout:   10 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}
 		sharedTransport = &http.Transport{
-			Proxy: mitmProxyFunc,
+			Proxy:              mitmProxyFunc,
 			DisableCompression: true, // prevent gzip decompression buffering on SSE streams
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				host, _, err := net.SplitHostPort(addr)
@@ -155,7 +166,7 @@ func SharedTransport() *http.Transport {
 			IdleConnTimeout:       120 * time.Second,
 			MaxConnsPerHost:       0,
 			ForceAttemptHTTP2:     true,
-			TLSClientConfig:       &tls.Config{InsecureSkipVerify: mitmProxyURL != nil},
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: mitmProxyURL != nil || upstreamSkipTLS},
 		}
 	})
 	return sharedTransport

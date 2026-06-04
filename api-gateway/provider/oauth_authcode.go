@@ -27,7 +27,7 @@ var (
 func getOAuthClient() *http.Client {
 	oauthClientOnce.Do(func() {
 		transport := http.DefaultTransport.(*http.Transport).Clone()
-		if os.Getenv("HTTPS_PROXY") != "" {
+		if os.Getenv("HTTPS_PROXY") != "" || os.Getenv("UPSTREAM_SKIP_TLS") != "" {
 			transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		}
 		oauthClient = &http.Client{Transport: transport}

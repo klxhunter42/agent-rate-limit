@@ -809,6 +809,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.Info("profile base_url override", "profile", profileOverride.Name, "upstream", decision.UpstreamURL)
 	}
 
+	// Per-account upstream URL override: if the selected token has a custom upstream URL, it takes priority.
+	if decision != nil && selectedTokenInfo != nil && selectedTokenInfo.UpstreamURL != "" {
+		decision.UpstreamURL = selectedTokenInfo.UpstreamURL
+		slog.Info("account upstream_url override", "account", selectedTokenInfo.AccountID, "upstream", decision.UpstreamURL)
+	}
+
 	// Apply provider-level model override and max_tokens clamp (e.g., lotuss -> "default")
 	if decision != nil && decision.ModelOverride != "" {
 		slog.Info("model override", "original", requestedModel, "override", decision.ModelOverride, "provider", decision.ProviderID)
@@ -2133,6 +2139,76 @@ func (h *Handler) LimiterOverride(w http.ResponseWriter, r *http.Request) {
 		action = "set to " + strconv.FormatInt(req.Limit, 10)
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "model": req.Model, "override": action})
+}
+
+// GetProviderUpstream returns the current upstream URL for a provider.
+func (h *Handler) GetProviderUpstream(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerId")
+	if providerID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "providerId is required"})
+		return
+	}
+
+	if h.resolver == nil || !h.resolver.ProviderExists(providerID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found: " + providerID})
+		return
+	}
+
+	upstream, _ := h.resolver.GetProviderUpstream(providerID)
+	writeJSON(w, http.StatusOK, map[string]string{
+		"provider_id":  providerID,
+		"upstream_url": upstream,
+	})
+}
+
+// UpdateProviderUpstream updates a provider's upstream URL in memory and persists to Redis.
+func (h *Handler) UpdateProviderUpstream(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "providerId")
+	if providerID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "providerId is required"})
+		return
+	}
+
+	if h.resolver == nil || !h.resolver.ProviderExists(providerID) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "provider not found: " + providerID})
+		return
+	}
+
+	var req struct {
+		UpstreamURL string `json:"upstream_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+	if req.UpstreamURL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "upstream_url is required"})
+		return
+	}
+
+	// Update in-memory via resolver.
+	if !h.resolver.UpdateProviderUpstream(providerID, req.UpstreamURL) {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update provider upstream"})
+		return
+	}
+
+	// Persist to Redis.
+	if h.profileRedis != nil {
+		redisKey := "arl:provider_upstream:" + providerID
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := h.profileRedis.Set(ctx, redisKey, req.UpstreamURL, 0).Err(); err != nil {
+			slog.Error("failed to persist provider upstream to redis", "provider", providerID, "error", err)
+		} else {
+			slog.Info("provider upstream persisted to redis", "provider", providerID, "upstream", req.UpstreamURL)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":       "updated",
+		"provider_id":  providerID,
+		"upstream_url": req.UpstreamURL,
+	})
 }
 
 func validateChatRequest(req *ChatRequest) string {

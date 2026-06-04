@@ -65,7 +65,10 @@ services:
       TEXTCOMP_MODE: ${TEXTCOMP_MODE:-balanced}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      MITM_PROXY_URL: ${MITM_PROXY_URL:-http://arl-mitmweb:8083}
+      MITM_PROXY_URL: ${MITM_PROXY_URL:-}
+      LOTUSS_UPSTREAM_BASE: ${LOTUSS_UPSTREAM_BASE:-https://llm.internal/custom/llm}
+      LOTUSS_API_KEYS: ${LOTUSS_API_KEYS:-}
+      UPSTREAM_SKIP_TLS: ${UPSTREAM_SKIP_TLS:-true}
       DEBUG: ${DEBUG:-false}
       SSL_CERT_FILE: /tmp/mitmproxy-ca-cert.pem
     depends_on:
@@ -431,7 +434,7 @@ services:
     container_name: arl-proxy
     restart: always
     ports:
-      - "9000:9000"
+      - "${PROXY_PORT:-9000}:${PROXY_PORT:-9000}"
     volumes:
       - ./docker/proxy/Caddyfile:/etc/caddy/Caddyfile:ro
     environment:

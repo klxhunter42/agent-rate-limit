@@ -33,8 +33,8 @@ type ProviderConfig struct {
 	ClientID      string   `json:"client_id,omitempty"`
 	ClientSecret  string   `json:"client_secret,omitempty"`
 	UpstreamBase  string   `json:"upstream_base"`
-	Format       string        `json:"format,omitempty"` // "openai" or "anthropic", used by custom providers
-	Models []string `json:"models,omitempty"` // supported models for custom providers
+	Format        string   `json:"format,omitempty"` // "openai" or "anthropic", used by custom providers
+	Models        []string `json:"models,omitempty"` // supported models for custom providers
 }
 
 type Registry struct {

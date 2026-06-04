@@ -69,6 +69,12 @@ spec:
                 secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "dashboard-password" "value" .Values.secrets.dashboardPassword) | nindent 18 }}
 {{- end }}
+{{- if .Values.secrets.lotussApiKeys }}
+            - name: LOTUSS_API_KEYS
+              valueFrom:
+                secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "lotuss-api-keys" "value" .Values.secrets.lotussApiKeys) | nindent 18 }}
+{{- end }}
 {{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 12 }}
             {{- if and .Values.mitmweb.enabled (not .Values.gateway.env.MITM_PROXY_URL) }}
             - name: MITM_PROXY_URL

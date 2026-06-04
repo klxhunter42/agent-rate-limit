@@ -1,4 +1,4 @@
-# Caddy serves HTTP on port 9000.
+# Caddy serves HTTP on {$PROXY_PORT} or 9000.
 {
 	log default {
 		output stderr
@@ -7,7 +7,7 @@
 	}
 }
 
-:9000 {
+:{$PROXY_PORT:9000} {
 	handle /ws {
 		reverse_proxy arl-gateway:8080 {
 			flush_interval -1

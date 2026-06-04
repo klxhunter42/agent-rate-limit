@@ -418,3 +418,23 @@ func (r *Resolver) buildDecision(providerID, model, apiKey, accountID string) *R
 		ToolMode:         providerToolMode[providerID],
 	}
 }
+
+// GetProviderUpstream returns the upstream URL for a provider, or empty string if not found.
+func (r *Resolver) GetProviderUpstream(providerID string) (string, bool) {
+	cfg, ok := r.registry.Get(providerID)
+	if !ok {
+		return "", false
+	}
+	return cfg.UpstreamBase, true
+}
+
+// UpdateProviderUpstream updates the upstream URL for a provider in memory.
+func (r *Resolver) UpdateProviderUpstream(providerID, upstream string) bool {
+	return r.registry.UpdateUpstream(providerID, upstream)
+}
+
+// ProviderExists checks if a provider ID exists in the registry.
+func (r *Resolver) ProviderExists(providerID string) bool {
+	_, ok := r.registry.Get(providerID)
+	return ok
+}

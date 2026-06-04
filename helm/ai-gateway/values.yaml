@@ -68,7 +68,9 @@ gateway:
     PROMPT_INJECTION_TEXT: ""
     DEBUG: "false"
     HTTPS_PROXY: ""
-  # MITM_PROXY_URL: auto-injected when mitmweb.enabled=true; set manually to override
+    LOTUSS_UPSTREAM_BASE: ""
+    LOTUSS_API_KEYS: ""
+    UPSTREAM_SKIP_TLS: "true"
   hpa:
     enabled: false
     minReplicas: 2
@@ -286,7 +288,7 @@ secrets:
   openaiApiKeys: ""
   anthropicApiKeys: ""
   geminiApiKeys: ""
-  openrouterApiKeys: ""
+  lotussApiKeys: ""
   geminiOAuthClientId: ""
   geminiOAuthClientSecret: ""
   grafanaAdminPassword: "devopscore"

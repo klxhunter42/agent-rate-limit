@@ -316,6 +316,9 @@ func main() {
 	r.Post("/callback", authHandler.HandleClaudeCallbackPost)
 
 	// Routes
+	r.Get("/v1/providers/{providerId}/upstream", h.GetProviderUpstream)
+	r.Put("/v1/providers/{providerId}/upstream", h.UpdateProviderUpstream)
+	r.Patch("/v1/providers/{providerId}/upstream", h.UpdateProviderUpstream)
 	r.Post("/v1/chat/completions", h.ChatCompletions)
 	r.Post("/v1/messages", h.Messages)
 	r.Get("/v1/results/{requestID}", h.GetResult)

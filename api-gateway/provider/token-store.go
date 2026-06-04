@@ -54,6 +54,7 @@ type TokenInfo struct {
 	IsDefault     bool           `json:"is_default"`
 	CreatedAt     time.Time      `json:"created_at"`
 	Scopes        string         `json:"scopes,omitempty"`
+	UpstreamURL   string         `json:"upstream_url,omitempty"`
 	ClaudeProfile *ClaudeProfile `json:"claude_profile,omitempty"`
 }
 
