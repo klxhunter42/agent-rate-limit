@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
 
 // --- trimVerbose ---
@@ -532,5 +533,53 @@ func TestScannerHandlesLargeServerToolResult(t *testing.T) {
 
 	if !scanner.Scan() {
 		t.Errorf("scanner failed on line of %d bytes: %v", len(line), scanner.Err())
+	}
+}
+
+// TestUnmaskerFlushMatchesThinkingBlockType verifies that when the stream unmasker
+// has buffered a partial placeholder inside a thinking block and flushes it at the
+// content_block_stop boundary, the synthetic delta is emitted as a thinking_delta,
+// not a text_delta. A text_delta targeting a thinking block crashes the Anthropic
+// SDK / Claude Code with "Content block is not a text block".
+func TestUnmaskerFlushMatchesThinkingBlockType(t *testing.T) {
+	pr, pw := io.Pipe()
+	go func() {
+		pw.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-6\",\"stop_reason\":null,\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n"))
+		pw.Write([]byte("event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\"}}\n\n"))
+		pw.Write([]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"thinking text can split a token [[ZZ_9999\"}}\n\n"))
+		pw.Write([]byte("event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n"))
+		pw.Write([]byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n\n"))
+		pw.Write([]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"))
+		pw.Close()
+	}()
+
+	piiCtx := masking.NewMaskContext()
+	piiCtx.Mapping["[[ZZ_1]]"] = "sekret"
+	unmasker := masking.NewStreamUnmasker(piiCtx, masking.NewMaskContext())
+
+	p := NewAnthropicProxy(nil, metrics.New(func() float64 { return 0 }, nil))
+	fakeResp := &http.Response{
+		StatusCode: 200,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(pr),
+		Request:    &http.Request{Method: "POST"},
+	}
+
+	w := httptest.NewRecorder()
+	w.WriteHeader(200)
+
+	if err := p.relayStreamWithTracking(w, fakeResp, "claude-sonnet-4-6", unmasker, 0, nil); err != nil {
+		t.Fatalf("relayStreamWithTracking returned error: %v", err)
+	}
+
+	body := w.Body.String()
+
+	// Stream has only a thinking block, so no text_delta may appear. A text_delta
+	// here would crash the Anthropic SDK with "Content block is not a text block".
+	if strings.Contains(body, "text_delta") {
+		t.Errorf("flush emitted text_delta into a thinking block (SDK-crashing)\ngot:\n%s", body)
+	}
+	if !strings.Contains(body, "thinking_delta") {
+		t.Errorf("expected thinking_delta in output\ngot:\n%s", body)
 	}
 }
