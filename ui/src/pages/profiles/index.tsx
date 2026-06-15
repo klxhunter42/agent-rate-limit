@@ -746,12 +746,34 @@ function ProfileCard({
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [accountsMap, setAccountsMap] = useState<Map<string, AccountInfo[]>>(new Map());
   const [accountsLoading, setAccountsLoading] = useState<Set<string>>(new Set());
+  const [optimizerSettings, setOptimizerSettings] = useState<Map<string, { enabled: boolean; name: string; description: string }>>(new Map());
 
   const resolvedProvider = profile.provider || profile.target || '';
+  const primaryTarget = editTargets[0]?.target ?? resolvedProvider;
 
   useEffect(() => {
     fetchProviders().then(setProviders);
   }, []);
+
+  // Fetch optimizer settings when primary target changes
+  useEffect(() => {
+    if (!primaryTarget) return;
+    fetch(`/v1/profiles/optimizer-settings?target=${encodeURIComponent(primaryTarget)}`)
+      .then(r => r.json())
+      .then(data => {
+        const settings = new Map();
+        if (data.optimizers && Array.isArray(data.optimizers)) {
+          data.optimizers.forEach((opt: any) => {
+            settings.set(opt.id, { enabled: opt.enabled, name: opt.name, description: opt.description });
+          });
+        }
+        setOptimizerSettings(settings);
+      })
+      .catch(() => {
+        // If API fails, show all optimizers (backward compatible)
+        setOptimizerSettings(new Map());
+      });
+  }, [primaryTarget]);
 
   useEffect(() => {
     if (editing) {
@@ -913,12 +935,18 @@ function ProfileCard({
               <div className="flex gap-1">
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => {
                   const all: Record<string, boolean> = {};
-                  OPTIMIZER_STAGES.forEach(({ key }) => { all[key] = true; });
+                  OPTIMIZER_STAGES.filter(({ key }) => {
+                    const setting = optimizerSettings.get(key);
+                    return setting === undefined || setting.enabled;
+                  }).forEach(({ key }) => { all[key] = true; });
                   setEditOptimizerOverrides(all);
                 }}>All On</Button>
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => {
                   const all: Record<string, boolean> = {};
-                  OPTIMIZER_STAGES.forEach(({ key }) => { all[key] = false; });
+                  OPTIMIZER_STAGES.filter(({ key }) => {
+                    const setting = optimizerSettings.get(key);
+                    return setting === undefined || setting.enabled;
+                  }).forEach(({ key }) => { all[key] = false; });
                   setEditOptimizerOverrides(all);
                 }}>All Off</Button>
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5 text-muted-foreground hover:text-foreground" onClick={() => setEditOptimizerOverrides({})}>
@@ -927,7 +955,10 @@ function ProfileCard({
               </div>
             </div>
             <div className="rounded-md border p-2 space-y-0.5">
-              {OPTIMIZER_STAGES.map(({ key, label, desc }) => {
+              {OPTIMIZER_STAGES.filter(({ key }) => {
+                const setting = optimizerSettings.get(key);
+                return setting === undefined || setting.enabled;
+              }).map(({ key, label, desc }) => {
                 const overridden = key in editOptimizerOverrides;
                 const enabled = editOptimizerOverrides[key];
                 return (
