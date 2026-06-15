@@ -182,6 +182,158 @@ var providerModels = map[string][]map[string]string{
 	},
 }
 
+// providerOptimizerDefaults defines which optimizers should be enabled by default for each provider.
+// true = enabled by default, false = disabled by default, missing = use global default.
+//
+// Optimizer stages:
+// - semantic_dedup: F7 semantic dedup (tokenizer-based, always available)
+// - chunker: F1 chunker (reorder system prompt)
+// - delta: F8 delta encoding (metrics only)
+// - sketch: F9 sketch dedup
+// - summarizer: F6 summarizer (red budget only)
+// - textcomp: F17 text compression (regex-based)
+// - caveman: F16 caveman compression (LLM-based)
+// - pordee: F17 Thai terse injection
+// - desctrim: tool description trimming
+// - toolcomp: tool result compression
+// - toolfilter: tool result filtering
+// - disclosure: PII disclosure detection
+// - packer: F2 chunker-based packing
+// - prefetcher: F4 prefetcher
+// - bandit: F5 bandit MAB
+// - waste: F11 waste detection
+// - cache: F14 cache manager
+// - warmstart: warm start
+// - compcache: compiler cache
+var providerOptimizerDefaults = map[string]map[string]bool{
+	"claude-oauth": {
+		"semantic_dedup": true,
+		"chunker":        true,
+		"delta":          true,
+		"sketch":         true,
+		"summarizer":     true,
+		"textcomp":       true,
+		"caveman":        false, // LLM-based, may cause issues with OAuth
+		"pordee":         true,
+		"desctrim":       true,
+		"toolcomp":       true,
+		"toolfilter":     true,
+		"disclosure":     true,
+		"packer":         true,
+		"prefetcher":     true,
+		"bandit":         true,
+		"waste":          true,
+		"cache":          true,
+		"warmstart":      true,
+		"compcache":      true,
+	},
+	"gemini-oauth": {
+		"semantic_dedup": true,
+		"chunker":        true,
+		"delta":          true,
+		"sketch":         true,
+		"summarizer":     true,
+		"textcomp":       true,
+		"caveman":        false, // LLM-based, may cause issues with OAuth
+		"pordee":         true,
+		"desctrim":       true,
+		"toolcomp":       true,
+		"toolfilter":     true,
+		"disclosure":     true,
+		"packer":         true,
+		"prefetcher":     true,
+		"bandit":         true,
+		"waste":          true,
+		"cache":          true,
+		"warmstart":      true,
+		"compcache":      true,
+	},
+	"zai": {
+		// All disabled for Z.AI - handled via isZAIProvider check in handler
+	},
+	"anthropic": {
+		// Full optimization for Anthropic API key
+		"semantic_dedup": true,
+		"chunker":        true,
+		"delta":          true,
+		"sketch":         true,
+		"summarizer":     true,
+		"textcomp":       true,
+		"caveman":        true,
+		"pordee":         true,
+		"desctrim":       true,
+		"toolcomp":       true,
+		"toolfilter":     true,
+		"disclosure":     true,
+		"packer":         true,
+		"prefetcher":     true,
+		"bandit":         true,
+		"waste":          true,
+		"cache":          true,
+		"warmstart":      true,
+		"compcache":      true,
+	},
+	"openai": {
+		"semantic_dedup": true,
+		"chunker":        true,
+		"delta":          true,
+		"sketch":         true,
+		"summarizer":     true,
+		"textcomp":       true,
+		"caveman":        false, // May cause issues with OpenAI
+		"pordee":         true,
+		"desctrim":       true,
+		"toolcomp":       true,
+		"toolfilter":     true,
+		"disclosure":     true,
+		"packer":         true,
+		"prefetcher":     true,
+		"bandit":         true,
+		"waste":          true,
+		"cache":          true,
+		"warmstart":      true,
+		"compcache":      true,
+	},
+}
+
+// GetProviderOptimizerDefaults returns the default optimizer overrides for a provider.
+// Returns nil if the provider has no specific defaults (use global defaults).
+func GetProviderOptimizerDefaults(provider string) map[string]bool {
+	if defaults, ok := providerOptimizerDefaults[provider]; ok {
+		// Return a copy to avoid modifying the original
+		copy := make(map[string]bool, len(defaults))
+		for k, v := range defaults {
+			copy[k] = v
+		}
+		return copy
+	}
+	return nil
+}
+
+// MergeOptimizerOverrides merges profile overrides with provider defaults.
+// Profile overrides take precedence over provider defaults.
+func MergeOptimizerOverrides(provider string, profileOverrides map[string]bool) map[string]bool {
+	providerDefaults := GetProviderOptimizerDefaults(provider)
+	if providerDefaults == nil && profileOverrides == nil {
+		return nil
+	}
+	if providerDefaults == nil {
+		return profileOverrides
+	}
+	if profileOverrides == nil {
+		return providerDefaults
+	}
+	// Merge: profile overrides take precedence
+	merged := make(map[string]bool, len(providerDefaults))
+	for k, v := range providerDefaults {
+		merged[k] = v
+	}
+	for k, v := range profileOverrides {
+		merged[k] = v
+	}
+	return merged
+}
+
 // RecommendedModels returns available models for a target provider.
 func (h *ProfileHandler) RecommendedModels(w http.ResponseWriter, r *http.Request) {
 	target := r.URL.Query().Get("target")
@@ -314,6 +466,11 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	p.CreatedAt = now
 	p.UpdatedAt = now
+
+	// Apply provider-specific optimizer defaults if not set
+	if p.OptimizerOverrides == nil && p.Provider != "" {
+		p.OptimizerOverrides = GetProviderOptimizerDefaults(p.Provider)
+	}
 
 	if err := setProfile(ctx, h.redis, &p); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save profile"})
@@ -499,6 +656,15 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		if p.AccountEmails == nil {
 			p.AccountEmails = existing.AccountEmails
 		}
+		// Preserve OptimizerOverrides if not provided in update
+		if p.OptimizerOverrides == nil && existing.OptimizerOverrides != nil {
+			p.OptimizerOverrides = existing.OptimizerOverrides
+		}
+	}
+
+	// Apply provider-specific optimizer defaults if still not set
+	if p.OptimizerOverrides == nil && p.Provider != "" {
+		p.OptimizerOverrides = GetProviderOptimizerDefaults(p.Provider)
 	}
 
 	if err := setProfile(ctx, h.redis, &p); err != nil {
