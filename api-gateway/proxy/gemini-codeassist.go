@@ -620,7 +620,8 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
-		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
+		// Gemini CodeAssist OAuth - enable fallback for potential placeholder issues.
+		unmasker.SetGLMNoiseMode(true)
 	}
 
 	var inputTokens, outputTokens int

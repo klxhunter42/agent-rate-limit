@@ -1738,7 +1738,12 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
-			unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
+			// Enable "undefined" fallback for:
+			// 1. OAuth passthrough (opts.Transparent) - Claude OAuth converts placeholders to "undefined"
+			// 2. GLM models - same issue
+			// Standard Anthropic API (with API keys) preserves placeholders correctly.
+			enableFallback := (opts != nil && opts.Transparent) || strings.HasPrefix(model, "glm-")
+			unmasker.SetGLMNoiseMode(enableFallback)
 		}
 		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput, maskResult)
 	}
@@ -1913,7 +1918,12 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
-			unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
+			// Enable "undefined" fallback for:
+			// 1. OAuth passthrough - Claude OAuth converts placeholders to "undefined"
+			// 2. GLM models - same issue
+			// Sidecar is always transparent (OAuth mode).
+			enableFallback := true || strings.HasPrefix(model, "glm-")
+			unmasker.SetGLMNoiseMode(enableFallback)
 		}
 
 		flusher, _ := w.(http.Flusher)

@@ -416,7 +416,8 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
-		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
+		// Claude OAuth session converts placeholders to "undefined", always enable fallback.
+		unmasker.SetGLMNoiseMode(true)
 	}
 
 	var inputTokens, outputTokens int
