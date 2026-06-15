@@ -756,7 +756,7 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	respBody, _ := json.Marshal(anthropicResp)
 
 	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
-	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+	respBody = []byte(masking.SanitizeGarbledForModel(model, string(respBody)))
 
 	// Unmask secrets/PII placeholders before sending to client.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
@@ -792,6 +792,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 	}
 
 	for scanner.Scan() {
@@ -807,7 +808,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 				// Flush remaining unmasker buffer before closing events.
 				if unmasker != nil {
 					if remaining := unmasker.Flush(); remaining != "" {
-						remaining = masking.SanitizeGarbledOutput(remaining)
+						remaining = masking.SanitizeGarbledForModel(model, remaining)
 						if remaining != "" {
 							escaped, _ := json.Marshal(remaining)
 							fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
@@ -860,7 +861,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		// Flush any partial placeholder buffer before switching to tool_calls
 		if unmasker != nil && started {
 			if remaining := unmasker.Flush(); remaining != "" {
-				remaining = masking.SanitizeGarbledOutput(remaining)
+				remaining = masking.SanitizeGarbledForModel(model, remaining)
 				if remaining != "" {
 					escaped, _ := json.Marshal(remaining)
 					fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
@@ -920,7 +921,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		// Unmask text chunk if privacy masking is active.
 		if unmasker != nil {
 			text = unmasker.ProcessChunk(text)
-			text = masking.SanitizeGarbledOutput(text)
+			text = masking.SanitizeGarbledForModel(model, text)
 		}
 		// content_block_delta
 		escaped, _ := json.Marshal(text)
@@ -933,7 +934,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 	// Emit any remaining unmasker buffer after stream ended without [DONE]
 	if unmasker != nil && started {
 		if remaining := unmasker.Flush(); remaining != "" {
-			remaining = masking.SanitizeGarbledOutput(remaining)
+			remaining = masking.SanitizeGarbledForModel(model, remaining)
 			if remaining != "" {
 				// Emit closing events for streams that ended without [DONE]
 				fmt.Fprintf(w, "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n")
@@ -1737,6 +1738,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+			unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 		}
 		return p.relayStreamWithTracking(w, lastResp, model, unmasker, estInput, maskResult)
 	}
@@ -1911,6 +1913,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		var unmasker *masking.StreamUnmasker
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+			unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 		}
 
 		flusher, _ := w.(http.Flusher)
@@ -1983,7 +1986,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							// Flush on block index change to prevent cross-block buffer contamination
 							if evt.Index != lastUnmaskBlockIdx && lastUnmaskBlockIdx >= 0 {
 								if remaining := unmasker.Flush(); remaining != "" {
-									emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
+									emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
 								}
 							}
 							lastUnmaskBlockIdx = evt.Index
@@ -1992,22 +1995,22 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 							if evt.Delta.Text != "" {
 								before := evt.Delta.Text
 								evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
-								evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
+								evt.Delta.Text = masking.SanitizeGarbledForModel(model, evt.Delta.Text)
 								changed = evt.Delta.Text != before
 							} else if evt.Delta.Thinking != "" {
 								before := evt.Delta.Thinking
 								evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
-								evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+								evt.Delta.Thinking = masking.SanitizeGarbledForModel(model, evt.Delta.Thinking)
 								changed = evt.Delta.Thinking != before
 							} else if evt.Delta.PartialJSON != "" {
 								before := evt.Delta.PartialJSON
 								evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
-								evt.Delta.PartialJSON = masking.SanitizeGarbledOutput(evt.Delta.PartialJSON)
+								evt.Delta.PartialJSON = masking.SanitizeGarbledForModel(model, evt.Delta.PartialJSON)
 								changed = evt.Delta.PartialJSON != before
 							} else if evt.Delta.InputJSONDelta != "" {
 								before := evt.Delta.InputJSONDelta
 								evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
-								evt.Delta.InputJSONDelta = masking.SanitizeGarbledOutput(evt.Delta.InputJSONDelta)
+								evt.Delta.InputJSONDelta = masking.SanitizeGarbledForModel(model, evt.Delta.InputJSONDelta)
 								changed = evt.Delta.InputJSONDelta != before
 							}
 							if changed {
@@ -2027,7 +2030,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 						}
 
 						if remaining := unmasker.Flush(); remaining != "" {
-							emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
+							emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
 						}
 					} else if strings.Contains(data, "[[") {
 						unmasked := unmasker.ReplaceDirectJSON(data)
@@ -2054,14 +2057,14 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 					if json.Unmarshal([]byte(data), &evt) == nil {
 						var sanitized bool
 						if evt.Delta.Text != "" {
-							clean := masking.SanitizeGarbledOutput(evt.Delta.Text)
+							clean := masking.SanitizeGarbledForModel(model, evt.Delta.Text)
 							if clean != evt.Delta.Text {
 								evt.Delta.Text = clean
 								sanitized = true
 							}
 						}
 						if evt.Delta.Thinking != "" {
-							clean := masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+							clean := masking.SanitizeGarbledForModel(model, evt.Delta.Thinking)
 							if clean != evt.Delta.Thinking {
 								evt.Delta.Thinking = clean
 								sanitized = true
@@ -2085,7 +2088,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 		if unmasker != nil {
 			if remaining := unmasker.Flush(); remaining != "" {
-				emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
+				emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastUnmaskBlockIdx, sidecarBlockTypes[lastUnmaskBlockIdx])
 			}
 		}
 		return nil
@@ -2097,7 +2100,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 	}
 
 	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
-	respBody = []byte(masking.SanitizeGarbledOutput(string(respBody)))
+	respBody = []byte(masking.SanitizeGarbledForModel(model, string(respBody)))
 
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
@@ -2225,7 +2228,7 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	}
 
 	// Sanitize garbled output BEFORE unmask to avoid stripping restored values.
-	body = []byte(masking.SanitizeGarbledOutput(string(body)))
+	body = []byte(masking.SanitizeGarbledForModel(model, string(body)))
 
 	// Unmask secrets/PII placeholders before trimming so placeholders stay intact.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
@@ -2385,7 +2388,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				// Flush on block index change to prevent cross-block buffer contamination
 				if unmasker != nil && evt.Index != lastRelayBlockIdx && lastRelayBlockIdx >= 0 {
 					if remaining := unmasker.Flush(); remaining != "" {
-						emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
+						emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
 					}
 				}
 				if unmasker != nil {
@@ -2402,7 +2405,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						evt.Delta.Text = unmasker.ProcessChunk(evt.Delta.Text)
 					}
 					if stripper != nil {
-						evt.Delta.Text = masking.SanitizeGarbledOutput(evt.Delta.Text)
+						evt.Delta.Text = masking.SanitizeGarbledForModel(model, evt.Delta.Text)
 					}
 					changed = evt.Delta.Text != before
 				} else if evt.Delta.Thinking != "" {
@@ -2411,21 +2414,21 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
 					}
 					if stripper != nil {
-						evt.Delta.Thinking = masking.SanitizeGarbledOutput(evt.Delta.Thinking)
+						evt.Delta.Thinking = masking.SanitizeGarbledForModel(model, evt.Delta.Thinking)
 					}
 					changed = evt.Delta.Thinking != before
 				} else if evt.Delta.PartialJSON != "" && unmasker != nil {
 					before := evt.Delta.PartialJSON
 					evt.Delta.PartialJSON = unmasker.ProcessChunkJSON(evt.Delta.PartialJSON)
 					if stripper != nil {
-						evt.Delta.PartialJSON = masking.SanitizeGarbledOutput(evt.Delta.PartialJSON)
+						evt.Delta.PartialJSON = masking.SanitizeGarbledForModel(model, evt.Delta.PartialJSON)
 					}
 					changed = evt.Delta.PartialJSON != before
 				} else if evt.Delta.InputJSONDelta != "" && unmasker != nil {
 					before := evt.Delta.InputJSONDelta
 					evt.Delta.InputJSONDelta = unmasker.ProcessChunkJSON(evt.Delta.InputJSONDelta)
 					if stripper != nil {
-						evt.Delta.InputJSONDelta = masking.SanitizeGarbledOutput(evt.Delta.InputJSONDelta)
+						evt.Delta.InputJSONDelta = masking.SanitizeGarbledForModel(model, evt.Delta.InputJSONDelta)
 					}
 					changed = evt.Delta.InputJSONDelta != before
 				}
@@ -2456,7 +2459,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 		// cross-block contamination (e.g. text buffer leaking into thinking).
 		if unmasker != nil && strings.Contains(data, `"content_block_stop"`) {
 			if remaining := unmasker.Flush(); remaining != "" {
-				emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
+				emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
 			}
 		}
 
@@ -2522,7 +2525,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			// Flush unmasker buffer before emitting closing events to prevent placeholder leaks
 			if unmasker != nil {
 				if remaining := unmasker.Flush(); remaining != "" {
-					emitUnmaskerFlush(w, masking.SanitizeGarbledOutput(remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
+					emitUnmaskerFlush(w, masking.SanitizeGarbledForModel(model, remaining), lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
 				}
 			}
 			return nil
@@ -2543,7 +2546,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	// Flush GLM HTML/XML stripper before unmasker.
 	if stripper != nil {
 		if remaining := stripper.Flush(); remaining != "" {
-			remaining = masking.SanitizeGarbledOutput(remaining)
+			remaining = masking.SanitizeGarbledForModel(model, remaining)
 			if remaining != "" {
 				slog.Info("stripper flushed remaining", "len", len(remaining))
 
@@ -2554,7 +2557,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	// Emit any remaining unmasker buffer as a final content_block_delta.
 	if unmasker != nil {
 		if remaining := unmasker.Flush(); remaining != "" {
-			remaining = masking.SanitizeGarbledOutput(remaining)
+			remaining = masking.SanitizeGarbledForModel(model, remaining)
 			if remaining != "" {
 				emitUnmaskerFlush(w, remaining, lastRelayBlockIdx, blockTypes[lastRelayBlockIdx])
 				slog.Warn("unmask buffer not empty at stream end, emitted as delta", "remaining_len", len(remaining))

@@ -11,6 +11,12 @@ import (
 var leftoverPlaceholderRe = regexp.MustCompile(`\[\[[A-Z][A-Z0-9_]*_[A-Za-z0-9]+\]\]`)
 
 type StreamUnmasker struct {
+	// glmNoiseMode enables the GLM-specific U-word noise handling. It defaults
+	// ON in the constructor for backward-compat; production proxies call
+	// SetGLMNoiseMode(model) to turn it OFF for capable models (Claude/Gemini/
+	// OpenAI) that preserve placeholders and never emit the failure token, so
+	// the fallback must NOT run for them.
+	glmNoiseMode  bool
 	piiBuffer     string
 	secretsBuffer string
 	// JSON-mode buffers for partial_json (input_json_delta) where replaced
@@ -29,8 +35,9 @@ type StreamUnmasker struct {
 
 func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
 	return &StreamUnmasker{
-		piiCtx:     piiCtx,
-		secretsCtx: secretsCtx,
+		piiCtx:       piiCtx,
+		secretsCtx:   secretsCtx,
+		glmNoiseMode: true,
 	}
 }
 
@@ -52,13 +59,13 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	// Fallback: models like GLM may output "undefined" instead of preserving placeholders.
 	// Only run when masking is active to avoid stripping legitimate "undefined" from
 	// code examples (e.g. typeof x === "undefined").
-	if u.HasContexts() && strings.Contains(processed, "undefined") {
+	if u.glmNoiseMode && u.HasContexts() && strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
 	}
 	// Buffer tail that might be a partial "undefined" split across SSE chunks.
 	// Must run AFTER fallback so the partial is preceded by the replacement value
 	// (non-alpha), not by "d" from a previous "undefined" (alpha).
-	if u.HasContexts() {
+	if u.glmNoiseMode && u.HasContexts() {
 		var buf string
 		processed, buf = bufferPartialUndefined(processed)
 		u.undefinedBuffer = buf
@@ -85,11 +92,11 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 		u.undefinedBuffer = ""
 	}
 	// Same undefined fallback as ProcessChunk - only when masking is active.
-	if u.HasContexts() && strings.Contains(processed, "undefined") {
+	if u.glmNoiseMode && u.HasContexts() && strings.Contains(processed, "undefined") {
 		processed = u.replaceUndefinedFallback(processed)
 	}
 	// Buffer tail that might be a partial "undefined" split across SSE chunks.
-	if u.HasContexts() {
+	if u.glmNoiseMode && u.HasContexts() {
 		var buf string
 		processed, buf = bufferPartialUndefined(processed)
 		u.undefinedBuffer = buf
@@ -165,7 +172,7 @@ func (u *StreamUnmasker) Flush() string {
 	if u.undefinedBuffer != "" {
 		ub := u.undefinedBuffer
 		u.undefinedBuffer = ""
-		if u.HasContexts() {
+		if u.glmNoiseMode && u.HasContexts() {
 			if strings.Contains(ub, "undefined") {
 				ub = u.replaceUndefinedFallback(ub)
 			}
@@ -177,6 +184,10 @@ func (u *StreamUnmasker) Flush() string {
 	}
 
 	return StripLeftoverPlaceholders(result)
+}
+
+func (u *StreamUnmasker) SetGLMNoiseMode(enabled bool) {
+	u.glmNoiseMode = enabled
 }
 
 func (u *StreamUnmasker) HasContexts() bool {
@@ -315,6 +326,13 @@ func SanitizeGarbledOutput(text string) string {
 		return text
 	}
 	return garbledUndefinedRe.ReplaceAllString(text, "")
+}
+
+func SanitizeGarbledForModel(model, text string) string {
+	if strings.HasPrefix(model, "glm-") {
+		return SanitizeGarbledOutput(text)
+	}
+	return text
 }
 
 // StripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that

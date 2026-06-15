@@ -416,6 +416,7 @@ func (p *ClaudeSessionProxy) convertSessionSSE(w http.ResponseWriter, resp *http
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 	}
 
 	var inputTokens, outputTokens int

@@ -186,7 +186,7 @@ func (p *GeminiAPIProxy) handleGeminiResponse(w http.ResponseWriter, resp *http.
 		w.WriteHeader(http.StatusOK)
 		body = []byte(masking.SanitizeGarbledOutput(string(body)))
 		w.Write(body)
-			return nil
+		return nil
 	}
 
 	if usage := gResp.UsageMeta; usage != nil {
@@ -222,6 +222,7 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 	}
 
 	msgID := fmt.Sprintf("msg_gemini_%d", time.Now().UnixNano())
@@ -301,11 +302,11 @@ func (p *GeminiAPIProxy) relayGeminiStream(w http.ResponseWriter, resp *http.Res
 		if remaining := unmasker.Flush(); remaining != "" {
 			remaining = masking.SanitizeGarbledOutput(remaining)
 			if remaining != "" {
-							escaped, _ := json.Marshal(remaining)
-			fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
-			if flusher != nil {
-				flusher.Flush()
-			}
+				escaped, _ := json.Marshal(remaining)
+				fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":%s}}\n\n", string(escaped))
+				if flusher != nil {
+					flusher.Flush()
+				}
 
 			}
 		}

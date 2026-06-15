@@ -620,6 +620,7 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 	var unmasker *masking.StreamUnmasker
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
+		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 	}
 
 	var inputTokens, outputTokens int
@@ -687,11 +688,11 @@ func (p *GeminiCodeAssistProxy) streamResponse(w http.ResponseWriter, resp *http
 		if remaining := unmasker.Flush(); remaining != "" {
 			remaining = masking.SanitizeGarbledOutput(remaining)
 			if remaining != "" {
-							writeSSE(w, flusher, "content_block_delta", map[string]any{
-				"type":  "content_block_delta",
-				"index": 0,
-				"delta": map[string]any{"type": "text_delta", "text": remaining},
-			})
+				writeSSE(w, flusher, "content_block_delta", map[string]any{
+					"type":  "content_block_delta",
+					"index": 0,
+					"delta": map[string]any{"type": "text_delta", "text": remaining},
+				})
 
 			}
 		}
