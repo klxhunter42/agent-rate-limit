@@ -116,6 +116,7 @@ func (h *ProfileHandler) Routes() func(r chi.Router) {
 			r.Post("/", h.Create)
 			r.Post("/import", h.Import)
 			r.Get("/recommended-models", h.RecommendedModels)
+			r.Get("/optimizer-settings", h.OptimizerSettings)
 			r.Route("/{name}", func(r chi.Router) {
 				r.Get("/", h.Get)
 				r.Put("/", h.Update)
@@ -359,6 +360,97 @@ func (h *ProfileHandler) RecommendedModels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusNotFound, map[string]string{"error": "no models for provider: " + target})
+}
+
+// OptimizerSettings returns optimizer configuration for a specific provider.
+// Query param "target" specifies the provider ID. Returns all providers if empty.
+// Response includes which optimizers are enabled/disabled by default for each provider.
+func (h *ProfileHandler) OptimizerSettings(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Query().Get("target")
+
+	type optimizerInfo struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Category    string `json:"category"`
+	}
+
+	// All available optimizers with metadata
+	allOptimizers := map[string]optimizerInfo{
+		"semantic_dedup": {ID: "semantic_dedup", Name: "Semantic Dedup", Description: "Deduplicate semantically similar sentences", Category: "input"},
+		"chunker":        {ID: "chunker", Name: "Chunker", Description: "Reorder system prompt for cache hit", Category: "input"},
+		"delta":          {ID: "delta", Name: "Delta Encoding", Description: "Track potential savings via delta encoding", Category: "metrics"},
+		"sketch":         {ID: "sketch", Name: "Sketch Dedup", Description: "Detect duplicate system prompts via sketch", Category: "input"},
+		"summarizer":     {ID: "summarizer", Name: "Summarizer", Description: "Summarize long system prompts (red budget)", Category: "input"},
+		"textcomp":       {ID: "textcomp", Name: "Text Compression", Description: "Remove filler and verbose text", Category: "input"},
+		"caveman":        {ID: "caveman", Name: "Caveman Compression", Description: "LLM-based input/output compression", Category: "input_output"},
+		"pordee":         {ID: "pordee", Name: "Pordee Thai", Description: "Inject Thai terse output rules", Category: "output"},
+		"desctrim":       {ID: "desctrim", Name: "Description Trim", Description: "Trim verbose tool descriptions", Category: "input"},
+		"toolcomp":       {ID: "toolcomp", Name: "Tool Compression", Description: "Compress tool result outputs", Category: "input"},
+		"toolfilter":     {ID: "toolfilter", Name: "Tool Filter", Description: "Filter irrelevant tool results", Category: "input"},
+		"disclosure":     {ID: "disclosure", Name: "Disclosure Detection", Description: "Detect PII disclosure attempts", Category: "security"},
+		"packer":         {ID: "packer", Name: "Packer", Description: "Chunker-based message packing", Category: "input"},
+		"prefetcher":     {ID: "prefetcher", Name: "Prefetcher", Description: "Prefetch common completions", Category: "performance"},
+		"bandit":         {ID: "bandit", Name: "Bandit MAB", Description: "Multi-armed bandit for routing", Category: "performance"},
+		"waste":          {ID: "waste", Name: "Waste Detection", Description: "Detect wasteful token usage", Category: "metrics"},
+		"cache":          {ID: "cache", Name: "Cache Manager", Description: "Prompt cache eviction management", Category: "performance"},
+		"warmstart":      {ID: "warmstart", Name: "Warm Start", Description: "Session warm-start from cache", Category: "performance"},
+		"compcache":      {ID: "compcache", Name: "Compiler Cache", Description: "Cache compiler outputs", Category: "performance"},
+	}
+
+	if target != "" {
+		// Return settings for specific provider
+		defaults := GetProviderOptimizerDefaults(target)
+		if defaults == nil {
+			// No specific defaults = all enabled (use global defaults)
+			defaults = make(map[string]bool)
+			for id := range allOptimizers {
+				defaults[id] = true
+			}
+		}
+		result := make([]map[string]any, 0, len(defaults))
+		for id, info := range allOptimizers {
+			enabled, hasOverride := defaults[id]
+			if !hasOverride {
+				enabled = true // default to enabled if not specified
+			}
+			result = append(result, map[string]any{
+				"id":          id,
+				"name":        info.Name,
+				"description": info.Description,
+				"category":    info.Category,
+				"enabled":     enabled,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"provider": target, "optimizers": result})
+		return
+	}
+
+	// Return all providers with their optimizer settings
+	result := make(map[string]any)
+	for provider := range providerModels {
+		defaults := GetProviderOptimizerDefaults(provider)
+		optimizers := make([]map[string]any, 0)
+		for id, info := range allOptimizers {
+			enabled := true
+			if defaults != nil {
+				if e, ok := defaults[id]; ok {
+					enabled = e
+				}
+			}
+			optimizers = append(optimizers, map[string]any{
+				"id":          id,
+				"name":        info.Name,
+				"description": info.Description,
+				"category":    info.Category,
+				"enabled":     enabled,
+			})
+		}
+		result[provider] = map[string]any{
+			"optimizers": optimizers,
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"providers": result})
 }
 
 // loadCustomProviderModels reads custom provider configs from Redis and returns
