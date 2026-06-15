@@ -3487,11 +3487,12 @@ type claudeModelsResponse struct {
 }
 
 type claudeModelEntry struct {
-	ID        string `json:"id"`
-	Object    string `json:"object"`
-	Created   int64  `json:"created"`
-	OwnedBy   string `json:"owned_by"`
-	MaxTokens int    `json:"max_tokens"`
+	Type           string `json:"type"`
+	ID             string `json:"id"`
+	DisplayName    string `json:"display_name"`
+	CreatedAt      string `json:"created_at"`
+	MaxInputTokens int    `json:"max_input_tokens"`
+	MaxTokens      int    `json:"max_tokens"`
 }
 
 func isClaudeCLI(ua string) bool {
@@ -3531,18 +3532,22 @@ func (h *Handler) GetModelsAnthropic(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// created_at uses the epoch fallback the Anthropic spec allows when a
+	// model's release date is unknown; the catalog has no release dates.
 	data := make([]claudeModelEntry, 0, len(entries))
+	seen := make(map[string]bool, len(entries))
 	for _, e := range entries {
-		owner := e.Provider
-		if e.Provider == "claude-oauth" {
-			owner = "anthropic"
+		if seen[e.Name] {
+			continue
 		}
+		seen[e.Name] = true
 		data = append(data, claudeModelEntry{
-			ID:        e.Name,
-			Object:    "model",
-			Created:   1700000000,
-			OwnedBy:   owner,
-			MaxTokens: e.ContextWindow,
+			Type:           "model",
+			ID:             e.Name,
+			DisplayName:    e.Name,
+			CreatedAt:      "1970-01-01T00:00:00Z",
+			MaxInputTokens: e.ContextWindow,
+			MaxTokens:      e.ContextWindow,
 		})
 	}
 
