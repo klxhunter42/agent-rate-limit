@@ -11,6 +11,7 @@ improvements/
 api-gateway/api-gateway
 api-gateway/agent-rate-limit
 api-gateway/agent-rate-limit-new
+bin/
 
 # UI build artifacts
 ui/node_modules/
@@ -29,4 +30,4 @@ flows_parsed.json
 # Secrets
 api-gateway/config/session_secret
 
-litellm_bk
+litellm_bkbin/

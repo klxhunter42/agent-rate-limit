@@ -110,24 +110,26 @@ func (h *ProfileHandler) Close() error {
 // Routes registers all profile endpoints on a chi router.
 func (h *ProfileHandler) Routes() func(r chi.Router) {
 	return func(r chi.Router) {
+		// Provider-level endpoints (outside profile CRUD)
+		r.Get("/v1/profiles/recommended-models", h.RecommendedModels)
+		r.Get("/v1/profiles/optimizer-settings", h.OptimizerSettings)
+
+		// Profile CRUD operations
 		r.Post("/v1/profiles/delete", h.DeleteByName)
 		r.Route("/v1/profiles", func(r chi.Router) {
 			r.Get("/", h.List)
 			r.Post("/", h.Create)
 			r.Post("/import", h.Import)
-			r.Get("/recommended-models", h.RecommendedModels)
-			r.Get("/optimizer-settings", h.OptimizerSettings)
-			r.Route("/{name}", func(r chi.Router) {
-				r.Get("/", h.Get)
-				r.Put("/", h.Update)
-				r.Delete("/", h.Delete)
-				r.Post("/copy", h.Copy)
-				r.Post("/export", h.Export)
-				r.Get("/export", h.Export)
-				r.Get("/tokens", h.ListTokens)
-				r.Post("/tokens", h.GenerateToken)
-				r.Delete("/tokens/{keyName}", h.RevokeToken)
-			})
+			// {name} routes
+			r.Get("/{name}", h.Get)
+			r.Put("/{name}", h.Update)
+			r.Delete("/{name}", h.Delete)
+			r.Post("/{name}/copy", h.Copy)
+			r.Post("/{name}/export", h.Export)
+			r.Get("/{name}/export", h.Export)
+			r.Get("/{name}/tokens", h.ListTokens)
+			r.Post("/{name}/tokens", h.GenerateToken)
+			r.Delete("/{name}/tokens/{keyName}", h.RevokeToken)
 		})
 	}
 }
@@ -672,6 +674,16 @@ func (h *ProfileHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if name == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+
+	// Workaround: special routes that chi's wildcard catches
+	if name == "optimizer-settings" {
+		h.OptimizerSettings(w, r)
+		return
+	}
+	if name == "recommended-models" {
+		h.RecommendedModels(w, r)
 		return
 	}
 
