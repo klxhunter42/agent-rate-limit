@@ -139,6 +139,8 @@ var allowedResponseHeaders = map[string]bool{
 	"X-RateLimit-Reset":                                true,
 	"Retry-After":                                      true,
 	"Request-Id":                                       true,
+		"X-Use-Cache-Control":                              true, // Prompt caching
+		"Cache-Control":                                    true, // Prompt caching
 	"Anthropic-Ratelimit-Requests-Remaining":           true,
 	"Anthropic-Ratelimit-Tokens-Remaining":             true,
 	"Anthropic-Ratelimit-Unified-Status":               true,
