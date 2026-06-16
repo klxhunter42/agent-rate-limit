@@ -139,8 +139,8 @@ var allowedResponseHeaders = map[string]bool{
 	"X-RateLimit-Reset":                                true,
 	"Retry-After":                                      true,
 	"Request-Id":                                       true,
-		"X-Use-Cache-Control":                              true, // Prompt caching
-		"Cache-Control":                                    true, // Prompt caching
+	"X-Use-Cache-Control":                              true, // Prompt caching
+	"Cache-Control":                                    true, // Prompt caching
 	"Anthropic-Ratelimit-Requests-Remaining":           true,
 	"Anthropic-Ratelimit-Tokens-Remaining":             true,
 	"Anthropic-Ratelimit-Unified-Status":               true,
@@ -782,7 +782,11 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		flusher.Flush()
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	// Bound the stream with the configured STREAM_TIMEOUT so a stalled upstream
+	// does not pin a limiter slot until the client gives up.
+	streamCtx, streamCancel := context.WithTimeout(resp.Request.Context(), p.streamDeadline())
+	defer streamCancel()
+	scanner := bufio.NewScanner(&readCloser{Reader: io.NopCloser(resp.Body), ctx: streamCtx})
 	scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 	msgID := fmt.Sprintf("msg_vision_%d", time.Now().UnixNano())
@@ -1929,7 +1933,11 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 		}
 
 		flusher, _ := w.(http.Flusher)
-		scanner := bufio.NewScanner(resp.Body)
+		// Bound the sidecar stream with STREAM_TIMEOUT so a stalled upstream does
+		// not pin a limiter slot until the client disconnects.
+		streamCtx, streamCancel := context.WithTimeout(resp.Request.Context(), p.streamDeadline())
+		defer streamCancel()
+		scanner := bufio.NewScanner(&readCloser{Reader: io.NopCloser(resp.Body), ctx: streamCtx})
 		scanner.Buffer(make([]byte, 0, 64*1024), maxSSELineSize)
 
 		var sidecarInputTokens, sidecarOutputTokens int
@@ -2304,7 +2312,18 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 	return err
 }
 
-const streamTimeout = 10 * time.Minute
+// defaultStreamTimeout is the fallback when STREAM_TIMEOUT is unset/zero.
+const defaultStreamTimeout = 10 * time.Minute
+
+// streamDeadline returns the configured STREAM_TIMEOUT, falling back to the
+// default. Honors the operator-tunable env instead of a hardcoded constant so a
+// stalled upstream does not pin a limiter slot for longer than configured.
+func (p *AnthropicProxy) streamDeadline() time.Duration {
+	if p != nil && p.cfg != nil && p.cfg.StreamTimeout > 0 {
+		return p.cfg.StreamTimeout
+	}
+	return defaultStreamTimeout
+}
 
 // emitUnmaskerFlush writes the unmasker's buffered remainder as a content_block_delta
 // whose delta type matches the open block's type. Emitting a text_delta into a
@@ -2329,7 +2348,7 @@ func emitUnmaskerFlush(w io.Writer, remaining string, idx int, blockType string)
 
 func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *http.Response, model string, unmasker *masking.StreamUnmasker, fallbackInputTokens int, maskResult *privacy.MaskResult) error {
 	// Add timeout to prevent hanging streams
-	ctx, cancel := context.WithTimeout(resp.Request.Context(), streamTimeout)
+	ctx, cancel := context.WithTimeout(resp.Request.Context(), p.streamDeadline())
 	defer cancel()
 
 	// Wrap body with context-aware reader

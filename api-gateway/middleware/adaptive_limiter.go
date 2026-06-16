@@ -389,17 +389,14 @@ func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveMod
 }
 
 // acquireAnyModel waits for ANY available model slot with a timeout.
-// Uses sync.Cond to wake immediately on Release instead of polling.
+// Waits on the shared globalCond (signalled by Release) so it wakes
+// immediately when a slot frees, rather than blocking the full timeout.
 func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel string) (string, bool) {
 	deadline := time.Now().Add(timeout)
 
-	// Create a temporary condvar for this wait.
-	var waitMu sync.Mutex
-	waitCond := sync.NewCond(&waitMu)
-
-	// Timer to broadcast on timeout so we unblock from Wait().
+	// Broadcast on timeout so Wait() unblocks even if no Release fires.
 	timer := time.AfterFunc(timeout, func() {
-		waitCond.Broadcast()
+		al.globalCond.Broadcast()
 	})
 	defer timer.Stop()
 
@@ -434,17 +431,15 @@ func (al *AdaptiveLimiter) acquireAnyModel(timeout time.Duration, requestedModel
 			return "", false
 		}
 
-		// Wait for signal from Release() or timeout.
-		waitMu.Lock()
+		// Wait for a slot to free (Release signals globalCond) or timeout.
 		remaining := time.Until(deadline)
-		if remaining > 100*time.Millisecond {
-			waitCond.Wait()
-		} else {
-			waitMu.Unlock()
+		if remaining <= 100*time.Millisecond {
 			time.Sleep(remaining)
 			continue
 		}
-		waitMu.Unlock()
+		al.globalCond.L.Lock()
+		al.globalCond.Wait()
+		al.globalCond.L.Unlock()
 	}
 }
 
