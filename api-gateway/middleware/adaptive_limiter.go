@@ -86,7 +86,8 @@ type ModelStatus struct {
 // modelPriority defines fallback order (higher = preferred).
 // Populated from config or defaults.
 var modelPriority = map[string]int{
-	"glm-5.1":     100,
+	"glm-5.2":     100,
+	"glm-5.1":     95,
 	"glm-5-turbo": 90,
 	"glm-5":       80,
 	"glm-4.7":     70,

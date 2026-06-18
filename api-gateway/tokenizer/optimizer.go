@@ -117,7 +117,8 @@ var KnownModels = map[string]ModelCapabilities{
 	"gemini-2.5-flash": {ContextWindow: 1048576, MaxOutputTokens: 65536, Provider: "google"},
 	"gemini-2.0-flash": {ContextWindow: 1048576, MaxOutputTokens: 8192, Provider: "google"},
 	// Z.AI (GLM)
-	"glm-5.1":        {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-5.2":        {ContextWindow: 1000000, MaxOutputTokens: 4096, Provider: "zai"},
+	"glm-5.1":        {ContextWindow: 200000, MaxOutputTokens: 4096, Provider: "zai"},
 	"glm-5":          {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},
 	"glm-4.6v":       {ContextWindow: 8192, MaxOutputTokens: 4096, Provider: "zai"},
 	"glm-4-plus":     {ContextWindow: 128000, MaxOutputTokens: 4096, Provider: "zai"},

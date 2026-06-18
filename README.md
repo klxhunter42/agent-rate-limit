@@ -287,7 +287,7 @@ Client                   Gateway                        Upstream
 
 | Provider     | Format    | Auth    | Models                                             |
 |--------------|-----------|---------|----------------------------------------------------|
-| Z.AI         | Anthropic | API Key | GLM-5.1, GLM-5, GLM-4.6v (vision)                  |
+| Z.AI         | Anthropic | API Key | GLM-5.2 (default), GLM-5.1, GLM-5, GLM-4.6v (vision)                  |
 | Claude OAuth | Anthropic | Bearer  | Claude Opus 4.7, Sonnet 4.6, Haiku 4.5             |
 | Anthropic    | Anthropic | API Key | Claude full model family                           |
 | OpenAI       | OpenAI    | Bearer  | GPT-4o, o1, o3, o4                                 |

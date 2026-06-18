@@ -1434,14 +1434,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 									if bt == "tool_use" || bt == "tool_result" {
 										continue
 									}
-									field := "text"
-									if bt == "tool_result" {
-										field = "content"
-									}
-									if t, ok := bm[field].(string); ok && t != "" {
+									if t, ok := bm["text"].(string); ok && t != "" {
 										opt, saved := h.optimizers.TextComp.Compress(t)
 										if saved > 0 {
-											bm[field] = opt
+											bm["text"] = opt
 											h.metrics.RecordOptimization("zai_textcomp_block", saved, "input")
 										}
 									}

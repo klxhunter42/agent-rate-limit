@@ -2,6 +2,45 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-06-18a] - Add GLM-5.2 Model, Sync Z.AI Pricing, Fix Edit-Tool TextComp Bug
+
+### Problem
+GLM-5.2 (new Z.AI flagship, 1M context) was missing from the gateway catalog, defaults, pricing, and dashboards. Separately, the Edit tool failed through the gateway: gofmt column-aligned whitespace in Go source was collapsed to single spaces before the model saw it, so old_string never matched.
+
+### Root Causes
+| ID | Severity | Root Cause | Fix |
+|----|----------|-----------|-----|
+| P1 | High | Z.AI request path ran TextComp.Compress on tool_result content; cleanup() collapses all multi-space runs (Phase 4, post-unmask), destroying gofmt alignment | Skip tool_result (and tool_use) blocks from TextComp in handler.go ZAI block |
+| P2 | Medium | GLM catalog/defaults/dashboards predated glm-5.2; cost-calculator hardcoded glm-5.1|glm-5-turbo|glm-5 bucket at stale $1.0/$3.2 | Added glm-5.2 everywhere; split cost-calculator into per-price buckets |
+
+### Changes
+#### Models / pricing (synced from https://docs.z.ai/guides/overview/pricing)
+- handler/handler.go: added glm-5.2 (1M ctx, $1.4/$4.4, flagship) + glm-5v-turbo, glm-4.6v-flashx, glm-4.6v-flash, glm-ocr to knownModels; ctx 5.1->200K, 4.6->200K; modelMaxTokens, modelFallbacks, isNativeImageModel, default model.
+- config/config.go: DEFAULT_MODEL=glm-5.2; ModelLimits glm-5.2:5,glm-5.1:10; VisionLimits; ModelPriority glm-5.2:100; defaultModelPricing.
+- middleware/adaptive_limiter.go: modelPriority glm-5.2:100 > glm-5.1:95.
+- tokenizer/optimizer.go: KnownModels glm-5.2 (1M), glm-5.1 ctx 200K.
+- handler/profile.go: glm-5.2 flagship.
+#### Config / env / deploy
+- .env.example: DEFAULT_MODEL, MODEL_PRIORITY; corrected inverted GLM_MODE comment (true=Z.AI active).
+- helm/ai-gateway/values.yaml + docker-compose.yml: UPSTREAM_MODEL_LIMITS, VISION limits, MODEL_PRICING with glm-5.2.
+#### Dashboards
+- grafana/ + helm cost-calculator.json: added glm-5.2 ($1.4/$4.4); corrected glm-5.1 ($1.4/$4.4), glm-5-turbo ($1.2/$4.0), glm-5 ($1.0/$3.2) into separate price buckets.
+#### Bug fix (Edit tool)
+- handler/handler.go (~L1432): ZAI TextComp block now skips tool_result blocks (byte-exact content for Edit matching); removed dead field branch.
+#### Docs / tests
+- docs/providers.md, README.md: glm-5.2 in model tables.
+- handler/handler_test.go: validateChatRequest defaults -> glm-5.2.
+
+### Impact
+- Before: glm-5.2 requests unrouted/unpriced; default model was glm-5; Edit tool failed on gofmt-aligned Go files via the gateway.
+- After: glm-5.2 is the default/flagship with correct pricing and 1M context; Edit tool string matching works (tool_results preserved verbatim).
+
+### Verification
+- go build ./... OK; go vet OK; gofmt clean.
+- handler/middleware/textcomp/provider/config tests pass.
+- tokenizer.TestGetModelCapabilities fails pre-existing (Claude max-output-token expectation, unrelated; fails on clean HEAD).
+- 14 cross-check agents confirmed catalog pricing, config consistency, code-path coverage, routing, fallback integrity, YAML validity, and dashboard GLM_MODE true/false behavior.
+
 ## [2026-05-27d] - Fix Tools Not Called via Claude OAuth CLI
 
 ### Problem

@@ -167,15 +167,17 @@ Usage recording (sync path): Token counts automatically populate Redis hourly/da
 
 ### Z.AI Pricing
 
-19 Z.AI models have accurate pricing from https://docs.z.ai/guides/overview/pricing. Includes flash (free tier), air, and turbo variants. The `api_gateway_cost_total` metric reflects real pricing.
+Z.AI models have accurate pricing from https://docs.z.ai/guides/overview/pricing. Includes flash (free tier), air, turbo variants, and the glm-5.2 flagship (1M context). The `api_gateway_cost_total` metric reflects real pricing.
 
-| Tier     | Models                      | Notes               |
-|----------|-----------------------------|---------------------|
-| Flash    | glm-5-flash, glm-4.6-flash  | Free tier available |
-| Air      | glm-5-air, glm-5-air-turbo  | Budget tier         |
-| Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose     |
-| Plus     | glm-4.7, glm-4.6, glm-4.5   | Older generation    |
-| Vision   | glm-4.6v, glm-4.5v          | Image analysis      |
+| Tier | Models | Notes |
+|--------|---------------------------------------------|-----------------------|
+| Flagship | glm-5.2 | 1M context, $1.4/$4.4, default model |
+| Standard | glm-5, glm-5-turbo, glm-5.1 | General purpose |
+| Plus | glm-4.7, glm-4.6, glm-4.5 | Older generation |
+| Air | glm-4.5-air, glm-4.5-airx | Budget tier |
+| Flash | glm-4.7-flash, glm-4.5-flash, glm-4.6v-flash | Free tier |
+| Vision | glm-5v-turbo, glm-4.6v, glm-4.5v, glm-4.6v-flashx | Image analysis |
+| OCR | glm-ocr | Document OCR |
 
 ### Z.AI Anthropic-Compatible Model Mapping
 
