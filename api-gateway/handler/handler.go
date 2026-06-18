@@ -3550,6 +3550,13 @@ func (h *Handler) GetModelsAnthropic(w http.ResponseWriter, r *http.Request) {
 		if km.Deprecated {
 			continue
 		}
+		// Claude Code validates model IDs client-side and rejects anything that
+		// isn't a claude-* name (e.g. "glm-5.2 is not an Anthropic model"). Only
+		// surface claude-* entries here; non-claude models route via the GLM-mode
+		// claude->DEFAULT_MODEL remap when the client sends a claude-* name.
+		if !strings.HasPrefix(km.Name, "claude-") {
+			continue
+		}
 		limit := h.cfg.DefaultLimit
 		if l, ok := h.cfg.ModelLimits[km.Name]; ok {
 			limit = l
