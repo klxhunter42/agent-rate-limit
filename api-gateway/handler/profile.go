@@ -162,7 +162,8 @@ var providerModels = map[string][]map[string]string{
 		{"name": "gemini-2.5-flash", "tier": "fast", "description": "Fast and versatile"},
 	},
 	"zai": {
-		{"name": "glm-5.1", "tier": "flagship", "description": "Most capable"},
+		{"name": "glm-5.2", "tier": "flagship", "description": "Most capable"},
+		{"name": "glm-5.1", "tier": "standard", "description": "Balanced performance"},
 		{"name": "glm-4.5", "tier": "standard", "description": "Balanced performance"},
 		{"name": "glm-4.5-air", "tier": "fast", "description": "Fast and affordable"},
 	},

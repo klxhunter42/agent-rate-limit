@@ -1429,7 +1429,9 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 							for _, block := range c {
 								if bm, ok := block.(map[string]any); ok {
 									bt, _ := bm["type"].(string)
-									if bt == "tool_use" {
+									// tool_result holds byte-exact file/code content for Edit matching;
+									// TextComp collapses gofmt alignment spaces, so skip it (and tool_use).
+									if bt == "tool_use" || bt == "tool_result" {
 										continue
 									}
 									field := "text"
@@ -2229,7 +2231,7 @@ func validateChatRequest(req *ChatRequest) string {
 		req.Temperature = 0.7
 	}
 	if req.Model == "" {
-		req.Model = "glm-5"
+		req.Model = "glm-5.2"
 	}
 	if req.Provider == "" {
 		req.Provider = provider.ResolveProviderByModel(req.Model)
@@ -2471,6 +2473,7 @@ func appendPrivacyPrompt(payload map[string]any, prompt string) {
 
 // modelMaxTokens defines optimal max_tokens defaults per model.
 var modelMaxTokens = map[string]int{
+	"glm-5.2":                   128000,
 	"glm-5.1":                   128000,
 	"glm-5-turbo":               128000,
 	"glm-5":                     128000,
@@ -3106,7 +3109,7 @@ func selectVisionModel(totalBytes int, imageCount int) string {
 
 func isNativeImageModel(model string) bool {
 	switch model {
-	case "glm-5.1", "glm-4.6v", "glm-4.5v":
+	case "glm-5.2", "glm-5.1", "glm-4.6v", "glm-4.5v":
 		return true
 	}
 	return false
@@ -3196,21 +3199,26 @@ var knownModels = []struct {
 	Deprecated       bool
 }{
 	// Z.AI / GLM — pricing from https://docs.z.ai/guides/overview/pricing
-	{"glm-5.1", "zai", "5", "anthropic", 1.4, 4.4, 128000, "budget", false, true, false},
+	{"glm-5.2", "zai", "5", "anthropic", 1.4, 4.4, 1000000, "budget", true, true, false},
+	{"glm-5.1", "zai", "5", "anthropic", 1.4, 4.4, 200000, "budget", false, true, false},
 	{"glm-5", "zai", "5", "anthropic", 1.0, 3.2, 128000, "budget", false, false, false},
 	{"glm-5-turbo", "zai", "5", "anthropic", 1.2, 4.0, 128000, "budget", false, false, false},
 	{"glm-4.7", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
 	{"glm-4.7-flashx", "zai", "4", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
 	{"glm-4.7-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
-	{"glm-4.6", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
+	{"glm-4.6", "zai", "4", "anthropic", 0.6, 2.2, 200000, "none", false, false, false},
 	{"glm-4.5", "zai", "4", "anthropic", 0.6, 2.2, 128000, "none", false, false, false},
 	{"glm-4.5-x", "zai", "4", "anthropic", 2.2, 8.9, 128000, "none", false, false, false},
 	{"glm-4.5-air", "zai", "4", "anthropic", 0.2, 1.1, 128000, "none", false, false, false},
 	{"glm-4.5-airx", "zai", "4", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-4.5-flash", "zai", "4", "anthropic", 0, 0, 128000, "none", false, false, false},
 	{"glm-4-32b-0414-128k", "zai", "4", "anthropic", 0.1, 0.1, 128000, "none", false, false, false},
+	{"glm-5v-turbo", "zai", "5-vision", "anthropic", 1.2, 4.0, 128000, "none", false, true, false},
 	{"glm-4.6v", "zai", "4-vision", "anthropic", 0.3, 0.9, 128000, "none", false, true, false},
+	{"glm-4.6v-flashx", "zai", "4-vision", "anthropic", 0.04, 0.4, 128000, "none", false, true, false},
+	{"glm-4.6v-flash", "zai", "4-vision", "anthropic", 0, 0, 128000, "none", false, true, false},
 	{"glm-4.5v", "zai", "4-vision", "anthropic", 0.6, 1.8, 128000, "none", false, true, false},
+	{"glm-ocr", "zai", "ocr", "anthropic", 0.03, 0.03, 128000, "none", false, true, false},
 	{"glm-z1-air", "zai", "z1", "anthropic", 0.2, 1.1, 128000, "none", false, false, false},
 	{"glm-z1-airx", "zai", "z1", "anthropic", 1.1, 4.5, 128000, "none", false, false, false},
 	{"glm-z1-flashx", "zai", "z1", "anthropic", 0.07, 0.4, 128000, "none", false, false, false},
@@ -3299,6 +3307,7 @@ var modelFallbacks = map[string][]string{
 	"o3-pro":       {"o3", "o4-mini"},
 	"o4-mini":      {"gpt-4o-mini"},
 	// Z.AI (GLM)
+	"glm-5.2":     {"glm-5.1", "glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
 	"glm-5.1":     {"glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
 	"glm-5-turbo": {"glm-5", "glm-4.7", "glm-4.6", "glm-4.5"},
 	"glm-5":       {"glm-4.7", "glm-4.6", "glm-4.5"},
