@@ -333,8 +333,7 @@ func main() {
 	r.Get("/v1/logs/errors", h.GetErrorLogs)
 	r.Get("/v1/logs/errors/count", h.GetErrorLogCount)
 	r.Get("/v1/models", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ua := r.UserAgent()
-		if strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli") {
+		if h.WantsAnthropicModels(r) {
 			h.GetModelsAnthropic(w, r)
 			return
 		}

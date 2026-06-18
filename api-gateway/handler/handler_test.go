@@ -1291,3 +1291,35 @@ func TestEnsureToolsCacheControl_AddsWhenBudgetAllows(t *testing.T) {
 	assert.True(t, lastCC, "last tool should get cache_control")
 	assert.Equal(t, 2, countCacheControlBlocks(payload))
 }
+
+func TestWantsAnthropicModels(t *testing.T) {
+	h := newTestHandler(t)
+	cases := []struct {
+		name string
+		ua   string
+		ver  string
+		want bool
+	}{
+		{"anthropic-version header set", "", "2023-06-01", true},
+		{"claude-cli prefix", "claude-cli/2.0.0", "", true},
+		{"Claude-Code prefix", "Claude-Code/1.5.0", "", true},
+		{"anthropic-cli prefix", "anthropic-cli/0.1", "", true},
+		{"claude substring in UA", "node claude-code/external", "", true},
+		{"Claude case-insensitive", "My-Claude-App/1.0", "", true},
+		{"curl default UA (seed script)", "curl/8.7.1", "", false},
+		{"browser UA", "Mozilla/5.0", "", false},
+		{"empty UA no header", "", "", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			if c.ua != "" {
+				req.Header.Set("User-Agent", c.ua)
+			}
+			if c.ver != "" {
+				req.Header.Set("anthropic-version", c.ver)
+			}
+			assert.Equal(t, c.want, h.WantsAnthropicModels(req))
+		})
+	}
+}

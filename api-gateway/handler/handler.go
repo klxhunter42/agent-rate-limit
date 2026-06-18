@@ -3500,8 +3500,20 @@ type claudeModelEntry struct {
 	MaxTokens      int    `json:"max_tokens"`
 }
 
-func isClaudeCLI(ua string) bool {
-	return strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli")
+// WantsAnthropicModels reports whether the /v1/models caller expects the
+// Anthropic-native {"data":[...]} shape instead of the gateway's custom
+// {"models":[...]} shape. UA prefix sniffing alone misses real Claude Code
+// clients (their SDK sets a different UA), so the primary signal is the
+// anthropic-version header that the Anthropic SDK sends on every request.
+func (h *Handler) WantsAnthropicModels(r *http.Request) bool {
+	if r.Header.Get("anthropic-version") != "" {
+		return true
+	}
+	ua := r.UserAgent()
+	if strings.HasPrefix(ua, "claude-cli") || strings.HasPrefix(ua, "Claude-Code") || strings.HasPrefix(ua, "anthropic-cli") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(ua), "claude")
 }
 
 func (h *Handler) GetModelsAnthropic(w http.ResponseWriter, r *http.Request) {
