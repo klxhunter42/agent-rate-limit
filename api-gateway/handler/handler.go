@@ -477,6 +477,23 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// GLM_MODE=true without claude-oauth accounts: remap claude-* models to the
+	// configured default GLM model. Claude Code clients only send claude-* names
+	// (they reject non-claude model IDs), so remap them to glm-5.2 (or DEFAULT_MODEL)
+	// so requests route to Z.AI instead of Anthropic.
+	if h.cfg.GLMMode && !hasClaudeOAuth && strings.HasPrefix(requestedModel, "claude-") {
+		targetModel := h.cfg.DefaultModel
+		if targetModel == "" {
+			targetModel = "glm-5.2"
+		}
+		if targetModel != requestedModel {
+			slog.Info("glm mode: remapping claude model to default GLM model",
+				"original", requestedModel, "target", targetModel)
+			requestedModel = targetModel
+			payload["model"] = requestedModel
+		}
+	}
+
 	// Rewrite sonnet/opus requests to haiku (org-level rate limit workaround).
 	// Disabled: testing direct sonnet routing via claude-oauth.
 	// if strings.Contains(requestedModel, "sonnet") || strings.Contains(requestedModel, "opus") {
