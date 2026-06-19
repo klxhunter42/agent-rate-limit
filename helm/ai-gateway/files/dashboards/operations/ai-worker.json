@@ -256,7 +256,7 @@
       },
       "targets": [
         {
-          "expr": "clamp_max(rate(ai_worker_jobs_failed_total[$__rate_interval]) / (rate(api_gateway_request_latency_seconds_count[$__rate_interval]) > 0) * 100, 100) or on() vector(0)",
+          "expr": "clamp_max(sum(rate(ai_worker_jobs_failed_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval])) * 100, 100) or on() vector(0)",
           "legendFormat": "Error %",
           "refId": "A"
         }

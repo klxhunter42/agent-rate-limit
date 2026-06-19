@@ -298,7 +298,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_upstream_429_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_upstream_429_total[$__rate_interval])) / sum(rate(api_gateway_request_latency_seconds_count[$__rate_interval])) * 100) or on() vector(0)",
           "legendFormat": "Error %",
           "refId": "A"
         }

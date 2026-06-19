@@ -642,7 +642,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range])) / (sum(increase(api_gateway_billing_path_requests_total{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) > 0) * 100) or on() vector(0)",
+          "expr": "(sum(increase(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__range])) / sum(increase(api_gateway_billing_path_requests_total{path=~\"go_direct|sidecar|billing_rejected\"}[$__range])) * 100) or on() vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
