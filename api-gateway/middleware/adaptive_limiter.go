@@ -205,15 +205,22 @@ func (al *AdaptiveLimiter) Acquire(requestedModel string) (string, bool) {
 
 	model := al.getModel(requestedModel)
 
-	// Proactive distribution: round-robin across all available series.
+	// Honor explicit model selection: try the requested model's own slot first.
+	// Only when it is saturated do we proactively distribute across same/lower-
+	// series siblings. Without this, round-robin spreads traffic evenly across
+	// siblings and a low-limit flagship (e.g. glm-5.2 @ 5) starves while a
+	// higher-limit sibling (e.g. glm-5.1 @ 30) absorbs the load.
+	if model.tryAcquire() {
+		return requestedModel, true
+	}
+
+	// Requested model full - round-robin across same-series then spill lower.
 	// Lower series gets ~20% of traffic to keep it warm and avoid idle capacity.
 	if model.series > 0 {
 		selected, ok := al.tryFallbackAllSeries(requestedModel, model)
 		if ok {
 			return selected, true
 		}
-	} else if model.tryAcquire() {
-		return requestedModel, true
 	}
 
 	// All immediate candidates full - release global slot and retry with backoff.
