@@ -163,7 +163,7 @@ func Load() *Config {
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
-		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.2:5,glm-5.1:10,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10")),
+		ModelLimits:              parseModelLimits(envOr("UPSTREAM_MODEL_LIMITS", "glm-5.2:10,glm-5.1:10,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.6v:10,glm-4.5v:10,glm-4.5:10")),
 		VisionModelLimits:        parseModelLimits(envOr("UPSTREAM_VISION_MODEL_LIMITS", "glm-5.2:5,glm-5.1:5,glm-4.6v:5,glm-4.5v:3")),
 		DefaultLimit:             envIntOr("UPSTREAM_DEFAULT_LIMIT", 3),
 		GlobalLimit:              envIntOr("UPSTREAM_GLOBAL_LIMIT", 9),
