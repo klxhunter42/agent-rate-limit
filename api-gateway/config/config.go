@@ -115,6 +115,10 @@ type Config struct {
 	// matching close tag, which is common in code/prose and freezes the stream
 	// until a close tag arrives or the stream ends. Enable only if you need it.
 	StripGLMToolXML bool
+	// TextCompMaxBodyBytes skips TextComp (token compression) for requests larger
+	// than this. TextComp is CPU-bound and dominates large-request prep time; on a
+	// speed-first basis we skip it for big bodies. 0 = always run; default 64KB.
+	TextCompMaxBodyBytes int
 
 	// Z.AI OpenAI-compatible endpoint for models that don't support Anthropic format.
 	// Models listed in ZAIOpenAIModels will be routed here instead of the Anthropic endpoint.
@@ -228,6 +232,7 @@ func Load() *Config {
 		GLMMode:               envBoolOr("GLM_MODE", true),
 		OverloadModelFallback: envBoolOr("OVERLOAD_MODEL_FALLBACK", true),
 		StripGLMToolXML:       envBoolOr("STRIP_GLM_TOOL_XML", false),
+		TextCompMaxBodyBytes:  envIntOr("TEXTCOMP_MAX_BODY_BYTES", 64*1024),
 
 		// Z.AI OpenAI-compatible routing for models that don't support Anthropic format.
 		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),

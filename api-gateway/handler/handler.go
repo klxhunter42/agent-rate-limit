@@ -1415,7 +1415,12 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		if profileOverride != nil {
 			optOverrides = profileOverride.OptimizerOverrides
 		}
-		if optimizerAllowed(optOverrides, "textcomp", h.optimizers.TextComp) {
+		if len(body) > h.cfg.TextCompMaxBodyBytes {
+			// Speed-first: skip token compression for large bodies (TextComp is
+			// CPU-bound and dominated large-request prep). zai-only path; the
+			// payload is untouched so no re-encode is needed.
+			slog.Info("textcomp skipped: body too large", "provider", "zai", "body_bytes", len(body), "threshold", h.cfg.TextCompMaxBodyBytes)
+		} else if optimizerAllowed(optOverrides, "textcomp", h.optimizers.TextComp) {
 			// Collect text slots first. TextComp.Compress is stateless and
 			// concurrency-safe (package-level regexps, local vars only), so the
 			// per-block work - which dominates large-request prep time - is run in
