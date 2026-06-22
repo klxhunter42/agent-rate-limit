@@ -2,6 +2,48 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-06-22] - Fix GLM Gateway Slowness vs Direct z.ai (stripper + TextComp), Add 529 Model Fallback
+
+### Problem
+Clients (Claude Code, streaming) perceived the gateway as very slow while hitting z.ai directly was fast. Two independent root causes both sat on the GLM/zai path and were invisible on the short 401 reject path - that asymmetry (401 fast, 200/stream slow) was the diagnostic signature. Separately, z.ai `529 overloaded_error` made the gateway retry on the same model up to ~9x instead of falling back.
+
+### Root Causes
+| ID | Severity | Root Cause | Fix |
+|----|----------|-----------|-----|
+| P1 | High | `toolUseStripper` (proxy/anthropic.go) was created for every glm-* model and withheld streamed text whenever a `<` prefixed a tracked tag (`<system`/`<thinking`/`<action`/`<details`/`<tool_call`...) with no close, releasing it only at a new tag or stream end. Code/prose full of `<` froze the stream | `STRIP_GLM_TOOL_XML` env (default **false**) gates stripper creation; 8KB buffer cap (`stripperMaxBuffer`) bounds it when enabled |
+| P2 | High | TextComp ran serially per text block for zai and scaled with body size: ~73ms/300 blocks, +2.6s on an ~840KB request | Worker pool parallelizes Compress across `runtime.NumCPU` (3.3x on 8 cores); `TEXTCOMP_MAX_BODY_BYTES` (default 64KB) skips TextComp for larger bodies (speed-first) |
+| P3 | Medium | z.ai 529 was treated as transient and retried on the same model+key up to ~9x with growing backoff | 529 now triggers `OnRateLimitError` -> `AdaptiveLimiter.SuggestFallbackModel` switches to a same-series sibling (glm-5.2->glm-5.1->...->glm-4.x) with the same BYOK key, `skipBackoff`; limiter `Feedback` now reduces the limit on 529 |
+
+All three are **GLM/zai-only**: P1/P2/P3 gate on `isZAIProvider` (provider "zai") and/or `strings.HasPrefix(model,"glm-")`. The **claude-oauth path is untouched**.
+
+### Changes
+#### Streaming freeze fix (P1)
+- proxy/anthropic.go: gate stripper creation behind `p.cfg.StripGLMToolXML` (nil-safe); add `stripperMaxBuffer` cap in `Feed()`.
+- config/config.go: `StripGLMToolXML` field + `STRIP_GLM_TOOL_XML` env (default false).
+#### Request-prep perf (P2)
+- handler/handler.go: collect text slots (system + messages + content blocks), run `TextComp.Compress` across a bounded worker pool, write back sequentially (payload map is not concurrency-safe). Skip when `len(body) > TextCompMaxBodyBytes`.
+- config/config.go: `TextCompMaxBodyBytes` + `TEXTCOMP_MAX_BODY_BYTES` env (default 64KB).
+#### 529 model fallback (P3)
+- proxy/anthropic.go: 529 enters the existing `OnRateLimitError` fallback machinery (was 429-only); streaming guard blocks model switch once SSE started; no-fallback 529 keeps same-model transient retry.
+- middleware/adaptive_limiter.go: `Feedback` reduces limit on 529 (was 429/503); new `SuggestFallbackModel` (read-only, no slot acquire) picks a healthy same-series then lower-series sibling, skipping recent-529 and saturated models.
+- handler/handler.go: `rotateAccountFn` returns a sibling-model override in GLM mode when no account/provider to rotate; per-request `tried` set prevents cycling.
+- config/config.go: `OverloadModelFallback` + `OVERLOAD_MODEL_FALLBACK` env (default true).
+#### Config
+- config/config.go: default `UPSTREAM_MODEL_LIMITS` -> `glm-5.2:10` (was 5) and adds `glm-4.5:10`.
+#### Tests
+- proxy: `TestStreamerStripperBeforeAfter` (content token 83ms->42ms), `TestStripperWithholdsUnclosedTag`, `TestStreamWithTagsNotBuffered`, `TestStreamRelayFlushesImmediately`, `Test529OverloadModelFallbackParallel`.
+- handler: `TestTextCompPrepBreakdown` (serial vs pool benchmark).
+
+### Impact
+- Large request (~570KB) gateway latency: **+2.6s slower than direct -> now equal/faster than direct** (gateway 0.7-0.9s vs direct ~0.95s on 111).
+- GLM streamed responses no longer freeze on `<` tags; first content byte reaches the client in ~1ms.
+- z.ai 529 overload now fails over to a sibling model in ~ms instead of stalling ~9 retries.
+
+### Verification
+- go build OK; `go test ./proxy/ ./handler/ -race` clean (no data races).
+- A/B on 111 (`curl -d @file` gateway vs z.ai, dummy key): small/medium/large gateway == or < direct.
+- Pre-existing unrelated failures `TestTruncateMessages`, `TestAllowedResponseHeaders` confirmed failing on clean main.
+
 ## [2026-06-18a] - Add GLM-5.2 Model, Sync Z.AI Pricing, Fix Edit-Tool TextComp Bug
 
 ### Problem

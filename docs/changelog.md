@@ -2,6 +2,33 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-06-22] Perf/Fix: แก้ gateway ช้ากว่า z.ai ตรง (stripper + TextComp) + 529 fallback
+
+### ปัญหา
+client รู้สึกว่า gateway ช้ามาก แต่ยิง z.ai ตรงเร็ว มี 2 root cause อยู่บน path GLM/zai ทั้งคู่ มองไม่เห็นใน 401 path (body สั้น) เลยเป็นเอกลักษณ์วินิจฉัย: 401 เร็ว / 200-stream ช้า แยกจากกัน z.ai คืน `529 overloaded_error` แล้ว gateway รอ retry บน model เดิม ~9 รอบแทนที่จะ fallback
+
+### Root Causes
+| ID | Severity | Root Cause | Fix |
+|----|----------|-----------|-----|
+| P1 | High | `toolUseStripper` (proxy/anthropic.go) สร้างให้ทุก glm-* model แช่ stream เมื่อเจอ `<` ที่เป็น prefix tag (`<system`/`<thinking`/`<action`/`<details`/`<tool_call`...) ที่ไม่มี close ปล่อยตอนเจอ tag ใหม่หรือ stream จบ โค้ด/prose เต็ม `<` เลยค้าง | env `STRIP_GLM_TOOL_XML` (default **false**) gate การสร้าง stripper + cap buffer 8KB |
+| P2 | High | TextComp รัน serial ทีละ block สำหรับ zai scale ตามขนาด body: ~73ms/300 blocks, +2.6s ที่ ~840KB | worker pool ขนาน Compress ตาม `runtime.NumCPU` (3.3x @8 cores); `TEXTCOMP_MAX_BODY_BYTES` (default 64KB) skip TextComp เมื่อ body ใหญ่ (เร็วก่อน token ไม่เกี่ยง) |
+| P3 | Medium | z.ai 529 ถูกนับ transient retry บน model+key เดิม ~9 รอบ backoff โต | 529 เรียก `OnRateLimitError` -> `SuggestFallbackModel` สลับ sibling ใน series (glm-5.2->glm-5.1->...->glm-4.x) ด้วย key เดิม `skipBackoff`; `Feedback` ลด limit ตอน 529 ด้วย |
+
+ทั้งสามเป็น **GLM/zai-only** (gate บน `isZAIProvider`/prefix `glm-`) **claude-oauth ไม่กระทบ**
+
+### Impact
+- request ใหญ่ (~570KB): gateway **+2.6s ช้ากว่า direct -> ตอนนี้เท่า/เร็วกว่า** (gateway 0.7-0.9s vs direct ~0.95s บน 111)
+- stream glm ไม่ค้างตอนเจอ `<` (first content ~1ms)
+- 529 overload สลับ model ใน ~ms แทน retry ~9 รอบ
+
+### Env vars ใหม่
+- `STRIP_GLM_TOOL_XML` (default false) - เปิด XML tool-block stripping (ปิด default เพราะแช่ stream)
+- `TEXTCOMP_MAX_BODY_BYTES` (default 65536) - skip TextComp เมื่อ body เกิน (เร็วก่อน)
+- `OVERLOAD_MODEL_FALLBACK` (default true) - สลับ model ตอน 529
+
+### Verification
+`go test ./proxy/ ./handler/ -race` ผ่าน ไม่มี data race; A/B บน 111 small/medium/large gateway <= direct
+
 ## [2026-05-20] Perf: Concurrent Request Optimization for Z.AI/GLM Mode
 
 ### ปัญหา: Multi-agent serialize เหลือ 1 concurrent/profile

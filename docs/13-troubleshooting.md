@@ -1,5 +1,31 @@
 # Troubleshooting
 
+## Gateway ช้ากว่ายิง z.ai ตรง (GLM/zai path)
+
+อาการ: client (Claude Code) รู้สึกว่าผ่าน gateway ช้ามาก แต่ยิง `https://api.z.ai/api/anthropic` ตรงเร็ว เป็น 2 สาเหตุหลัก อยู่บน GLM/zai path เท่านั้น (claude-oauth ไม่กระทบ)
+
+### วินิจฉัย: A/B ด้วย dummy key
+ยิง dummy key (z.ai จะตี 401 เร็ว) เทียบ gateway vs direct แยก request-prep ออกจาก stream:
+```bash
+ssh klxhunter@192.168.5.111
+# สร้าง body ใหญ่
+python3 -c 'import json;c="line "*400;open("/tmp/b.json","w").write(json.dumps({"model":"glm-5.2","max_tokens":16,"messages":[{"role":"user","content":c}]*100}))'
+# gateway vs direct (dummy key -> 401 วัดได้ request-prep + connect)
+curl -s -o /dev/null -w "%{time_total}s\n" -d @/tmp/b.json -H "x-api-key: dummy" -H "content-type: application/json" http://localhost:9000/v1/messages
+curl -s -o /dev/null -w "%{time_total}s\n" -d @/tmp/b.json -H "x-api-key: dummy" -H "content-type: application/json" https://api.z.ai/api/anthropic/v1/messages
+```
+- gateway ช้ากว่าตอน body ใหญ่ => request-prep (TextComp) ตรวจ `docker logs arl-gateway | grep "textcomp"`
+- gateway ช้าแค่ตอน 200 stream (วัดด้วย dummy ไม่ติด) => response path (stripper) ดู `STRIP_GLM_TOOL_XML`
+
+### Root causes + fix (2026-06-22)
+| สาเหตุ | ไฟล์ | Fix | Env |
+|--------|------|-----|-----|
+| `toolUseStripper` แช่ SSE stream ตอนเจอ `<tag>` ไม่ปิด | proxy/anthropic.go | gate หลัง flag default off + buffer cap | `STRIP_GLM_TOOL_XML` (default false) |
+| TextComp serial ช้าตอน body ใหญ่ (~2.6s @840KB) | handler/handler.go | worker pool ขนาน + skip body ใหญ่ | `TEXTCOMP_MAX_BODY_BYTES` (default 65536) |
+| z.ai 529 retry บน model เดิม ~9 รอบ | proxy/anthropic.go, middleware/adaptive_limiter.go | สลับ sibling model ใน series | `OVERLOAD_MODEL_FALLBACK` (default true) |
+
+หลังแก้: request ใหญ่ gateway เท่า/เร็วกว่า direct (was +2.6s) ดู [CHANGELOG 2026-06-22](../CHANGELOG.md)
+
 ## Service Not Healthy
 
 ```bash
