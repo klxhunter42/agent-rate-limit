@@ -108,6 +108,13 @@ type Config struct {
 	GLMMode bool
 	// OverloadModelFallback enables silent model switching on 529 overload in GLM mode.
 	OverloadModelFallback bool
+	// StripGLMToolXML buffers and strips XML tool-call blocks that GLM models
+	// sometimes emit as plain text. OFF by default: the buffering withholds
+	// streamed output from the client whenever a '<' that looks like a tag
+	// prefix (<system, <thinking, <action, <details, ...) appears without a
+	// matching close tag, which is common in code/prose and freezes the stream
+	// until a close tag arrives or the stream ends. Enable only if you need it.
+	StripGLMToolXML bool
 
 	// Z.AI OpenAI-compatible endpoint for models that don't support Anthropic format.
 	// Models listed in ZAIOpenAIModels will be routed here instead of the Anthropic endpoint.
@@ -220,6 +227,7 @@ func Load() *Config {
 		// GLM mode.
 		GLMMode:               envBoolOr("GLM_MODE", true),
 		OverloadModelFallback: envBoolOr("OVERLOAD_MODEL_FALLBACK", true),
+		StripGLMToolXML:       envBoolOr("STRIP_GLM_TOOL_XML", false),
 
 		// Z.AI OpenAI-compatible routing for models that don't support Anthropic format.
 		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),

@@ -81,10 +81,22 @@ func hasOpenTag(s string) bool {
 	return false
 }
 
+// stripperMaxBuffer caps how much text the stripper will hold back waiting for a
+// close tag. Past this the '<' is treated as incidental (code/prose) and flushed.
+const stripperMaxBuffer = 8 * 1024
+
 func (s *toolUseStripper) Feed(text string) string {
 	// Fast path: skip regex entirely when no '<' and buffer is empty
 	if s.buf.Len() == 0 && !strings.Contains(text, "<") {
 		return text
+	}
+	// Cap: if we have already buffered a lot without resolving a tag, the '<'
+	// was almost certainly incidental, not a tool block. Flush the held text and
+	// pass this chunk through so the client stream is not frozen indefinitely.
+	if s.buf.Len() >= stripperMaxBuffer {
+		held := s.buf.String()
+		s.buf.Reset()
+		return held + text
 	}
 	s.buf.WriteString(text)
 	content := s.buf.String()
@@ -2392,7 +2404,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	// GLM models emit <details><summary> and XML tool blocks in streaming text.
 	var stripper *toolUseStripper
-	if strings.HasPrefix(model, "glm-") {
+	if strings.HasPrefix(model, "glm-") && p.cfg != nil && p.cfg.StripGLMToolXML {
 		stripper = &toolUseStripper{}
 	}
 
