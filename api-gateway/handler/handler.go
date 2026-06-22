@@ -13,6 +13,7 @@ import (
 	"github.com/h2non/bimg"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -1415,16 +1416,30 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			optOverrides = profileOverride.OptimizerOverrides
 		}
 		if optimizerAllowed(optOverrides, "textcomp", h.optimizers.TextComp) {
+			// Collect text slots first. TextComp.Compress is stateless and
+			// concurrency-safe (package-level regexps, local vars only), so the
+			// per-block work - which dominates large-request prep time - is run in
+			// parallel across a bounded worker pool. The payload map is NOT safe
+			// for concurrent writes, so results are written back sequentially.
+			type tcSlot struct {
+				text  string
+				kind  string
+				opt   string
+				saved int
+				set   func(string)
+			}
+			var slots []tcSlot
+			add := func(t, kind string, set func(string)) {
+				slots = append(slots, tcSlot{text: t, kind: kind, set: set})
+			}
+
 			// System prompt textcomp
 			if sys, ok := payload["system"].([]any); ok {
 				for _, item := range sys {
 					if m, ok := item.(map[string]any); ok {
 						if t, ok := m["text"].(string); ok && len(t) >= 50 {
-							opt, saved := h.optimizers.TextComp.Compress(t)
-							if saved > 0 {
-								m["text"] = opt
-								h.metrics.RecordOptimization("zai_textcomp_sys", saved, "input")
-							}
+							mm := m
+							add(t, "zai_textcomp_sys", func(s string) { mm["text"] = s })
 						}
 					}
 				}
@@ -1436,11 +1451,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 						switch c := mm["content"].(type) {
 						case string:
 							if c != "" {
-								opt, saved := h.optimizers.TextComp.Compress(c)
-								if saved > 0 {
-									mm["content"] = opt
-									h.metrics.RecordOptimization("zai_textcomp_msg", saved, "input")
-								}
+								mmm := mm
+								add(c, "zai_textcomp_msg", func(s string) { mmm["content"] = s })
 							}
 						case []any:
 							for _, block := range c {
@@ -1452,11 +1464,8 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 										continue
 									}
 									if t, ok := bm["text"].(string); ok && t != "" {
-										opt, saved := h.optimizers.TextComp.Compress(t)
-										if saved > 0 {
-											bm["text"] = opt
-											h.metrics.RecordOptimization("zai_textcomp_block", saved, "input")
-										}
+										bmm := bm
+										add(t, "zai_textcomp_block", func(s string) { bmm["text"] = s })
 									}
 								}
 							}
@@ -1464,6 +1473,38 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+
+			if len(slots) > 0 {
+				tc := h.optimizers.TextComp
+				workers := runtime.NumCPU()
+				if workers < 1 {
+					workers = 1
+				}
+				if workers > len(slots) {
+					workers = len(slots)
+				}
+				sem := make(chan struct{}, workers)
+				var wg sync.WaitGroup
+				for i := range slots {
+					wg.Add(1)
+					sem <- struct{}{}
+					go func(i int) {
+						defer wg.Done()
+						defer func() { <-sem }()
+						opt, saved := tc.Compress(slots[i].text)
+						slots[i].opt = opt
+						slots[i].saved = saved
+					}(i)
+				}
+				wg.Wait()
+				for i := range slots {
+					if slots[i].saved > 0 {
+						slots[i].set(slots[i].opt)
+						h.metrics.RecordOptimization(slots[i].kind, slots[i].saved, "input")
+					}
+				}
+			}
+
 			// Re-encode after textcomp
 			body, err = json.Marshal(payload)
 			if err != nil {
