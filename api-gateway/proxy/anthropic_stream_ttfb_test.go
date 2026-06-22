@@ -17,14 +17,17 @@ import (
 // byte is written and how many times Write/Flush fire, so we can tell whether the
 // gateway relays a stream incrementally or buffers it.
 type timingRW struct {
-	h          http.Header
-	status     int
-	buf        bytes.Buffer
-	start      time.Time
-	firstWrite time.Duration
-	wroteFirst bool
-	writeN     int
-	flushN     int
+	h            http.Header
+	status       int
+	buf          bytes.Buffer
+	start        time.Time
+	firstWrite   time.Duration
+	wroteFirst   bool
+	writeN       int
+	flushN       int
+	contentMark  string
+	firstContent time.Duration
+	gotContent   bool
 }
 
 func (t *timingRW) Header() http.Header {
@@ -38,8 +41,13 @@ func (t *timingRW) Write(b []byte) (int, error) {
 		t.firstWrite = time.Since(t.start)
 		t.wroteFirst = true
 	}
+	n, _ := t.buf.Write(b)
 	t.writeN++
-	return t.buf.Write(b)
+	if !t.gotContent && t.contentMark != "" && bytes.Contains(t.buf.Bytes(), []byte(t.contentMark)) {
+		t.firstContent = time.Since(t.start)
+		t.gotContent = true
+	}
+	return n, nil
 }
 func (t *timingRW) WriteHeader(s int) { t.status = s }
 func (t *timingRW) Flush()            { t.flushN++ }
