@@ -1407,6 +1407,31 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		slog.Info("optimizer and privacy skipped", "reason", reason)
 	}
 
+	// zai: strip/cap the "thinking" config. Claude Code sends budget_tokens up to
+	// 50000; glm honors it and burns 20-75s of extended thinking even for trivial
+	// prompts. ZAIThinkingBudget<=0 (default) removes thinking entirely (speed-first);
+	// >0 caps budget_tokens so thinking stays bounded.
+	if isZAIProvider {
+		if h.cfg.ZAIThinkingBudget <= 0 {
+			if _, ok := payload["thinking"]; ok {
+				delete(payload, "thinking")
+				if body, err = json.Marshal(payload); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+					return
+				}
+				slog.Info("zai thinking stripped", "model", selectedModel)
+			}
+		} else if th, ok := payload["thinking"].(map[string]any); ok {
+			if cur, _ := th["budget_tokens"].(float64); int(cur) != h.cfg.ZAIThinkingBudget {
+				th["budget_tokens"] = h.cfg.ZAIThinkingBudget
+				if body, err = json.Marshal(payload); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+					return
+				}
+			}
+		}
+	}
+
 	// TextComp runs even for Z.AI - lossless compression benefits all providers.
 	// Other optimizers are skipped for Z.AI (no prompt caching, adds latency,
 	// ~0% token savings on GLM models), but textcomp is regex-only and lossless.

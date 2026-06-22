@@ -120,6 +120,13 @@ type Config struct {
 	// speed-first basis we skip it for big bodies. 0 = always run; default 64KB.
 	TextCompMaxBodyBytes int
 
+	// ZAIThinkingBudget controls the "thinking" config forwarded to z.ai/glm.
+	// Claude Code sends thinking:{budget_tokens:50000}; glm honors it and burns
+	// 20-75s of extended thinking even for trivial prompts. 0 = strip thinking
+	// entirely (default, speed-first; z.ai has no real extended-thinking benefit);
+	// >0 = cap budget_tokens to that value so thinking stays bounded.
+	ZAIThinkingBudget int
+
 	// Z.AI OpenAI-compatible endpoint for models that don't support Anthropic format.
 	// Models listed in ZAIOpenAIModels will be routed here instead of the Anthropic endpoint.
 	ZAIOpenAIURL    string
@@ -233,6 +240,7 @@ func Load() *Config {
 		OverloadModelFallback: envBoolOr("OVERLOAD_MODEL_FALLBACK", true),
 		StripGLMToolXML:       envBoolOr("STRIP_GLM_TOOL_XML", false),
 		TextCompMaxBodyBytes:  envIntOr("TEXTCOMP_MAX_BODY_BYTES", 64*1024),
+		ZAIThinkingBudget:     envIntOr("ZAI_THINKING_BUDGET", 0),
 
 		// Z.AI OpenAI-compatible routing for models that don't support Anthropic format.
 		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),
