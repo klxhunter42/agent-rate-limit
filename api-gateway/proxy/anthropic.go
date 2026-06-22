@@ -203,6 +203,19 @@ func stripUnsupportedBetas(h *http.Header, model string) {
 // Defined here to avoid import cycles.
 type FeedbackFunc func(statusCode int, rtt time.Duration, headers http.Header)
 
+// ZAIThinkingBudgetCtxKey carries the effective z.ai thinking_budget label
+// (e.g. "0" stripped, "6000" capped) from the handler through the upstream
+// request context into the stream relay for budget A/B metrics.
+type ZAIThinkingBudgetCtxKey struct{}
+
+// ZAIThinkingBudgetFromContext returns the budget label, or "unknown".
+func ZAIThinkingBudgetFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(ZAIThinkingBudgetCtxKey{}).(string); ok {
+		return v
+	}
+	return "unknown"
+}
+
 // Error response format matching Anthropic API.
 
 type ErrorResponse struct {
@@ -2423,9 +2436,11 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 
 	var ttfbRecorded bool
 	var inputTokens, outputTokens int
+	var thinkingChars int
 	var lastRelayBlockIdx = -1
 	blockTypes := map[int]string{}
 	var streamStart = time.Now()
+	zaiBudget := ZAIThinkingBudgetFromContext(resp.Request.Context())
 	for scanner.Scan() {
 		if !ttfbRecorded {
 			p.metrics.RecordTTFB(model, time.Since(streamStart))
@@ -2485,6 +2500,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 					}
 					changed = evt.Delta.Text != before
 				} else if evt.Delta.Thinking != "" {
+					thinkingChars += len(evt.Delta.Thinking)
 					before := evt.Delta.Thinking
 					if unmasker != nil {
 						evt.Delta.Thinking = unmasker.ProcessChunk(evt.Delta.Thinking)
@@ -2654,6 +2670,9 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 			"output", outputTokens,
 		)
 	}
+	// A/B metrics for ZAI_THINKING_BUDGET tuning: stream duration + thinking chars.
+	p.metrics.RecordZAIRequestLatency(model, zaiBudget, time.Since(streamStart))
+	p.metrics.RecordZAIThinking(model, zaiBudget, thinkingChars)
 
 	return nil
 }

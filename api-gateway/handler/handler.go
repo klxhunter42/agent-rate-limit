@@ -1412,6 +1412,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	// prompts. ZAIThinkingBudget<=0 (default) removes thinking entirely (speed-first);
 	// >0 caps budget_tokens so thinking stays bounded.
 	if isZAIProvider {
+		effBudget := "0"
 		if h.cfg.ZAIThinkingBudget <= 0 {
 			if _, ok := payload["thinking"]; ok {
 				delete(payload, "thinking")
@@ -1421,15 +1422,20 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				}
 				slog.Info("zai thinking stripped", "model", selectedModel)
 			}
-		} else if th, ok := payload["thinking"].(map[string]any); ok {
-			if cur, _ := th["budget_tokens"].(float64); int(cur) != h.cfg.ZAIThinkingBudget {
-				th["budget_tokens"] = h.cfg.ZAIThinkingBudget
-				if body, err = json.Marshal(payload); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
-					return
+		} else {
+			effBudget = strconv.Itoa(h.cfg.ZAIThinkingBudget)
+			if th, ok := payload["thinking"].(map[string]any); ok {
+				if cur, _ := th["budget_tokens"].(float64); int(cur) != h.cfg.ZAIThinkingBudget {
+					th["budget_tokens"] = h.cfg.ZAIThinkingBudget
+					if body, err = json.Marshal(payload); err != nil {
+						writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to encode request"})
+						return
+					}
 				}
 			}
 		}
+		// Carry the effective budget into the stream relay for A/B metrics.
+		*r = *r.WithContext(context.WithValue(r.Context(), proxy.ZAIThinkingBudgetCtxKey{}, effBudget))
 	}
 
 	// TextComp runs even for Z.AI - lossless compression benefits all providers.

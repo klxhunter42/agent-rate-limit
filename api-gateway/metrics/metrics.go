@@ -24,20 +24,23 @@ const namespace = "api_gateway"
 
 // Metrics holds all Prometheus instruments for the API gateway.
 type Metrics struct {
-	RequestLatency        *prometheus.HistogramVec
-	QueueDepth            prometheus.GaugeFunc
-	ErrorRate             *prometheus.CounterVec
-	RateLimitHits         *prometheus.CounterVec
-	ActiveConnections     prometheus.Gauge
-	TokenInput            *prometheus.CounterVec
-	TokenOutput           *prometheus.CounterVec
-	UpstreamRetries       prometheus.Counter
-	Upstream429           prometheus.Counter
-	AdaptiveLimit         *prometheus.GaugeVec
-	AdaptiveInFlight      *prometheus.GaugeVec
-	CostTotal             *prometheus.CounterVec
-	ModelFallback         *prometheus.CounterVec
-	TTFB                  *prometheus.HistogramVec
+	RequestLatency    *prometheus.HistogramVec
+	QueueDepth        prometheus.GaugeFunc
+	ErrorRate         *prometheus.CounterVec
+	RateLimitHits     *prometheus.CounterVec
+	ActiveConnections prometheus.Gauge
+	TokenInput        *prometheus.CounterVec
+	TokenOutput       *prometheus.CounterVec
+	UpstreamRetries   prometheus.Counter
+	Upstream429       prometheus.Counter
+	AdaptiveLimit     *prometheus.GaugeVec
+	AdaptiveInFlight  *prometheus.GaugeVec
+	CostTotal         *prometheus.CounterVec
+	ModelFallback     *prometheus.CounterVec
+	TTFB              *prometheus.HistogramVec
+	// ZAIRequestLatency / ZAIThinkingChars split by thinking_budget for A/B tuning.
+	ZAIRequestLatency     *prometheus.HistogramVec
+	ZAIThinkingChars      *prometheus.CounterVec
 	ProfileRequests       *prometheus.CounterVec
 	ProfileTokenIn        *prometheus.CounterVec
 	ProfileTokenOut       *prometheus.CounterVec
@@ -181,6 +184,18 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 			Help:      "Time to first byte for streaming responses.",
 			Buckets:   []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 		}, []string{"model"}),
+
+		ZAIRequestLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "zai_request_latency_seconds",
+			Help:      "z.ai/glm stream duration by model and effective thinking_budget (A/B tuning).",
+			Buckets:   []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		}, []string{"model", "budget"}),
+		ZAIThinkingChars: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "zai_thinking_chars_total",
+			Help:      "Total thinking chars streamed by z.ai/glm, by model and thinking_budget.",
+		}, []string{"model", "budget"}),
 
 		ProfileRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -425,6 +440,8 @@ func New(queueDepthFn func() float64, pricing map[string][2]float64) *Metrics {
 		m.CostTotal,
 		m.ModelFallback,
 		m.TTFB,
+		m.ZAIRequestLatency,
+		m.ZAIThinkingChars,
 		m.ProfileRequests,
 		m.ProfileTokenIn,
 		m.ProfileTokenOut,
@@ -739,6 +756,19 @@ func (m *Metrics) RecordFallback(requested, selected string) {
 // RecordTTFB records time-to-first-byte for a streaming response.
 func (m *Metrics) RecordTTFB(model string, d time.Duration) {
 	m.TTFB.WithLabelValues(model).Observe(d.Seconds())
+}
+
+// RecordZAIRequestLatency records the full z.ai/glm stream duration split by
+// thinking_budget for A/B tuning of ZAI_THINKING_BUDGET.
+func (m *Metrics) RecordZAIRequestLatency(model, budget string, d time.Duration) {
+	m.ZAIRequestLatency.WithLabelValues(model, budget).Observe(d.Seconds())
+}
+
+// RecordZAIThinking records the thinking chars streamed by z.ai/glm.
+func (m *Metrics) RecordZAIThinking(model, budget string, chars int) {
+	if chars > 0 {
+		m.ZAIThinkingChars.WithLabelValues(model, budget).Add(float64(chars))
+	}
 }
 
 // ModelStatusSnapshot holds per-model limiter state for metrics export.

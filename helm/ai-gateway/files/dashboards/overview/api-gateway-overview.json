@@ -2270,6 +2270,104 @@
           ]
         }
       }
+    },
+    {
+      "title": "z.ai p95 latency by thinking_budget",
+      "description": "A/B: stream duration p95 split by ZAI_THINKING_BUDGET (0=strip, N=cap). Lower=better. Compare budget values to pick the fastest.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 156
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, budget) (rate(api_gateway_zai_request_latency_seconds_bucket[$__interval])))",
+          "legendFormat": "{{budget}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "line"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "sort": "sum",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
+    },
+    {
+      "title": "thinking chars/sec by thinking_budget",
+      "description": "How much the model thinks at each budget. If budget=N produces few chars, lower N won't hurt quality.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 156
+      },
+      "targets": [
+        {
+          "expr": "sum by (budget) (rate(api_gateway_zai_thinking_chars_total[$__interval]))",
+          "legendFormat": "{{budget}}",
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "showPoints": "never",
+            "drawStyle": "line"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "sort": "sum",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      }
     }
   ],
   "schemaVersion": 39,
@@ -2287,5 +2385,5 @@
   "refresh": "30s",
   "title": "Gateway - Overview",
   "uid": "ai-gw-overview",
-  "version": 1
+  "version": 2
 }
