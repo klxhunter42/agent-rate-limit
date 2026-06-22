@@ -1562,6 +1562,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	profileOpts.OnAuthError = oauthRefreshFn
 
 	var rotateTriedKeys map[string]bool
+	var rotateTriedModels map[string]bool
 	rotateAccountFn := func(oldKey string) (proxy.FallbackResult, bool) {
 		if rotateTriedKeys == nil {
 			rotateTriedKeys = make(map[string]bool)
@@ -1676,6 +1677,18 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 				ExtraHeaders:  fb.ExtraHeaders,
 				ToolMode:      fb.ToolMode,
 			}, true
+		}
+		// GLM BYOK overload fallback: no account/provider to rotate, so switch to a
+		// sibling GLM model using the SAME client key (one z.ai key serves all models).
+		if h.cfg.GLMMode && h.cfg.OverloadModelFallback && strings.HasPrefix(selectedModel, "glm-") {
+			if rotateTriedModels == nil {
+				rotateTriedModels = map[string]bool{selectedModel: true}
+			}
+			if next := h.modelLimiter.SuggestFallbackModel(selectedModel, rotateTriedModels); next != "" {
+				rotateTriedModels[next] = true
+				slog.Info("529 overload: model fallback (BYOK same key)", "from", selectedModel, "to", next)
+				return proxy.FallbackResult{APIKey: oldKey, ModelOverride: next}, true
+			}
 		}
 		return proxy.FallbackResult{}, false
 	}

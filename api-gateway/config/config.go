@@ -106,6 +106,8 @@ type Config struct {
 	// GLM mode toggle. true = Z.AI features active (vision, key pool, model limits).
 	// false = pure multi-provider proxy for Claude/Gemini/OpenAI.
 	GLMMode bool
+	// OverloadModelFallback enables silent model switching on 529 overload in GLM mode.
+	OverloadModelFallback bool
 
 	// Z.AI OpenAI-compatible endpoint for models that don't support Anthropic format.
 	// Models listed in ZAIOpenAIModels will be routed here instead of the Anthropic endpoint.
@@ -216,7 +218,8 @@ func Load() *Config {
 		AnomalyZThreshold:  envFloatOr("ANOMALY_Z_THRESHOLD", 2.0),
 
 		// GLM mode.
-		GLMMode: envBoolOr("GLM_MODE", true),
+		GLMMode:               envBoolOr("GLM_MODE", true),
+		OverloadModelFallback: envBoolOr("OVERLOAD_MODEL_FALLBACK", true),
 
 		// Z.AI OpenAI-compatible routing for models that don't support Anthropic format.
 		ZAIOpenAIURL:    envOr("ZAI_OPENAI_URL", "https://api.z.ai/api/paas/v4/chat/completions"),

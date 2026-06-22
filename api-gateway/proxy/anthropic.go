@@ -1240,14 +1240,15 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		isLastAttempt := attempt >= maxAttempts-1
 		// Report feedback for adaptive limiter only on final attempt
 		// to prevent hammering the limit down on retries.
-		if feedback != nil && (resp.StatusCode != 429 || isLastAttempt) {
+		if feedback != nil && ((resp.StatusCode != 429 && resp.StatusCode != 529) || isLastAttempt) {
 			feedback(resp.StatusCode, rtt, resp.Header)
 		}
 
-		if resp.StatusCode == 429 {
+		if resp.StatusCode == 429 || resp.StatusCode == 529 {
+			isOverload := resp.StatusCode == 529
 			retryAfterSec := resp.Header.Get("Retry-After")
 			unifiedReset := resp.Header.Get("Anthropic-Ratelimit-Unified-Reset")
-			// Dump ALL response headers for 429 diagnosis.
+			// Dump ALL response headers for diagnosis.
 			allHeaders := make(map[string][]string)
 			for k, v := range resp.Header {
 				allHeaders[k] = v
@@ -1257,83 +1258,115 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			if bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2048)); err == nil {
 				bodySnippet = string(bodyBytes)
 			}
-			slog.Warn("429 rate limit details",
-				"attempt", attempt+1,
-				"model", model,
-				"retry_after", retryAfterSec,
-				"unified_reset", unifiedReset,
-				"unified_5h_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Reset"),
-				"unified_5h_status", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Status"),
-				"unified_5h_util", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Utilization"),
-				"unified_7d_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-7d-Reset"),
-				"all_headers", allHeaders,
-				"body", bodySnippet,
-			)
-			// Parse Retry-After or Unified-Reset Unix timestamp for backoff override.
-			if retryAfterSec != "" {
-				if secs, err := strconv.Atoi(retryAfterSec); err == nil && secs > 0 {
-					retryAfterOverride = time.Duration(secs) * time.Second
-					slog.Warn("429 Retry-After override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
-				}
-			} else if unifiedReset != "" {
-				if resetTs, err := strconv.ParseInt(unifiedReset, 10, 64); err == nil && resetTs > 0 {
-					waitDur := time.Until(time.Unix(resetTs, 0))
-					if waitDur > 0 && waitDur < 5*time.Minute {
-						retryAfterOverride = waitDur
-						slog.Warn("429 Unified-Reset override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+			if isOverload {
+				slog.Warn("529 overload details", "attempt", attempt+1, "model", model, "all_headers", allHeaders, "body", bodySnippet)
+			} else {
+				slog.Warn("429 rate limit details",
+					"attempt", attempt+1,
+					"model", model,
+					"retry_after", retryAfterSec,
+					"unified_reset", unifiedReset,
+					"unified_5h_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Reset"),
+					"unified_5h_status", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Status"),
+					"unified_5h_util", resp.Header.Get("Anthropic-Ratelimit-Unified-5h-Utilization"),
+					"unified_7d_reset", resp.Header.Get("Anthropic-Ratelimit-Unified-7d-Reset"),
+					"all_headers", allHeaders,
+					"body", bodySnippet,
+				)
+				// Parse Retry-After or Unified-Reset Unix timestamp for backoff override.
+				if retryAfterSec != "" {
+					if secs, err := strconv.Atoi(retryAfterSec); err == nil && secs > 0 {
+						retryAfterOverride = time.Duration(secs) * time.Second
+						slog.Warn("429 Retry-After override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+					}
+				} else if unifiedReset != "" {
+					if resetTs, err := strconv.ParseInt(unifiedReset, 10, 64); err == nil && resetTs > 0 {
+						waitDur := time.Until(time.Unix(resetTs, 0))
+						if waitDur > 0 && waitDur < 5*time.Minute {
+							retryAfterOverride = waitDur
+							slog.Warn("429 Unified-Reset override", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+						}
 					}
 				}
-			}
-			// Fallback: use stored rate limit data from Redis when response has no headers.
-			if retryAfterOverride == 0 && opts != nil && opts.GetRateLimitBackoff != nil {
-				if backoff := opts.GetRateLimitBackoff(); backoff > 0 {
-					retryAfterOverride = backoff
-					slog.Warn("429 stored rate limit backoff", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+				// Fallback: use stored rate limit data from Redis when response has no headers.
+				if retryAfterOverride == 0 && opts != nil && opts.GetRateLimitBackoff != nil {
+					if backoff := opts.GetRateLimitBackoff(); backoff > 0 {
+						retryAfterOverride = backoff
+						slog.Warn("429 stored rate limit backoff", "wait", retryAfterOverride, "attempt", attempt+1, "model", model)
+					}
 				}
 			}
 			resp.Body.Close()
-			p.metrics.Inc429()
+			if !isOverload {
+				p.metrics.Inc429()
+			}
 			hasFallback := false
 			if opts != nil && opts.OnRateLimitError != nil {
 				if fb, ok := opts.OnRateLimitError(apiKey); ok {
-					hasFallback = true
-					apiKey = fb.APIKey
-					if strings.HasPrefix(apiKey, "sk-ant-oat01-") {
-						r.Header.Set("Authorization", "Bearer "+apiKey)
-						r.Header.Del("x-api-key")
+					// On 529 overload we only honour a model override (same key, BYOK),
+					// and only before the SSE stream has started: switching model
+					// mid-stream would corrupt the response already sent to the client.
+					if isOverload && (fb.ModelOverride == "" || streamStarted) {
+						hasFallback = false
+					} else {
+						hasFallback = true
+						apiKey = fb.APIKey
+						if strings.HasPrefix(apiKey, "sk-ant-oat01-") {
+							r.Header.Set("Authorization", "Bearer "+apiKey)
+							r.Header.Del("x-api-key")
+						}
+						upstreamChanged := fb.UpstreamURL != ""
+						if upstreamChanged {
+							upstreamURL = fb.UpstreamURL
+							opts.Transparent = false
+						}
+						if fb.AuthMode != "" {
+							opts.AuthMode = fb.AuthMode
+						}
+						if fb.Format != "" && fb.Format != currentFormat {
+							body = convertBody(body, model, fb.Format, fb.ToolMode, p.metrics)
+							currentFormat = fb.Format
+						}
+						if fb.ModelOverride != "" {
+							body = patchModelInBody(body, fb.ModelOverride)
+							model = fb.ModelOverride
+						}
+						if fb.MaxTokens > 0 {
+							body = clampMaxTokensInBody(body, fb.MaxTokens)
+						}
+						if fb.ExtraHeaders != nil {
+							opts.ExtraHeaders = fb.ExtraHeaders
+						}
+						// Retry immediately when upstream changed (account/provider
+						// rotation) or when we switched models to dodge a 529 overload.
+						if upstreamChanged || (isOverload && fb.ModelOverride != "") {
+							skipBackoff = true
+						}
+						slog.Info("rate-limit/overload fallback", "status", resp.StatusCode, "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat, "skip_backoff", skipBackoff)
 					}
-					upstreamChanged := fb.UpstreamURL != ""
-					if upstreamChanged {
-						upstreamURL = fb.UpstreamURL
-						opts.Transparent = false
-					}
-					if fb.AuthMode != "" {
-						opts.AuthMode = fb.AuthMode
-					}
-					if fb.Format != "" && fb.Format != currentFormat {
-						body = convertBody(body, model, fb.Format, fb.ToolMode, p.metrics)
-						currentFormat = fb.Format
-					}
-					if fb.ModelOverride != "" {
-						body = patchModelInBody(body, fb.ModelOverride)
-						model = fb.ModelOverride
-					}
-					if fb.MaxTokens > 0 {
-						body = clampMaxTokensInBody(body, fb.MaxTokens)
-					}
-					if fb.ExtraHeaders != nil {
-						opts.ExtraHeaders = fb.ExtraHeaders
-					}
-					if upstreamChanged {
-						skipBackoff = true
-					}
-					slog.Info("429 fallback", "attempt", attempt+1, "model", model, "new_upstream", fb.UpstreamURL, "fb_format", fb.Format, "fb_model_override", fb.ModelOverride, "fb_max_tokens", fb.MaxTokens, "current_format", currentFormat, "skip_backoff", upstreamChanged)
 				}
 			}
-			// No fallback: pass 429 to client immediately.
-			// Claude CLI has built-in retry (attempt N/10) and handles backoff itself.
-			// Server-side retry causes 502 when client cancels during backoff sleep.
 			if !hasFallback {
+				if isOverload {
+					// No model fallback available (exhausted siblings, or stream
+					// already started): fall back to same-model transient retry
+					// rather than surfacing the overload to the client immediately.
+					if transientAttempts < maxTransient {
+						transientAttempts++
+						p.metrics.IncTransientRetry(529, model)
+						slog.Warn("529 overload, transient retry (no model fallback)", "model", model, "retry", transientAttempts, "max", maxTransient)
+						lastErrBody = nil
+						continue
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.Header().Set("X-Should-Retry", "true")
+					w.WriteHeader(529)
+					w.Write([]byte(bodySnippet))
+					return nil
+				}
+				// No fallback: pass 429 to client immediately.
+				// Claude CLI has built-in retry (attempt N/10) and handles backoff itself.
+				// Server-side retry causes 502 when client cancels during backoff sleep.
 				if retryAfterOverride > 0 {
 					slog.Info("429 passthrough to client", "model", model, "retry_after", retryAfterOverride)
 				} else {

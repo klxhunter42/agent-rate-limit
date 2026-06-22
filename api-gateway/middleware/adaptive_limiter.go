@@ -336,6 +336,53 @@ func (al *AdaptiveLimiter) tryFallbackAllSeries(requestedModel string, model *ad
 	return "", false
 }
 
+// SuggestFallbackModel returns a preferred sibling model for overload fallback.
+// It does NOT acquire a concurrency slot (pure suggestion). Returns "" if no
+// candidate. tried excludes models already attempted in this request so the
+// caller cannot cycle. Models that just returned 529/429 (within 5s) or have no
+// headroom are skipped. Spills from the same series to lower series (>= 4); it
+// never crosses to non-glm models.
+func (al *AdaptiveLimiter) SuggestFallbackModel(currentModel string, tried map[string]bool) string {
+	am, ok := al.models[currentModel]
+	if !ok {
+		return ""
+	}
+	reqSeries := am.series
+	now := time.Now().UnixNano()
+
+	// pick walks fallbackOrder (priority desc) and returns the first healthy
+	// sibling in the given series.
+	pick := func(series int) string {
+		for _, name := range al.fallbackOrder {
+			if name == currentModel || tried[name] {
+				continue
+			}
+			m, ok := al.models[name]
+			if !ok || m.series != series {
+				continue
+			}
+			if last := m.last429Nano.Load(); last > 0 && now-last < int64(5*time.Second) {
+				continue
+			}
+			if m.limit.Load()-m.inFlight.Load() <= 0 {
+				continue
+			}
+			return name
+		}
+		return ""
+	}
+
+	if p := pick(reqSeries); p != "" {
+		return p
+	}
+	for s := reqSeries - 1; s >= 4; s-- {
+		if p := pick(s); p != "" {
+			return p
+		}
+	}
+	return ""
+}
+
 // tryFallback is the legacy same-series fallback (kept for fallback chains without lower series).
 func (al *AdaptiveLimiter) tryFallback(requestedModel string, model *adaptiveModel) (string, bool) {
 	reqSeries := model.series
@@ -518,7 +565,7 @@ func (al *AdaptiveLimiter) Feedback(model string, statusCode int, rtt time.Durat
 	am.totalReqs.Add(1)
 	rttNano := rtt.Nanoseconds()
 
-	if statusCode == 429 || statusCode == 503 {
+	if statusCode == 429 || statusCode == 503 || statusCode == 529 {
 		am.total429s.Add(1)
 		am.last429Nano.Store(time.Now().UnixNano())
 		am.successRun.Store(0)
