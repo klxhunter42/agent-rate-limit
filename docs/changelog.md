@@ -2,6 +2,34 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-06-22b] Perf: ตัด thinking config สำหรับ zai (ลบ 20-75s extended thinking)
+
+### ปัญหา
+หลังแก้ stripper/TextComp แล้ว request ผ่าน gateway ยัง 13-75s ทั้งที่ gateway ทำงานจบใน ~ms สาเหตุ: Claude Code ส่ง `thinking:{budget_tokens:50000}` gateway ส่งต่อไป z.ai เลย glm เลยคิด 20-75s แม้ prompt คำเดียว ("Thought for 20s" จาก "หน้า") ทั้ง glm-5.2/5.1 โดน (ไม่ใช่เฉพาะรุ่น) z.ai เองก็ไม่ได้ประโยชน์จาก extended thinking
+
+### Root cause + fix (diagram)
+```
+ก่อนแก้:
+  Claude Code ─"หน้า"+thinking:50000─> gateway ─[ส่งต่อ thinking]─> z.ai/glm
+                                                                    คิด 20-75s (honors config)
+                                          <-- stream 20-75s ~~~~~~~~~~~~~~
+  gateway ทำ ~ms แต่รอ z.ai คิด 20-75s = ช้า
+
+หลังแก้ (ZAI_THINKING_BUDGET=0 default):
+  Claude Code ─"หน้า"+thinking:50000─> gateway ─[STRIP thinking]─> z.ai/glm
+                                                                    ไม่คิด, generate ตรงๆ
+                                          <-- stream ~1-3s ~~~~~~~~~~~~~~~
+```
+
+### Fix
+- handler/handler.go: block zai-only strip/cap `payload["thinking"]` ก่อนส่ง `ZAI_THINKING_BUDGET<=0` (default) = ลบทิ้ง; `>0` = cap budget
+- config/config.go: `ZAIThinkingBudget` + env `ZAI_THINKING_BUDGET` (default 0)
+- gate `isZAIProvider` → claude-oauth ไม่กระทบ
+
+### ผล
+- prompt ง่าย: 20s → ~1-3s
+- connect/TTFB: gateway 0.14s vs direct 0.32s (gateway reuse connection เร็วกว่า) ส่วน 13-22s บาง request = z.ai generate latency เท่ากัน gateway/direct แก้ฝั่ง gateway ไม่ได้
+
 ## [2026-06-22] Perf/Fix: แก้ gateway ช้ากว่า z.ai ตรง (stripper + TextComp) + 529 fallback
 
 ### ปัญหา

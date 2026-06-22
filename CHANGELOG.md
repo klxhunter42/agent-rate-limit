@@ -2,6 +2,34 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-06-22b] - Strip z.ai Thinking Config (kills 20-75s extended thinking)
+
+### Problem
+After the stripper/TextComp fixes, Claude Code requests through the gateway still took 13-75s while the gateway itself finished its work in ~ms. Root cause: Claude Code sends `thinking:{budget_tokens:50000}`; the gateway forwarded it unchanged to z.ai, and glm honored it - burning 20-75s of extended thinking even for a one-word prompt ("Thought for 20s" on "หน้า"). Both glm-5.2 and glm-5.1 were affected (not model-specific). z.ai itself does not benefit from extended thinking (docs/26: "Z.AI has no extended thinking").
+
+### Root cause diagram
+```
+Claude Code ──"หน้า"──> gateway ──[thinking:budget 50000]──> z.ai/glm-5.2
+                                                            (honors thinking config)
+                                                            generates 20-75s of thinking
+                                  <-- stream thinking + answer ~~~~~~~~~~~ 20-75s total
+gateway stages: resolver -> strip-think?NO -> textcomp -> upstream req  = ~ms (not the cause)
+bottleneck = z.ai generation (model latency), identical gateway vs direct
+```
+
+### Fix
+- handler/handler.go: zai-only block strips/caps `payload["thinking"]` before forwarding. `ZAIThinkingBudget<=0` (default) deletes the field entirely; `>0` caps `budget_tokens`. Logs "zai thinking stripped".
+- config/config.go: `ZAIThinkingBudget` + `ZAI_THINKING_BUDGET` env (default 0).
+- Gated on `isZAIProvider` (provider "zai") - claude-oauth untouched.
+
+### Impact / measurement
+- Trivial prompt: 20s (thinking) -> ~1-3s expected (generation only).
+- Gateway vs direct connect/TTFB: gateway **0.14s vs direct 0.32s** (gateway reuses the TCP connection to z.ai; direct pays TLS handshake each call). The remaining 13-22s on some requests is z.ai/glm generation latency - identical for gateway and direct, not fixable at the gateway.
+
+### Verification
+- Deploy 6bd0b52 on 111; logs confirm "zai thinking stripped" on every glm request.
+- `go test ./handler/ -race` clean.
+
 ## [2026-06-22] - Fix GLM Gateway Slowness vs Direct z.ai (stripper + TextComp), Add 529 Model Fallback
 
 ### Problem
