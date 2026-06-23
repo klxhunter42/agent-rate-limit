@@ -2,6 +2,22 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
+## [2026-06-24] feat(proxy): TLS fingerprint masking สำหรับ Z.AI (utls Chrome)
+
+### ปัญหา
+Z.AI Coding Plan (api.z.ai) ตรวจจับ proxy ผ่าน TLS fingerprint (JA3/JA4) -> error 1313 (429 Fair Usage Policy)
+
+### Fix
+- `api-gateway/proxy/zai_transport.go`: utls Chrome fingerprint สำหรับ api.z.ai connections
+- ALPN forced to http/1.1 เพื่อ bypass Go net/http.Transport `*tls.Conn` type assertion issue
+- เปิดผ่าน `TLS_FINGERPRINT_ENABLED=true` (affects Z.AI hosts only, other upstreams ไม่เปลี่ยน)
+
+### Go stdlib bug workaround
+Go `net/http.Transport.dialConn()` ทำ type assertion `pconn.conn.(*tls.Conn)` เพื่อ detect HTTP/2 ผ่าน tlsState -- สำหรับ utls connections assertion นี้ fail เสมอ เพราะ utls.UConn ไม่ใช่ `*tls.Conn`. แก้ด้วยการ force ALPN http/1.1 ใน Chrome spec เพื่อให้ server ตอบ HTTP/1.1 (Go HTTP/1.x handler ไม่ต้องการ tlsState)
+
+### ดูเพิ่มเติม
+- `docs/35-tls-fingerprint-masking.md` -- architecture, design decisions, testing
+
 ## [2026-06-22b] Perf: ตัด thinking config สำหรับ zai (ลบ 20-75s extended thinking)
 
 ### ปัญหา
