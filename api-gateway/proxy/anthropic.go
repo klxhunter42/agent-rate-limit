@@ -238,6 +238,18 @@ var glmFingerprintHeaders = []string{
 	"x-anthropic-billing-header",
 }
 
+// isFairUseLimited reports whether an upstream error body is a z.ai Fair Use /
+// Error 1313 frequency-limit response (returned as HTTP 429). Such responses
+// must never be retried or model-switched - both deepen the violation.
+func isFairUseLimited(body string) bool {
+	return strings.Contains(body, `"code":"1313"`) ||
+		strings.Contains(body, `"code":1313`) ||
+		strings.Contains(body, "Fair Usage Policy") ||
+		strings.Contains(body, "Fair Use Policy") ||
+		strings.Contains(body, "request frequency has been limited") ||
+		strings.Contains(body, "request rate has been restricted")
+}
+
 // Error response format matching Anthropic API.
 
 type ErrorResponse struct {
@@ -1323,6 +1335,24 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			bodySnippet := ""
 			if bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2048)); err == nil {
 				bodySnippet = string(bodyBytes)
+			}
+			// z.ai Fair Use (code 1313): the account is frequency-limited.
+			// Retrying - or falling back to a sibling glm model with the SAME key
+			// - just deepens the violation (permanent ban after 3 strikes). Do NOT
+			// retry or model-switch; surface to the client with no X-Should-Retry
+			// so Claude Code stops too, and feed back to halve concurrency.
+			if isFairUseLimited(bodySnippet) {
+				resp.Body.Close()
+				p.metrics.IncError("zai_fair_use_1313")
+				if feedback != nil {
+					feedback(429, 0, resp.Header)
+				}
+				slog.Error("zai_fair_use_1313: account frequency-limited, NOT retrying (lift restriction at z.ai Personal Center > My Subscription)",
+					"model", model, "attempt", attempt+1)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(429)
+				_, _ = w.Write([]byte(bodySnippet))
+				return nil
 			}
 			if isOverload {
 				slog.Warn("529 overload details", "attempt", attempt+1, "model", model, "all_headers", allHeaders, "body", bodySnippet)
