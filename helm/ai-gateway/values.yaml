@@ -46,6 +46,7 @@ gateway:
     TRANSIENT_RETRY_MAX: "3"
     CLI_SIDECAR_ENABLED: "true"
     CLI_SIDECAR_URL: "http://127.0.0.1:8081"
+    TLS_FINGERPRINT_ENABLED: "true"
     SIDECAR_PORT: "8081"
     TEXTCOMP_ENABLED: "true"
     TEXTCOMP_MODE: "balanced"
