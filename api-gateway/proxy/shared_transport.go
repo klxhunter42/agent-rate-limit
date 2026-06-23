@@ -168,23 +168,39 @@ func SharedTransport() *http.Transport {
 			ForceAttemptHTTP2:     true,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: mitmProxyURL != nil || upstreamSkipTLS},
 		}
-
-		// Conditionally enable utls TLS fingerprint impersonation for Z.AI hosts.
-		if os.Getenv("TLS_FINGERPRINT_ENABLED") == "true" {
-			skipTLS := mitmProxyURL != nil || upstreamSkipTLS
-			sharedTransport.DialTLSContext = newZAITLSdialer(skipTLS)
-			slog.Info("shared transport: utls TLS fingerprint masking enabled for Z.AI hosts")
-		}
 	})
 	return sharedTransport
 }
 
-// SharedClient returns an http.Client using the shared transport.
+// sharedSelectiveRT is the singleton RoundTripper that routes Z.AI hosts to the
+// azuretls Chrome TLS+HTTP/2 fingerprint transport and others to the stdlib
+// transport. Created once alongside SharedTransport.
+var (
+	sharedSelectiveRT   http.RoundTripper
+	sharedSelectiveOnce sync.Once
+)
+
+func getSharedSelectiveRT() http.RoundTripper {
+	sharedSelectiveOnce.Do(func() {
+		std := http.RoundTripper(SharedTransport())
+		var zai http.RoundTripper
+		if os.Getenv("TLS_FINGERPRINT_ENABLED") == "true" {
+			skipTLS := mitmProxyURL != nil || upstreamSkipTLS
+			rt, _ := newAzureTLSRoundTripper(skipTLS, GetMITMProxyURL())
+			zai = rt
+			slog.Info("shared transport: azuretls Chrome TLS+HTTP/2 fingerprint enabled for Z.AI hosts")
+		}
+		sharedSelectiveRT = &selectiveRoundTripper{std: std, zai: zai}
+	})
+	return sharedSelectiveRT
+}
+
+// SharedClient returns an http.Client using the selective shared transport.
 // timeout=0 means no global timeout (controlled per-request for streaming).
 func SharedClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: SharedTransport(),
+		Transport: getSharedSelectiveRT(),
 	}
 }
 

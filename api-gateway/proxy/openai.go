@@ -102,7 +102,7 @@ func (p *OpenAIProxy) ProxyOpenAI(
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 {
-			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
+			backoff := jitteredBackoff(p.cfg.UpstreamRetryBaseBackoff, attempt, p.cfg.RetryBackoffJitter)
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}

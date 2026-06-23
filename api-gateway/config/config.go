@@ -158,6 +158,13 @@ type Config struct {
 	// for Z.AI connections to avoid detection (JA3/JA4 fingerprinting).
 	TLSFingerprintEnabled bool
 
+	// ZAI request-pattern hardening (anti-detection timing). All applied only
+	// to glm-* dispatches to avoid impacting other upstreams.
+	ZAIRequestJitterMs   int           // random 0..N ms sleep before dispatch
+	ZAIMinRequestSpacing time.Duration // per-key min gap between dispatches
+	ZAIConcurrencyCap    int           // zai-specific semaphore, below GlobalLimit
+	RetryBackoffJitter   bool          // randomize retry backoff 0.5x..1.5x
+
 	// Debug mode: log full payloads, token counts, privacy details.
 	DebugMode bool
 }
@@ -271,6 +278,10 @@ func Load() *Config {
 
 		// TLS fingerprint masking for Z.AI (Coding Plan).
 		TLSFingerprintEnabled: envBoolOr("TLS_FINGERPRINT_ENABLED", false),
+		ZAIRequestJitterMs:    envIntOr("ZAI_REQUEST_JITTER_MS", 150),
+		ZAIMinRequestSpacing:  envDurationOr("ZAI_MIN_REQUEST_SPACING", 800*time.Millisecond),
+		ZAIConcurrencyCap:     envIntOr("ZAI_CONCURRENCY_CAP", 5),
+		RetryBackoffJitter:    envBoolOr("RETRY_BACKOFF_JITTER", true),
 
 		// Debug mode.
 		DebugMode: envBoolOr("DEBUG", false),

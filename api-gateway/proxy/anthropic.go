@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	mathrand "math/rand"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -267,14 +268,20 @@ type AnthropicProxy struct {
 	cfg     *config.Config
 	client  *http.Client
 	metrics *metrics.Metrics
+	zai     *zaiPacer
 }
 
 // NewAnthropicProxy creates a proxy with optimized HTTP client for upstream calls.
 func NewAnthropicProxy(cfg *config.Config, m *metrics.Metrics) *AnthropicProxy {
+	zaiCap := 64 // fallback when config is zero-valued (e.g. unit tests); production uses config.Load() default 5
+	if cfg != nil && cfg.ZAIConcurrencyCap > 0 {
+		zaiCap = cfg.ZAIConcurrencyCap
+	}
 	return &AnthropicProxy{
 		cfg:     cfg,
 		client:  SharedClient(0),
 		metrics: m,
+		zai:     newZaiPacer(zaiCap),
 	}
 }
 
@@ -1155,7 +1162,7 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		if attempt > 0 && !skipBackoff {
-			backoff := p.cfg.UpstreamRetryBaseBackoff * time.Duration(attempt*attempt)
+			backoff := jitteredBackoff(p.cfg.UpstreamRetryBaseBackoff, attempt, p.cfg.RetryBackoffJitter)
 			if retryAfterOverride > 0 {
 				backoff = retryAfterOverride
 				retryAfterOverride = 0
@@ -1303,6 +1310,24 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 			"apikey", truncate(httpReq.Header.Get("x-api-key"), 30))
 
 		start := time.Now()
+		// Z.AI anti-detection pacing: semaphore (concurrency cap) + per-key
+		// spacing + random jitter, so traffic from a single key+IP does not read
+		// as a tight automation loop.
+		if p.cfg != nil && strings.HasPrefix(model, "glm-") {
+			if err := p.zai.Acquire(r.Context()); err != nil {
+				return err
+			}
+			defer p.zai.Release()
+			p.zai.spacer.Wait(r.Context(), apiKey, p.cfg.ZAIMinRequestSpacing)
+			if p.cfg.ZAIRequestJitterMs > 0 {
+				jitter := time.Duration(mathrand.Intn(p.cfg.ZAIRequestJitterMs)) * time.Millisecond
+				select {
+				case <-time.After(jitter):
+				case <-r.Context().Done():
+					return r.Context().Err()
+				}
+			}
+		}
 		resp, err := p.client.Do(httpReq)
 		rtt := time.Since(start)
 		if err != nil {

@@ -154,7 +154,7 @@ func (p *MCPProxy) ProxyMCP(w http.ResponseWriter, r *http.Request, serverName s
 		p.keyPool.Report429(apiKey)
 
 		for attempt := 1; attempt <= p.cfg.MCPMaxRetries; attempt++ {
-			backoff := time.Duration(attempt*attempt) * 500 * time.Millisecond
+			backoff := jitteredBackoff(500*time.Millisecond, attempt, p.cfg.RetryBackoffJitter)
 			if backoff > 5*time.Minute {
 				backoff = 5 * time.Minute
 			}
