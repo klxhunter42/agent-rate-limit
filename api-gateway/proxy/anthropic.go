@@ -216,6 +216,28 @@ func ZAIThinkingBudgetFromContext(ctx context.Context) string {
 	return "unknown"
 }
 
+// glmFingerprintHeaders are real client-identity headers forwarded to z.ai for
+// glm-* models so the request is not classified as an unofficial tool (Error
+// 1313 fair-use). Only headers the client actually sent are forwarded - nothing
+// is fabricated.
+var glmFingerprintHeaders = []string{
+	"User-Agent",
+	"X-Stainless-OS",
+	"X-Stainless-Package-Version",
+	"X-Stainless-Package-Type",
+	"X-Stainless-Runtime",
+	"X-Stainless-Runtime-Version",
+	"X-Stainless-Lang",
+	"X-Stainless-Arch",
+	"X-Stainless-Retry-Count",
+	"X-Stainless-Async",
+	"x-app",
+	"x-client-request-id",
+	"X-Claude-Code-Session-Id",
+	"x-mcp-client-session-id",
+	"x-anthropic-billing-header",
+}
+
 // Error response format matching Anthropic API.
 
 type ErrorResponse struct {
@@ -1235,6 +1257,25 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 				}
 			}
 			stripUnsupportedBetas(&httpReq.Header, model)
+			// GLM models: forward the real client fingerprint (UA, X-Stainless-*,
+			// x-app, session ids, anthropic-beta) so z.ai does not flag the request
+			// as an unofficial tool (Error 1313 fair-use). Only real client headers
+			// are forwarded; non-glm models are unaffected.
+			if strings.HasPrefix(model, "glm-") {
+				for _, h := range glmFingerprintHeaders {
+					if v := r.Header.Values(h); len(v) > 0 {
+						httpReq.Header[h] = v
+					}
+				}
+				if clientBeta := r.Header.Get("anthropic-beta"); clientBeta != "" {
+					if existing := httpReq.Header.Get("anthropic-beta"); existing != "" {
+						httpReq.Header.Set("anthropic-beta", mergeBetas(existing, clientBeta))
+					} else {
+						httpReq.Header.Set("anthropic-beta", clientBeta)
+					}
+					stripUnsupportedBetas(&httpReq.Header, model)
+				}
+			}
 		}
 		httpReq.ContentLength = int64(len(body))
 
