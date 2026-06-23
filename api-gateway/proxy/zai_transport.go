@@ -27,7 +27,32 @@ func isZAIHost(host string) bool {
 	return false
 }
 
-// dialUTLS creates a TLS connection using utls with Chrome fingerprint impersonation.
+// utlsConn wraps a *utls.UConn to expose ConnectionState() as crypto/tls.ConnectionState.
+// Go's http2 transport type-asserts connections to connectionStater interface which requires
+// ConnectionState() crypto/tls.ConnectionState. Without this wrapper, Go cannot detect that
+// ALPN negotiated h2 and falls back to HTTP/1.x parser, which chokes on HTTP/2 binary frames.
+type utlsConn struct {
+	net.Conn
+	uConn *tls_lib.UConn
+}
+
+// ConnectionState returns crypto/tls.ConnectionState mapped from utls's own ConnectionState.
+// Only fields needed by Go's http2 transport and http.Response.TLS are populated.
+func (w *utlsConn) ConnectionState() tls.ConnectionState {
+	us := w.uConn.ConnectionState()
+	return tls.ConnectionState{
+		Version:                    us.Version,
+		HandshakeComplete:          us.HandshakeComplete,
+		CipherSuite:                us.CipherSuite,
+		NegotiatedProtocol:         us.NegotiatedProtocol,
+		NegotiatedProtocolIsMutual: us.NegotiatedProtocolIsMutual,
+		ServerName:                 us.ServerName,
+		PeerCertificates:           us.PeerCertificates,
+	}
+}
+
+// dialUTLS creates a TLS connection using utls with Chrome fingerprint impersonation,
+// wrapped to expose crypto/tls.ConnectionState for Go's HTTP/2 detection.
 func dialUTLS(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
 	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	tcpConn, err := dialer.DialContext(ctx, "tcp", addr)
@@ -46,7 +71,8 @@ func dialUTLS(ctx context.Context, network, addr string, cfg *tls.Config) (net.C
 		return nil, err
 	}
 
-	return uConn, nil
+	slog.Debug("zai-utls: handshake complete", "addr", addr, "alpn", uConn.ConnectionState().NegotiatedProtocol)
+	return &utlsConn{Conn: uConn, uConn: uConn}, nil
 }
 
 // newZAITLSdialer returns a DialTLSContext function that uses utls for Z.AI hosts
