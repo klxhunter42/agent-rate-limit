@@ -168,6 +168,13 @@ func SharedTransport() *http.Transport {
 			ForceAttemptHTTP2:     true,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: mitmProxyURL != nil || upstreamSkipTLS},
 		}
+
+		// Conditionally enable utls TLS fingerprint impersonation for Z.AI hosts.
+		if os.Getenv("TLS_FINGERPRINT_ENABLED") == "true" {
+			skipTLS := mitmProxyURL != nil || upstreamSkipTLS
+			sharedTransport.DialTLSContext = newZAITLSdialer(skipTLS)
+			slog.Info("shared transport: utls TLS fingerprint masking enabled for Z.AI hosts")
+		}
 	})
 	return sharedTransport
 }

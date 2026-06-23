@@ -154,6 +154,10 @@ type Config struct {
 	VisionPreAnalysisThinking  bool
 	VisionPreAnalysisTimeout   time.Duration
 
+	// TLSFingerprintEnabled enables utls-based TLS fingerprint impersonation
+	// for Z.AI connections to avoid detection (JA3/JA4 fingerprinting).
+	TLSFingerprintEnabled bool
+
 	// Debug mode: log full payloads, token counts, privacy details.
 	DebugMode bool
 }
@@ -264,6 +268,9 @@ func Load() *Config {
 		VisionPreAnalysisTopP:      envFloatOr("VISION_PRE_ANALYSIS_TOP_P", 0.6),
 		VisionPreAnalysisThinking:  envBoolOr("VISION_PRE_ANALYSIS_THINKING", true),
 		VisionPreAnalysisTimeout:   envDurationOr("VISION_PRE_ANALYSIS_TIMEOUT", 120*time.Second),
+
+		// TLS fingerprint masking for Z.AI (Coding Plan).
+		TLSFingerprintEnabled: envBoolOr("TLS_FINGERPRINT_ENABLED", false),
 
 		// Debug mode.
 		DebugMode: envBoolOr("DEBUG", false),
