@@ -5,7 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sync"
+	"time"
 
 	azuretls "github.com/Noooste/azuretls-client"
 )
@@ -14,17 +14,27 @@ import (
 // azuretls impersonates Chrome TLS (JA3/JA4) + HTTP/2 (SETTINGS/WINDOW_UPDATE/
 // header-order) fingerprints, replacing the utls http/1.1 path.
 //
-// Session.Do is not safe for concurrent use, so every call is serialized by mu.
+// Session.Do delegates to the HTTP/2 transport's RoundTrip, which multiplexes
+// streams on a single connection (HTTP/2 native concurrency) -- so it is safe
+// for concurrent use WITHOUT an external mutex. The earlier per-call mutex
+// serialized all Z.AI traffic onto one stream and was a throughput killer.
 type azuretlsRT struct {
 	session *azuretls.Session
-	mu      sync.Mutex
 }
 
-func newAzureTLSRoundTripper(skipTLS bool, proxyURL string) (http.RoundTripper, func()) {
+func newAzureTLSRoundTripper(skipTLS bool, proxyURL string, headerTimeout time.Duration) (http.RoundTripper, func()) {
 	session := azuretls.NewSession()
 	session.Browser = azuretls.Chrome
 	session.InsecureSkipVerify = skipTLS
 	session.DisableAutoDecompression = true
+	// azuretls defaults TimeOut=30s, which it wires to BOTH TLSHandshakeTimeout
+	// and ResponseHeaderTimeout. 30s is too short for glm-5.2 thinking + long
+	// Claude Code contexts (header arrives after >30s -> "http2: timeout
+	// awaiting response headers"). Raise to StreamTimeout (default 300s).
+	if headerTimeout <= 0 {
+		headerTimeout = 300 * time.Second
+	}
+	session.SetTimeout(headerTimeout)
 	if proxyURL != "" {
 		if err := session.SetProxy(proxyURL); err != nil {
 			slog.Warn("zai-azuretls: set proxy failed", "error", err, "proxy", proxyURL)
@@ -64,9 +74,7 @@ func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	areq.SetContext(req.Context())
 
-	a.mu.Lock()
 	resp, err := a.session.Do(areq)
-	a.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}

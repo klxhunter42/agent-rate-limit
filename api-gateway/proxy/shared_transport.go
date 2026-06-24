@@ -186,13 +186,22 @@ func getSharedSelectiveRT() http.RoundTripper {
 		var zai http.RoundTripper
 		if os.Getenv("TLS_FINGERPRINT_ENABLED") == "true" {
 			skipTLS := mitmProxyURL != nil || upstreamSkipTLS
-			rt, _ := newAzureTLSRoundTripper(skipTLS, GetMITMProxyURL())
+			rt, _ := newAzureTLSRoundTripper(skipTLS, GetMITMProxyURL(), envDurationOr("STREAM_TIMEOUT", 300*time.Second))
 			zai = rt
 			slog.Info("shared transport: azuretls Chrome TLS+HTTP/2 fingerprint enabled for Z.AI hosts")
 		}
 		sharedSelectiveRT = &selectiveRoundTripper{std: std, zai: zai}
 	})
 	return sharedSelectiveRT
+}
+
+func envDurationOr(name string, def time.Duration) time.Duration {
+	if v := os.Getenv(name); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return def
 }
 
 // SharedClient returns an http.Client using the selective shared transport.
