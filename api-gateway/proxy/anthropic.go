@@ -963,6 +963,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 					}
 					if unmasker != nil {
 						args = unmasker.ProcessChunkJSON(args)
+					} else if strings.Contains(args, "[[") {
+						args = masking.StripLeftoverPlaceholders(args)
 					}
 					if args != "" {
 						if !started {
@@ -1001,6 +1003,8 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		if unmasker != nil {
 			text = unmasker.ProcessChunk(text)
 			text = masking.SanitizeGarbledForModel(model, text)
+		} else if strings.Contains(text, "[[") {
+			text = masking.StripLeftoverPlaceholders(text)
 		}
 		// content_block_delta
 		escaped, _ := json.Marshal(text)
