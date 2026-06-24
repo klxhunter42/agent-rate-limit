@@ -674,6 +674,8 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 					if args, _ := fn["arguments"].(string); args != "" && toolBlockOpen {
 						if unmasker != nil {
 							args = unmasker.ProcessChunkJSON(args)
+						} else if strings.Contains(args, "[[") {
+							args = masking.StripLeftoverPlaceholders(args)
 						}
 						escaped, _ := json.Marshal(args)
 						fmt.Fprintf(w, "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":%s}}\n\n", contentBlockIdx, string(escaped))
@@ -719,6 +721,8 @@ func (p *OpenAIProxy) relayOpenAIStreamChunk(
 
 		if unmasker != nil {
 			text = unmasker.ProcessChunk(text)
+		} else if strings.Contains(text, "[[") {
+			text = masking.StripLeftoverPlaceholders(text)
 		}
 		text = masking.SanitizeGarbledOutput(text)
 		if text == "" {

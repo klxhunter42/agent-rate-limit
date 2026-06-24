@@ -32,8 +32,7 @@ func MaskPII(text string, entities []masking.PIIEntity, ctx *masking.MaskContext
 			return ph
 		}
 		ph := ctx.NextPlaceholderFor(entityType, original)
-		ctx.Mapping[ph] = original
-		ctx.ReverseMap[original] = ph
+		ctx.AddMapping(ph, original)
 		return ph
 	})
 

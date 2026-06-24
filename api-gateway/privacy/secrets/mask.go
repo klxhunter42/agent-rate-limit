@@ -36,8 +36,7 @@ func MaskSecrets(text string, locations []masking.SecretLocation, ctx *masking.M
 			typ = "SECRET"
 		}
 		ph := ctx.NextPlaceholderFor(typ, original)
-		ctx.Mapping[ph] = original
-		ctx.ReverseMap[original] = ph
+		ctx.AddMapping(ph, original)
 		return ph
 	})
 

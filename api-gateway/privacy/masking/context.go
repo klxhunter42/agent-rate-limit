@@ -16,6 +16,7 @@ type MaskContext struct {
 	Mapping    map[string]string // placeholder -> original
 	ReverseMap map[string]string // original -> placeholder (dedup)
 	Counters   map[string]int    // entity type -> sequential counter
+	Order      []string          // placeholder insertion order for undefined-fallback replacement
 }
 
 func NewMaskContext() *MaskContext {
@@ -24,6 +25,14 @@ func NewMaskContext() *MaskContext {
 		ReverseMap: make(map[string]string),
 		Counters:   make(map[string]int),
 	}
+}
+
+// AddMapping stores placeholder->original and records insertion order.
+// Use instead of writing Mapping directly so Order stays consistent.
+func (ctx *MaskContext) AddMapping(placeholder, original string) {
+	ctx.Mapping[placeholder] = original
+	ctx.ReverseMap[original] = placeholder
+	ctx.Order = append(ctx.Order, placeholder)
 }
 
 func GeneratePlaceholder(entityType string, counter int) string {
@@ -144,6 +153,7 @@ func (ctx *MaskContext) MergeExternal(mapping map[string]string) {
 		if _, exists := ctx.Mapping[placeholder]; !exists {
 			ctx.Mapping[placeholder] = original
 			ctx.ReverseMap[original] = placeholder
+			ctx.Order = append(ctx.Order, placeholder)
 			// Update counter to prevent NextPlaceholder collision.
 			// Placeholder format: [[TYPE_N]] -> extract TYPE and N.
 			inner := strings.TrimPrefix(strings.TrimSuffix(placeholder, "]]"), "[[")

@@ -378,29 +378,36 @@ func bufferPartialUndefined(text string) (safe, buffer string) {
 // placeholder counter (numeric) for correct substitution order matching the
 // original masking sequence.
 func (u *StreamUnmasker) collectFallbackOriginals() []string {
-	type entry struct {
-		placeholder string
-		original    string
+	var result []string
+	// PII first (outer masking layer): host/IP appear before passwords in connection strings.
+	result = AppendOrderedOriginals(result, u.piiCtx)
+	// Secrets second (inner masking layer): passwords/API keys appear after host.
+	result = AppendOrderedOriginals(result, u.secretsCtx)
+	return result
+}
+
+// AppendOrderedOriginals appends originals from ctx in insertion order when available,
+// falling back to alphabetical sort for contexts populated without AddMapping.
+func AppendOrderedOriginals(result []string, ctx *MaskContext) []string {
+	if ctx == nil {
+		return result
 	}
-	var entries []entry
-	if u.secretsCtx != nil {
-		for p, orig := range u.secretsCtx.Mapping {
-			entries = append(entries, entry{p, orig})
+	if len(ctx.Order) > 0 {
+		for _, ph := range ctx.Order {
+			if orig, ok := ctx.Mapping[ph]; ok {
+				result = append(result, orig)
+			}
 		}
+		return result
 	}
-	if u.piiCtx != nil {
-		for p, orig := range u.piiCtx.Mapping {
-			entries = append(entries, entry{p, orig})
-		}
+	// Fallback: Order not populated (e.g. tests or legacy paths); use sorted placeholder names.
+	phs := make([]string, 0, len(ctx.Mapping))
+	for p := range ctx.Mapping {
+		phs = append(phs, p)
 	}
-	// Sort by placeholder name (e.g. [[EMAIL_ADDRESS_1]] before [[IP_ADDRESS_2]])
-	// This gives deterministic ordering matching the masking sequence.
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].placeholder < entries[j].placeholder
-	})
-	result := make([]string, len(entries))
-	for i, e := range entries {
-		result[i] = e.original
+	sort.Strings(phs)
+	for _, p := range phs {
+		result = append(result, ctx.Mapping[p])
 	}
 	return result
 }

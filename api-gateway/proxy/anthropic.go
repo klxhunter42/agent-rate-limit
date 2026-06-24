@@ -2653,6 +2653,12 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 				unmaskHits++
 				line = "data: " + unmasked
 			}
+		} else if unmasker == nil && strings.Contains(data, "[[") {
+			// No active masking context but placeholders leaked from prior conversation.
+			stripped := masking.StripLeftoverPlaceholders(data)
+			if stripped != data {
+				line = "data: " + stripped
+			}
 		}
 
 		// Flush unmasker buffer at content block boundaries to prevent

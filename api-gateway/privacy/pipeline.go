@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -380,46 +379,28 @@ func mapLen(ctx *masking.MaskContext) int {
 // Only called when masking was active (HasSecrets || HasPII) and response contains "undefined".
 // Uses the same budget-based approach as StreamUnmasker.replaceUndefinedFallback.
 func replaceUndefinedNonStream(text string, result *MaskResult) string {
-	// Collect originals sorted by placeholder name for deterministic order.
-	type entry struct {
-		placeholder string
-		original    string
-	}
-	var entries []entry
-	if result.HasSecrets && result.SecretsCtx != nil {
-		for p, orig := range result.SecretsCtx.Mapping {
-			entries = append(entries, entry{p, orig})
-		}
-	}
-	if result.HasPII && result.PIICtx != nil {
-		for p, orig := range result.PIICtx.Mapping {
-			entries = append(entries, entry{p, orig})
-		}
-	}
-	if len(entries) == 0 {
+	// Collect originals in masking order using insertion Order slice when available.
+	// PII first (outer layer, e.g. host/IP), then Secrets (inner layer, e.g. passwords).
+	originals := collectNonStreamOriginals(result)
+	if len(originals) == 0 {
 		return text
 	}
 
-	// Sort by placeholder name for deterministic ordering.
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].placeholder < entries[j].placeholder
-	})
-
 	// Phase 1: Replace "undefined" with originals (budget-limited).
-	for i := range entries {
+	for i := range originals {
 		if !strings.Contains(text, "undefined") {
 			break
 		}
-		text = strings.Replace(text, "undefined", entries[i].original, 1)
+		text = strings.Replace(text, "undefined", originals[i], 1)
 	}
 
 	// Phase 2: Dedup adjacent "undefined" next to restored originals.
-	for _, e := range entries {
-		for strings.Contains(text, e.original+" undefined") {
-			text = strings.Replace(text, e.original+" undefined", e.original, 1)
+	for _, orig := range originals {
+		for strings.Contains(text, orig+" undefined") {
+			text = strings.Replace(text, orig+" undefined", orig, 1)
 		}
-		for strings.Contains(text, "undefined "+e.original) {
-			text = strings.Replace(text, "undefined "+e.original, e.original, 1)
+		for strings.Contains(text, "undefined "+orig) {
+			text = strings.Replace(text, "undefined "+orig, orig, 1)
 		}
 	}
 
@@ -437,6 +418,19 @@ func replaceUndefinedNonStream(text string, result *MaskResult) string {
 	}
 
 	return text
+}
+
+// collectNonStreamOriginals returns original values in masking order.
+// Uses insertion Order when available; falls back to alphabetical sort for legacy paths.
+func collectNonStreamOriginals(result *MaskResult) []string {
+	var originals []string
+	if result.HasPII && result.PIICtx != nil {
+		originals = masking.AppendOrderedOriginals(originals, result.PIICtx)
+	}
+	if result.HasSecrets && result.SecretsCtx != nil {
+		originals = masking.AppendOrderedOriginals(originals, result.SecretsCtx)
+	}
+	return originals
 }
 
 func applyMaskedToPayload(payload map[string]any, span masking.TextSpan, maskedText string) {
