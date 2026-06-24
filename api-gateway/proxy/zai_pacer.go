@@ -30,9 +30,19 @@ func (s *zaiSpacer) Wait(ctx context.Context, key string, gap time.Duration) {
 		return
 	}
 	s.mu.Lock()
-	remaining := gap - time.Since(s.last[key])
-	s.last[key] = time.Now()
+	// Project this waiter's dispatch time as last[key]+gap, clamped to now.
+	// Storing the projected (not actual) time makes concurrent same-key waiters
+	// queue behind each other: waiter N+1 sees last = waiter N's projected slot
+	// and computes its own slot one gap further out. Storing bare now would let
+	// them all compute the same small remainder and wake together.
+	now := time.Now()
+	dispatchAt := s.last[key].Add(gap)
+	if !dispatchAt.After(now) {
+		dispatchAt = now
+	}
+	s.last[key] = dispatchAt
 	s.mu.Unlock()
+	remaining := time.Until(dispatchAt)
 	if remaining <= 0 {
 		return
 	}
