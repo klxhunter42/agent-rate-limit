@@ -19,12 +19,10 @@ RUN sed -i 's|https://dl-cdn.alpinelinux.org|http://dl-cdn.alpinelinux.org|g' /e
 
 WORKDIR /build
 
-COPY api-gateway/go.mod api-gateway/go.sum ./
-RUN GIT_SSL_NO_VERIFY=1 GOPROXY=direct GONOSUMDB=* GONOSUMCHECK=* GOINSECURE=* go mod download
-
 COPY api-gateway/ .
 COPY --from=ui-builder /build/api-gateway/static ./static/
 RUN CGO_ENABLED=1 go build \
+ -mod=vendor \
  -trimpath \
  -ldflags="-s -w -X main.version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)" \
  -o /bin/api-gateway .
