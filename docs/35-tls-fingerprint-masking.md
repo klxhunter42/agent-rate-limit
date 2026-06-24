@@ -1,4 +1,4 @@
-# TLS Fingerprint Masking for Z.AI (Coding Plan)
+# TLS + HTTP/2 Fingerprint Masking for Z.AI
 
 ## Problem
 
@@ -6,22 +6,25 @@ Z.AI Coding Plan (api.z.ai) ToS Section 4.2 forbids proxy/third-party access. Er
 
 | Vector | Status | Mitigation |
 |---|---|---|
-| TLS fingerprint (JA3/JA4) | **Fixed** | utls Chrome impersonation |
-| HTTP/2 fingerprint | **Fixed** (side effect) | ALPN forced to http/1.1 |
-| HTTP headers | Already handled | `glmFingerprintHeaders` |
+| TLS fingerprint (JA3/JA4) | **Fixed** | azuretls Chrome impersonation |
+| HTTP/2 fingerprint (SETTINGS/WINDOW/header-order) | **Fixed** | azuretls Chrome impersonation |
+| HTTP headers | Already handled | `glmFingerprintHeaders` forwarding |
 | Proxy-leak headers | Already handled | Transparent passthrough |
-| Source IP | Out of scope | Requires residential IP tunnel |
+| Request pattern (timing/concurrency) | **Mitigated** | jitter + spacing + cap (see below) |
+| Source IP (datacenter) | Out of scope | Requires residential exit (infra change) |
 
 ## Architecture
 
 ```
-Client -> Gateway (Go) -> upstream api.z.ai
+Client -> Gateway (Go) -> SharedClient
                           |
-                          +- standard Go TLS (non-Z.AI hosts)
-                          +- utls Chrome fingerprint (Z.AI hosts only)
+                          +- selectiveRoundTripper
+                               |- isZAIHost(host)?
+                               |    YES -> azuretlsRT (Chrome TLS + HTTP/2)
+                               |    NO  -> stdlib net/http.Transport
 ```
 
-Only `api.z.ai` connections use utls. All other upstreams use standard Go TLS unchanged.
+Only `api.z.ai` connections use azuretls. All other upstreams use standard Go TLS unchanged. Routing happens at the `http.Client` layer (selective RoundTripper), not the transport dialer.
 
 ## Implementation
 
@@ -29,88 +32,75 @@ Only `api.z.ai` connections use utls. All other upstreams use standard Go TLS un
 
 | File | Role |
 |---|---|
-| `api-gateway/proxy/zai_transport.go` | utls dial logic, host routing, Chrome spec |
-| `api-gateway/proxy/shared_transport.go` | Conditionally sets DialTLSContext |
-| `api-gateway/config/config.go` | `TLS_FINGERPRINT_ENABLED` env var |
+| `api-gateway/proxy/azuretls_transport.go` | `azuretlsRT` adapter (Session.Do -> RoundTripper) + `selectiveRoundTripper` |
+| `api-gateway/proxy/zai_transport.go` | `isZAIHost()` host matcher only (utls dial path removed) |
+| `api-gateway/proxy/shared_transport.go` | `SharedClient` wraps transport in `selectiveRoundTripper` |
+| `api-gateway/proxy/zai_pacer.go` | zai concurrency semaphore + per-key spacing |
+| `api-gateway/proxy/retry.go` | `jitteredBackoff` (0.5x-1.5x randomized) |
+| `api-gateway/config/config.go` | env vars for pacing + fingerprint toggle |
 
-### Key Design Decision: ALPN http/1.1
+### azuretls integration
 
-Go's `net/http.Transport.dialConn()` does a hard type assertion `pconn.conn.(*tls.Conn)` (transport.go:1795) to detect HTTP/2 via `tlsState.NegotiatedProtocol`. This assertion **always fails** for utls connections because `utls.UConn` is not `*tls.Conn` -- it's a separate type from `github.com/refraction-networking/utls`.
+`github.com/Noooste/azuretls-client` v1.13.2. One `Session` with `Browser = azuretls.Chrome` provides:
+- Chrome TLS ClientHello (JA3/JA4)
+- Chrome HTTP/2 SETTINGS/WINDOW_UPDATE/priority + header-order (Akamai fingerprint)
 
-Initial fix: `utlsConn` wrapper implementing `connectionStater` interface. **Insufficient** -- the `*tls.Conn` assertion happens BEFORE any interface check.
-
-Final fix: Override the Chrome preset's ALPN extension to advertise only `http/1.1` (not `h2`). The server responds with HTTP/1.1 text frames, which Go handles without needing `tlsState`. HTTP/2 multiplexing is lost but SSE streams are single-request, so zero practical impact.
-
+Verified against `tls.peet.ws/api/all`:
 ```
-utls handshake flow:
-  1. UTLSIdToSpec(HelloChrome_Auto) -> get full Chrome spec
-  2. Replace ALPNExtension: [h2, http/1.1] -> [http/1.1]
-  3. UClient(tcpConn, config, HelloCustom) -> create utls conn
-  4. ApplyPreset(&spec) -> apply modified Chrome spec
-  5. HandshakeContext(ctx) -> TLS handshake with Chrome fingerprint + http/1.1 ALPN
-  6. Server responds HTTP/1.1 -> Go HTTP/1.x handler (no tlsState needed)
+JA4:                 t13d1516h2_8daaf6152771_d8a2da3f94cd   (t13=TLS1.3, h2=HTTP/2)
+HTTP/2 akamai_hash:  52d84b11737d980aef856699f885ca86       (Chrome signature)
 ```
 
-### utls Chrome Fingerprint
+`azuretlsRT.RoundTrip`:
+1. Reads `req.Body` to bytes (anthropic.go rebuilds a fresh httpReq per retry, so consuming is safe).
+2. Builds `azuretls.OrderedHeaders` from `req.Header` (preserves header-order fingerprint).
+3. `Request.IgnoreBody = true` -> streams via `Response.RawBody` (live `io.ReadCloser`) instead of eager `[]byte` read. Critical for SSE.
+4. `session.Do(areq)` -> maps to `*http.Response` (fhttp.Header copied field-by-field to stdlib http.Header, distinct named types).
 
-`HelloChrome_Auto` resolves to the latest Chrome TLS ClientHello at runtime:
-- TLS 1.2 + 1.3
-- Cipher suites: Chrome's standard set (AES-GCM, ChaCha20-Poly1305)
-- Extensions: supported_versions, signature_algorithms, key_share, psk_key_exchange_modes, etc.
-- Curves: x25519, P-256, P-384
+### Concurrency
 
-This makes the gateway's TLS fingerprint indistinguishable from a real Chrome browser to JA3/JA4 analysis.
+`Session.Do` delegates to the HTTP/2 transport's `RoundTrip`, which multiplexes streams on a single connection (HTTP/2 native concurrency). It is **safe for concurrent use without an external mutex**. An earlier per-call `mu sync.Mutex` serialized all Z.AI traffic onto one stream (throughput killer) and was removed. Verified with `go test -race`.
+
+### Timeout (critical fix)
+
+azuretls defaults `Session.TimeOut = 30s`, wired to BOTH `TLSHandshakeTimeout` and `ResponseHeaderTimeout`. 30s is too short for glm-5.2 thinking + long Claude Code contexts -> `502 "http2: timeout awaiting response headers"`. Fixed by `session.SetTimeout(STREAM_TIMEOUT, default 300s)` so `ResponseHeaderTimeout` matches the gateway's `StreamTimeout`.
+
+## Request-pattern hardening (glm-* only)
+
+All applied only when `strings.HasPrefix(model, "glm-")`, so non-zai upstreams are unaffected.
+
+| Control | Env | Default | Where |
+|---|---|---|---|
+| pre-dispatch jitter | `ZAI_REQUEST_JITTER_MS` | 150 | anthropic.go before `client.Do` |
+| per-key spacing | `ZAI_MIN_REQUEST_SPACING` | 800ms | zai_pacer.go (map keyed by api-key) |
+| zai concurrency cap | `ZAI_CONCURRENCY_CAP` | 5 | zai_pacer.go channel semaphore |
+| retry backoff jitter | `RETRY_BACKOFF_JITTER` | true | retry.go, all 4 proxy retry loops |
+
+Per-key spacing: multiple API keys parallelize (each key has its own last-dispatch timestamp); a single key is paced. With 1 key today it equals a global pace but scales when more keys are added.
 
 ## Configuration
 
-| Env Var | Default | Description |
-|---|---|---|
-| `TLS_FINGERPRINT_ENABLED` | `false` | Enable utls for Z.AI hosts |
+Defaults in BOTH `docker-compose.yml` (arl-gateway env) and `helm/ai-gateway/values.yaml` (gateway.env):
 
-### docker-compose (.env)
+| Env Var | Default |
+|---|---|
+| `TLS_FINGERPRINT_ENABLED` | `true` |
+| `ZAI_REQUEST_JITTER_MS` | `150` |
+| `ZAI_MIN_REQUEST_SPACING` | `800ms` |
+| `ZAI_CONCURRENCY_CAP` | `5` |
+| `RETRY_BACKOFF_JITTER` | `true` |
 
-```
-TLS_FINGERPRINT_ENABLED=true
-```
+Model/global/RPM limits (`UPSTREAM_MODEL_LIMITS`, `UPSTREAM_GLOBAL_LIMIT=9`, `UPSTREAM_RPM_LIMIT=40`) are UNCHANGED from prior defaults.
 
-### Helm (values.yaml)
+## Rollback
 
-Already set to `"true"` in `gateway.env`.
+`TLS_FINGERPRINT_ENABLED=false` -> selectiveRoundTripper.zai=nil -> pure stdlib path. Pacing controls set to 0/false to disable individually.
 
-## Testing
+## Gotcha: vendor + .gitignore
 
-### Direct utls handshake test
-
-```bash
-cd api-gateway && go run test_utls_zai.go
-```
-
-Expected output:
-```
-TLS handshake OK
-  Version: 0x304          # TLS 1.3
-  CipherSuite: 0x1302     # TLS_AES_256_GCM_SHA384
-  ALPN: "http/1.1"       # Forced, not h2
-  ServerName: api.z.ai
-SUCCESS: ALPN correctly negotiated as http/1.1
-Response:
-HTTP/1.1 404 Not Found    # Expected - /health doesn't exist
-```
-
-### Gateway integration test
-
-1. Enable `TLS_FINGERPRINT_ENABLED=true`
-2. Send glm-* request through gateway
-3. Check logs for `shared transport: utls TLS fingerprint masking enabled for Z.AI hosts`
-4. With `DEBUG=true`, look for `zai-utls: using Chrome fingerprint` and `zai-utls: handshake complete`
-
-## Known Limitations
-
-- **No HTTP/2 multiplexing**: ALPN is forced to http/1.1. SSE streams are inherently sequential so this has no practical impact on single-stream proxy use.
-- **Source IP unchanged**: Datacenter IPs are still detectable. Requires residential IP tunnel (cloudflared/wireguard) -- infrastructure change, out of scope.
-- **HTTP/2 SETTINGS fingerprint**: Go's HTTP/2 frame settings are not customized. Not relevant since we negotiate HTTP/1.1.
-- **Chrome fingerprint only**: Uses `HelloChrome_Auto`. If Z.AI starts fingerprinting at finer granularity (e.g., specific Chrome version), the preset may need updating.
+`.gitignore` blocks `api-gateway/vendor/`. New vendor files (azuretls + transitive deps) are NOT picked up by `git add -A` and must be force-added (`git add -f api-gateway/vendor/`) or the server-111 Docker build fails with `cannot find module ... import lookup disabled by -mod=vendor`. Same issue hit previously with utls/x-crypto vendor commits.
 
 ## Deploy History
 
-- [2026-06-24] Initial implementation + ALPN http/1.1 fix. Deployed to server 111.
+- [2026-06-24] azuretls Chrome TLS+HTTP/2 replaces utls http/1.1 path. Verified Chrome fingerprint via tls.peet.ws.
+- [2026-06-24] Fixed 502 http2 timeout (ResponseHeaderTimeout 30s -> 300s) + removed serializing mutex. Verified glm-5.2 200 OK.

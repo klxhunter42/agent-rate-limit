@@ -2,7 +2,32 @@
 
 > สรุปการเปลี่ยนแปลงทั้งหมดของระบบ
 
-## [2026-06-24] feat(proxy): TLS fingerprint masking สำหรับ Z.AI (utls Chrome)
+## [2026-06-24c] fix(proxy): แก้ 502 "http2: timeout awaiting response headers" glm-5.2
+
+### ปัญหา
+หลัง deploy azuretls, glm-5.2 (Claude Code context ยาว + beta headers) timeout 30s -> 502
+
+### Root cause (2 ตัว)
+1. azuretls default `Session.TimeOut=30s` = ทั้ง TLSHandshakeTimeout และ ResponseHeaderTimeout. glm-5.2 thinking/context ยาว header มาช้ากว่า 30s
+2. azuretlsRT หุ้ม `Session.Do` ด้วย per-call mutex -> serialize ทุก Z.AI request เป็น stream เดียว (ฆ่า HTTP/2 multiplexing)
+
+### Fix
+- `session.SetTimeout(STREAM_TIMEOUT, default 300s)` ให้ ResponseHeaderTimeout เท่า StreamTimeout
+- ลบ mutex: `Session.Do` ไปถึง HTTP/2 transport RoundTrip ซึ่ง concurrency-safe (HTTP/2 native multiplexing) ตามนิยาม; verify ด้วย `-race`
+- glm-5.2 กลับมา 200 OK 2.5s, 0 รอบ 502 หลัง redeploy
+
+## [2026-06-24b] feat(proxy): azuretls Chrome HTTP/2 + request-pattern hardening
+
+### เปลี่ยน
+- ทิ้ง utls http/1.1 path -> azuretls-client (Chrome TLS JA3/JA4 + HTTP/2 SETTINGS/WINDOW/header-order)
+- verify ผ่าน tls.peet.ws: JA4 `t13d1516h2_...`, akamai_hash `52d84b11...` = Chrome จริง (รวม `h2` = ใช้ HTTP/2 จริง ไม่ใช่ http/1.1 อีก)
+- request-pattern hardening (glm-* เท่านั้น): jitter 150ms + per-key spacing 800ms + concurrency cap 5 + retry backoff jitter 0.5-1.5x
+- selectiveRoundTripper route Z.AI -> azuretls, อื่น -> stdlib
+
+### ดูเพิ่ม
+- `docs/35-tls-fingerprint-masking.md`
+
+## [2026-06-24a] feat(proxy): TLS fingerprint masking สำหรับ Z.AI (utls Chrome)
 
 ### ปัญหา
 Z.AI Coding Plan (api.z.ai) ตรวจจับ proxy ผ่าน TLS fingerprint (JA3/JA4) -> error 1313 (429 Fair Usage Policy)
