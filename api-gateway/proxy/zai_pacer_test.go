@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 )
 
 // TestZaiSpacerSpacesConcurrentSameKey proves that concurrent waiters sharing one
@@ -69,5 +71,32 @@ func TestZaiSpacerParallelizesAcrossKeys(t *testing.T) {
 
 	if dA > gap/2 && dB > gap/2 {
 		t.Fatalf("distinct keys serialized: dA=%s dB=%s (expected both < %s)", dA, dB, gap/2)
+	}
+}
+
+// TestNewAnthropicProxyDispatchModeResolvesCap proves ZAI_DISPATCH_MODE is the
+// single toggle: "sequential" forces the dispatch semaphore to 1 (no concurrent
+// glm-* burst -> no Z.AI 1313), anything else ("parallel") honors ZAIConcurrencyCap.
+func TestNewAnthropicProxyDispatchModeResolvesCap(t *testing.T) {
+	cases := []struct {
+		mode    string
+		cfgCap  int
+		wantCap int
+	}{
+		{"sequential", 5, 1},
+		{"SEQUENTIAL", 5, 1}, // case-insensitive
+		{"seq", 5, 1},        // alias-ish -> still safe (not "parallel")
+		{"", 5, 1},           // unset -> safe sequential
+		{"para", 5, 1},       // typo -> safe sequential (fail-safe)
+		{"parallel", 5, 5},
+		{"Parallel", 3, 3}, // case-insensitive parallel honors cap
+	}
+	for _, c := range cases {
+		cfg := &config.Config{ZAIConcurrencyCap: c.cfgCap, ZaiDispatchMode: c.mode}
+		p := NewAnthropicProxy(cfg, nil)
+		got := cap(p.zai.sem)
+		if got != c.wantCap {
+			t.Errorf("mode=%q cfgCap=%d: sem cap=%d want %d", c.mode, c.cfgCap, got, c.wantCap)
+		}
 	}
 }

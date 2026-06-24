@@ -172,7 +172,8 @@ type Config struct {
 	// to glm-* dispatches to avoid impacting other upstreams.
 	ZAIRequestJitterMs   int           // random 0..N ms sleep before dispatch
 	ZAIMinRequestSpacing time.Duration // per-key min gap between dispatches
-	ZAIConcurrencyCap    int           // zai-specific semaphore, below GlobalLimit
+	ZAIConcurrencyCap    int           // zai-specific semaphore (parallel-mode concurrency)
+	ZaiDispatchMode      string        // "sequential" (cap=1, no 1313 burst) or "parallel" (cap=ZAIConcurrencyCap)
 	RetryBackoffJitter   bool          // randomize retry backoff 0.5x..1.5x
 
 	// Debug mode: log full payloads, token counts, privacy details.
@@ -296,7 +297,8 @@ func Load() *Config {
 		TLSFingerprintEnabled: envBoolOr("TLS_FINGERPRINT_ENABLED", false),
 		ZAIRequestJitterMs:    envIntOr("ZAI_REQUEST_JITTER_MS", 150),
 		ZAIMinRequestSpacing:  envDurationOr("ZAI_MIN_REQUEST_SPACING", 800*time.Millisecond),
-		ZAIConcurrencyCap:     envIntOr("ZAI_CONCURRENCY_CAP", 1),
+		ZAIConcurrencyCap:     envIntOr("ZAI_CONCURRENCY_CAP", 5),
+		ZaiDispatchMode:       envOr("ZAI_DISPATCH_MODE", "sequential"),
 		RetryBackoffJitter:    envBoolOr("RETRY_BACKOFF_JITTER", true),
 
 		// Debug mode.

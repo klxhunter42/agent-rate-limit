@@ -273,9 +273,16 @@ type AnthropicProxy struct {
 
 // NewAnthropicProxy creates a proxy with optimized HTTP client for upstream calls.
 func NewAnthropicProxy(cfg *config.Config, m *metrics.Metrics) *AnthropicProxy {
-	zaiCap := 64 // fallback when config is zero-valued (e.g. unit tests); production uses config.Load() default 5
+	zaiCap := 64 // fallback when config is zero-valued (e.g. unit tests)
 	if cfg != nil && cfg.ZAIConcurrencyCap > 0 {
 		zaiCap = cfg.ZAIConcurrencyCap
+	}
+	// ZAI_DISPATCH_MODE=parallel opts into concurrent dispatch (ZAIConcurrencyCap),
+	// which is faster but risks Z.AI 1313 fair-use bursts. Anything else (default,
+	// "sequential", or an unrecognized/typo value) stays fail-safe at cap=1 so no
+	// concurrent burst can form.
+	if cfg == nil || !strings.EqualFold(cfg.ZaiDispatchMode, "parallel") {
+		zaiCap = 1
 	}
 	return &AnthropicProxy{
 		cfg:     cfg,
