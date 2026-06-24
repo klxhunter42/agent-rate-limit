@@ -241,6 +241,12 @@ func (u *StreamUnmasker) replaceUndefinedFallback(text string, jsonSafe bool) st
 		u.fallbackOriginals = u.collectFallbackOriginals()
 	}
 
+	// Pre-Phase: remove "undefined" already adjacent to leaked original values (no-space or spaced),
+	// and strip "undefined" embedded within word chars (e.g. "PGundefinedUSER" -> "PGUSER").
+	// Must run before Phase 1 so these don't consume budget slots incorrectly.
+	text = u.dedupAdjacentUndefined(text, jsonSafe)
+	text = StripEmbeddedUndefined(text)
+
 	// Phase 1: Replace "undefined" with originals (budget-limited by available originals).
 	for u.fallbackConsumedIdx < len(u.fallbackOriginals) {
 		if !strings.Contains(text, "undefined") {
@@ -280,15 +286,18 @@ func (u *StreamUnmasker) dedupAdjacentUndefined(text string, jsonSafe bool) stri
 		if jsonSafe {
 			orig = jsonEscape(orig)
 		}
-		// Match "<original> undefined" with a space separator
-		pattern := orig + " undefined"
-		for strings.Contains(text, pattern) {
-			text = strings.Replace(text, pattern, orig, 1)
+		for strings.Contains(text, orig+" undefined") {
+			text = strings.Replace(text, orig+" undefined", orig, 1)
 		}
-		// Match "undefined <original>" with a space separator
-		pattern = "undefined " + orig
-		for strings.Contains(text, pattern) {
-			text = strings.Replace(text, pattern, orig, 1)
+		for strings.Contains(text, "undefined "+orig) {
+			text = strings.Replace(text, "undefined "+orig, orig, 1)
+		}
+		// No-space variants: GLM can concatenate directly (e.g. "undefined10.228.26.203")
+		for strings.Contains(text, orig+"undefined") {
+			text = strings.Replace(text, orig+"undefined", orig, 1)
+		}
+		for strings.Contains(text, "undefined"+orig) {
+			text = strings.Replace(text, "undefined"+orig, orig, 1)
 		}
 	}
 	return text
@@ -327,6 +336,23 @@ func stripPartialUndefined(text string) string {
 
 // strayUndefinedRe matches "undefined" anywhere in the string (including concatenated).
 var strayUndefinedRe = regexp.MustCompile(`undefined`)
+
+// embeddedUndefinedRe matches "undefined" surrounded by word chars on both sides.
+// e.g. "PGundefinedUSER" - the "undefined" is embedded and cannot be a legitimate replacement.
+var embeddedUndefinedRe = regexp.MustCompile(`([A-Za-z0-9_])undefined([A-Za-z0-9_])`)
+
+// StripEmbeddedUndefined removes "undefined" tokens surrounded by word chars on both sides.
+// Handles GLM output like "PGundefinedUSER" -> "PGUSER" before Phase 1 replacement.
+func StripEmbeddedUndefined(text string) string {
+	if !strings.Contains(text, "undefined") {
+		return text
+	}
+	// Loop: ReplaceAll consumes boundary chars, adjacent cases need a second pass.
+	for embeddedUndefinedRe.MatchString(text) {
+		text = embeddedUndefinedRe.ReplaceAllString(text, "${1}${2}")
+	}
+	return text
+}
 
 // garbledUndefinedRe matches any occurrence of "undefined" with optional whitespace.
 // GLM models emit this as garbled noise in both single and repeated form.

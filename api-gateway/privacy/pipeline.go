@@ -386,6 +386,11 @@ func replaceUndefinedNonStream(text string, result *MaskResult) string {
 		return text
 	}
 
+	// Pre-Phase: remove "undefined" adjacent to leaked original values,
+	// and strip "undefined" embedded within word chars (e.g. "PGundefinedUSER" -> "PGUSER").
+	text = dedupAdjacentSlice(text, originals)
+	text = masking.StripEmbeddedUndefined(text)
+
 	// Phase 1: Replace "undefined" with originals (budget-limited).
 	for i := range originals {
 		if !strings.Contains(text, "undefined") {
@@ -395,14 +400,7 @@ func replaceUndefinedNonStream(text string, result *MaskResult) string {
 	}
 
 	// Phase 2: Dedup adjacent "undefined" next to restored originals.
-	for _, orig := range originals {
-		for strings.Contains(text, orig+" undefined") {
-			text = strings.Replace(text, orig+" undefined", orig, 1)
-		}
-		for strings.Contains(text, "undefined "+orig) {
-			text = strings.Replace(text, "undefined "+orig, orig, 1)
-		}
-	}
+	text = dedupAdjacentSlice(text, originals)
 
 	// Phase 3: Strip remaining bare "undefined" (budget exhausted), preserving spacing.
 	for strings.Contains(text, "undefined") {
@@ -417,6 +415,31 @@ func replaceUndefinedNonStream(text string, result *MaskResult) string {
 		text = replaced
 	}
 
+	return text
+}
+
+// dedupAdjacentSlice removes "undefined" adjacent (with or without space) to any original in the slice.
+func dedupAdjacentSlice(text string, originals []string) string {
+	if !strings.Contains(text, "undefined") {
+		return text
+	}
+	for _, orig := range originals {
+		if orig == "" {
+			continue
+		}
+		for strings.Contains(text, orig+" undefined") {
+			text = strings.Replace(text, orig+" undefined", orig, 1)
+		}
+		for strings.Contains(text, "undefined "+orig) {
+			text = strings.Replace(text, "undefined "+orig, orig, 1)
+		}
+		for strings.Contains(text, orig+"undefined") {
+			text = strings.Replace(text, orig+"undefined", orig, 1)
+		}
+		for strings.Contains(text, "undefined"+orig) {
+			text = strings.Replace(text, "undefined"+orig, orig, 1)
+		}
+	}
 	return text
 }
 
