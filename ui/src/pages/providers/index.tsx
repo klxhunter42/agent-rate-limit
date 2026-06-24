@@ -45,7 +45,7 @@ const PROVIDERS: ProviderDef[] = [
       'Token works with api.anthropic.com/v1/messages',
       'Ref: github.com/anthropics/claude-code',
     ] },
- { id: 'gemini-oauth', name: 'Gemini (OAuth)', icon: Sparkles, authType: 'OAuth',
+ { id: 'gemini-oauth', name: 'Gemini (OAuth)', icon: Sparkles, authType: 'OAuth', unavailable: true,
     setup: [
       'Zero-config - uses bundled Google OAuth Client ID',
       'Click Connect - browser opens Google login',
@@ -54,7 +54,7 @@ const PROVIDERS: ProviderDef[] = [
       'Token auto-refreshes every 30 minutes',
       'Ref: github.com/google-gemini/gemini-cli',
     ] },
- { id: 'kimi', name: 'Kimi', icon: Sparkles, authType: 'API Key',
+ { id: 'kimi', name: 'Kimi', icon: Sparkles, authType: 'API Key', unavailable: true,
     setup: [
       'Go to platform.moonshot.cn and sign up',
       'Navigate to API Keys in your dashboard',
