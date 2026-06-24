@@ -480,12 +480,14 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 
 	// GLM_MODE=true without claude-oauth accounts: remap claude-* models to the
 	// configured default GLM model. Claude Code clients only send claude-* names
-	// (they reject non-claude model IDs), so remap them to glm-5.1 (or DEFAULT_MODEL)
-	// so requests route to Z.AI instead of Anthropic.
+	// (they reject non-claude model IDs), so remap them to glm-4.7 (or DEFAULT_MODEL)
+	// so requests route to Z.AI instead of Anthropic. NOTE: do NOT default to
+	// glm-5.1/5.2 -- Z.AI aliases glm-5.1 -> glm-5.2 server-side (returns served
+	// model glm-5.2), and glm-5.2 is the strictest fair-use throttle target.
 	if h.cfg.GLMMode && !hasClaudeOAuth && strings.HasPrefix(requestedModel, "claude-") {
 		targetModel := h.cfg.DefaultModel
 		if targetModel == "" {
-			targetModel = "glm-5.1"
+			targetModel = "glm-4.7"
 		}
 		if targetModel != requestedModel {
 			slog.Info("glm mode: remapping claude model to default GLM model",
@@ -2334,7 +2336,7 @@ func validateChatRequest(req *ChatRequest) string {
 		req.Temperature = 0.7
 	}
 	if req.Model == "" {
-		req.Model = "glm-5.1"
+		req.Model = "glm-4.7"
 	}
 	if req.Provider == "" {
 		req.Provider = provider.ResolveProviderByModel(req.Model)

@@ -228,7 +228,7 @@ func Load() *Config {
 		MaxRequestBody: envInt64Or("MAX_REQUEST_BODY", 10*1024*1024),
 
 		// Default chat request values.
-		DefaultModel:       envOr("DEFAULT_MODEL", "glm-5.1"),
+		DefaultModel:       envOr("DEFAULT_MODEL", "glm-4.7"),
 		DefaultProvider:    envOr("DEFAULT_PROVIDER", "glm"),
 		DefaultTemperature: envFloatOr("DEFAULT_TEMPERATURE", 0.7),
 		DefaultMaxTokens:   envIntOr("DEFAULT_MAX_TOKENS", 128000),
