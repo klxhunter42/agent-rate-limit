@@ -145,6 +145,10 @@ dragonfly:
   #   No automatic failover: if pod-0 dies, writes fail until pod-0 restarts.
   operator:
     enabled: true
+    image:
+      repository: docker.dragonflydb.io/dragonflydb/operator
+      tag: "v1.6.1"
+      pullPolicy: IfNotPresent
   image:
     repository: ghcr.io/dragonflydb/dragonfly
     tag: "v1.37.2"
