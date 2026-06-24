@@ -286,7 +286,8 @@ func (r *Resolver) Resolve(model string) *RoutingDecision {
 // ResolveByProvider creates a routing decision for a specific provider ID,
 // looking up its token and route config
 func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool) {
-	if _, ok := r.registry.Get(providerID); !ok {
+	cfg, ok := r.registry.Get(providerID)
+	if !ok || cfg.Disabled {
 		return nil, false
 	}
 	var apiKey string
@@ -299,6 +300,9 @@ func (r *Resolver) ResolveByProvider(providerID string) (*RoutingDecision, bool)
 }
 
 func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
+	if cfg, ok := r.registry.Get(providerID); !ok || cfg.Disabled {
+		return nil
+	}
 	if r.IsCoolingDown(providerID, model) {
 		return nil
 	}
@@ -322,6 +326,9 @@ func (r *Resolver) tryResolve(providerID, model string) *RoutingDecision {
 // tryResolveRoundRobin cycles through all active tokens for a provider
 // Prefers accounts with low 5h utilization; falls back to all if all are high
 func (r *Resolver) tryResolveRoundRobin(providerID, model string) *RoutingDecision {
+	if cfg, ok := r.registry.Get(providerID); !ok || cfg.Disabled {
+		return nil
+	}
 	if r.IsCoolingDown(providerID, model) {
 		return nil
 	}

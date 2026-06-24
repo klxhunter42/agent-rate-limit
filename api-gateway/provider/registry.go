@@ -35,6 +35,7 @@ type ProviderConfig struct {
 	UpstreamBase  string   `json:"upstream_base"`
 	Format        string   `json:"format,omitempty"` // "openai" or "anthropic", used by custom providers
 	Models        []string `json:"models,omitempty"` // supported models for custom providers
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 type Registry struct {
@@ -69,7 +70,7 @@ func NewRegistry() *Registry {
 	// OAuth via Code Assist proxy - uses bundled Gemini CLI Client ID.
 	// Ref: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/oauth2.ts
 	// Routes through cloudcode-pa.googleapis.com (not generativelanguage.googleapis.com).
-	r.providers["gemini-oauth"] = ProviderConfig{
+	r.providers["gemini-oauth"] = ProviderConfig{Disabled: true,
 		ID:           "gemini-oauth",
 		Name:         "Google Gemini (OAuth)",
 		AuthType:     AuthTypeAuthCode,
@@ -158,7 +159,7 @@ func NewRegistry() *Registry {
 		UpstreamBase: envOr("DEEPSEEK_UPSTREAM_BASE", "https://api.deepseek.com"),
 	}
 
-	r.providers["kimi"] = ProviderConfig{
+	r.providers["kimi"] = ProviderConfig{Disabled: true,
 		ID:           "kimi",
 		Name:         "Kimi",
 		AuthType:     AuthTypeAPIKey,
