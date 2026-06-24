@@ -1,0 +1,43 @@
+{{- if and .Values.dragonfly.enabled .Values.dragonfly.operator.enabled }}
+# Requires dragonfly-operator installed cluster-wide:
+#   kubectl apply -f https://raw.githubusercontent.com/dragonflydb/dragonfly-operator/main/manifests/dragonfly-operator.yaml
+#
+# Operator manages: StatefulSet creation, REPLICAOF setup, master election on pod failure,
+# pod role labels (role=master / role=replica), and Service selector updates.
+apiVersion: dragonflydb.io/v1alpha1
+kind: Dragonfly
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+spec:
+  replicas: {{ .Values.dragonfly.replicaCount }}
+  args:
+  - "--maxmemory={{ .Values.dragonfly.args.maxMemory }}"
+  - "--proactor_threads={{ .Values.dragonfly.args.proactorThreads }}"
+  - "--cache_mode={{ .Values.dragonfly.args.cacheMode }}"
+  - "--tcp_keepalive={{ .Values.dragonfly.args.tcpKeepalive }}"
+  - "--pipeline_squash={{ .Values.dragonfly.args.pipelineSquash }}"
+  resources:
+{{- toYaml .Values.dragonfly.resources | nindent 4 }}
+  {{- if .Values.dragonfly.persistence.enabled }}
+  snapshot:
+    dir: /data
+    dbFilename: dump.rdb
+  storage:
+    requests: {{ .Values.dragonfly.persistence.size }}
+    {{- if .Values.dragonfly.persistence.storageClassName }}
+    storageClassName: {{ .Values.dragonfly.persistence.storageClassName }}
+    {{- end }}
+  {{- end }}
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 14 }}
+          topologyKey: kubernetes.io/hostname
+{{- end }}

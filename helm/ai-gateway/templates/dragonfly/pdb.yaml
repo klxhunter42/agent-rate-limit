@@ -1,0 +1,16 @@
+{{- if and .Values.dragonfly.enabled (gt (int .Values.dragonfly.replicaCount) 1) }}
+# Prevents simultaneous eviction of both pods during node drain/maintenance.
+# minAvailable: 1 ensures at least the master stays up during voluntary disruptions.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 6 }}
+{{- end }}

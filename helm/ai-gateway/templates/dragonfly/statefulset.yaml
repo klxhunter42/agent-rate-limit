@@ -1,4 +1,4 @@
-{{- if .Values.dragonfly.enabled }}
+{{- if and .Values.dragonfly.enabled (not .Values.dragonfly.operator.enabled) }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -21,7 +21,18 @@ spec:
       imagePullSecrets: {{ toYaml . | nindent 8 }}
 {{- end }}
       securityContext:
-{{- include "ai-gateway.podSecurityContext" . | nindent 8 }}
+{{- include "ai-gateway.podSecurityContext" nil | nindent 8 }}
+      {{- if gt (int .Values.dragonfly.replicaCount) 1 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
       containers:
       - name: dragonfly
         image: "{{ .Values.dragonfly.image.repository }}:{{ .Values.dragonfly.image.tag }}"
@@ -29,12 +40,40 @@ spec:
         ports:
         - containerPort: 6379
           name: redis
+        {{- if gt (int .Values.dragonfly.replicaCount) 1 }}
+        # Ordinal-based replication: pod-0 is master, pod-1+ run --replicaof at startup.
+        # No automatic failover -- if pod-0 dies, writes fail until it restarts.
+        # Use dragonfly.operator.enabled: true for automatic failover.
+        command:
+        - /bin/sh
+        - -c
+        - |
+          ORDINAL="${HOSTNAME##*-}"
+          MASTER="{{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}-0.{{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}-headless.{{ .Values.global.namespace }}.svc.cluster.local"
+          EXTRA_ARGS=""
+          if [ "$ORDINAL" != "0" ]; then
+            until redis-cli -h "$MASTER" ping 2>/dev/null | grep -q PONG; do
+              echo "Waiting for master $MASTER..."
+              sleep 2
+            done
+            EXTRA_ARGS="--replicaof=${MASTER}:6379"
+          fi
+          exec dragonfly \
+            --maxmemory={{ .Values.dragonfly.args.maxMemory }} \
+            --proactor_threads={{ .Values.dragonfly.args.proactorThreads }} \
+            --cache_mode={{ .Values.dragonfly.args.cacheMode }} \
+            --tcp_keepalive={{ .Values.dragonfly.args.tcpKeepalive }} \
+            --pipeline_squash={{ .Values.dragonfly.args.pipelineSquash }} \
+            --logtostdout \
+            $EXTRA_ARGS
+        {{- else }}
         args:
         - "--maxmemory={{ .Values.dragonfly.args.maxMemory }}"
         - "--proactor_threads={{ .Values.dragonfly.args.proactorThreads }}"
         - "--cache_mode={{ .Values.dragonfly.args.cacheMode }}"
         - "--tcp_keepalive={{ .Values.dragonfly.args.tcpKeepalive }}"
         - "--pipeline_squash={{ .Values.dragonfly.args.pipelineSquash }}"
+        {{- end }}
         resources:
 {{- toYaml .Values.dragonfly.resources | nindent 12 }}
         readinessProbe:
@@ -62,7 +101,7 @@ spec:
   - metadata:
       name: data
       labels:
-{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 10 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 8 }}
     spec:
       accessModes:
       - {{ .Values.dragonfly.persistence.accessMode | default "ReadWriteOnce" }}

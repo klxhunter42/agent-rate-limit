@@ -1,36 +1,43 @@
-{{- if .Values.dragonfly.enabled }}
+{{- if and .Values.dragonfly.enabled (not .Values.dragonfly.operator.enabled) }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.dragonfly.service.port }}
-      targetPort: 6379
-      protocol: TCP
-      name: redis
+  - port: {{ .Values.dragonfly.service.port }}
+    targetPort: 6379
+    protocol: TCP
+    name: redis
   selector:
+    {{- if gt (int .Values.dragonfly.replicaCount) 1 }}
+    # Pin to pod-0 (always master in ordinal-based replication).
+    # Prevents reads/writes from being load-balanced to read-only replicas.
+    statefulset.kubernetes.io/pod-name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}-0
+    {{- else }}
     {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+    {{- end }}
 ---
+# Headless service: stable per-pod DNS for StatefulSet (required for --replicaof hostname resolution).
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "dragonfly") }}-headless
   namespace: {{ .Values.global.namespace }}
   labels:
-    {{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
 spec:
   type: ClusterIP
   clusterIP: None
   ports:
-    - port: {{ .Values.dragonfly.service.port }}
-      targetPort: 6379
-      protocol: TCP
-      name: redis
+  - port: {{ .Values.dragonfly.service.port }}
+    targetPort: 6379
+    protocol: TCP
+    name: redis
   selector:
-    {{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "dragonfly") | nindent 4 }}
 {{- end }}

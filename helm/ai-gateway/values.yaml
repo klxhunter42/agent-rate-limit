@@ -136,7 +136,15 @@ rateLimiter:
 
 dragonfly:
   enabled: true
-  replicaCount: 1
+  replicaCount: 2
+  # operator.enabled: true  - use Dragonfly CRD (requires dragonfly-operator installed cluster-wide).
+  #   Provides automatic master election and failover when master pod dies.
+  #   Install: kubectl apply -f https://raw.githubusercontent.com/dragonflydb/dragonfly-operator/main/manifests/dragonfly-operator.yaml
+  # operator.enabled: false (default) - plain StatefulSet, pod-0 is always master.
+  #   Replica (pod-1) provides warm standby and data redundancy.
+  #   No automatic failover: if pod-0 dies, writes fail until pod-0 restarts.
+  operator:
+    enabled: false
   image:
     repository: ghcr.io/dragonflydb/dragonfly
     tag: "v1.37.2"
@@ -151,8 +159,9 @@ dragonfly:
       memory: "8Gi"
       cpu: "2"
   persistence:
-    enabled: false
+    enabled: true
     storageClassName: ""
+    accessMode: ReadWriteOnce
     size: 20Gi
   args:
     maxMemory: "4gb"
