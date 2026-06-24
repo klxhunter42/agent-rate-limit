@@ -2646,6 +2646,13 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 						line = "data: " + unmasked
 					}
 				}
+				// Strip leftover placeholders even when masking is inactive (leaked from prior round).
+				if !changed && unmasker == nil && strings.Contains(data, "[[") {
+					stripped := masking.StripLeftoverPlaceholders(data)
+					if stripped != data {
+						line = "data: " + stripped
+					}
+				}
 			}
 		} else if unmasker != nil && strings.Contains(data, "[[") {
 			unmasked := unmasker.ReplaceDirectJSON(data)
