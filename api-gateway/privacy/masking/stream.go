@@ -282,6 +282,9 @@ func (u *StreamUnmasker) dedupAdjacentUndefined(text string, jsonSafe bool) stri
 		return text
 	}
 	for _, raw := range u.fallbackOriginals {
+		if raw == "" {
+			continue
+		}
 		orig := raw
 		if jsonSafe {
 			orig = jsonEscape(orig)
