@@ -35,3 +35,6 @@ docker-compose*
 README.md
 LICENSE.md
 *.md
+
+# Ignore local CA certs (corporate proxy trust material, never in image)
+*.pem

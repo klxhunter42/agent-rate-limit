@@ -60,7 +60,7 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 	// Only run when masking is active to avoid stripping legitimate "undefined" from
 	// code examples (e.g. typeof x === "undefined").
 	if u.glmNoiseMode && u.HasContexts() && strings.Contains(processed, "undefined") {
-		processed = u.replaceUndefinedFallback(processed)
+		processed = u.replaceUndefinedFallback(processed, false)
 	}
 	// Buffer tail that might be a partial "undefined" split across SSE chunks.
 	// Must run AFTER fallback so the partial is preceded by the replacement value
@@ -92,8 +92,9 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 		u.undefinedBuffer = ""
 	}
 	// Same undefined fallback as ProcessChunk - only when masking is active.
+	// JSON mode: originals are escaped so tool_use input_json_delta stays valid.
 	if u.glmNoiseMode && u.HasContexts() && strings.Contains(processed, "undefined") {
-		processed = u.replaceUndefinedFallback(processed)
+		processed = u.replaceUndefinedFallback(processed, true)
 	}
 	// Buffer tail that might be a partial "undefined" split across SSE chunks.
 	if u.glmNoiseMode && u.HasContexts() {
@@ -174,7 +175,7 @@ func (u *StreamUnmasker) Flush() string {
 		u.undefinedBuffer = ""
 		if u.glmNoiseMode && u.HasContexts() {
 			if strings.Contains(ub, "undefined") {
-				ub = u.replaceUndefinedFallback(ub)
+				ub = u.replaceUndefinedFallback(ub, false)
 			}
 			// Strip partial "undefined" prefix at stream end (e.g. "undefi").
 			ub = stripPartialUndefined(ub)
@@ -231,7 +232,11 @@ func processStreamChunkJSON(buffer, chunk string, ctx *MaskContext) (output, rem
 //  2. Model outputs both placeholder AND "undefined" (e.g. "192.168.5.111 undefined")
 //     -> dedup by removing the trailing "undefined"
 //  3. Budget exhausted (more "undefined" than originals) -> strip remaining "undefined"
-func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
+//
+// jsonSafe must be true when the text is a JSON fragment (tool_use input_json_delta):
+// originals are JSON-escaped before substitution so characters like " , \ , newline
+// do not corrupt the JSON the client concatenates and JSON.parses.
+func (u *StreamUnmasker) replaceUndefinedFallback(text string, jsonSafe bool) string {
 	if u.fallbackOriginals == nil {
 		u.fallbackOriginals = u.collectFallbackOriginals()
 	}
@@ -242,13 +247,16 @@ func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 			break
 		}
 		orig := u.fallbackOriginals[u.fallbackConsumedIdx]
+		if jsonSafe {
+			orig = jsonEscape(orig)
+		}
 		u.fallbackConsumedIdx++
 		text = strings.Replace(text, "undefined", orig, 1)
 	}
 
 	// Phase 2: Remove leftover "undefined" that appear adjacent to an already-restored
 	// original value. Pattern: "<original> undefined" -> "<original>"
-	text = u.dedupAdjacentUndefined(text)
+	text = u.dedupAdjacentUndefined(text, jsonSafe)
 
 	// Phase 3: Budget exhausted - strip any remaining bare "undefined" to prevent
 	// garbled output like "undefinedundefinedundefined172.18.0.9" leaking to client.
@@ -260,12 +268,18 @@ func (u *StreamUnmasker) replaceUndefinedFallback(text string) string {
 }
 
 // dedupAdjacentUndefined removes "undefined" that appears right after a restored
-// original value. Example: "192.168.5.111 undefined" -> "192.168.5.111"
-func (u *StreamUnmasker) dedupAdjacentUndefined(text string) string {
+// original value. Example: "192.168.5.111 undefined" -> "192.168.5.111".
+// jsonSafe must match the mode of the caller so patterns match the escaped form
+// substituted in Phase 1.
+func (u *StreamUnmasker) dedupAdjacentUndefined(text string, jsonSafe bool) string {
 	if len(u.fallbackOriginals) == 0 {
 		return text
 	}
-	for _, orig := range u.fallbackOriginals {
+	for _, raw := range u.fallbackOriginals {
+		orig := raw
+		if jsonSafe {
+			orig = jsonEscape(orig)
+		}
 		// Match "<original> undefined" with a space separator
 		pattern := orig + " undefined"
 		for strings.Contains(text, pattern) {

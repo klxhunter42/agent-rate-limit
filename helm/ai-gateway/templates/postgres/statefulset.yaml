@@ -1,0 +1,81 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "postgres") }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "postgres") | nindent 4 }}
+spec:
+  serviceName: {{ include "ai-gateway.component" (dict "Release" .Release "Chart" .Chart "component" "postgres") }}-headless
+  replicas: {{ .Values.postgres.replicaCount }}
+  selector:
+    matchLabels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+{{- include "ai-gateway.selectorLabels" (dict "Chart" .Chart "Release" .Release "component" "postgres") | nindent 8 }}
+    spec:
+{{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+{{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        fsGroup: 70
+      containers:
+      - name: postgres
+        image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+        imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          value: {{ .Values.postgres.user | quote }}
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "postgres-password" "value" .Values.secrets.postgresPassword) | nindent 14 }}
+        - name: POSTGRES_DB
+          value: {{ .Values.postgres.database | quote }}
+        resources:
+{{- toYaml .Values.postgres.resources | nindent 10 }}
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "{{ .Values.postgres.user }}", "-d", "{{ .Values.postgres.database }}"]
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "{{ .Values.postgres.user }}", "-d", "{{ .Values.postgres.database }}"]
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+{{- if not .Values.postgres.persistence.enabled }}
+      volumes:
+      - name: data
+        emptyDir: {}
+{{- end }}
+{{- if .Values.postgres.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+{{- include "ai-gateway.labels" (dict "Chart" .Chart "Release" .Release "component" "postgres") | nindent 10 }}
+    spec:
+      accessModes:
+      - {{ .Values.postgres.persistence.accessMode | default "ReadWriteOnce" }}
+{{- if .Values.postgres.persistence.storageClassName }}
+      storageClassName: {{ .Values.postgres.persistence.storageClassName }}
+{{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.postgres.persistence.size }}
+{{- end }}
+{{- end }}

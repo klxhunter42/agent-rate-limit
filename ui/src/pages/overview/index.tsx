@@ -75,21 +75,21 @@ export function OverviewPage() {
  </div>
  {/* Row 2: Providers, Profiles, Grafana */}
  <div className="flex items-center gap-5">
- <Link to="/providers" className="group quick-access-card rounded-2xl flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-violet-500/10 hover:to-violet-500/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="violet">
- <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500/20 to-violet-600/10 group-hover:from-violet-500/40 group-hover:to-violet-600/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-violet-500/25">
- <Users className="h-7 w-7 text-violet-400 group-hover:text-violet-300 transition-colors" />
+ <Link to="/providers" className="group quick-access-card rounded-2xl flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-brand-teal/10 hover:to-brand-teal/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="teal">
+ <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-teal/20 to-brand-teal/10 group-hover:from-brand-teal/40 group-hover:to-brand-teal/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-brand-teal/25">
+ <Users className="h-7 w-7 text-brand-teal group-hover:text-brand-teal transition-colors" />
  </div>
  <span className="text-sm font-semibold tracking-wide">Providers</span>
  </Link>
- <Link to="/profiles" className="group quick-access-card rounded-2xl flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-cyan-500/10 hover:to-cyan-500/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="cyan">
- <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 group-hover:from-cyan-500/40 group-hover:to-cyan-600/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-cyan-500/25">
- <UserCircle className="h-7 w-7 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
+ <Link to="/profiles" className="group quick-access-card rounded-2xl flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-brand-gold/10 hover:to-brand-gold/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="gold">
+ <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-gold/20 to-brand-gold/10 group-hover:from-brand-gold/40 group-hover:to-brand-gold/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-brand-gold/25">
+ <UserCircle className="h-7 w-7 text-brand-gold group-hover:text-brand-gold transition-colors" />
  </div>
  <span className="text-sm font-semibold tracking-wide">Profiles</span>
  </Link>
- <a href="/grafana" target="_blank" rel="noopener noreferrer" className="group quick-access-card rounded-2xl relative flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-orange-500/10 hover:to-orange-500/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="orange">
- <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 group-hover:from-orange-500/40 group-hover:to-orange-600/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-500/25">
- <BarChart3 className="h-7 w-7 text-orange-400 group-hover:text-orange-300 transition-colors" />
+ <a href="/grafana" target="_blank" rel="noopener noreferrer" className="group quick-access-card rounded-2xl relative flex flex-col items-center gap-4 px-8 py-7 bg-card hover:bg-gradient-to-b hover:from-brand-coral/10 hover:to-brand-coral/5 transition-all duration-300 hover:-translate-y-1 active:scale-[0.97]" data-qa="coral">
+ <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-coral/20 to-brand-coral/10 group-hover:from-brand-coral/40 group-hover:to-brand-coral/20 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-brand-coral/25">
+ <BarChart3 className="h-7 w-7 text-brand-coral group-hover:text-brand-coral transition-colors" />
  </div>
  <span className="text-sm font-semibold tracking-wide">Grafana</span>
  <ExternalLink className="absolute right-[10%] bottom-[20%] h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-60 transition-opacity" />

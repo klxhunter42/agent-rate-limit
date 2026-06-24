@@ -27,6 +27,11 @@ spec:
         - name: wait-for-dragonfly
           image: busybox:1.36
           command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-dragonfly.{{ .Values.global.namespace }}.svc.cluster.local 6379; do echo waiting for dragonfly; sleep 2; done;']
+{{- if .Values.postgres.enabled }}
+        - name: wait-for-postgres
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ .Release.Name }}-postgres.{{ .Values.global.namespace }}.svc.cluster.local {{ .Values.postgres.service.port }}; do echo waiting for postgres; sleep 2; done;']
+{{- end }}
       containers:
         - name: gateway
           image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag | default .Chart.AppVersion }}"
@@ -45,6 +50,26 @@ spec:
               value: "ai_jobs"
             - name: OTLP_ENDPOINT
               value: "{{ .Release.Name }}-otel-collector.{{ .Values.global.namespace }}.svc.cluster.local:4317"
+{{- if or .Values.postgres.enabled .Values.postgres.host }}
+            - name: POSTGRES_HOST
+{{- if .Values.postgres.host }}
+              value: {{ .Values.postgres.host | quote }}
+{{- else }}
+              value: "{{ .Release.Name }}-postgres.{{ .Values.global.namespace }}.svc.cluster.local"
+{{- end }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.postgres.port | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: POSTGRES_SSLMODE
+              value: {{ .Values.postgres.sslmode | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "postgres-password" "value" .Values.secrets.postgresPassword) | nindent 18 }}
+{{- end }}
 {{- if .Values.secrets.upstreamApiKeys }}
             - name: ZAI_API_KEYS
               valueFrom:

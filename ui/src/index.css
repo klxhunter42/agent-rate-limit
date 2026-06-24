@@ -2,75 +2,116 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Lotus's Enterprise Design System ── */
+
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0.042 265.755);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0.042 265.755);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0.165 254.624);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --background: #FFFFFF;
+  --foreground: #212121;
+  --card: #FFFFFF;
+  --card-foreground: #212121;
+  --popover: #FFFFFF;
+  --popover-foreground: #212121;
+
+  --primary: #00A651;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: #FFDD00;
+  --secondary-foreground: #212121;
+
+  --muted: #F7F8FA;
+  --muted-foreground: #9E9E9E;
+  --accent: #F3F4F6;
+  --accent-foreground: #212121;
+
+  --destructive: #E74C3C;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #E5E7EB;
+  --input: #E5E7EB;
+  --ring: #00A651;
+
+  --chart-1: #00A651;
+  --chart-2: #FFDD00;
+  --chart-3: #2BA8A2;
+  --chart-4: #EF6C4A;
+  --chart-5: #FFD23F;
+
   --radius: 0.625rem;
-  --sidebar-background: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0.042 265.755);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0.165 254.624);
+
+  --sidebar-background: #FFFFFF;
+  --sidebar-foreground: #212121;
+  --sidebar-primary: #00A651;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F7F8FA;
+  --sidebar-accent-foreground: #212121;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #00A651;
+
+  --brand-primary: #00A651;
+  --brand-secondary: #FFDD00;
+  --brand-teal: #00BCB4;
+  --brand-coral: #EF6C4A;
+  --brand-gold: #FFD23F;
+  --brand-sky: #5DADE2;
+
+  --success: #27AE60;
+  --warning: #F59E0B;
+  --error: #E74C3C;
+  --info: #2563EB;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0.042 265.755);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.704 0.191 22.216);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.556 0.097 258.751);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar-background: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.556 0.097 258.751);
+  --background: #121212;
+  --foreground: #FFFFFF;
+  --card: #242424;
+  --card-foreground: #FFFFFF;
+  --popover: #242424;
+  --popover-foreground: #FFFFFF;
+
+  --primary: #47FF97;
+  --primary-foreground: #003F1F;
+
+  --secondary: #FFE866;
+  --secondary-foreground: #003F1F;
+
+  --muted: #1B1B1B;
+  --muted-foreground: #9CA3AF;
+  --accent: #303030;
+  --accent-foreground: #FFFFFF;
+
+  --destructive: #E74C3C;
+  --destructive-foreground: #FFFFFF;
+
+  --border: #404040;
+  --input: #404040;
+  --ring: #47FF97;
+
+  --chart-1: #47FF97;
+  --chart-2: #FFE866;
+  --chart-3: #75FFB1;
+  --chart-4: #EF6C4A;
+  --chart-5: #FFD23F;
+
+  --sidebar-background: #1B1B1B;
+  --sidebar-foreground: #FFFFFF;
+  --sidebar-primary: #47FF97;
+  --sidebar-primary-foreground: #003F1F;
+  --sidebar-accent: #1B1B1B;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #404040;
+  --sidebar-ring: #47FF97;
+
+  --brand-primary: #47FF97;
+  --brand-secondary: #FFE866;
+  --brand-teal: #75FFB1;
+  --brand-coral: #EF6C4A;
+  --brand-gold: #FFD23F;
+  --brand-sky: #5DADE2;
+
+  --success: #47FF97;
+  --warning: #FFE866;
+  --error: #E74C3C;
+  --info: #5DADE2;
 }
 
 @theme inline {
@@ -89,6 +130,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -105,6 +147,19 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-coral: var(--brand-coral);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-sky: var(--brand-sky);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-info: var(--info);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -117,9 +172,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', 'Noto Sans Thai', 'Prompt', sans-serif;
   }
 }
+
+/* ── Quick-access card rotating border ── */
 
 @keyframes border-rotate {
   0% { --border-angle: 0deg; }
@@ -132,9 +189,9 @@
   inherits: false;
 }
 
-[data-qa="violet"] { --qa-color: oklch(0.606 0.25 292.717); }
-[data-qa="cyan"] { --qa-color: oklch(0.696 0.17 162.48); }
-[data-qa="orange"] { --qa-color: oklch(0.705 0.213 47.604); }
+[data-qa="teal"] { --qa-color: #00BCB4; }
+[data-qa="gold"] { --qa-color: #FFD23F; }
+[data-qa="coral"] { --qa-color: #EF6C4A; }
 
 .quick-access-card {
   position: relative;
@@ -151,7 +208,7 @@
   background: conic-gradient(
     from var(--border-angle, 0deg),
     transparent 40%,
-    var(--qa-color, #8b5cf6) 50%,
+    var(--qa-color, #00A651) 50%,
     transparent 60%
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -168,7 +225,8 @@
   animation-duration: 2s;
 }
 
-/* Setup Guide Stepper Animations */
+/* ── Setup Guide Stepper ── */
+
 @keyframes step-circle-in {
   0% { opacity: 0; transform: scale(0.5); }
   100% { opacity: 1; transform: scale(1); }
@@ -200,38 +258,40 @@
   animation: step-card-slide 0.35s ease-out forwards;
 }
 
-/* Global custom scrollbar */
+/* ── Scrollbar ── */
+
 * {
- scrollbar-width: thin;
- scrollbar-color: rgba(255,255,255,0.1) transparent;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 *::-webkit-scrollbar {
- width: 5px;
- height: 5px;
+  width: 5px;
+  height: 5px;
 }
 
 *::-webkit-scrollbar-track {
- background: transparent;
+  background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
- background: rgba(255,255,255,0.1);
- border-radius: 9999px;
+  background: var(--border);
+  border-radius: 9999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
- background: rgba(255,255,255,0.2);
+  background: var(--muted-foreground);
 }
 
 .setup-guide-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.2);
+  background: var(--muted-foreground);
 }
 
-/* Setup guide floating glow pulse */
+/* ── Setup guide floating glow ── */
+
 @keyframes guide-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
-  50% { box-shadow: 0 0 16px 2px rgba(244, 63, 94, 0.15); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 166, 81, 0); }
+  50% { box-shadow: 0 0 16px 2px rgba(0, 166, 81, 0.15); }
 }
 
 .quick-access-guide {

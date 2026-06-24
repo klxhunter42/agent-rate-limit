@@ -11,9 +11,9 @@ interface ContainerStatusProps {
 }
 
 function healthStatus(queueDepth: number): { label: string; color: string; dotColor: string } {
-  if (queueDepth === 0) return { label: 'Healthy', color: 'text-emerald-500', dotColor: 'bg-emerald-500' };
-  if (queueDepth < 20) return { label: 'Busy', color: 'text-amber-500', dotColor: 'bg-amber-500' };
-  return { label: 'Stressed', color: 'text-red-500', dotColor: 'bg-red-500' };
+  if (queueDepth === 0) return { label: 'Healthy', color: 'text-success', dotColor: 'bg-success' };
+  if (queueDepth < 20) return { label: 'Busy', color: 'text-warning', dotColor: 'bg-warning' };
+  return { label: 'Stressed', color: 'text-error', dotColor: 'bg-error' };
 }
 
 export function ContainerStatusCard({ uptime, queueDepth, version }: ContainerStatusProps) {

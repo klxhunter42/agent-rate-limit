@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 )
 
 const tokenKeyPrefix = "arl:tokens:"
@@ -77,9 +79,10 @@ func tokenKey(provider, accountID string) string {
 
 type TokenStore struct {
 	client *redis.Client
+	pg     store.Store // nil when Postgres disabled
 }
 
-func NewTokenStore(redisAddr string) *TokenStore {
+func NewTokenStore(redisAddr string, pg store.Store) *TokenStore {
 	opt, err := redis.ParseURL(redisAddr)
 	if err != nil {
 		opt = &redis.Options{Addr: redisAddr}
@@ -95,7 +98,7 @@ func NewTokenStore(redisAddr string) *TokenStore {
 		slog.Error("token store: redis ping failed", "error", err)
 	}
 
-	return &TokenStore{client: rdb}
+	return &TokenStore{client: rdb, pg: pg}
 }
 
 type AcctRateLimit struct {
@@ -186,12 +189,34 @@ func (s *TokenStore) Store(token TokenInfo) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
+	// Dual-write: Postgres (source of truth) then Dragonfly (hot cache).
+	if s.pg != nil {
+		profileJSON, _ := json.Marshal(token.ClaudeProfile)
+		if err := s.pg.StoreAccount(ctx, store.AccountRow{
+			Provider:      token.Provider,
+			AccountID:     token.AccountID,
+			Email:         token.Email,
+			AccessToken:   token.AccessToken,
+			RefreshToken:  token.RefreshToken,
+			ExpiryDate:    token.ExpiryDate,
+			Tier:          token.Tier,
+			Paused:        token.Paused,
+			IsDefault:     token.IsDefault,
+			Scopes:        token.Scopes,
+			UpstreamURL:   token.UpstreamURL,
+			ClaudeProfile: profileJSON,
+			CreatedAt:     token.CreatedAt,
+			UpdatedAt:     time.Now(),
+		}); err != nil {
+			slog.Error("pg store account", "error", err)
+		}
+	}
+
 	key := token.redisKey()
 	if err := s.client.Set(ctx, key, data, 0).Err(); err != nil {
 		return fmt.Errorf("redis set token: %w", err)
 	}
 
-	// Add to provider index.
 	idxKey := tokenKeyPrefix + token.Provider + ":_index"
 	if err := s.client.SAdd(ctx, idxKey, token.AccountID).Err(); err != nil {
 		return fmt.Errorf("redis sadd index: %w", err)
@@ -207,9 +232,17 @@ func (s *TokenStore) Get(provider, accountID string) (*TokenInfo, error) {
 
 	data, err := s.client.Get(ctx, tokenKey(provider, accountID)).Result()
 	if err == redis.Nil {
+		// Read-through: fall back to Postgres.
+		if s.pg != nil {
+			return s.getFromPostgres(ctx, provider, accountID)
+		}
 		return nil, nil
 	}
 	if err != nil {
+		// Dragonfly error, try Postgres.
+		if s.pg != nil {
+			return s.getFromPostgres(ctx, provider, accountID)
+		}
 		return nil, fmt.Errorf("redis get token: %w", err)
 	}
 
@@ -218,6 +251,46 @@ func (s *TokenStore) Get(provider, accountID string) (*TokenInfo, error) {
 		return nil, fmt.Errorf("unmarshal token: %w", err)
 	}
 	return &token, nil
+}
+
+// getFromPostgres reads a token from Postgres and populates the Dragonfly cache.
+func (s *TokenStore) getFromPostgres(ctx context.Context, provider, accountID string) (*TokenInfo, error) {
+	row, err := s.pg.GetAccount(ctx, provider, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("pg get account: %w", err)
+	}
+	if row == nil {
+		return nil, nil
+	}
+	token := accountRowToTokenInfo(row)
+
+	// Rehydrate Dragonfly cache.
+	data, _ := json.Marshal(token)
+	s.client.Set(ctx, token.redisKey(), data, 0)
+	s.client.SAdd(ctx, tokenKeyPrefix+provider+":_index", accountID)
+
+	return &token, nil
+}
+
+func accountRowToTokenInfo(r *store.AccountRow) TokenInfo {
+	t := TokenInfo{
+		AccessToken:  r.AccessToken,
+		RefreshToken: r.RefreshToken,
+		ExpiryDate:   r.ExpiryDate,
+		Email:        r.Email,
+		AccountID:    r.AccountID,
+		Provider:     r.Provider,
+		Tier:         r.Tier,
+		Paused:       r.Paused,
+		IsDefault:    r.IsDefault,
+		CreatedAt:    r.CreatedAt,
+		Scopes:       r.Scopes,
+		UpstreamURL:  r.UpstreamURL,
+	}
+	if len(r.ClaudeProfile) > 0 && string(r.ClaudeProfile) != "null" {
+		json.Unmarshal(r.ClaudeProfile, &t.ClaudeProfile)
+	}
+	return t
 }
 
 // DeleteByProvider removes all tokens for a provider (used when deleting a custom provider).
@@ -235,6 +308,12 @@ func (s *TokenStore) DeleteByProvider(provider string) error {
 	}
 	s.client.Del(ctx, tokenKeyPrefix+provider+":_index")
 
+	if s.pg != nil {
+		if err := s.pg.DeleteAccountsByProvider(ctx, provider); err != nil {
+			slog.Error("pg delete accounts by provider", "provider", provider, "error", err)
+		}
+	}
+
 	if len(tokens) > 0 {
 		slog.Info("deleted all tokens for provider", "provider", provider, "count", len(tokens))
 	}
@@ -251,6 +330,12 @@ func (s *TokenStore) Delete(provider, accountID string) error {
 
 	idxKey := tokenKeyPrefix + provider + ":_index"
 	s.client.SRem(ctx, idxKey, accountID)
+
+	if s.pg != nil {
+		if err := s.pg.DeleteAccount(ctx, provider, accountID); err != nil {
+			slog.Error("pg delete account", "error", err)
+		}
+	}
 
 	slog.Info("token deleted", "provider", provider, "account_id", accountID)
 	return nil
@@ -332,7 +417,6 @@ func (s *TokenStore) SetDefault(provider, accountID string) error {
 		return err
 	}
 
-	// Toggle: if already default, clear all defaults.
 	alreadyDefault := false
 	for _, t := range tokens {
 		if t.AccountID == accountID && t.IsDefault {
@@ -354,16 +438,42 @@ func (s *TokenStore) SetDefault(provider, accountID string) error {
 		s.client.Set(ctx, tokenKey(t.Provider, t.AccountID), data, 0)
 	}
 
+	if s.pg != nil {
+		if err := s.pg.SetDefaultAccount(ctx, provider, accountID); err != nil {
+			slog.Error("pg set default", "error", err)
+		}
+	}
+
 	slog.Info("default account updated", "provider", provider, "account_id", accountID, "cleared", alreadyDefault)
 	return nil
 }
 
 func (s *TokenStore) Pause(provider, accountID string) error {
-	return s.updateField(provider, accountID, func(t *TokenInfo) { t.Paused = true })
+	if err := s.updateField(provider, accountID, func(t *TokenInfo) { t.Paused = true }); err != nil {
+		return err
+	}
+	if s.pg != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := s.pg.PauseAccount(ctx, provider, accountID); err != nil {
+			slog.Error("pg pause account", "error", err)
+		}
+	}
+	return nil
 }
 
 func (s *TokenStore) Resume(provider, accountID string) error {
-	return s.updateField(provider, accountID, func(t *TokenInfo) { t.Paused = false })
+	if err := s.updateField(provider, accountID, func(t *TokenInfo) { t.Paused = false }); err != nil {
+		return err
+	}
+	if s.pg != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := s.pg.ResumeAccount(ctx, provider, accountID); err != nil {
+			slog.Error("pg resume account", "error", err)
+		}
+	}
+	return nil
 }
 
 func (s *TokenStore) GetDefault(provider string) (*TokenInfo, error) {
@@ -388,9 +498,19 @@ func (s *TokenStore) GetDefault(provider string) (*TokenInfo, error) {
 }
 
 func (s *TokenStore) UpdateEmail(provider, accountID, email string) error {
-	return s.updateField(provider, accountID, func(t *TokenInfo) {
+	if err := s.updateField(provider, accountID, func(t *TokenInfo) {
 		t.Email = email
-	})
+	}); err != nil {
+		return err
+	}
+	if s.pg != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := s.pg.UpdateAccountEmail(ctx, provider, accountID, email); err != nil {
+			slog.Error("pg update email", "error", err)
+		}
+	}
+	return nil
 }
 
 func (s *TokenStore) updateField(provider, accountID string, fn func(*TokenInfo)) error {

@@ -28,6 +28,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/tokenizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/toolfilter"
@@ -129,6 +130,7 @@ type Handler struct {
 	usageHandler    *UsageHandler
 	quotaHandler    *QuotaHandler
 	profileRedis    *redis.Client
+	pg              store.Store
 	wsBroadcast     func(eventType string, data interface{})
 	refreshWorker   *provider.RefreshWorker
 	optimizers      *Optimizers
@@ -147,6 +149,10 @@ func New(q *queue.DragonflyClient, m *metrics.Metrics, p *proxy.AnthropicProxy, 
 	}
 	slog.Info("handler init", "sidecar_enabled", cfg.CLISidecarEnabled, "sidecar_url", sidecarURL, "glm_mode", cfg.GLMMode)
 	return &Handler{queue: q, metrics: m, proxy: p, codeAssistProxy: cap, openaiProxy: oap, geminiAPIProxy: gap, modelLimiter: ml, keyPool: kp, cfg: cfg, privacy: priv, tokenStore: ts, resolver: res, anomalyDetector: ad, startedAt: time.Now(), usageHandler: uh, quotaHandler: qh, profileRedis: profileRdb, wsBroadcast: wsFn, refreshWorker: rw, optimizers: opt, sidecarURL: sidecarURL, sessionManager: proxy.NewClaudeSessionManager(), mcpProxy: mcp, toolCache: NewToolCache()}
+}
+
+func (h *Handler) SetStore(pg store.Store) {
+	h.pg = pg
 }
 
 // ProfileNameFromContext extracts the profile name stored in the request context.
@@ -2312,6 +2318,14 @@ func (h *Handler) UpdateProviderUpstream(w http.ResponseWriter, r *http.Request)
 			slog.Error("failed to persist provider upstream to redis", "provider", providerID, "error", err)
 		} else {
 			slog.Info("provider upstream persisted to redis", "provider", providerID, "upstream", req.UpstreamURL)
+		}
+	}
+
+	// Dual-write to Postgres.
+	if h.pg != nil {
+		ctx2 := r.Context()
+		if err := h.pg.StoreUpstream(ctx2, store.UpstreamRow{Provider: providerID, Upstream: req.UpstreamURL, UpdatedAt: time.Now()}); err != nil {
+			slog.Error("failed to persist provider upstream to postgres", "provider", providerID, "error", err)
 		}
 	}
 

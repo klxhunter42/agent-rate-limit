@@ -64,7 +64,7 @@ export function AppSidebar() {
 	const navigate = useNavigate();
 	const [dark, setDark] = useState(() => {
 		const stored = localStorage.getItem('theme');
-		return stored ? stored === 'dark' : true;
+		return stored ? stored === 'dark' : false;
 	});
 
 	useEffect(() => {
@@ -122,7 +122,7 @@ export function AppSidebar() {
 					<span
 						className={cn(
 							'h-2 w-2 rounded-full shrink-0',
-							health?.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'
+							health?.status === 'healthy' ? 'bg-success' : 'bg-error'
 						)}
 					/>
 					{health?.status === 'healthy' ? 'Connected' : 'Disconnected'}

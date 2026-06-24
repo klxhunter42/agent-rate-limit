@@ -160,6 +160,44 @@ dragonfly:
     tcpKeepalive: 60
     pipelineSquash: 10
 
+# Durable storage (Postgres). Source of truth for provider tokens / custom
+# providers / upstream overrides; Dragonfly stays the hot cache.
+#
+# Two modes:
+#   1. Bundled  -> postgres.enabled: true deploys a StatefulSet in-cluster.
+#      Leave postgres.host empty; the gateway connects to the bundled service.
+#   2. External -> postgres.enabled: false (no pod) + set postgres.host to a
+#      managed instance (RDS / TencentDB). Just supply host/user/pass/dbname.
+#
+# Gateway durable storage is enabled whenever secrets.postgresPassword is set.
+# To run fully ephemeral, clear secrets.postgresPassword (and disable the pod).
+postgres:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    port: 5432
+  # Connection. host empty + enabled=true -> auto-derived bundled service DNS.
+  host: ""
+  port: 5432
+  database: arl
+  user: arl
+  sslmode: disable
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1"
+  persistence:
+    enabled: false
+    storageClassName: ""
+    size: 20Gi
+
 prometheus:
   enabled: true
   replicaCount: 1
@@ -300,6 +338,7 @@ secrets:
   grafanaAdminPassword: "devopscore"
   dashboardPassword: "devopscore"
   mitmwebPassword: "devopscore"
+  postgresPassword: "arlsecret"
 
 sidecar:
   enabled: true

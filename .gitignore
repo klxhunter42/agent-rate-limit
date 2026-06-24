@@ -30,4 +30,9 @@ flows_parsed.json
 # Secrets
 api-gateway/config/session_secret
 
+# CA / TLS certs - corporate proxy (Zscaler/mitmproxy) trust anchors.
+# Consumed by Dockerfiles at build time (COPY mitm-ca.pem) but must never
+# be committed; they are local trust material.
+*.pem
+
 litellm_bkbin/

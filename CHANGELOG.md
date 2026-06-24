@@ -2,6 +2,41 @@
 
 All notable changes to the Agent Rate Limit Gateway.
 
+## [2026-06-24] - Fix SSE tool_use JSON corruption (GLM "undefined" noise in input_json_delta)
+
+### Problem
+Claude Code over a streaming request reported "The model's tool call could not be parsed (retry also failed)" on GLM (glm-5.1 / glm-5.2) calls that carried masked secrets/PII and used a tool. The non-streaming path was already fixed in a prior change; the streaming `input_json_delta` path still corrupted tool input.
+
+### Root cause
+GLM sometimes emits the literal token `undefined` instead of preserving a `[[TYPE_N]]` placeholder (handled by the `glmNoiseMode` fallback). That fallback substituted the **unescaped** original value. In the `input_json_delta` (tool_use `partial_json`) path the client concatenates every delta then `JSON.parse`s it, so an original containing `"`, `\`, or a newline produced invalid JSON:
+```
+client --concat input_json_delta--> {"email":"a"b\c"}   <- invalid JSON -> parse error
+                                          ^ unescaped original
+```
+Only the fallback (`undefined`) path was broken; the normal placeholder path already JSON-escaped via `RestorePlaceholdersJSON`.
+
+### Fix
+- privacy/masking/stream.go: `replaceUndefinedFallback` and `dedupAdjacentUndefined` gained a `jsonSafe bool` param; originals are `jsonEscape`d before substitution. `ProcessChunkJSON` (the tool_use path) calls with `jsonSafe=true`; `ProcessChunk` and `Flush` pass `false`.
+- GLM + active-masking path only (the fallback runs when `glmNoiseMode && HasContexts()`); capable models (claude/gemini/openai) set noise mode off and are unaffected.
+
+### Verification
+- `go test ./privacy/masking/` clean. 3 new regression tests cover undefined-fallback with `"`+`\`, with a newline, and `undefined` split across two SSE chunks - all assert `json.Valid`.
+- Module build OK.
+
+## [2026-06-24b] - Stop baking/committing corporate proxy CA certs; build-time TLS relax
+
+### Problem
+Corporate TLS-intercepting proxy CA certs (Zscaler / mitmproxy, `*.pem`) were sitting untracked in the repo tree and were `COPY`ed into the ai-worker and rate-limiter images at build time. A `git add -A` would have committed a corporate root CA, and the cert was baked into an image layer.
+
+### Fix
+- Deleted `ai-worker/mitm-ca.pem`, `distributed-rate-limiter/mitm-ca.pem`, `docker/mitm-ca.pem`, `docker/zscaler-ca.pem`. Added `*.pem` to `.gitignore` and the `.dockerignore` files (root, distributed-rate-limiter, new ai-worker/.dockerignore) so a local CA can never be committed or copied into an image.
+- ai-worker/Dockerfile: dropped build-time cert trust; pip now uses `--trusted-host` for pypi.org / files.pythonhosted.org / pypi.python.org.
+- distributed-rate-limiter/Dockerfile: dropped the `keytool` cert import; Maven forces the Wagon transport (`-Dmaven.resolver.transport=wagon`) plus the wagon SSL-insecure flags (Maven 3.9 defaults to the Resolver transport, which ignores the wagon ssl flags).
+- Both mirror api-gateway's existing build-time TLS-relax pattern (`GOINSECURE GIT_SSL_NO_VERIFY`). Runtime is unaffected - these services have no proxy config in compose.
+
+### Verification
+- `docker build` of both images succeeds with no cert present, behind the corporate proxy: ai-worker pip-installs all deps; rate-limiter `mvn package` builds the jar (42 MB) into the runtime stage.
+
 ## [2026-06-22b] - Strip z.ai Thinking Config (kills 20-75s extended thinking)
 
 ### Problem

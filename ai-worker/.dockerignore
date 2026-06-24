@@ -1,0 +1,18 @@
+# Ignore build artifacts and caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Ignore logs
+*.log
+
+# Ignore local CA certs (corporate proxy trust material, never in image)
+*.pem
+
+# Ignore OS / IDE files
+.DS_Store
+.idea/
+.vscode/

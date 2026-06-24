@@ -135,7 +135,7 @@ export default function PrivacyPage() {
     { title: 'Total Masked Requests', value: data.totalMaskedRequests.toLocaleString(), sub: 'through pipeline', icon: Shield, iconColor: 'text-blue-500' },
     { title: 'Secrets Detected', value: secretsLast24h.toLocaleString(), sub: 'by type', icon: Eye, iconColor: 'text-red-500' },
     { title: 'PII Detected', value: piiLast24h.toLocaleString(), sub: 'by type', icon: Fingerprint, iconColor: 'text-orange-500' },
-    { title: 'Mask Duration p95', value: `${p95Display}ms`, sub: 'slowest phase', icon: Timer, iconColor: 'text-purple-500' },
+    { title: 'Mask Duration p95', value: `${p95Display}ms`, sub: 'slowest phase', icon: Timer, iconColor: 'text-brand-teal' },
   ];
 
   const secretsChartData = data.secretsDetected.map((d) => ({

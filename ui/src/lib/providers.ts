@@ -39,8 +39,8 @@ const FALLBACK_NAMES: Record<string, string> = {
 };
 
 export const UNAVAILABLE_PROVIDER_IDS = new Set([
- 'anthropic', 'openai', 'gemini', 'openrouter', 'copilot',
- 'deepseek', 'huggingface', 'ollama', 'agy', 'cursor', 'codebuddy', 'kilo',
+ 'anthropic', 'openai', 'gemini', 'gemini-oauth', 'openrouter', 'copilot',
+ 'deepseek', 'huggingface', 'ollama', 'agy', 'cursor', 'codebuddy', 'kilo', 'kimi',
 ]);
 
 export function isProviderAvailable(id: string): boolean {
@@ -57,20 +57,20 @@ export function providerName(id: string): string {
 }
 
 const PROVIDER_ACCENT: Record<string, string> = {
-  zai: '#6366f1',
-  anthropic: '#d97706',
-  'claude-oauth': '#d97706',
-  openai: '#10b981',
-  gemini: '#3b82f6',
-  'gemini-oauth': '#3b82f6',
-  copilot: '#6b7280',
-  openrouter: '#8b5cf6',
-  deepseek: '#06b6d4',
-  kimi: '#f59e0b',
-  huggingface: '#ec4899',
-  ollama: '#78716c',
-  qwen: '#ef4444',
-  lotuss: '#8b5cf6',
+  zai: '#00A651',
+  anthropic: '#FFDD00',
+  'claude-oauth': '#FFDD00',
+  openai: '#2BA8A2',
+  gemini: '#5DADE2',
+  'gemini-oauth': '#5DADE2',
+  copilot: '#9E9E9E',
+  openrouter: '#EF6C4A',
+  deepseek: '#FFD23F',
+  kimi: '#EF6C4A',
+  huggingface: '#00964A',
+  ollama: '#757575',
+  qwen: '#EF6C4A',
+  lotuss: '#00A651',
 };
 
 export function providerColor(id: string): string {
@@ -79,12 +79,12 @@ export function providerColor(id: string): string {
 
 // Shared color palette for charts.
 export const CHART_COLORS = [
-  '#6366f1', '#3b82f6', '#10b981', '#f59e0b',
-  '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899',
+  '#00A651', '#FFDD00', '#2BA8A2', '#EF6C4A',
+  '#FFD23F', '#5DADE2', '#00964A', '#007C3D',
 ];
 
-export const INPUT_TOKEN_COLOR = '#3b82f6';
-export const OUTPUT_TOKEN_COLOR = '#f97316';
+export const INPUT_TOKEN_COLOR = '#2BA8A2';
+export const OUTPUT_TOKEN_COLOR = '#FFDD00';
 
 let cachedProviders: ProviderInfo[] | null = null;
 

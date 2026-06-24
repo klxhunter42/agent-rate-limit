@@ -14,8 +14,14 @@ WORKDIR /build
 
 COPY requirements.txt .
 
-# Install to a separate prefix for clean copy
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Install to a separate prefix for clean copy.
+# trusted-host lets pip fetch deps behind a corporate TLS-intercepting proxy
+# without a committed CA (mirrors api-gateway GOINSECURE/GIT_SSL_NO_VERIFY).
+RUN pip install --no-cache-dir --prefix=/install \
+ --trusted-host pypi.org \
+ --trusted-host files.pythonhosted.org \
+ --trusted-host pypi.python.org \
+ -r requirements.txt
 
 # --- Runtime stage ---
 FROM python:3.12-slim

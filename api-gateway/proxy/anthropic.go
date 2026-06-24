@@ -1635,58 +1635,63 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if resp.StatusCode == http.StatusOK {
 			// Validate response is not empty/malformed before treating as success
 			if !isStream {
-				// For non-streaming, peek at the body to verify it's valid JSON
-				peekBuf := make([]byte, 1024)
-				n, _ := io.ReadFull(resp.Body, peekBuf)
-				if n == 0 {
-					// Empty response - treat as transient error
-					resp.Body.Close()
+				// For non-streaming, read the full body and validate JSON completely.
+				// A first-byte peek is not enough: GLM sometimes returns HTTP 200 with
+				// a truncated JSON body (cut mid-content) that starts with '{' but fails
+				// json.Valid. Only a full validation catches truncation, and it must run
+				// inside the retry loop so such responses get retried, not 502'd.
+				fullBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
+				resp.Body.Close()
+				if readErr != nil {
 					p.metrics.IncTransientRetry(200, model)
-					slog.Warn("upstream returned empty response (HTTP 200), retrying",
+					slog.Warn("upstream response read error (HTTP 200), retrying",
 						"model", model,
 						"attempt", attempt,
+						"err", readErr,
 						"max_attempts", maxAttempts,
 					)
 					if transientAttempts >= maxTransient {
-						lastErrBody = []byte("empty response body")
+						lastErrBody = []byte("response read error")
 						lastErrStatus = 200
 						break
 					}
 					transientAttempts++
-					lastErrBody = []byte("empty response body")
+					lastErrBody = []byte("response read error")
 					lastErrStatus = 200
 					continue
 				}
-				// Check if the peeked data looks like valid JSON start
-				peeked := strings.TrimSpace(string(peekBuf[:n]))
-				if len(peeked) == 0 || (peeked[0] != '{' && peeked[0] != '[') {
-					// Not valid JSON start - treat as transient error
-					resp.Body.Close()
+				if len(fullBody) == 0 || !json.Valid(fullBody) {
+					// Empty or malformed/truncated JSON - treat as transient and retry
 					p.metrics.IncTransientRetry(200, model)
+					preview := string(fullBody)
+					if len(preview) > 200 {
+						preview = preview[:200]
+					}
 					slog.Warn("upstream returned malformed response (HTTP 200), retrying",
 						"model", model,
 						"attempt", attempt,
-						"peek_preview", peeked[:min(200, len(peeked))],
+						"body_len", len(fullBody),
+						"preview", preview,
 						"max_attempts", maxAttempts,
 					)
 					if transientAttempts >= maxTransient {
-						lastErrBody = peekBuf[:n]
+						lastErrBody = fullBody
 						lastErrStatus = 200
 						break
 					}
 					transientAttempts++
-					lastErrBody = peekBuf[:n]
+					lastErrBody = fullBody
 					lastErrStatus = 200
 					continue
 				}
-				// Valid response - recreate body reader with full content
+				// Valid response - wrap buffered body so handleNonStreamResponse can read it
 				lastResp = resp
 				lastResp.Body = struct {
 					io.Reader
 					io.Closer
 				}{
-					Reader: io.MultiReader(bytes.NewReader(peekBuf[:n]), resp.Body),
-					Closer: resp.Body,
+					Reader: bytes.NewReader(fullBody),
+					Closer: io.NopCloser(nil),
 				}
 				lastErrBody = nil
 				break

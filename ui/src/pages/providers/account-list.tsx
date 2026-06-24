@@ -22,8 +22,8 @@ interface AccountListProps {
 
 const TIER_STYLES: Record<string, string> = {
   free: 'bg-muted text-muted-foreground',
-  pro: 'bg-blue-500/10 text-blue-500',
-  ultra: 'bg-purple-500/10 text-purple-500',
+  pro: 'bg-brand-primary/10 text-brand-primary',
+  ultra: 'bg-brand-coral/10 text-brand-coral',
   api_key: 'bg-amber-500/10 text-amber-500',
   unknown: 'bg-muted text-muted-foreground',
 };

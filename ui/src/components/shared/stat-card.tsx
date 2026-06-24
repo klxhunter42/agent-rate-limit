@@ -4,10 +4,10 @@ import type { LucideIcon } from 'lucide-react';
 
 const variantStyles: Record<string, { iconBg: string; iconColor: string; hoverBorder: string }> = {
   default: { iconBg: 'bg-muted', iconColor: 'text-muted-foreground', hoverBorder: 'hover:border-border' },
-  success: { iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', hoverBorder: 'hover:border-emerald-500/30' },
-  warning: { iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500', hoverBorder: 'hover:border-amber-500/30' },
-  error: { iconBg: 'bg-red-500/10', iconColor: 'text-red-500', hoverBorder: 'hover:border-red-500/30' },
-  accent: { iconBg: 'bg-blue-500/10', iconColor: 'text-blue-500', hoverBorder: 'hover:border-blue-500/30' },
+  success: { iconBg: 'bg-success/10', iconColor: 'text-success', hoverBorder: 'hover:border-success/30' },
+  warning: { iconBg: 'bg-warning/10', iconColor: 'text-warning', hoverBorder: 'hover:border-warning/30' },
+  error: { iconBg: 'bg-error/10', iconColor: 'text-error', hoverBorder: 'hover:border-error/30' },
+  accent: { iconBg: 'bg-info/10', iconColor: 'text-info', hoverBorder: 'hover:border-info/30' },
 };
 
 interface StatCardProps {

@@ -12,8 +12,11 @@ import (
 
 	"crypto/rand"
 	"encoding/hex"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 )
 
 type AuthSession struct {
@@ -33,6 +36,7 @@ type AuthHandler struct {
 	mu           sync.Mutex
 	apiKey       string
 	profileRedis *redis.Client
+	pg           store.Store // nil when Postgres disabled
 	refresher    *RefreshWorker
 	metrics      interface { // Minimal interface for metrics recording
 		RecordClaudeProfileFetch(success bool)
@@ -49,6 +53,10 @@ func (h *AuthHandler) SetRefreshWorker(rw *RefreshWorker) {
 
 func (h *AuthHandler) SetProfileRedis(rdb *redis.Client) {
 	h.profileRedis = rdb
+}
+
+func (h *AuthHandler) SetStore(pg store.Store) {
+	h.pg = pg
 }
 
 func (h *AuthHandler) SetMetrics(m interface {
@@ -973,6 +981,21 @@ func (h *AuthHandler) CreateCustomProvider(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// Persist to Postgres
+	if h.pg != nil {
+		modelsJSON, _ := json.Marshal(body.Models)
+		if err := h.pg.StoreCustomProvider(r.Context(), store.CustomProviderRow{
+			ID:        providerID,
+			Name:      body.Name,
+			Format:    string(format),
+			Upstream:  body.Upstream,
+			Models:    modelsJSON,
+			CreatedAt: time.Now(),
+		}); err != nil {
+			slog.Error("pg store custom provider", "id", providerID, "error", err)
+		}
+	}
+
 	// Store API key if provided
 	if body.APIKey != "" && h.store != nil {
 		accountID := body.APIKey
@@ -1029,6 +1052,13 @@ func (h *AuthHandler) DeleteCustomProvider(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// Remove from Postgres
+	if h.pg != nil {
+		if err := h.pg.DeleteCustomProvider(r.Context(), providerID); err != nil {
+			slog.Error("pg delete custom provider", "id", providerID, "error", err)
+		}
+	}
+
 	slog.Info("custom provider deleted", "id", providerID)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -1081,6 +1111,21 @@ func (h *AuthHandler) UpdateCustomProvider(w http.ResponseWriter, r *http.Reques
 	if h.profileRedis != nil {
 		if err := h.registry.PersistCustom(h.profileRedis, cfg); err != nil {
 			slog.Warn("failed to persist updated custom provider", "id", providerID, "error", err)
+		}
+	}
+
+	// Persist to Postgres
+	if h.pg != nil {
+		modelsJSON, _ := json.Marshal(cfg.Models)
+		if err := h.pg.StoreCustomProvider(r.Context(), store.CustomProviderRow{
+			ID:        cfg.ID,
+			Name:      cfg.Name,
+			Format:    cfg.Format,
+			Upstream:  cfg.UpstreamBase,
+			Models:    modelsJSON,
+			CreatedAt: time.Now(),
+			}); err != nil {
+			slog.Error("pg update custom provider", "id", providerID, "error", err)
 		}
 	}
 

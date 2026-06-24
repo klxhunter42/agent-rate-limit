@@ -169,9 +169,9 @@ const PROVIDERS: ProviderDef[] = [
 
 const AUTH_TYPE_STYLES: Record<string, string> = {
   'API Key': 'bg-amber-500/10 text-amber-500',
-  'Device Code': 'bg-blue-500/10 text-blue-500',
-  'OAuth': 'bg-green-500/10 text-green-500',
-  'Session Cookie': 'bg-purple-500/10 text-purple-500',
+  'Device Code': 'bg-info/10 text-info',
+  'OAuth': 'bg-brand-primary/10 text-brand-primary',
+  'Session Cookie': 'bg-brand-coral/10 text-brand-coral',
 };
 
 import { useWSRefresh } from '@/hooks/use-ws-refresh';

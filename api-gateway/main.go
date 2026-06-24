@@ -42,6 +42,7 @@ import (
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/queue"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/sketch"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/summarizer"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/textcomp"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/toolcomp"
@@ -113,11 +114,19 @@ func main() {
 
 	// --- Provider OAuth ---
 	providerRegistry := provider.NewRegistry()
-	tokenStore := provider.NewTokenStore(cfg.RedisAddr)
+	pgStore, pgErr := store.New(context.Background(), cfg.PostgresConnString())
+	if pgErr != nil {
+		slog.Error("failed to connect to postgres, disabling durable storage", "error", pgErr)
+	}
+	if pgStore != nil {
+		defer pgStore.Close()
+	}
+	tokenStore := provider.NewTokenStore(cfg.RedisAddr, pgStore)
 	tokenStore.MigrateProviderRenames()
 	tokenStore.MigrateClaudeOAuthEmails()
 	seedProviderKeys(tokenStore, "lotuss", cfg.LotussAPIKeys)
 	authHandler := provider.NewAuthHandler(tokenStore, providerRegistry)
+	authHandler.SetStore(pgStore)
 	resolver := provider.NewResolver(providerRegistry, tokenStore, cfg.GLMMode)
 	refreshWorker := provider.NewRefreshWorker(tokenStore, providerRegistry)
 	authHandler.SetRefreshWorker(refreshWorker)
@@ -230,6 +239,7 @@ func main() {
 	}
 
 	h := handler.New(dfClient, m, anthropicProxy, geminiCodeAssistProxy, openAIProxy, geminiAPIProxy, modelLimiter, keyPool, cfg, privacyPipeline, tokenStore, resolver, anomalyDetector, usageHandler, quotaHandler, profileRdb, wsHub.Broadcast, refreshWorker, optimizers, mcpProxy)
+	h.SetStore(pgStore)
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)

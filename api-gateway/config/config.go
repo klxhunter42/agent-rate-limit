@@ -27,6 +27,16 @@ type Config struct {
 	AnthropicDirectURL string
 	StreamTimeout      time.Duration
 
+	// Durable storage (Postgres) for provider tokens / custom providers.
+	// Empty DSN => disabled; TokenStore stays Dragonfly-only.
+	PostgresHost     string
+	PostgresPort     int
+	PostgresUser     string
+	PostgresPassword string
+	PostgresDB       string
+	PostgresSSLMode  string
+	PostgresDSN      string
+
 	// Per-model upstream concurrency limits.
 	// Map of model name → max concurrent requests to upstream.
 	// If a model is not in this map, DefaultLimit is used.
@@ -191,6 +201,12 @@ func Load() *Config {
 		OTLPEndpoint:             envOr("OTLP_ENDPOINT", "otel-collector:4317"),
 		RedisPoolSize:            envIntOr("REDIS_POOL_SIZE", 50),
 		RedisMinIdleConns:        envIntOr("REDIS_MIN_IDLE_CONNS", 10),
+		PostgresHost:     envOr("POSTGRES_HOST", "arl-postgres"),
+		PostgresPort:     envIntOr("POSTGRES_PORT", 5432),
+		PostgresUser:     envOr("POSTGRES_USER", "arl"),
+		PostgresPassword: envOr("POSTGRES_PASSWORD", ""),
+		PostgresDB:       envOr("POSTGRES_DB", "arl"),
+		PostgresSSLMode:  envOr("POSTGRES_SSLMODE", "disable"),
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
@@ -292,6 +308,25 @@ func Load() *Config {
 func (c *Config) RedisURL() string {
 	return c.RedisAddr
 }
+
+// PostgresEnabled reports whether durable storage is wired up.
+// Enabled when POSTGRES_DSN is set OR a non-empty password is configured.
+func (c *Config) PostgresEnabled() bool {
+	return c.PostgresDSN != "" || c.PostgresPassword != ""
+}
+
+// PostgresConnString returns a libpq DSN for pgx, or "" if disabled.
+func (c *Config) PostgresConnString() string {
+	if c.PostgresDSN != "" {
+		return c.PostgresDSN
+	}
+	if c.PostgresPassword == "" {
+		return ""
+	}
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		c.PostgresHost, c.PostgresPort, c.PostgresUser, c.PostgresPassword, c.PostgresDB, c.PostgresSSLMode)
+}
+
 
 // RateLimiterCheckURL returns the full URL for the rate-limit check endpoint.
 func (c *Config) RateLimiterCheckURL() string {

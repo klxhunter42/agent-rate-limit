@@ -33,6 +33,13 @@ services:
       WORKER_POOL_SIZE: ${WORKER_POOL_SIZE:-100}
       REDIS_POOL_SIZE: "50"
       REDIS_MIN_IDLE_CONNS: "10"
+      # --- PostgreSQL (durable storage tier; test phase, gateway reads it once token-store migrates) ---
+      POSTGRES_HOST: ${POSTGRES_HOST:-arl-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-arl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arlsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-arl}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
       UPSTREAM_URL: ${UPSTREAM_URL:-https://api.z.ai/api/anthropic}
       STREAM_TIMEOUT: ${STREAM_TIMEOUT:-300s}
       UPSTREAM_MODEL_LIMITS: ${UPSTREAM_MODEL_LIMITS:-glm-5.2:10,glm-5.1:10,glm-5-turbo:1,glm-5:2,glm-4.7:2,glm-4.6:3,glm-4.5:10}
@@ -183,6 +190,43 @@ services:
         reservations:
           memory: 1G
           cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - arl-network
+
+  # --- PostgreSQL (durable storage tier; opt-in via --profile storage) ---
+  # Test phase: provider tokens / custom providers / usage will migrate here.
+  # Start with: docker compose --profile storage up arl-postgres arl-gateway
+  arl-postgres:
+    image: postgres:17-alpine
+    container_name: arl-postgres
+    restart: always
+    profiles: ["storage"]
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-arl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arlsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-arl}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - arl-postgres-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 128M
     logging:
       driver: json-file
       options:
@@ -454,7 +498,7 @@ services:
       arl-gateway:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PROXY_PORT:-9000}/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -479,5 +523,6 @@ networks:
 
 volumes:
   arl-dragonfly-data:
+  arl-postgres-data:
   arl-prometheus-data:
   arl-grafana-data:
