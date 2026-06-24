@@ -281,6 +281,35 @@ Client                   Gateway                        Upstream
 
 > See [docs/routing-and-auth.md](docs/routing-and-auth.md) for detailed routing diagrams and auth resolution chain.
 
+### Z.AI Dispatch Mode (`ZAI_DISPATCH_MODE`)
+
+Controls how `glm-*` requests are dispatched to Z.AI. **Default: `sequential`** (fail-safe).
+
+Z.AI enforces a **fair-use throttle (HTTP 429, code 1313)** that is **account-level and burst-triggered**: 2+ concurrent requests from one account trips it, regardless of model or daily volume. It is not a per-model rate limit and not a volume quota. Three strikes risk a permanent account ban, so the gateway passes 1313 through without retry (retries would worsen the burst signal).
+
+| Mode | Behavior | When to use |
+|---|---|---|
+| `sequential` (default) | Dispatches one `glm-*` request at a time (cap forced to 1). No burst can form. | Default. Safe, 0x1313. |
+| `parallel` | Concurrent dispatch up to `ZAI_CONCURRENCY_CAP` (default 5). | Only if you accept 1313 risk. |
+
+Anything that is not exactly `parallel` (unset, typo, empty) resolves to `sequential` -- fail-safe, so a misconfiguration can never silently drop into the 1313-prone path. Only `glm-*` dispatch is affected; non-glm upstreams (Anthropic direct, Gemini, OpenAI) keep full concurrency.
+
+**Benchmark (5x concurrent burst from a single Z.AI account):**
+
+| Mode | Pass | 1313 | Latency p50 / p95 | Stable throughput |
+|---|---|---|---|---|
+| `sequential` | 5/5 | 0 | C1 ~2s / 5s, C8 ~12s / 20s | ~20-30 RPM |
+| `parallel` | 2/5 | 3 | ~2-4s (when it passes) | not stable above C=1 |
+
+Sequential is stable at any concurrency up to the global cap (`UPSTREAM_GLOBAL_LIMIT=9`); a 10th concurrent request waits up to 60s then 429s. Throughput is flat regardless of incoming concurrency because the cap=1 dispatch is the bottleneck. Parallel has no stable point above C=1 (its stable point *is* sequential), so sequential is the only sane default.
+
+```bash
+# Switch to parallel (faster, 1313 risk) -- edit .env then recreate the container:
+ZAI_DISPATCH_MODE=parallel
+# Back to safe default:
+ZAI_DISPATCH_MODE=sequential
+```
+
 <br/>
 
 ## Supported Providers
