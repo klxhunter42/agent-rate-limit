@@ -201,12 +201,12 @@ func Load() *Config {
 		OTLPEndpoint:             envOr("OTLP_ENDPOINT", "otel-collector:4317"),
 		RedisPoolSize:            envIntOr("REDIS_POOL_SIZE", 50),
 		RedisMinIdleConns:        envIntOr("REDIS_MIN_IDLE_CONNS", 10),
-		PostgresHost:     envOr("POSTGRES_HOST", "arl-postgres"),
-		PostgresPort:     envIntOr("POSTGRES_PORT", 5432),
-		PostgresUser:     envOr("POSTGRES_USER", "arl"),
-		PostgresPassword: envOr("POSTGRES_PASSWORD", ""),
-		PostgresDB:       envOr("POSTGRES_DB", "arl"),
-		PostgresSSLMode:  envOr("POSTGRES_SSLMODE", "disable"),
+		PostgresHost:             envOr("POSTGRES_HOST", "arl-postgres"),
+		PostgresPort:             envIntOr("POSTGRES_PORT", 5432),
+		PostgresUser:             envOr("POSTGRES_USER", "arl"),
+		PostgresPassword:         envOr("POSTGRES_PASSWORD", ""),
+		PostgresDB:               envOr("POSTGRES_DB", "arl"),
+		PostgresSSLMode:          envOr("POSTGRES_SSLMODE", "disable"),
 		UpstreamURL:              envOr("UPSTREAM_URL", "https://api.z.ai/api/anthropic"),
 		AnthropicDirectURL:       envOr("ANTHROPIC_DIRECT_URL", "https://api.anthropic.com"),
 		StreamTimeout:            envDurationOr("STREAM_TIMEOUT", 300*time.Second),
@@ -244,7 +244,7 @@ func Load() *Config {
 		MaxRequestBody: envInt64Or("MAX_REQUEST_BODY", 10*1024*1024),
 
 		// Default chat request values.
-		DefaultModel:       envOr("DEFAULT_MODEL", "glm-4.7"),
+		DefaultModel:       envOr("DEFAULT_MODEL", "glm-5.2"),
 		DefaultProvider:    envOr("DEFAULT_PROVIDER", "glm"),
 		DefaultTemperature: envFloatOr("DEFAULT_TEMPERATURE", 0.7),
 		DefaultMaxTokens:   envIntOr("DEFAULT_MAX_TOKENS", 128000),
@@ -296,7 +296,7 @@ func Load() *Config {
 		TLSFingerprintEnabled: envBoolOr("TLS_FINGERPRINT_ENABLED", false),
 		ZAIRequestJitterMs:    envIntOr("ZAI_REQUEST_JITTER_MS", 150),
 		ZAIMinRequestSpacing:  envDurationOr("ZAI_MIN_REQUEST_SPACING", 800*time.Millisecond),
-		ZAIConcurrencyCap:     envIntOr("ZAI_CONCURRENCY_CAP", 5),
+		ZAIConcurrencyCap:     envIntOr("ZAI_CONCURRENCY_CAP", 1),
 		RetryBackoffJitter:    envBoolOr("RETRY_BACKOFF_JITTER", true),
 
 		// Debug mode.
@@ -326,7 +326,6 @@ func (c *Config) PostgresConnString() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.PostgresHost, c.PostgresPort, c.PostgresUser, c.PostgresPassword, c.PostgresDB, c.PostgresSSLMode)
 }
-
 
 // RateLimiterCheckURL returns the full URL for the rate-limit check endpoint.
 func (c *Config) RateLimiterCheckURL() string {
