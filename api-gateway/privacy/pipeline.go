@@ -288,9 +288,9 @@ func (p *Pipeline) MaskRequestWithOptions(body []byte, opts MaskOptions) (*MaskR
 	return result, nil
 }
 
-func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
+func (p *Pipeline) UnmaskResponseStatus(body []byte, result *MaskResult) ([]byte, bool) {
 	if result == nil || (!result.HasSecrets && !result.HasPII) {
-		return body
+		return body, true
 	}
 
 	text := string(body)
@@ -339,6 +339,7 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 	}
 
 	// Safety: strip any [[TYPE_N]] placeholders that survived unmasking.
+	success := !masking.HasLeftoverPlaceholders(text)
 	text = masking.StripLeftoverPlaceholders(text)
 
 	// Fallback: GLM models may output "undefined" instead of preserving [[TYPE_N]] placeholders.
@@ -354,7 +355,14 @@ func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
 		"changed", origLen != len(text),
 	)
 
-	return []byte(text)
+	return []byte(text), success
+}
+
+// UnmaskResponse restores masked values in body. Thin wrapper over
+// UnmaskResponseStatus that drops the success flag.
+func (p *Pipeline) UnmaskResponse(body []byte, result *MaskResult) []byte {
+	out, _ := p.UnmaskResponseStatus(body, result)
+	return out
 }
 
 func (p *Pipeline) NewStreamUnmasker(result *MaskResult) *masking.StreamUnmasker {

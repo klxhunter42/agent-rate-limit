@@ -789,7 +789,9 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize))
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-			errBody = pipeline.UnmaskResponse(errBody, maskResult)
+			var ok bool
+			errBody, ok = pipeline.UnmaskResponseStatus(errBody, maskResult)
+			reportUnmask(resp, true, ok)
 		}
 		slog.Warn("vision upstream error", "status", resp.StatusCode, "body", string(errBody))
 		w.Header().Set("Content-Type", "application/json")
@@ -811,7 +813,9 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	if err := json.Unmarshal(body, &zhipuResp); err != nil {
 		if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 			pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-			body = pipeline.UnmaskResponse(body, maskResult)
+			var ok bool
+			body, ok = pipeline.UnmaskResponseStatus(body, maskResult)
+			reportUnmask(resp, true, ok)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
@@ -836,7 +840,9 @@ func (p *AnthropicProxy) convertOpenAIResponse(w http.ResponseWriter, resp *http
 	// Unmask secrets/PII placeholders before sending to client.
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+		var ok bool
+		respBody, ok = pipeline.UnmaskResponseStatus(respBody, maskResult)
+		reportUnmask(resp, true, ok)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -873,6 +879,7 @@ func (p *AnthropicProxy) convertOpenAIStreamResponse(w http.ResponseWriter, resp
 		unmasker = masking.NewStreamUnmasker(maskResult.PIICtx, maskResult.SecretsCtx)
 		unmasker.SetGLMNoiseMode(strings.HasPrefix(model, "glm-"))
 	}
+	defer reportUnmaskStream(resp, unmasker)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -1864,7 +1871,9 @@ func (p *AnthropicProxy) ProxyTransparent(w http.ResponseWriter, r *http.Request
 		if len(lastErrBody) > 0 {
 			if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 				pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-				lastErrBody = pipeline.UnmaskResponse(lastErrBody, maskResult)
+				var ok bool
+				lastErrBody, ok = pipeline.UnmaskResponseStatus(lastErrBody, maskResult)
+				reportUnmask(lastResp, true, ok)
 			}
 			// Validate JSON before writing. If upstream sent truncated JSON,
 			// wrap in a proper error response so client doesn't get "Unexpected EOF".
@@ -2101,6 +2110,7 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 			enableFallback := true || strings.HasPrefix(model, "glm-")
 			unmasker.SetGLMNoiseMode(enableFallback)
 		}
+		defer reportUnmaskStream(resp, unmasker)
 
 		flusher, _ := w.(http.Flusher)
 		// Bound the sidecar stream with STREAM_TIMEOUT so a stalled upstream does
@@ -2294,7 +2304,9 @@ func (p *AnthropicProxy) ProxySidecar(w http.ResponseWriter, r *http.Request, si
 
 	if maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII) {
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-		respBody = pipeline.UnmaskResponse(respBody, maskResult)
+		var unmaskOK bool
+		respBody, unmaskOK = pipeline.UnmaskResponseStatus(respBody, maskResult)
+		reportUnmask(resp, true, unmaskOK)
 	}
 
 	// Track token usage for non-stream sidecar responses.
@@ -2430,7 +2442,9 @@ func (p *AnthropicProxy) handleNonStreamResponse(w http.ResponseWriter, resp *ht
 			"body_preview", string(body[:min(300, len(body))]),
 		)
 		pipeline := privacy.NewPipeline(&privacy.Config{}, nil)
-		body = pipeline.UnmaskResponse(body, maskResult)
+		var unmaskOK bool
+		body, unmaskOK = pipeline.UnmaskResponseStatus(body, maskResult)
+		reportUnmask(resp, true, unmaskOK)
 		slog.Info("unmask result", "body_preview", string(body[:min(300, len(body))]))
 	} else {
 		slog.Info("unmask skipped", "maskResult_nil", maskResult == nil)
@@ -2520,6 +2534,7 @@ func (p *AnthropicProxy) relayStreamWithTracking(w http.ResponseWriter, resp *ht
 	// Add timeout to prevent hanging streams
 	ctx, cancel := context.WithTimeout(resp.Request.Context(), p.streamDeadline())
 	defer cancel()
+	defer reportUnmaskStream(resp, unmasker)
 
 	// Wrap body with context-aware reader
 	body := &readCloser{Reader: io.NopCloser(resp.Body), ctx: ctx}

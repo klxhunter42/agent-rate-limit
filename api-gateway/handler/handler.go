@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/capture"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/desctrim"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/metrics"
@@ -544,6 +545,21 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// Traffic capture: bind per-request status early (client identity + inbound
+	// trace) so every downstream stage records into the same object. Decoupled
+	// from privacy so capture works even when masking is disabled.
+	if capture.Global() != nil {
+		tok := r.Header.Get("x-api-key")
+		if tok == "" {
+			if ah := r.Header.Get("Authorization"); strings.HasPrefix(ah, "Bearer ") {
+				tok = strings.TrimPrefix(ah, "Bearer ")
+			}
+		}
+		cs := capture.NewRequestStatus()
+		cs.SetClient(profileName, tok, r.Header.Get("x-client-request-id"), r.Header.Get("X-Claude-Code-Session-Id"), r.Header.Get("x-b3-traceid"))
+		*r = *r.WithContext(capture.ContextWithPrivacyStatus(r.Context(), cs))
+	}
+
 	if profileName != "" && h.profileRedis != nil && profileOverride == nil {
 		if p, perr := getProfile(r.Context(), h.profileRedis, profileName); perr == nil && p != nil {
 			profileOverride = p
@@ -1222,7 +1238,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 							if _, hasCC := elem["cache_control"]; hasCC {
 								continue
 							}
-							optimized := h.optimizers.OptimizeSystemPrompt(orig, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
+							optimized := h.optimizers.OptimizeSystemPrompt(r.Context(), orig, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
 							if optimized != orig {
 								elem["text"] = optimized
 								if saved := len(orig) - len(optimized); saved > 0 {
@@ -1232,7 +1248,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 						}
 					} else {
 						// String format: optimize the whole string.
-						optimized := h.optimizers.OptimizeSystemPrompt(sysText, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
+						optimized := h.optimizers.OptimizeSystemPrompt(r.Context(), sysText, h.metrics, budgetLevel, selectedModel, transparent, optOverrides)
 						if optimized != sysText {
 							payload["system"] = optimized
 							if saved := len(sysText) - len(optimized); saved > 0 {
@@ -1247,7 +1263,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Message optimization: whitespace/dedup/TextComp - safe for Claude CLI.
 		if h.optimizers != nil {
 			if msgs, ok := payload["messages"].([]any); ok && len(msgs) > 0 {
-				h.optimizers.OptimizeMessages(msgs, h.metrics, optOverrides)
+				h.optimizers.OptimizeMessages(r.Context(), msgs, h.metrics, optOverrides)
 			}
 		}
 
@@ -1282,6 +1298,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 					h.metrics.RecordOptimization("desctrim", saved, "input")
+					capture.AddOptimizer(r.Context(), "desctrim")
 				}
 			}
 		}
@@ -1339,6 +1356,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					saved := (len(tools) - len(newTools)) * 80
 					payload["tools"] = newTools
 					h.metrics.RecordOptimization("toolfilter", saved, "input")
+					capture.AddOptimizer(r.Context(), "toolfilter")
 				}
 			}
 		}
@@ -1370,7 +1388,10 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		// Privacy masking: detect and mask secrets/PII before proxying.
 		// Cache-aware: identical text spans produce identical masked output.
 		if h.privacy != nil {
-			maskResult, _ = h.privacy.MaskRequestWithOptions(body, privacy.MaskOptions{SkipSystemBlocks: true})
+			var maskErr error
+			maskResult, maskErr = h.privacy.MaskRequestWithOptions(body, privacy.MaskOptions{SkipSystemBlocks: true})
+			// Record mask outcome onto the capture status boundefinedund at auth time.
+			capture.PrivacyStatusFrom(r.Context()).SetMask(maskResult != nil && (maskResult.HasSecrets || maskResult.HasPII), maskErr == nil)
 			if maskResult != nil {
 				body = maskResult.MaskedBody
 				// Append privacy instruction to END of system array (not beginning)
@@ -1544,6 +1565,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 					if slots[i].saved > 0 {
 						slots[i].set(slots[i].opt)
 						h.metrics.RecordOptimization(slots[i].kind, slots[i].saved, "input")
+						capture.AddOptimizer(r.Context(), slots[i].kind)
 					}
 				}
 			}

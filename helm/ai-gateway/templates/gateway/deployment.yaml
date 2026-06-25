@@ -100,6 +100,34 @@ spec:
                 secretKeyRef:
 {{- include "ai-gateway.secretKeyRef" (dict "key" "lotuss-api-keys" "value" .Values.secrets.lotussApiKeys) | nindent 18 }}
 {{- end }}
+{{- if .Values.capture.enabled }}
+            - name: TRAFFIC_CAPTURE_ENABLED
+              value: "true"
+            - name: COS_ENDPOINT
+              value: {{ .Values.capture.cos.endpoint | quote }}
+            - name: COS_REGION
+              value: {{ .Values.capture.cos.region | quote }}
+            - name: COS_BUCKET
+              value: {{ .Values.capture.cos.bucket | quote }}
+            - name: COS_PREFIX
+              value: {{ .Values.capture.cos.prefix | quote }}
+            - name: COS_INSECURE
+              value: {{ .Values.capture.cos.insecure | quote }}
+            - name: TRAFFIC_CAPTURE_MAX_BODY_BYTES
+              value: {{ .Values.capture.maxBodyBytes | quote }}
+            - name: TRAFFIC_CAPTURE_QUEUE_SIZE
+              value: {{ .Values.capture.queueSize | quote }}
+            - name: TRAFFIC_CAPTURE_WORKERS
+              value: {{ .Values.capture.workers | quote }}
+            - name: COS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "cos-access-key-id" "value" .Values.secrets.cosAccessKeyId) | nindent 18 }}
+            - name: COS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+{{- include "ai-gateway.secretKeyRef" (dict "key" "cos-secret-access-key" "value" .Values.secrets.cosSecretAccessKey) | nindent 18 }}
+{{- end }}
 {{- include "ai-gateway.envVars" .Values.gateway.env | trim | nindent 12 }}
             {{- if and .Values.mitmweb.enabled (not .Values.gateway.env.MITM_PROXY_URL) }}
             - name: MITM_PROXY_URL

@@ -31,7 +31,21 @@ type StreamUnmasker struct {
 	fallbackConsumedIdx int
 	// undefinedBuffer holds a partial "undefined" prefix split across SSE chunks.
 	undefinedBuffer string
+	// leftoverSeen is set when a placeholder survived unmasking and had to be
+	// stripped, i.e. unmask did not fully succeed for this stream.
+	leftoverSeen bool
 }
+
+// stripLeftover strips surviving placeholders and records that it had to.
+func (u *StreamUnmasker) stripLeftover(text string) string {
+	if HasLeftoverPlaceholders(text) {
+		u.leftoverSeen = true
+	}
+	return StripLeftoverPlaceholders(text)
+}
+
+// UnmaskSuccess reports whether no masked placeholder survived this stream.
+func (u *StreamUnmasker) UnmaskSuccess() bool { return !u.leftoverSeen }
 
 func NewStreamUnmasker(piiCtx, secretsCtx *MaskContext) *StreamUnmasker {
 	return &StreamUnmasker{
@@ -71,7 +85,7 @@ func (u *StreamUnmasker) ProcessChunk(chunk string) string {
 		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
-	processed = StripLeftoverPlaceholders(processed)
+	processed = u.stripLeftover(processed)
 	return processed
 }
 
@@ -103,7 +117,7 @@ func (u *StreamUnmasker) ProcessChunkJSON(chunk string) string {
 		u.undefinedBuffer = buf
 	}
 	// Safety: strip any [[TYPE_N]] placeholder tokens that survived unmasking.
-	processed = StripLeftoverPlaceholders(processed)
+	processed = u.stripLeftover(processed)
 	return processed
 }
 
@@ -118,7 +132,7 @@ func (u *StreamUnmasker) ReplaceDirect(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholders(result)
 	}
-	return StripLeftoverPlaceholders(result)
+	return u.stripLeftover(result)
 }
 
 // ReplaceDirectJSON does unbuffered JSON-safe replacement.
@@ -132,7 +146,7 @@ func (u *StreamUnmasker) ReplaceDirectJSON(text string) string {
 	if u.piiCtx != nil && len(u.piiCtx.Mapping) > 0 {
 		result = u.piiCtx.RestorePlaceholdersJSON(result)
 	}
-	return StripLeftoverPlaceholders(result)
+	return u.stripLeftover(result)
 }
 
 func (u *StreamUnmasker) Flush() string {
@@ -184,7 +198,7 @@ func (u *StreamUnmasker) Flush() string {
 		result += ub
 	}
 
-	return StripLeftoverPlaceholders(result)
+	return u.stripLeftover(result)
 }
 
 func (u *StreamUnmasker) SetGLMNoiseMode(enabled bool) {
@@ -386,6 +400,12 @@ func StripLeftoverPlaceholders(text string) string {
 		return text
 	}
 	return leftoverPlaceholderRe.ReplaceAllString(text, "")
+}
+
+// HasLeftoverPlaceholders reports whether any placeholder token survived
+// unmasking. Used to decide unmask success (no leftover == success).
+func HasLeftoverPlaceholders(text string) bool {
+	return leftoverPlaceholderRe.MatchString(text)
 }
 
 // bufferPartialUndefined checks if text ends with a prefix of "undefined" and

@@ -24,6 +24,7 @@ import (
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/bandit"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/cache"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/capture"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/caveman"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/chunker"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
@@ -97,6 +98,9 @@ func main() {
 
 	// --- Anomaly detector ---
 	anomalyDetector := middleware.NewAnomalyDetector(m.Registry())
+
+	// --- Traffic capture (upstream req/resp -> COS) ---
+	capture.Global().RegisterMetrics(m.Registry())
 
 	// --- Privacy pipeline ---
 	privacyCfg := privacy.LoadConfig()

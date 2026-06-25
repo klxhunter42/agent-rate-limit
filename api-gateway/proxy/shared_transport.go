@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/capture"
 )
 
 // dnsCache caches DNS lookup results to avoid repeated resolution.
@@ -190,7 +192,7 @@ func getSharedSelectiveRT() http.RoundTripper {
 			zai = rt
 			slog.Info("shared transport: azuretls Chrome TLS+HTTP/2 fingerprint enabled for Z.AI hosts")
 		}
-		sharedSelectiveRT = &selectiveRoundTripper{std: std, zai: zai}
+		sharedSelectiveRT = capture.RoundTripper(&selectiveRoundTripper{std: std, zai: zai}, capture.Global())
 	})
 	return sharedSelectiveRT
 }
