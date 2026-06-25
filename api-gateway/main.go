@@ -140,11 +140,13 @@ func main() {
 	startedAt := time.Now()
 	profileHandler := handler.NewProfileHandler(cfg.RedisAddr)
 	if profileHandler != nil {
+		profileHandler.SetStore(pgStore)
 		authHandler.SetProfileRedis(profileHandler.Redis())
-		providerRegistry.LoadCustomProviders(profileHandler.Redis())
-		providerRegistry.LoadPersistedUpstreams(profileHandler.Redis())
+		providerRegistry.LoadCustomProviders(profileHandler.Redis(), pgStore)
+		providerRegistry.LoadPersistedUpstreams(profileHandler.Redis(), pgStore)
 	}
 	usageHandler := handler.NewUsageHandler(cfg.RedisAddr)
+	usageHandler.SetStore(pgStore)
 	quotaHandler := handler.NewQuotaHandler(cfg.RedisAddr, tokenStore, cfg)
 
 	// --- Token Optimizers (13 packages, all off by default) ---
@@ -162,6 +164,7 @@ func main() {
 	optDisclosure := disclosure.New(m.Registry(), optRdb)
 	optPrefetcher := prefetcher.New(m.Registry(), optRdb)
 	optBandit := bandit.New(m.Registry(), optRdb, nil)
+	optBandit.SetStore(pgStore)
 	optSummarizer := summarizer.New(m.Registry(), optRdb)
 	optDelta := delta.New(m.Registry(), optRdb)
 	optSketch := sketch.New(m.Registry(), optRdb)
@@ -243,6 +246,7 @@ func main() {
 
 	overviewHandler := handler.NewOverviewHandler(dfClient, tokenStore, cfg, startedAt, m, dfClient, cfg.RateLimiterAddr)
 	configHandler := handler.NewConfigHandler(cfg, cfg.RedisAddr)
+	configHandler.SetStore(pgStore)
 	go refreshWorker.Start(context.Background())
 	defer refreshWorker.Stop()
 

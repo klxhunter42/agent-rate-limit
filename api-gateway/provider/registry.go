@@ -7,8 +7,11 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 )
 
 type AuthType string
@@ -35,7 +38,7 @@ type ProviderConfig struct {
 	UpstreamBase  string   `json:"upstream_base"`
 	Format        string   `json:"format,omitempty"` // "openai" or "anthropic", used by custom providers
 	Models        []string `json:"models,omitempty"` // supported models for custom providers
-	Disabled bool `json:"disabled,omitempty"`
+	Disabled      bool     `json:"disabled,omitempty"`
 }
 
 type Registry struct {
@@ -276,49 +279,114 @@ func (r *Registry) RemovePersisted(rdb *redis.Client, id string) error {
 
 const upstreamOverridePrefix = "arl:provider_upstream:"
 
-func (r *Registry) LoadPersistedUpstreams(rdb *redis.Client) {
-	if rdb == nil {
-		return
-	}
-	keys, err := rdb.Keys(context.Background(), upstreamOverridePrefix+"*").Result()
-	if err != nil {
-		slog.Warn("failed to load persisted upstream overrides", "error", err)
-		return
-	}
-	for _, key := range keys {
-		providerID := strings.TrimPrefix(key, upstreamOverridePrefix)
-		url, err := rdb.Get(context.Background(), key).Result()
+func (r *Registry) LoadPersistedUpstreams(rdb *redis.Client, pg store.Store) {
+	loaded := 0
+	if rdb != nil {
+		keys, err := rdb.Keys(context.Background(), upstreamOverridePrefix+"*").Result()
 		if err != nil {
-			continue
+			slog.Warn("failed to load persisted upstream overrides", "error", err)
 		}
-		if p, ok := r.providers[providerID]; ok {
-			p.UpstreamBase = url
-			r.providers[providerID] = p
-			slog.Info("restored persisted upstream override", "provider", providerID, "upstream", url)
+		for _, key := range keys {
+			providerID := strings.TrimPrefix(key, upstreamOverridePrefix)
+			url, err := rdb.Get(context.Background(), key).Result()
+			if err != nil {
+				continue
+			}
+			if r.applyUpstream(providerID, url) {
+				loaded++
+			}
+		}
+	}
+	// Cold cache: read through from Postgres and rehydrate Redis.
+	if loaded == 0 && pg != nil {
+		r.loadUpstreamsFromPostgres(rdb, pg)
+	}
+}
+
+func (r *Registry) applyUpstream(providerID, url string) bool {
+	if p, ok := r.providers[providerID]; ok {
+		p.UpstreamBase = url
+		r.providers[providerID] = p
+		slog.Info("restored persisted upstream override", "provider", providerID, "upstream", url)
+		return true
+	}
+	return false
+}
+
+func (r *Registry) loadUpstreamsFromPostgres(rdb *redis.Client, pg store.Store) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := pg.ListUpstreams(ctx)
+	if err != nil {
+		slog.Warn("failed to load upstream overrides from postgres", "error", err)
+		return
+	}
+	for _, row := range rows {
+		if r.applyUpstream(row.Provider, row.Upstream) && rdb != nil {
+			_ = rdb.Set(context.Background(), upstreamOverridePrefix+row.Provider, row.Upstream, 0).Err()
 		}
 	}
 }
 
-func (r *Registry) LoadCustomProviders(rdb *redis.Client) {
-	if rdb == nil {
-		return
-	}
-	keys, err := rdb.Keys(context.Background(), customProviderPrefix+"*").Result()
-	if err != nil {
-		slog.Warn("failed to load custom providers", "error", err)
-		return
-	}
-	for _, key := range keys {
-		data, err := rdb.Get(context.Background(), key).Bytes()
+func (r *Registry) LoadCustomProviders(rdb *redis.Client, pg store.Store) {
+	loaded := 0
+	if rdb != nil {
+		keys, err := rdb.Keys(context.Background(), customProviderPrefix+"*").Result()
 		if err != nil {
-			continue
+			slog.Warn("failed to load custom providers", "error", err)
 		}
-		var cfg ProviderConfig
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			continue
+		for _, key := range keys {
+			data, err := rdb.Get(context.Background(), key).Bytes()
+			if err != nil {
+				continue
+			}
+			var cfg ProviderConfig
+			if err := json.Unmarshal(data, &cfg); err != nil {
+				continue
+			}
+			r.registerCustom(cfg)
+			slog.Info("loaded custom provider", "id", cfg.ID, "name", cfg.Name, "upstream", cfg.UpstreamBase, "format", cfg.Format, "models", cfg.Models)
+			loaded++
 		}
-		r.providers[cfg.ID] = cfg
-		RegisterProviderRoute(cfg.ID, ProviderFormat(cfg.Format), cfg.Models)
-		slog.Info("loaded custom provider", "id", cfg.ID, "name", cfg.Name, "upstream", cfg.UpstreamBase, "format", cfg.Format, "models", cfg.Models)
+	}
+	// Cold cache: read through from Postgres and rehydrate Redis.
+	if loaded == 0 && pg != nil {
+		r.loadCustomProvidersFromPostgres(rdb, pg)
+	}
+}
+
+func (r *Registry) registerCustom(cfg ProviderConfig) {
+	r.providers[cfg.ID] = cfg
+	RegisterProviderRoute(cfg.ID, ProviderFormat(cfg.Format), cfg.Models)
+}
+
+func (r *Registry) loadCustomProvidersFromPostgres(rdb *redis.Client, pg store.Store) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := pg.ListCustomProviders(ctx)
+	if err != nil {
+		slog.Warn("failed to load custom providers from postgres", "error", err)
+		return
+	}
+	for _, row := range rows {
+		var models []string
+		if len(row.Models) > 0 {
+			_ = json.Unmarshal(row.Models, &models)
+		}
+		cfg := ProviderConfig{
+			ID:           row.ID,
+			Name:         row.Name,
+			AuthType:     AuthTypeAPIKey,
+			UpstreamBase: row.Upstream,
+			Format:       row.Format,
+			Models:       models,
+		}
+		r.registerCustom(cfg)
+		if rdb != nil {
+			if data, err := json.Marshal(cfg); err == nil {
+				_ = rdb.Set(context.Background(), customProviderPrefix+cfg.ID, data, 0).Err()
+			}
+		}
+		slog.Info("loaded custom provider from postgres", "id", cfg.ID, "name", cfg.Name)
 	}
 }

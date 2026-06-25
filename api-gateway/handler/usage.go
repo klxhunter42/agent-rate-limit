@@ -2,13 +2,14 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strconv"
-	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -37,6 +38,40 @@ type UsageSummary struct {
 // UsageHandler provides usage analytics endpoints backed by Redis.
 type UsageHandler struct {
 	rdb *redis.Client
+	pg  store.Store
+}
+
+// SetStore wires the durable Postgres store. When set, usage summary totals are
+// dual-written so billing-grade aggregates survive a Dragonfly cache loss.
+func (u *UsageHandler) SetStore(pg store.Store) {
+	if u != nil {
+		u.pg = pg
+	}
+}
+
+// recordSummary dual-writes a delta to the permanent summary aggregate in Postgres.
+// Granularity is "summary" (period ""); scope is global, per-profile, per-account,
+// or per-profile+account. Called on the hot path, so it is a single bounded upsert.
+func (u *UsageHandler) recordSummary(profile, account, model string, inputTokens, outputTokens int, cost float64) {
+	if u.pg == nil || model == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := u.pg.UpsertUsageMetric(ctx, store.UsageMetricRow{
+		Granularity:  "summary",
+		Period:       "",
+		ProfileName:  profile,
+		AccountID:    account,
+		Model:        model,
+		InputTokens:  int64(inputTokens),
+		OutputTokens: int64(outputTokens),
+		Requests:     1,
+		Cost:         cost,
+	})
+	if err != nil {
+		slog.Warn("pg upsert usage summary", "model", model, "profile", profile, "account", account, "error", err)
+	}
 }
 
 // NewUsageHandler connects to Redis and returns a ready handler.
@@ -107,6 +142,8 @@ func (u *UsageHandler) RecordUsage(model string, inputTokens, outputTokens int, 
 	pipe.Expire(ctx, sessionKey, 35*24*time.Hour)
 
 	pipe.Exec(ctx)
+
+	u.recordSummary("", "", model, inputTokens, outputTokens, cost)
 }
 
 // RecordProfileUsage increments usage counters for a profile+model.
@@ -132,6 +169,8 @@ func (u *UsageHandler) RecordProfileUsage(profile, model string, inputTokens, ou
 	pipe.Expire(ctx, summaryKey, 0) // no expiry for summary
 
 	pipe.Exec(ctx)
+
+	u.recordSummary(profile, "", model, inputTokens, outputTokens, cost)
 }
 
 // // RecordProfileAccountUsage increments usage counters scoped to profile+account+model.
@@ -160,6 +199,8 @@ func (u *UsageHandler) RecordProfileAccountUsage(profile, accountID, model strin
 	if _, err := pipe.Exec(ctx); err != nil {
 		slog.Error("RecordProfileAccountUsage pipeline failed", "error", err, "profile", profile, "account", accountID, "model", model)
 	}
+
+	u.recordSummary(profile, accountID, model, inputTokens, outputTokens, cost)
 }
 
 // RecordAccountUsage increments usage counters for an account+model.
@@ -185,6 +226,8 @@ func (u *UsageHandler) RecordAccountUsage(accountID, model string, inputTokens, 
 	pipe.Expire(ctx, summaryKey, 0)
 
 	pipe.Exec(ctx)
+
+	u.recordSummary("", accountID, model, inputTokens, outputTokens, cost)
 }
 
 // ProfileKeysUsage returns per-API-key (account) usage breakdown for a single profile.

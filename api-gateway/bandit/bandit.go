@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"math/rand"
 	"os"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 )
 
 const dim = 10
@@ -72,9 +75,18 @@ type banditMetrics struct {
 type Bandit struct {
 	cfg  Config
 	rdb  *redis.Client
+	pg   store.Store
 	arms []Arm
 	m    *banditMetrics
 	rng  *rand.Rand
+}
+
+// SetStore wires the durable Postgres store. When set, learned arm state is
+// dual-written and cache misses fall back to Postgres (Dragonfly is disposable).
+func (b *Bandit) SetStore(pg store.Store) {
+	if b != nil {
+		b.pg = pg
+	}
 }
 
 func New(reg prometheus.Registerer, rdb *redis.Client, arms []Arm) *Bandit {
@@ -161,13 +173,27 @@ func (b *Bandit) loadStates(ctx context.Context) map[string]*armState {
 	states := make(map[string]*armState, len(b.arms))
 	for _, arm := range b.arms {
 		key := fmt.Sprintf("bandit:state:%s", arm.ID)
-		data, err := b.rdb.Get(ctx, key).Bytes()
-		if err != nil {
-			continue
+		if b.rdb != nil {
+			if data, err := b.rdb.Get(ctx, key).Bytes(); err == nil {
+				var s armState
+				if json.Unmarshal(data, &s) == nil {
+					states[arm.ID] = &s
+					continue
+				}
+			}
 		}
-		var s armState
-		if json.Unmarshal(data, &s) == nil {
-			states[arm.ID] = &s
+		// Cold cache: read through from Postgres and rehydrate Redis.
+		if b.pg != nil {
+			if row, err := b.pg.GetBanditState(ctx, arm.ID); err == nil && row != nil {
+				s := newArmState()
+				if (len(row.AMatrix) == 0 || json.Unmarshal(row.AMatrix, &s.A) == nil) &&
+					(len(row.BVector) == 0 || json.Unmarshal(row.BVector, &s.B) == nil) {
+					if data, err := json.Marshal(s); err == nil && b.rdb != nil {
+						_ = b.rdb.Set(ctx, key, data, 24*time.Hour).Err()
+					}
+					states[arm.ID] = s
+				}
+			}
 		}
 	}
 	return states
@@ -176,7 +202,16 @@ func (b *Bandit) loadStates(ctx context.Context) map[string]*armState {
 func (b *Bandit) saveState(ctx context.Context, armID string, s *armState) {
 	key := fmt.Sprintf("bandit:state:%s", armID)
 	data, _ := json.Marshal(s)
-	b.rdb.Set(ctx, key, data, 24*time.Hour)
+	if b.rdb != nil {
+		b.rdb.Set(ctx, key, data, 24*time.Hour)
+	}
+	if b.pg != nil {
+		aJSON, _ := json.Marshal(s.A)
+		bJSON, _ := json.Marshal(s.B)
+		if err := b.pg.SetBanditState(ctx, store.BanditStateRow{Arm: armID, AMatrix: aJSON, BVector: bJSON}); err != nil {
+			slog.Warn("pg set bandit state", "arm", armID, "error", err)
+		}
+	}
 }
 
 func (b *Bandit) Close() {}

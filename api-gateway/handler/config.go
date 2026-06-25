@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/config"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/proxy"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -64,6 +66,50 @@ type MaxTokensConfig struct {
 type ConfigHandler struct {
 	cfg   *config.Config
 	redis *redis.Client
+	pg    store.Store
+}
+
+// SetStore wires the durable Postgres store for gateway config. When set, config
+// overrides are dual-written and cache misses fall back to Postgres.
+func (ch *ConfigHandler) SetStore(pg store.Store) {
+	if ch != nil {
+		ch.pg = pg
+	}
+}
+
+// getConfigBytes reads a config blob from Redis, falling back to Postgres
+// (and rehydrating Redis) on a cold cache.
+func (ch *ConfigHandler) getConfigBytes(ctx context.Context, key string) ([]byte, bool) {
+	if ch.redis != nil {
+		if data, err := ch.redis.Get(ctx, key).Bytes(); err == nil {
+			return data, true
+		}
+	}
+	if ch.pg != nil {
+		if v, err := ch.pg.GetGatewayConfig(ctx, key); err == nil && len(v) > 0 {
+			if ch.redis != nil {
+				_ = ch.redis.Set(ctx, key, v, 0).Err()
+			}
+			return v, true
+		}
+	}
+	return nil, false
+}
+
+// setConfigBytes dual-writes a config blob to Redis (cache) and Postgres (durable).
+func (ch *ConfigHandler) setConfigBytes(ctx context.Context, key string, data []byte) error {
+	if ch.redis == nil {
+		return fmt.Errorf("redis not available")
+	}
+	if err := ch.redis.Set(ctx, key, data, 0).Err(); err != nil {
+		return err
+	}
+	if ch.pg != nil {
+		if err := ch.pg.SetGatewayConfig(ctx, key, data); err != nil {
+			slog.Error("pg set gateway config", "key", key, "error", err)
+		}
+	}
+	return nil
 }
 
 // NewConfigHandler creates a ConfigHandler with the given config and Redis connection.
@@ -166,7 +212,7 @@ func (ch *ConfigHandler) UpdateThinking(w http.ResponseWriter, r *http.Request) 
 	}
 
 	data, _ := json.Marshal(tc)
-	if err := ch.redis.Set(r.Context(), thinkingConfigKey, data, 0).Err(); err != nil {
+	if err := ch.setConfigBytes(r.Context(), thinkingConfigKey, data); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save: " + err.Error()})
 		return
 	}
@@ -222,7 +268,7 @@ func (ch *ConfigHandler) UpdateGlobalEnv(w http.ResponseWriter, r *http.Request)
 	}
 
 	data, _ := json.Marshal(existing)
-	if err := ch.redis.Set(r.Context(), globalEnvKey, data, 0).Err(); err != nil {
+	if err := ch.setConfigBytes(r.Context(), globalEnvKey, data); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save: " + err.Error()})
 		return
 	}
@@ -253,13 +299,10 @@ func (ch *ConfigHandler) buildConfigResponse() ConfigResponse {
 }
 
 func (ch *ConfigHandler) loadOverrides() (map[string]any, error) {
-	if ch.redis == nil {
-		return make(map[string]any), nil
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	data, err := ch.redis.Get(ctx, configOverridesKey).Bytes()
-	if err != nil {
+	data, found := ch.getConfigBytes(ctx, configOverridesKey)
+	if !found {
 		return make(map[string]any), nil
 	}
 	var m map[string]any
@@ -276,17 +319,14 @@ func (ch *ConfigHandler) saveOverrides(m map[string]any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	data, _ := json.Marshal(m)
-	return ch.redis.Set(ctx, configOverridesKey, data, 0).Err()
+	return ch.setConfigBytes(ctx, configOverridesKey, data)
 }
 
 func (ch *ConfigHandler) loadThinkingConfig() ThinkingConfig {
-	if ch.redis == nil {
-		return ThinkingConfig{Enabled: false, DefaultBudget: 10000}
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	data, err := ch.redis.Get(ctx, thinkingConfigKey).Bytes()
-	if err != nil {
+	data, found := ch.getConfigBytes(ctx, thinkingConfigKey)
+	if !found {
 		return ThinkingConfig{Enabled: false, DefaultBudget: 10000}
 	}
 	var tc ThinkingConfig
@@ -300,13 +340,10 @@ func (ch *ConfigHandler) loadThinkingConfig() ThinkingConfig {
 }
 
 func (ch *ConfigHandler) loadGlobalEnv() GlobalEnv {
-	if ch.redis == nil {
-		return GlobalEnv{Env: make(map[string]string)}
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	data, err := ch.redis.Get(ctx, globalEnvKey).Bytes()
-	if err != nil {
+	data, found := ch.getConfigBytes(ctx, globalEnvKey)
+	if !found {
 		return GlobalEnv{Env: make(map[string]string)}
 	}
 	var ge GlobalEnv
@@ -361,7 +398,7 @@ func (ch *ConfigHandler) UpdateMaxTokens(w http.ResponseWriter, r *http.Request)
 	}
 
 	data, _ := json.Marshal(tc)
-	if err := ch.redis.Set(r.Context(), maxTokensConfigKey, data, 0).Err(); err != nil {
+	if err := ch.setConfigBytes(r.Context(), maxTokensConfigKey, data); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save: " + err.Error()})
 		return
 	}
@@ -379,13 +416,10 @@ func (ch *ConfigHandler) LoadAndApplyMaxTokens() {
 }
 
 func (ch *ConfigHandler) loadMaxTokensConfig() MaxTokensConfig {
-	if ch.redis == nil {
-		return MaxTokensConfig{Models: make(map[string]int)}
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	data, err := ch.redis.Get(ctx, maxTokensConfigKey).Bytes()
-	if err != nil {
+	data, found := ch.getConfigBytes(ctx, maxTokensConfigKey)
+	if !found {
 		return MaxTokensConfig{Models: make(map[string]int)}
 	}
 	var tc MaxTokensConfig

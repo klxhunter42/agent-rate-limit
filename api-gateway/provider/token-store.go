@@ -272,6 +272,45 @@ func (s *TokenStore) getFromPostgres(ctx context.Context, provider, accountID st
 	return &token, nil
 }
 
+// loadFromPostgres is the read-through fallback when the Dragonfly cache is cold
+// or has evicted keys (--cache_mode LRU). Postgres is the source of truth;
+// Dragonfly is a disposable hot cache, so a miss here must never cause missing
+// data, only a brief slowdown. The returned tokens are also written back into
+// Dragonfly so subsequent reads stay fast.
+func (s *TokenStore) loadFromPostgres(ctx context.Context, all bool, provider string) ([]TokenInfo, error) {
+	if s.pg == nil {
+		return nil, nil
+	}
+	var rows []store.AccountRow
+	var err error
+	if all {
+		rows, err = s.pg.ListAllAccounts(ctx)
+	} else {
+		rows, err = s.pg.ListAccountsByProvider(ctx, provider)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("pg list accounts: %w", err)
+	}
+
+	tokens := make([]TokenInfo, 0, len(rows))
+	pipe := s.client.Pipeline()
+	for i := range rows {
+		t := accountRowToTokenInfo(&rows[i])
+		data, _ := json.Marshal(t)
+		pipe.Set(ctx, t.redisKey(), data, 0)
+		pipe.SAdd(ctx, tokenKeyPrefix+t.Provider+":_index", t.AccountID)
+		tokens = append(tokens, t)
+	}
+	if _, err := pipe.Exec(ctx); err != nil && err != redis.Nil {
+		// Best-effort: serve from Postgres even if cache rehydration partially failed.
+		slog.Warn("token store: cache rehydrate failed, serving from postgres", "error", err)
+	}
+	if len(tokens) > 0 {
+		slog.Info("token store: cold cache, rehydrated from postgres", "count", len(tokens), "all", all)
+	}
+	return tokens, nil
+}
+
 func accountRowToTokenInfo(r *store.AccountRow) TokenInfo {
 	t := TokenInfo{
 		AccessToken:  r.AccessToken,
@@ -351,7 +390,8 @@ func (s *TokenStore) ListByProvider(provider string) ([]TokenInfo, error) {
 		return nil, fmt.Errorf("redis smembers: %w", err)
 	}
 	if len(ids) == 0 {
-		return nil, nil
+		// Cold cache: read through from Postgres and rehydrate.
+		return s.loadFromPostgres(ctx, false, provider)
 	}
 
 	// Pipeline all GETs to avoid N+1 round trips.
@@ -378,6 +418,10 @@ func (s *TokenStore) ListByProvider(provider string) ([]TokenInfo, error) {
 			continue
 		}
 		tokens = append(tokens, t)
+	}
+	// Index existed but every key missed (LRU eviction under --cache_mode): fall back.
+	if len(tokens) == 0 {
+		return s.loadFromPostgres(ctx, false, provider)
 	}
 	return tokens, nil
 }
@@ -407,6 +451,10 @@ func (s *TokenStore) ListAll() ([]TokenInfo, error) {
 	}
 	if err := iter.Err(); err != nil {
 		return nil, fmt.Errorf("redis scan: %w", err)
+	}
+	// Cold cache: read through from Postgres and rehydrate.
+	if len(tokens) == 0 {
+		return s.loadFromPostgres(ctx, true, "")
 	}
 	return tokens, nil
 }
@@ -565,7 +613,23 @@ func (s *TokenStore) GetFromPool(provider string, accountIDs []string) (*TokenIn
 	}
 
 	if len(candidates) == 0 {
-		return nil, nil
+		// Cold cache: read through from Postgres, rehydrate, and retry selection.
+		if s.pg != nil {
+			want := make(map[string]struct{}, len(accountIDs))
+			for _, id := range accountIDs {
+				want[id] = struct{}{}
+			}
+			if loaded, err := s.loadFromPostgres(ctx, false, provider); err == nil {
+				for _, t := range loaded {
+					if _, ok := want[t.AccountID]; ok && !t.Paused && !t.IsExpired() {
+						candidates = append(candidates, t)
+					}
+				}
+			}
+		}
+		if len(candidates) == 0 {
+			return nil, nil
+		}
 	}
 
 	if len(candidates) == 1 {

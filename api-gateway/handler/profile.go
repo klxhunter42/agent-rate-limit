@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/klxhunter/agent-rate-limit/api-gateway/provider"
+	"github.com/klxhunter/agent-rate-limit/api-gateway/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -66,6 +67,15 @@ type ProfileToken struct {
 // ProfileHandler manages profile CRUD against Dragonfly/Redis.
 type ProfileHandler struct {
 	redis *redis.Client
+	pg    store.Store
+}
+
+// SetStore wires the durable Postgres store. When set, profiles and API keys are
+// dual-written and cache misses fall back to Postgres (Dragonfly is disposable).
+func (h *ProfileHandler) SetStore(pg store.Store) {
+	if h != nil {
+		h.pg = pg
+	}
 }
 
 // NewProfileHandler connects to Redis at redisAddr and returns a ready handler.
@@ -528,7 +538,57 @@ func (h *ProfileHandler) List(w http.ResponseWriter, r *http.Request) {
 		profiles = append(profiles, p)
 	}
 
+	// Cold cache: read through from Postgres and rehydrate Redis.
+	if len(profiles) == 0 && h.pg != nil {
+		profiles = h.loadProfilesFromPostgres(ctx)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{"profiles": profiles})
+}
+
+func (h *ProfileHandler) loadProfilesFromPostgres(ctx context.Context) []Profile {
+	rows, err := h.pg.ListProfiles(ctx)
+	if err != nil {
+		slog.Warn("failed to load profiles from postgres", "error", err)
+		return nil
+	}
+	profiles := make([]Profile, 0, len(rows))
+	for _, r := range rows {
+		p := rowToProfile(r)
+		if data, err := json.Marshal(&p); err == nil {
+			_ = h.redis.Set(ctx, profilePrefix+p.Name, data, 0).Err()
+		}
+		profiles = append(profiles, p)
+	}
+	if len(profiles) > 0 {
+		slog.Info("profiles rehydrated from postgres", "count", len(profiles))
+	}
+	return profiles
+}
+
+func (h *ProfileHandler) loadProfileTokensFromPostgres(ctx context.Context, name string) []ProfileToken {
+	rows, err := h.pg.ListProfileAPIKeysByProfile(ctx, name)
+	if err != nil {
+		slog.Warn("failed to load profile tokens from postgres", "profile", name, "error", err)
+		return nil
+	}
+	tokensKey := profileTokensPrefix + name
+	tokens := make([]ProfileToken, 0, len(rows))
+	for _, r := range rows {
+		pt := ProfileToken{
+			KeyName: r.KeyName, Token: r.Token, Profile: r.ProfileName,
+			CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339),
+		}
+		if ptData, err := json.Marshal(pt); err == nil {
+			_ = h.redis.HSet(ctx, tokensKey, r.KeyName, ptData).Err()
+			_ = h.redis.Set(ctx, profileTokenPrefix+r.Token, r.ProfileName, 0).Err()
+		}
+		tokens = append(tokens, pt)
+	}
+	if len(tokens) > 0 {
+		slog.Info("profile tokens rehydrated from postgres", "profile", name, "count", len(tokens))
+	}
+	return tokens
 }
 
 // Create stores a new profile. Returns 409 if name already exists.
@@ -567,7 +627,7 @@ func (h *ProfileHandler) Create(w http.ResponseWriter, r *http.Request) {
 		p.OptimizerOverrides = GetProviderOptimizerDefaults(p.Provider)
 	}
 
-	if err := setProfile(ctx, h.redis, &p); err != nil {
+	if err := h.saveProfile(ctx, &p); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save profile"})
 		return
 	}
@@ -772,7 +832,7 @@ func (h *ProfileHandler) Update(w http.ResponseWriter, r *http.Request) {
 		p.OptimizerOverrides = GetProviderOptimizerDefaults(p.Provider)
 	}
 
-	if err := setProfile(ctx, h.redis, &p); err != nil {
+	if err := h.saveProfile(ctx, &p); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update profile"})
 		return
 	}
@@ -811,6 +871,11 @@ func (h *ProfileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.pg != nil {
+		_ = h.pg.DeleteProfileAPIKeysByProfile(ctx, name)
+		_ = h.pg.DeleteProfile(ctx, name)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": name})
 }
 
@@ -845,6 +910,11 @@ func (h *ProfileHandler) DeleteByName(w http.ResponseWriter, r *http.Request) {
 	if deleted == 0 {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "profile not found: " + req.Name})
 		return
+	}
+
+	if h.pg != nil {
+		_ = h.pg.DeleteProfileAPIKeysByProfile(ctx, req.Name)
+		_ = h.pg.DeleteProfile(ctx, req.Name)
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "name": req.Name})
@@ -900,7 +970,7 @@ func (h *ProfileHandler) Copy(w http.ResponseWriter, r *http.Request) {
 	src.CreatedAt = now
 	src.UpdatedAt = now
 
-	if err := setProfile(ctx, h.redis, src); err != nil {
+	if err := h.saveProfile(ctx, src); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to copy profile"})
 		return
 	}
@@ -996,7 +1066,7 @@ func (h *ProfileHandler) Import(w http.ResponseWriter, r *http.Request) {
 	p.CreatedAt = now
 	p.UpdatedAt = now
 
-	if err := setProfile(ctx, h.redis, &p); err != nil {
+	if err := h.saveProfile(ctx, &p); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to import profile"})
 		return
 	}
@@ -1025,6 +1095,12 @@ func (h *ProfileHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	data, err := h.redis.HGetAll(ctx, tokensKey).Result()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list tokens"})
+		return
+	}
+
+	// Cold cache: read through from Postgres and rehydrate Redis.
+	if len(data) == 0 && h.pg != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"tokens": h.loadProfileTokensFromPostgres(ctx, name)})
 		return
 	}
 
@@ -1132,6 +1208,15 @@ func (h *ProfileHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.pg != nil {
+		if err := h.pg.StoreProfileAPIKey(ctx, store.ProfileAPIKeyRow{
+			Token: token, KeyName: req.KeyName, ProfileName: name,
+			CreatedAt: time.Now().UTC(),
+		}); err != nil {
+			slog.Error("pg store profile api key", "profile", name, "error", err)
+		}
+	}
+
 	slog.Info("profile token generated", "profile", name, "keyName", req.KeyName, "ttl", ttl)
 	writeJSON(w, http.StatusOK, pt)
 }
@@ -1164,6 +1249,10 @@ func (h *ProfileHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 		h.redis.Del(ctx, profileTokenPrefix+pt.Token)
 	}
 	h.redis.HDel(ctx, tokensKey, keyName)
+
+	if h.pg != nil && pt.Token != "" {
+		_ = h.pg.DeleteProfileAPIKey(ctx, pt.Token)
+	}
 
 	slog.Info("profile token revoked", "profile", name, "keyName", keyName)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked", "profile": name, "keyName": keyName})
@@ -1216,4 +1305,67 @@ func setProfile(ctx context.Context, rdb *redis.Client, p *Profile) error {
 		return fmt.Errorf("marshal profile: %w", err)
 	}
 	return rdb.Set(ctx, profilePrefix+p.Name, data, 0).Err()
+}
+
+// saveProfile dual-writes: Dragonfly (hot cache) then Postgres (source of truth).
+func (h *ProfileHandler) saveProfile(ctx context.Context, p *Profile) error {
+	if err := setProfile(ctx, h.redis, p); err != nil {
+		return err
+	}
+	if h.pg != nil {
+		if err := h.pg.StoreProfile(ctx, profileToRow(p)); err != nil {
+			slog.Error("pg store profile", "name", p.Name, "error", err)
+		}
+	}
+	return nil
+}
+
+func profileToRow(p *Profile) store.ProfileRow {
+	row := store.ProfileRow{
+		Name: p.Name, BaseURL: p.BaseURL, APIKey: p.APIKey, Model: p.Model,
+		OpusModel: p.OpusModel, SonnetModel: p.SonnetModel, HaikuModel: p.HaikuModel,
+		Target: p.Target, Provider: p.Provider, AccountIDs: p.AccountIDs,
+		PassthroughAuth: p.PassthroughAuth, MaxThinkingTokens: p.MaxThinkingTokens,
+		CreatedAt: parseProfileTime(p.CreatedAt), UpdatedAt: parseProfileTime(p.UpdatedAt),
+	}
+	if len(p.Targets) > 0 {
+		row.Targets, _ = json.Marshal(p.Targets)
+	}
+	if len(p.OptimizerOverrides) > 0 {
+		row.OptimizerOverrides, _ = json.Marshal(p.OptimizerOverrides)
+	}
+	return row
+}
+
+func rowToProfile(r store.ProfileRow) Profile {
+	p := Profile{
+		Name: r.Name, BaseURL: r.BaseURL, APIKey: r.APIKey, Model: r.Model,
+		OpusModel: r.OpusModel, SonnetModel: r.SonnetModel, HaikuModel: r.HaikuModel,
+		Target: r.Target, Provider: r.Provider, AccountIDs: r.AccountIDs,
+		PassthroughAuth: r.PassthroughAuth, MaxThinkingTokens: r.MaxThinkingTokens,
+	}
+	if len(r.Targets) > 0 {
+		_ = json.Unmarshal(r.Targets, &p.Targets)
+	}
+	if len(r.OptimizerOverrides) > 0 {
+		_ = json.Unmarshal(r.OptimizerOverrides, &p.OptimizerOverrides)
+	}
+	if !r.CreatedAt.IsZero() {
+		p.CreatedAt = r.CreatedAt.UTC().Format(time.RFC3339)
+	}
+	if !r.UpdatedAt.IsZero() {
+		p.UpdatedAt = r.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	return p
+}
+
+func parseProfileTime(s string) time.Time {
+	if s == "" {
+		return time.Now().UTC()
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Now().UTC()
+	}
+	return t
 }
