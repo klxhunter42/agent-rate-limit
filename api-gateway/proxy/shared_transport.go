@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -188,7 +189,7 @@ func getSharedSelectiveRT() http.RoundTripper {
 		var zai http.RoundTripper
 		if os.Getenv("TLS_FINGERPRINT_ENABLED") == "true" {
 			skipTLS := mitmProxyURL != nil || upstreamSkipTLS
-			rt, _ := newAzureTLSRoundTripper(skipTLS, GetMITMProxyURL(), envDurationOr("STREAM_TIMEOUT", 300*time.Second))
+			rt, _ := newAzureTLSRoundTripper(skipTLS, GetMITMProxyURL(), envDurationOr("STREAM_TIMEOUT", 300*time.Second), envIntOr("ZAI_CONCURRENCY_CAP", 5))
 			zai = rt
 			slog.Info("shared transport: azuretls Chrome TLS+HTTP/2 fingerprint enabled for Z.AI hosts")
 		}
@@ -201,6 +202,17 @@ func envDurationOr(name string, def time.Duration) time.Duration {
 	if v := os.Getenv(name); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
+		}
+	}
+	return def
+}
+
+// envIntOr reads a positive int env var (used to size the azuretls session pool
+// to the Z.AI concurrency cap so each in-flight request gets its own Session).
+func envIntOr(name string, def int) int {
+	if v := os.Getenv(name); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
 		}
 	}
 	return def
