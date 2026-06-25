@@ -5,23 +5,30 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	azuretls "github.com/Noooste/azuretls-client"
 )
 
 // azuretlsRT adapts azuretls-client's Session.Do to net/http.RoundTripper.
-// azuretls impersonates Chrome TLS (JA3/JA4) + HTTP/2 (SETTINGS/WINDOW_UPDATE/
-// header-order) fingerprints, replacing the utls http/1.1 path.
+// azuretls impersonates Chrome TLS (JA3/JA4) + HTTP/2 fingerprints.
 //
-// IMPORTANT: a single azuretls Session is NOT safe for concurrent Do() -- it
-// mutates shared Session state (CookieJar, callback/prehook slices, session
-// context). Calling Do() concurrently on one Session races and can wedge the
-// connection under load, which was the root cause of "/v1/messages hangs with
-// no log after high concurrency". We therefore keep a POOL of sessions sized to
-// the Z.AI concurrency cap: each in-flight request checks out its OWN session,
-// so no two goroutines ever share one Session. This restores concurrency
-// (multiple sessions dispatch in parallel) without the race.
+// A single azuretls Session is NOT safe for concurrent use: Do() mutates shared
+// Session state (CookieJar, callback/prehook slices, session context), and with
+// IgnoreBody=true the response body (RawBody) keeps streaming from the Session's
+// connection AFTER Do() returns. So a Session can be in use by an in-flight
+// stream while another Do() starts -- that concurrent use raced and wedged the
+// connection, which was the root cause of "/v1/messages hangs with no log under
+// high concurrency".
+//
+// We therefore keep a POOL of sessions sized to the Z.AI concurrency cap and
+// hold each checked-out Session for the ENTIRE request lifetime (until the
+// response body is Closed), so no two goroutines ever touch one Session -- not
+// during Do(), and not during the streamed body read. This makes a concurrent-
+// use race structurally impossible. Pool size == zai concurrency cap, so the
+// zai pacer upstream already bounds demand to <= poolSize and checkout never
+// starves.
 type azuretlsRT struct {
 	pool     chan *azuretls.Session
 	sessions []*azuretls.Session
@@ -32,10 +39,12 @@ func newAzureTLSSession(skipTLS bool, proxyURL string, headerTimeout time.Durati
 	session.Browser = azuretls.Chrome
 	session.InsecureSkipVerify = skipTLS
 	session.DisableAutoDecompression = true
-	// azuretls defaults TimeOut=30s, which it wires to BOTH TLSHandshakeTimeout
-	// and ResponseHeaderTimeout. 30s is too short for glm-5.2 thinking + long
+	// azuretls defaults TimeOut=30s, wired to BOTH TLSHandshakeTimeout and
+	// ResponseHeaderTimeout. 30s is too short for glm-5.2 thinking + long
 	// Claude Code contexts (header arrives after >30s -> "http2: timeout
 	// awaiting response headers"). Raise to StreamTimeout (default 300s).
+	// This bounds the header wait; the streamed body is bounded by the request
+	// context (client disconnect cancels the underlying http.Request ctx).
 	if headerTimeout <= 0 {
 		headerTimeout = 300 * time.Second
 	}
@@ -99,19 +108,17 @@ func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	areq.SetContext(req.Context())
 
-	// Check out an exclusive session for this call. Blocks (with ctx cancel)
-	// until one is free; bounded by pool size == ZAI concurrency cap, so the
-	// zai pacer semaphore upstream already throttles demand to <= poolSize.
+	// Check out an exclusive session for this entire request (Do + body read).
 	var s *azuretls.Session
 	select {
 	case s = <-a.pool:
-		defer func() { a.pool <- s }()
 	case <-req.Context().Done():
 		return nil, req.Context().Err()
 	}
 
 	resp, err := s.Do(areq)
 	if err != nil {
+		a.put(s) // no body to stream -> release immediately
 		return nil, err
 	}
 
@@ -121,9 +128,15 @@ func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
 		hdr[k] = vv
 	}
 
-	body := resp.RawBody
-	if body == nil {
+	// Hold the Session until the body is fully read/closed: RawBody streams from
+	// the Session's connection, so releasing earlier would let another request
+	// reuse this Session mid-stream (the concurrent-use race). Release on Close.
+	var body io.ReadCloser
+	if resp.RawBody != nil {
+		body = &sessionBody{ReadCloser: resp.RawBody, release: func() { a.put(s) }}
+	} else {
 		body = io.NopCloser(bytes.NewReader(resp.Body))
+		a.put(s) // eager body already materialized -> safe to release now
 	}
 
 	return &http.Response{
@@ -137,6 +150,32 @@ func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
 		ContentLength: resp.ContentLength,
 		Request:       req,
 	}, nil
+}
+
+// put returns a session to the pool. Non-blocking: the pool is buffered to its
+// size and each checkout pairs with exactly one release (guarded by sync.Once
+// on the body path), so there is always room -- the default guards against any
+// future double-release leaking a deadlock rather than a session.
+func (a *azuretlsRT) put(s *azuretls.Session) {
+	select {
+	case a.pool <- s:
+	default:
+	}
+}
+
+// sessionBody releases the pooled azuretls Session back exactly once when the
+// response body is closed, so a Session is never reused while its stream is
+// still being read.
+type sessionBody struct {
+	io.ReadCloser
+	once    sync.Once
+	release func()
+}
+
+func (b *sessionBody) Close() error {
+	err := b.ReadCloser.Close()
+	b.once.Do(b.release)
+	return err
 }
 
 // selectiveRoundTripper routes Z.AI hosts to the azuretls fingerprint transport
