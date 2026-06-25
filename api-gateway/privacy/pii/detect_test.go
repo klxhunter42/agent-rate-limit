@@ -66,7 +66,7 @@ func TestRegexDetector_Detect(t *testing.T) {
 	})
 
 	t.Run("IPv4 detection", func(t *testing.T) {
-		result := d.Detect("Server at 192.168.1.1 is down")
+		result := d.Detect("Server at 8.8.8.8 is down")
 		assert.True(t, result.HasPII)
 		found := false
 		for _, e := range result.Entities {
@@ -121,7 +121,7 @@ func TestRegexDetector_Detect(t *testing.T) {
 	})
 
 	t.Run("IP in URL still detected", func(t *testing.T) {
-		result := d.Detect("https://192.168.1.1:8080/api/v1/messages")
+		result := d.Detect("https://8.8.8.8:8080/api/v1/messages")
 		found := false
 		for _, e := range result.Entities {
 			if e.EntityType == "IP_ADDRESS" {
@@ -129,6 +129,26 @@ func TestRegexDetector_Detect(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "IP inside URL should still be detected")
+	})
+
+	t.Run("private/internal IPs not masked", func(t *testing.T) {
+		for _, ip := range []string{"10.226.23.0", "192.168.1.1", "172.16.5.4", "127.0.0.1", "169.254.1.1", "100.64.0.1"} {
+			result := d.Detect("host " + ip + " here")
+			for _, e := range result.Entities {
+				assert.NotEqual(t, "IP_ADDRESS", e.EntityType, "private/internal IP must not be masked: "+ip)
+			}
+		}
+	})
+
+	t.Run("public IP still masked", func(t *testing.T) {
+		result := d.Detect("upstream 8.8.8.8 reachable")
+		found := false
+		for _, e := range result.Entities {
+			if e.EntityType == "IP_ADDRESS" {
+				found = true
+			}
+		}
+		assert.True(t, found, "public IP should still be masked")
 	})
 
 	t.Run("phone outside URL still detected", func(t *testing.T) {

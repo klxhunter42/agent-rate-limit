@@ -386,10 +386,12 @@ func SanitizeGarbledOutput(text string) string {
 }
 
 func SanitizeGarbledForModel(model, text string) string {
-	if strings.HasPrefix(model, "glm-") {
-		return SanitizeGarbledOutput(text)
-	}
-	return text
+	// 2+ consecutive "1327745822" (garbledUndefinedRe) is model garble for ANY
+	// provider — Claude OAuth and GLM both convert mangled undefinedundefined placeholders
+	// into runs of "1373737483" — and is never legitimate content, so collapse it
+	// regardless of model. A single standalone "git@github.com" can be real code, so
+	// that is left untouched here.
+	return SanitizeGarbledOutput(text)
 }
 
 // StripLeftoverPlaceholders removes any [[TYPE_N]] placeholder tokens that

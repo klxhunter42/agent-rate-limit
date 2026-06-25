@@ -13,7 +13,7 @@ func TestRoundtrip_IPAddress(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.PIIEnabled = true
 
-	body := makeBody("The server at 192.168.1.100 is down")
+	body := makeBody("The server at 9.9.9.1 is down")
 
 	p := NewPipeline(cfg, nil)
 	result, err := p.MaskRequest(body)
@@ -43,7 +43,7 @@ func TestRoundtrip_IPAddress(t *testing.T) {
 		unmaskedStr := string(unmasked)
 		t.Logf("unmasked: %s", unmaskedStr)
 		assert.NotContains(t, unmaskedStr, ph, "placeholder should not survive unmask")
-		assert.Contains(t, unmaskedStr, "192.168.1.100", "original IP should be restored")
+		assert.Contains(t, unmaskedStr, "9.9.9.1", "original IP should be restored")
 
 		// Verify JSON is still valid
 		var parsed map[string]any
@@ -65,7 +65,7 @@ func TestRoundtrip_IPAddress(t *testing.T) {
 		t.Logf("full output: %s", fullOutput)
 
 		assert.NotContains(t, fullOutput, ph, "placeholder should not survive streaming unmask")
-		assert.Contains(t, fullOutput, "192.168.1.100", "original IP should be restored")
+		assert.Contains(t, fullOutput, "9.9.9.1", "original IP should be restored")
 	})
 
 	// Test streaming unmask - placeholder split across chunks
@@ -92,7 +92,7 @@ func TestRoundtrip_IPAddress(t *testing.T) {
 		t.Logf("full output: %s", fullOutput)
 
 		assert.NotContains(t, fullOutput, ph, "placeholder should not survive split streaming unmask")
-		assert.Contains(t, fullOutput, "192.168.1.100", "original IP should be restored")
+		assert.Contains(t, fullOutput, "9.9.9.1", "original IP should be restored")
 	})
 
 	// Test streaming unmask - placeholder split at "[[" boundary
@@ -119,7 +119,7 @@ func TestRoundtrip_IPAddress(t *testing.T) {
 		t.Logf("full output: %s", fullOutput)
 
 		assert.NotContains(t, fullOutput, ph, "placeholder should not survive bracket-split unmask")
-		assert.Contains(t, fullOutput, "192.168.1.100", "original IP should be restored")
+		assert.Contains(t, fullOutput, "9.9.9.1", "original IP should be restored")
 	})
 }
 
@@ -127,7 +127,7 @@ func TestRoundtrip_IPAddress_StreamingJSON(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.PIIEnabled = true
 
-	body := makeBody("Server 10.0.0.5 has issue")
+	body := makeBody("Server 9.9.9.2 has issue")
 	p := NewPipeline(cfg, nil)
 	result, err := p.MaskRequest(body)
 	assert.NoError(t, err)
@@ -165,7 +165,7 @@ func TestRoundtrip_IPAddress_StreamingJSON(t *testing.T) {
 		fullText := evt.Delta.Text + flushed
 
 		assert.NotContains(t, fullText, ph)
-		assert.Contains(t, fullText, "10.0.0.5")
+		assert.Contains(t, fullText, "9.9.9.2")
 	})
 
 	t.Run("anthropic_sse_thinking", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestRoundtrip_IPAddress_StreamingJSON(t *testing.T) {
 		fullText := out + flushed
 
 		assert.NotContains(t, fullText, ph)
-		assert.Contains(t, fullText, "10.0.0.5")
+		assert.Contains(t, fullText, "9.9.9.2")
 	})
 
 	t.Run("anthropic_sse_partial_json", func(t *testing.T) {
@@ -188,7 +188,7 @@ func TestRoundtrip_IPAddress_StreamingJSON(t *testing.T) {
 		t.Logf("partial_json: %q -> %q", partial, out)
 
 		assert.NotContains(t, out, ph)
-		assert.Contains(t, out, "10.0.0.5")
+		assert.Contains(t, out, "9.9.9.2")
 	})
 }
 
@@ -196,7 +196,7 @@ func TestRoundtrip_IPAddress_MultipleIPs(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.PIIEnabled = true
 
-	content := "From 192.168.1.1 to 10.0.0.5 via 172.16.0.1"
+	content := "From 9.9.9.3 to 9.9.9.2 via 9.9.9.4"
 	body := makeBody(content)
 
 	p := NewPipeline(cfg, nil)
@@ -224,8 +224,8 @@ func TestRoundtrip_IPAddress_MultipleIPs(t *testing.T) {
 	for ph := range result.PIICtx.Mapping {
 		assert.NotContains(t, unmaskedStr, ph, "placeholder %s survived", ph)
 	}
-	assert.Contains(t, unmaskedStr, "192.168.1.1")
-	assert.Contains(t, unmaskedStr, "10.0.0.5")
+	assert.Contains(t, unmaskedStr, "9.9.9.3")
+	assert.Contains(t, unmaskedStr, "9.9.9.2")
 
 	// Streaming
 	unmasker := p.NewStreamUnmasker(result)
@@ -244,7 +244,7 @@ func TestRoundtrip_IPAddress_WithSecrets(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.PIIEnabled = true
 
-	content := `DB_HOST=192.168.1.100 SECRET='mysecret12345678'`
+	content := `DB_HOST=9.9.9.1 SECRET='mysecret12345678'`
 	body := makeBody(content)
 
 	p := NewPipeline(cfg, nil)

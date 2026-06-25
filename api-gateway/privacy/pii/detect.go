@@ -2,11 +2,33 @@ package pii
 
 import (
 	"log/slog"
+	"net"
 	"regexp"
 	"time"
 
 	"github.com/klxhunter/agent-rate-limit/api-gateway/privacy/masking"
 )
+
+// maskableIP reports whether an IPv4 string is a public address worth masking.
+// Private/loopback/link-local/CGNAT/unspecified ranges are internal infra, not
+// personal data: masking them yields no privacy benefit, breaks tooling that
+// parses them (CIDR checks), and is the main trigger for "10.226.23.0" placeholder
+// corruption when a model fails to echo the undefinedundefinedundefined token verbatim.
+func maskableIP(s string) bool {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return true // not parseable as a bare IP; let the regex match stand
+	}
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return false
+	}
+	// 100.64.0.0/10 carrier-grade NAT (shared address space, RFC 6598)
+	if ip4 := ip.To4(); ip4 != nil && ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127 {
+		return false
+	}
+	return true
+}
 
 type DetectResult struct {
 	Entities []masking.PIIEntity
@@ -125,6 +147,9 @@ func (d *RegexDetector) Detect(text string) DetectResult {
 			}
 		case "IP_ADDRESS":
 			for _, m := range ipv4Regex.FindAllStringIndex(text, -1) {
+				if !maskableIP(text[m[0]:m[1]]) {
+					continue // skip private/internal/reserved IPs
+				}
 				entities = append(entities, masking.PIIEntity{
 					EntityType: "IP_ADDRESS",
 					Start:      m[0],
