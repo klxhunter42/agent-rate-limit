@@ -14,15 +14,20 @@ import (
 // azuretls impersonates Chrome TLS (JA3/JA4) + HTTP/2 (SETTINGS/WINDOW_UPDATE/
 // header-order) fingerprints, replacing the utls http/1.1 path.
 //
-// Session.Do delegates to the HTTP/2 transport's RoundTrip, which multiplexes
-// streams on a single connection (HTTP/2 native concurrency) -- so it is safe
-// for concurrent use WITHOUT an external mutex. The earlier per-call mutex
-// serialized all Z.AI traffic onto one stream and was a throughput killer.
+// IMPORTANT: a single azuretls Session is NOT safe for concurrent Do() -- it
+// mutates shared Session state (CookieJar, callback/prehook slices, session
+// context). Calling Do() concurrently on one Session races and can wedge the
+// connection under load, which was the root cause of "/v1/messages hangs with
+// no log after high concurrency". We therefore keep a POOL of sessions sized to
+// the Z.AI concurrency cap: each in-flight request checks out its OWN session,
+// so no two goroutines ever share one Session. This restores concurrency
+// (multiple sessions dispatch in parallel) without the race.
 type azuretlsRT struct {
-	session *azuretls.Session
+	pool     chan *azuretls.Session
+	sessions []*azuretls.Session
 }
 
-func newAzureTLSRoundTripper(skipTLS bool, proxyURL string, headerTimeout time.Duration) (http.RoundTripper, func()) {
+func newAzureTLSSession(skipTLS bool, proxyURL string, headerTimeout time.Duration) *azuretls.Session {
 	session := azuretls.NewSession()
 	session.Browser = azuretls.Chrome
 	session.InsecureSkipVerify = skipTLS
@@ -40,8 +45,28 @@ func newAzureTLSRoundTripper(skipTLS bool, proxyURL string, headerTimeout time.D
 			slog.Warn("zai-azuretls: set proxy failed", "error", err, "proxy", proxyURL)
 		}
 	}
-	rt := &azuretlsRT{session: session}
-	return rt, func() { session.Close() }
+	return session
+}
+
+func newAzureTLSRoundTripper(skipTLS bool, proxyURL string, headerTimeout time.Duration, poolSize int) (http.RoundTripper, func()) {
+	if poolSize < 1 {
+		poolSize = 1
+	}
+	rt := &azuretlsRT{
+		pool:     make(chan *azuretls.Session, poolSize),
+		sessions: make([]*azuretls.Session, 0, poolSize),
+	}
+	for i := 0; i < poolSize; i++ {
+		s := newAzureTLSSession(skipTLS, proxyURL, headerTimeout)
+		rt.sessions = append(rt.sessions, s)
+		rt.pool <- s
+	}
+	slog.Info("zai-azuretls: session pool created", "size", poolSize)
+	return rt, func() {
+		for _, s := range rt.sessions {
+			s.Close()
+		}
+	}
 }
 
 func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -74,7 +99,18 @@ func (a *azuretlsRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	areq.SetContext(req.Context())
 
-	resp, err := a.session.Do(areq)
+	// Check out an exclusive session for this call. Blocks (with ctx cancel)
+	// until one is free; bounded by pool size == ZAI concurrency cap, so the
+	// zai pacer semaphore upstream already throttles demand to <= poolSize.
+	var s *azuretls.Session
+	select {
+	case s = <-a.pool:
+		defer func() { a.pool <- s }()
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
+
+	resp, err := s.Do(areq)
 	if err != nil {
 		return nil, err
 	}
