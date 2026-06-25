@@ -281,7 +281,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (detector, severity) (rate(api_gateway_waste_findings_total[$__interval])))",
+          "expr": "(sum by (detector, severity) (rate(api_gateway_waste_findings_total[$__rate_interval])))",
           "legendFormat": "{{detector}} ({{severity}})",
           "refId": "A"
         }

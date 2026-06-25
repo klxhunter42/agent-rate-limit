@@ -263,7 +263,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (path) (rate(api_gateway_billing_path_requests_total[$__interval])))",
+          "expr": "(sum by (path) (rate(api_gateway_billing_path_requests_total[$__rate_interval])))",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -694,17 +694,17 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.50, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__rate_interval]))))",
           "legendFormat": "p50 {{path}}",
           "refId": "A"
         },
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.95, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__rate_interval]))))",
           "legendFormat": "p95 {{path}}",
           "refId": "B"
         },
         {
-          "expr": "(histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.99, sum by (le, path) (rate(api_gateway_billing_path_latency_seconds_bucket[$__rate_interval]))))",
           "legendFormat": "p99 {{path}}",
           "refId": "C"
         }
@@ -757,7 +757,7 @@
       },
       "targets": [
         {
-          "expr": "(sum(rate(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__interval]))) or on() vector(0)",
+          "expr": "(sum(rate(api_gateway_billing_path_requests_total{path=\"go_direct\"}[$__rate_interval]))) or on() vector(0)",
           "legendFormat": "requests",
           "refId": "A"
         }
@@ -800,12 +800,12 @@
       },
       "targets": [
         {
-          "expr": "(sum by (profile) (rate(api_gateway_profile_token_input_total[$__interval])))",
+          "expr": "(sum by (profile) (rate(api_gateway_profile_token_input_total[$__rate_interval])))",
           "legendFormat": "{{profile}} in",
           "refId": "A"
         },
         {
-          "expr": "(sum by (profile) (rate(api_gateway_profile_token_output_total[$__interval])))",
+          "expr": "(sum by (profile) (rate(api_gateway_profile_token_output_total[$__rate_interval])))",
           "legendFormat": "{{profile}} out",
           "refId": "B"
         }
@@ -858,7 +858,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_429_total[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_upstream_429_total[$__rate_interval]) or on() vector(0)",
           "legendFormat": "429/s",
           "refId": "A"
         }
@@ -904,7 +904,7 @@
       },
       "targets": [
         {
-          "expr": "rate(api_gateway_upstream_retries_total[$__interval]) or on() vector(0)",
+          "expr": "rate(api_gateway_upstream_retries_total[$__rate_interval]) or on() vector(0)",
           "legendFormat": "retries/s",
           "refId": "A"
         }
@@ -950,12 +950,12 @@
       },
       "targets": [
         {
-          "expr": "(histogram_quantile(0.50, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.50, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval]))))",
           "legendFormat": "p50 {{model}}",
           "refId": "A"
         },
         {
-          "expr": "(histogram_quantile(0.95, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__interval]))))",
+          "expr": "(histogram_quantile(0.95, sum by (le, model) (rate(api_gateway_ttfb_seconds_bucket[$__rate_interval]))))",
           "legendFormat": "p95 {{model}}",
           "refId": "B"
         }
@@ -1008,7 +1008,7 @@
       },
       "targets": [
         {
-          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__interval])) * 3600)",
+          "expr": "(sum by (profile, model) (rate(api_gateway_profile_cost_total[$__rate_interval])) * 3600)",
           "legendFormat": "{{model}} $/hr",
           "refId": "A"
         }

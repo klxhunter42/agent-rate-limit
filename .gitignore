@@ -36,3 +36,7 @@ api-gateway/config/session_secret
 *.pem
 
 litellm_bkbin/
+
+# Playwright MCP artifacts (browser snapshots/screenshots)
+.playwright-mcp/
+dash-*.yml
