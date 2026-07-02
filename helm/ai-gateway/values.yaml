@@ -367,6 +367,9 @@ secrets:
   dashboardPassword: "devopscore"
   mitmwebPassword: "devopscore"
   postgresPassword: "arlsecret"
+  # mitmwebPassword: plaintext secret for the mitmweb UI. The mitmweb container
+  # derives an argon2id hash at startup, so plaintext never reaches the process
+  # args. Empty = mitmweb locks to a random token.
   cosAccessKeyId: ""
   cosSecretAccessKey: ""
 
