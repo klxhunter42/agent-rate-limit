@@ -44,10 +44,10 @@
 	handle_path /rl/* {
 		reverse_proxy arl-rl-dashboard:8080
 	}
-	@mitmweb path /mitmweb /mitmweb/*
-	handle @mitmweb {
+	handle_path /mitmweb/* {
 		reverse_proxy arl-mitmweb:8081
 	}
+	redir /mitmweb /mitmweb/
 	handle {
 		reverse_proxy arl-gateway:8080
 	}

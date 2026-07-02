@@ -433,23 +433,25 @@ services:
       - arl-network
 
   # --- mitmproxy (always-on, default pass-through) ---
+  # Served at root "/" by mitmweb; path prefix (MITMWEB_PATH) is handled by Caddy
+  # via handle_path (strip prefix). Auth uses web_password verbatim from env
+  # (login form, or `?token=<password>` / `Authorization: Bearer <password>`).
   arl-mitmweb:
     image: mitmproxy/mitmproxy:12.2
     container_name: arl-mitmweb
+    environment:
+      MITMWEB_PASSWORD: ${MITMWEB_PASSWORD:-}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         exec python3 -c "
-        import re, mitmproxy.tools.web.app as _app, tornado.web
-        _orig_init = _app.Application.__init__
-        def _patched_init(self, master, debug):
-            _app.handlers[:] = [(re.sub(r'^(/)', r'/mitmweb\1', p), h) for p, h in _app.handlers] + [(r'/mitmweb', _app.handlers[0][1])]
-            _orig_init(self, master, debug)
-            self.settings['static_url_prefix'] = '/mitmweb/static/'
-            self.add_handlers('.*$', [(r'/mitmweb/static/(.*)', tornado.web.StaticFileHandler, {'path': self.settings['static_path']})])
-        _app.Application.__init__ = _patched_init
+        import os
         from mitmproxy.tools.main import mitmweb
-        mitmweb(['--set', 'web_password=test', '--web-port', '8081', '--listen-host', '0.0.0.0', '--listen-port', '8083', '--ssl-insecure', '--web-host', '0.0.0.0', '--set', 'web_open_browser=false'])
+        args = ['--web-port', '8081', '--listen-host', '0.0.0.0', '--listen-port', '8083', '--ssl-insecure', '--web-host', '0.0.0.0', '--set', 'web_open_browser=false']
+        pw = os.environ.get('MITMWEB_PASSWORD', '')
+        if pw:
+            args += ['--set', 'web_password=' + pw]
+        mitmweb(args)
         "
     networks:
       - arl-network
